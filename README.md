@@ -6,6 +6,7 @@
 
 1. [从大模型到 AI Agent](docs/01-agent-foundations.md)
 2. [Agent 的现代系统架构](docs/02-agent-architecture.md)
+3. [Tools、Skills、Agents、Workflows 与 AGENTS.md](docs/03-agentic-building-blocks.md)
 
 ## 知识图谱
 
