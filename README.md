@@ -8,6 +8,7 @@
 2. [Agent 的现代系统架构](docs/02-agent-architecture.md)
 3. [Tools、Skills、Agents、Workflows 与 AGENTS.md](docs/03-agentic-building-blocks.md)
 4. [Agent 设计范式](docs/04-agent-design-patterns.md)
+5. [Agent 的模型推理与搜索方法](docs/05-agent-reasoning-methods.md)
 
 ## 知识图谱
 
