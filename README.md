@@ -5,6 +5,7 @@
 ## 目录
 
 1. [从大模型到 AI Agent](docs/01-agent-foundations.md)
+2. [Agent 的现代系统架构](docs/02-agent-architecture.md)
 
 ## 知识图谱
 
@@ -26,4 +27,3 @@ flowchart LR
     MCP --> EXT[外部工具与数据]
     A2A --> MULTI[多 Agent 协作]
 ```
-
