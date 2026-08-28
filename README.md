@@ -11,6 +11,7 @@
 5. [Agent 的模型推理与搜索方法](docs/05-agent-reasoning-methods.md)
 6. [复杂任务拆分与调度](docs/06-task-decomposition.md)
 7. [AI Agent 的记忆机制](docs/07-agent-memory.md)
+8. [Agent 长短期记忆系统的工程实现](docs/08-agent-memory-implementation.md)
 
 ## 知识图谱
 
