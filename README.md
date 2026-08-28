@@ -13,6 +13,7 @@
 7. [AI Agent 的记忆机制](docs/07-agent-memory.md)
 8. [Agent 长短期记忆系统的工程实现](docs/08-agent-memory-implementation.md)
 9. [Single-Agent 与 Multi-Agent 系统](docs/09-single-vs-multi-agent.md)
+10. [Agent 记忆与上下文压缩](docs/10-agent-memory-compression.md)
 
 ## 知识图谱
 
