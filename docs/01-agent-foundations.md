@@ -30,15 +30,11 @@ $$
 
 因此，普通大模型主要解决的是：
 
-$$
-\text{输入} \rightarrow \text{内容生成}
-$$
+> **输入 → 内容生成**
 
 而不是：
 
-$$
-\text{目标} \rightarrow \text{现实世界中的任务完成}
-$$
+> **目标 → 现实世界中的任务完成**
 
 ## 1.2 什么是 Agent
 
@@ -46,17 +42,7 @@ AI Agent 是一种以大模型为推理核心，能够围绕目标持续感知�
 
 它的核心并不是某一次回答，而是一个持续运行的闭环：
 
-$$
-\boxed{
-\text{感知}
-\rightarrow
-\text{规划}
-\rightarrow
-\text{行动}
-\rightarrow
-\text{再感知}
-}
-$$
+> **感知 → 规划 → 行动 → 再感知**
 
 设 Agent 在时刻 $t$ 的状态为：
 
@@ -74,23 +60,23 @@ $$
 Agent 根据当前状态制定计划并选择动作：
 
 $$
-P_t=\operatorname{Plan}(S_t)
+P_t=\mathrm{Plan}(S_t)
 $$
 
 $$
-A_t=\operatorname{Act}(S_t,P_t)
+A_t=\mathrm{Act}(S_t,P_t)
 $$
 
 动作改变外部环境，产生新的观察：
 
 $$
-O_{t+1}=\operatorname{Environment}(A_t)
+O_{t+1}=\mathrm{Environment}(A_t)
 $$
 
 随后，Agent 更新自身状态并进入下一轮循环：
 
 $$
-S_{t+1}=\operatorname{Update}(S_t,O_{t+1})
+S_{t+1}=\mathrm{Update}(S_t,O_{t+1})
 $$
 
 直到目标完成、达到资源限制，或者需要人工介入。
@@ -111,11 +97,7 @@ Agent 可以使用的工具包括：
 - 外部 API；
 - 邮件和企业业务系统。
 
-$$
-\text{LLM}+\text{Tools}
-\Rightarrow
-\text{可执行能力}
-$$
+> **LLM + Tools → 可执行能力**
 
 大模型负责理解目标、选择工具和生成参数，工具负责真正改变外部世界。
 
@@ -146,29 +128,13 @@ $$
 
 长期记忆可以存储在关系数据库、文档数据库或向量数据库中，并通过关键词、条件查询或语义检索取回。
 
-$$
-\text{Agent Memory}
-=
-\text{Short-term Memory}
-+
-\text{Long-term Memory}
-$$
+> **Agent Memory = Short-term Memory + Long-term Memory**
 
 ### 1.3.3 多步推理与自我纠错
 
 Agent 能够把复杂目标拆解为多个步骤，并根据执行反馈调整策略：
 
-$$
-\text{执行}
-\rightarrow
-\text{反馈}
-\rightarrow
-\text{分析}
-\rightarrow
-\text{调整}
-\rightarrow
-\text{重试}
-$$
+> **执行 → 反馈 → 分析 → 调整 → 重试**
 
 例如：
 
@@ -179,21 +145,8 @@ $$
 
 这也是 Agent 与固定自动化脚本的重要区别：
 
-$$
-\text{自动化脚本}
-=
-\text{预设流程}
-$$
-
-$$
-\text{Agent}
-=
-\text{目标驱动}
-+
-\text{动态决策}
-+
-\text{反馈调整}
-$$
+- **自动化脚本 = 预设流程**
+- **Agent = 目标驱动 + 动态决策 + 反馈调整**
 
 不过，自我纠错并不意味着 Agent 一定能解决问题。实际系统仍需设置最大重试次数、权限边界、资源预算和人工确认机制。
 
@@ -210,9 +163,7 @@ $$
 
 Anthropic 在 2024 年底提出了 MCP：
 
-$$
-\text{MCP}=\text{Model Context Protocol}
-$$
+**MCP = Model Context Protocol（模型上下文协议）**
 
 MCP 为 AI 应用连接外部工具和数据源提供了标准接口，可以将它类比为 AI 工具生态中的“USB-C 接口”。
 
@@ -240,17 +191,13 @@ $$
 
 组定制集成，而标准化之后可以分别实现为：
 
-$$
-N\text{ 个 MCP Client}+M\text{ 个 MCP Server}
-$$
+**$N$ 个 MCP Client + $M$ 个 MCP Server**
 
 ## 1.6 A2A：连接 Agent 与 Agent
 
 Google 在 2025 年 4 月推出了 A2A：
 
-$$
-\text{A2A}=\text{Agent-to-Agent Protocol}
-$$
+**A2A = Agent-to-Agent Protocol（Agent 间通信协议）**
 
 如果说 MCP 解决的是“Agent 如何调用外部工具”，那么 A2A 解决的就是“Agent 如何发现并与另一个 Agent 协作”。
 
@@ -287,15 +234,7 @@ sequenceDiagram
 
 二者并不是竞争关系，而是位于不同层次的互补协议：
 
-$$
-\boxed{
-\text{Agent 生态}
-=
-\text{MCP 工具连接层}
-+
-\text{A2A Agent 协作层}
-}
-$$
+> **Agent 生态 = MCP 工具连接层 + A2A Agent 协作层**
 
 ```mermaid
 flowchart TB
