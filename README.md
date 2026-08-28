@@ -14,6 +14,7 @@
 8. [Agent 长短期记忆系统的工程实现](docs/08-agent-memory-implementation.md)
 9. [Single-Agent 与 Multi-Agent 系统](docs/09-single-vs-multi-agent.md)
 10. [Agent 记忆与上下文压缩](docs/10-agent-memory-compression.md)
+11. [如何赋予 LLM 与 Agent 规划能力](docs/11-llm-agent-planning.md)
 
 ## 知识图谱
 
