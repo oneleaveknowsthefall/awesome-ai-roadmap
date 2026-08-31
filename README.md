@@ -1,6 +1,8 @@
 # AI 知识图谱
 
-本仓库系统梳理 LLM、Tools、Agent、RAG 与应用框架等 AI 知识。文档采用主题目录、主题索引和章节交叉链接构成的分层结构，便于 GitHub 阅读与 DeepWiki 建立知识关联。
+本仓库系统梳理 LLM、Tools、Agent、RAG 与应用框架等 AI 知识。文档采用主题目录、主题索引和章节交叉链接构成的分层结构，并通过 MkDocs Material 发布为可搜索的 Wiki。
+
+**在线 Wiki：** <https://zongyangbigpolo.github.io/awesome-ai-roadmap/>
 
 > **内容基线：2026-08-31。** 高时效性章节应结合文中链接的官方文档和实际版本再次核验。
 

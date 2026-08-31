@@ -1,0 +1,12 @@
+.md-typeset {
+  font-size: 0.76rem;
+  line-height: 1.75;
+}
+
+.md-typeset table:not([class]) {
+  font-size: 0.68rem;
+}
+
+.md-typeset h1 {
+  font-weight: 700;
+}
