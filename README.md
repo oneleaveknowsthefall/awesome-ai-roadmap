@@ -41,7 +41,7 @@ flowchart TB
 | 协议接口 | Tools 相关知识点 | [`docs/tools/`](docs/tools/README.md) | 已完成 14 章 |
 | 应用架构 | Agent 相关知识点 | [`docs/agent/`](docs/agent/README.md) | 已完成 15 章 |
 | 应用架构 | RAG 相关知识点 | [`docs/rag/`](docs/rag/README.md) | 已完成 20 章 |
-| 框架实现 | LangChain 相关知识点 | [`docs/langchain/`](docs/langchain/README.md) | 规划 12 章，撰写中 |
+| 框架实现 | LangChain 相关知识点 | [`docs/langchain/`](docs/langchain/README.md) | 已完成 12 章 |
 
 完整文档索引与主题间交叉引用约定见 [`docs/README.md`](docs/README.md)。
 
@@ -270,4 +270,44 @@ flowchart TB
     L18 --> L21
     L21 --> L22[22 模型对比与选型]
     L20 --> L22
+```
+
+## LangChain 相关知识点
+
+1. [主流 AI Agent 开发框架概览](docs/langchain/01-agent-frameworks.md)
+2. [Chain 的设计理念与 LCEL](docs/langchain/02-chain-and-lcel.md)
+3. [LangChain v1 的底层架构](docs/langchain/03-langchain-architecture.md)
+4. [用 LangChain 构建 Agent 的核心步骤](docs/langchain/04-build-agent.md)
+5. [为 Agent 注册工具](docs/langchain/05-tool-registration.md)
+6. [短期记忆与长期记忆的实现](docs/langchain/06-memory.md)
+7. [LangChain 与 LlamaIndex 的区别](docs/langchain/07-langchain-vs-llamaindex.md)
+8. [LangChain4j 与 Java 生态](docs/langchain/08-langchain4j.md)
+9. [LangChain 与 LangGraph 的核心区别](docs/langchain/09-langchain-vs-langgraph.md)
+10. [LangGraph 的核心优势与适配场景](docs/langchain/10-langgraph-advantages.md)
+11. [LangChain 大版本升级的核心变化](docs/langchain/11-version-evolution.md)
+12. [Deep Research 的实现逻辑](docs/langchain/12-deep-research.md)
+
+## LangChain 知识图谱
+
+```mermaid
+flowchart TB
+    C1[01 Agent 开发框架概览] --> C2[02 Chain 与 LCEL]
+    C1 --> C7[07 LangChain vs LlamaIndex]
+
+    C2 --> C3[03 v1 底层架构]
+    C3 --> C4[04 构建 Agent 七步]
+    C4 --> C5[05 Tool 注册与工具契约]
+    C4 --> C6[06 短期与长期记忆]
+
+    C3 --> C9[09 LangChain vs LangGraph]
+    C9 --> C10[10 LangGraph 核心优势]
+    C6 --> C10
+    C5 --> C10
+
+    C3 --> C8[08 LangChain4j 与 Java 生态]
+    C2 --> C11[11 版本演进]
+    C9 --> C11
+
+    C10 --> C12[12 Deep Research]
+    C7 --> C12
 ```
