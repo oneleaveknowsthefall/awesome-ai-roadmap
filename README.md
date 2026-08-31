@@ -49,4 +49,4 @@ flowchart TB
 
 ## 文档质量
 
-仓库通过 [文档检查工作流](.github/workflows/docs-quality.yml) 自动检查章节编号、标题、代码与数学围栏、禁用 LaTeX 宏、内部链接和 Mermaid 语法。写作与贡献约定见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+仓库提供 `scripts/check_docs.py` 与 `scripts/check_mermaid.mjs`，用于检查章节编号、标题、代码与数学围栏、禁用 LaTeX 宏、内部链接、导航计数和 Mermaid 语法。写作与贡献约定见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
