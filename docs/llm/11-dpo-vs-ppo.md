@@ -42,7 +42,7 @@ flowchart LR
 **防御手段**：维护一个参考模型（SFT 模型的冻结副本），用 KL 散度约束主模型不要偏离太远。
 
 $$
-\text{objective} = \mathbb{E}\big[r(x,y)\big] - \beta \cdot D_{KL}\big(\pi_\theta \,\|\, \pi_{\text{ref}}\big)
+\mathrm{objective} = \mathbb{E}\big[r(x,y)\big] - \beta \cdot D_{KL}\big(\pi_\theta \,\|\, \pi_{\mathrm{ref}}\big)
 $$
 
 > **KL 散度就像一根绳子**：主模型可以向高分方向移动，但不能走太远。
@@ -70,7 +70,7 @@ value_model     = load_value_model()   # 价值模型（估算未来奖励期望
 直觉上，奖励模型的功能被「**主模型相对于参考模型的概率比值**」完全替代了：
 
 $$
-r(x, y) \;\propto\; \beta \log \frac{\pi_\theta(y \mid x)}{\pi_{\text{ref}}(y \mid x)}
+r(x, y) \;\propto\; \beta \log \frac{\pi_\theta(y \mid x)}{\pi_{\mathrm{ref}}(y \mid x)}
 $$
 
 **如果主模型在某个回答上比参考模型提升了更多概率，那这个回答就被认为更受偏好。**
@@ -131,7 +131,7 @@ GRPO 是 DeepSeek 在 DeepSeekMath 里提出的 PPO 改进版，**核心创新�
 GRPO 的做法是：对一个问题采样 $G$ 个回答（典型 $G=8$），用组内归一化算相对优势：
 
 $$
-A_i = \frac{r_i - \text{mean}(r_1 \dots r_G)}{\text{std}(r_1 \dots r_G)}
+A_i = \frac{r_i - \mathrm{mean}(r_1 \dots r_G)}{\mathrm{std}(r_1 \dots r_G)}
 $$
 
 **组内平均分充当了 Value Model 的角色**，这个基线天然就有，不用单独训练。

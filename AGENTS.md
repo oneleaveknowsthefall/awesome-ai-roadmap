@@ -19,6 +19,7 @@
 
 ## Publishing
 
-- Update the topic `README.md`, `docs/README.md`, and root `README.md` navigation when adding a topic or chapter.
+- Update the topic `README.md` and the chapter count in `docs/README.md` when adding a chapter. The root `README.md` only maintains topic-level navigation.
+- Run `python3 scripts/check_docs.py` and `npm run check:mermaid` before publishing.
 - Commit completed documentation directly and push it to the remote `main` branch.
 - Do not create a pull request unless the user explicitly asks for one.

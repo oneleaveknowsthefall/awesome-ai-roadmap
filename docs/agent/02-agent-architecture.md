@@ -177,6 +177,8 @@ sequenceDiagram
 
 ## 2.5 MCP：标准化工具与上下文连接
 
+> 这里讨论架构集成边界；MCP 协议本身见[Tools：MCP](../tools/04-what-is-mcp.md)，需要跨系统 Agent 协作时见[Tools：A2A](../tools/11-a2a-protocol.md)。
+
 MCP（Model Context Protocol）为 AI 应用连接工具和数据源提供了标准协议。
 
 MCP 最初由 Anthropic 在 2024 年提出，2025 年 12 月成为 Linux 基金会旗下 Agentic AI Foundation 的创始项目。基金会提供厂商中立的组织治理，协议的技术方向仍由 MCP 社区维护者管理。

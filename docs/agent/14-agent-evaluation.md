@@ -138,30 +138,36 @@ flowchart TB
 最基础的指标。设评测集有 $N$ 个任务，第 $i$ 个任务的判定函数为 $s_i \in \lbrace 0, 1 \rbrace$，则：
 
 $$
-\text{SuccessRate} = \frac{1}{N}\sum_{i=1}^{N} s_i
+\mathrm{SuccessRate} = \frac{1}{N}\sum_{i=1}^{N} s_i
 $$
 
 关键在于 $s_i$ 必须由**可执行的断言**给出，而不是人工主观判断或让另一个 LLM 随口评价。
 
-### 14.4.2 pass@k：能不能做对
+### 14.4.2 pass@k：至少一次做对的机会
 
-允许一个任务尝试 $k$ 次，只要有一次成功就算成功。设任务 $i$ 采样 $n$ 次中有 $c_i$ 次成功，无偏估计为：
-
-$$
-\text{pass@}k = \frac{1}{N}\sum_{i=1}^{N}\left[1 - \frac{\binom{n - c_i}{k}}{\binom{n}{k}}\right]
-$$
-
-$\text{pass@}k$ 衡量的是**能力上界**。它适用于有人工审核兜底的场景，比如 Agent 生成三个候选补丁由工程师挑选。
-
-### 14.4.3 pass^k：稳不稳定
-
-这是 Agent 评估中远比 $\text{pass@}k$ 重要、却经常被忽略的指标。它要求同一任务**连续 $k$ 次全部成功**：
+从同一任务的 $n$ 次独立运行中，若有 $c_i$ 次成功，则从其中任选 $k$ 次时“至少一次成功”的无偏估计为：
 
 $$
-\text{pass}\hat{\ }k = \frac{1}{N}\sum_{i=1}^{N} \frac{\binom{c_i}{k}}{\binom{n}{k}}
+\mathrm{pass@}k = \frac{1}{N}\sum_{i=1}^{N}\left(1 - \frac{\binom{n-c_i}{k}}{\binom{n}{k}}\right), \quad n \geq k
 $$
 
-对于无人值守的生产 Agent，$\text{pass}\hat{\ }k$ 才是真正有意义的指标。tau-bench 的实验揭示了一个重要现象：**模型的 $\text{pass@}1$ 看起来不错，但 $k$ 增大时 $\text{pass}\hat{\ }k$ 会急剧下降**，说明 Agent 的行为一致性远低于其单次能力上限。
+它估计的是允许多次尝试并任选一个成功结果时的成功概率，衡量**能力上界**。适用于有人工审核或可安全挑选候选的场景，例如工程师从多个补丁中选择一个。
+
+### 14.4.3 pass^k：连续运行的一致性
+
+令 $p_i$ 为任务 $i$ 的单次成功概率，$\mathrm{pass}^{k}$ 的定义是同一任务独立运行 $k$ 次都成功的平均概率：
+
+$$
+\mathrm{pass}^{k} = \frac{1}{N}\sum_{i=1}^{N}p_i^k
+$$
+
+用同一任务的 $n$ 次观测估计时，$c_i$ 次成功给出的无偏有限样本估计为：
+
+$$
+\widehat{\mathrm{pass}^{k}} = \frac{1}{N}\sum_{i=1}^{N}\frac{\binom{c_i}{k}}{\binom{n}{k}}, \quad n \geq k
+$$
+
+这不是 $\mathrm{pass@}k$，也不写成含糊的 “pass hat k”。对于无人值守生产 Agent，$\mathrm{pass}^{k}$ 才衡量连续可依赖性。tau-bench 的实验揭示：$\mathrm{pass@}1$ 看起来不错时，$k$ 增大，$\mathrm{pass}^{k}$ 仍可能急剧下降，说明行为一致性低于单次能力上限。
 
 ```mermaid
 flowchart LR
@@ -172,7 +178,7 @@ flowchart LR
     U2 --> S2[适用: 无人值守自动化]
 ```
 
-**面试高频追问**：为什么 Agent 的 $\text{pass}\hat{\ }k$ 衰减比普通 LLM 更严重？因为 Agent 是多步执行，每一步的随机性都会累积。设每步正确率为 $p$，$m$ 步任务的成功率约为 $p^m$，$p = 0.95$ 且 $m = 20$ 时成功率仅约 $0.36$。**降低单步方差比提升单步能力更能改善端到端稳定性。**
+**工程审查要点**：为什么 Agent 的 $\mathrm{pass}^{k}$ 衰减比普通 LLM 更严重？因为 Agent 是多步执行，每一步的随机性都会累积。设每步正确率为 $p$，$m$ 步任务的成功率约为 $p^m$，$p = 0.95$ 且 $m = 20$ 时成功率仅约 $0.36$。**降低单步方差比提升单步能力更能改善端到端稳定性。**
 
 ### 14.4.4 轨迹层指标
 
@@ -185,18 +191,32 @@ flowchart LR
 | 循环终止率 | 因触达最大轮次而终止的比例 | 停止条件是否失效 |
 | 恢复率 | 出错后成功自我纠正的比例 | 错误处理是否有效 |
 
-### 14.4.5 成本与延迟
+### 14.4.5 Agentic trajectory：正确、合规且可恢复
+
+最终状态通过不代表轨迹一定可接受。对有副作用的 Agent，评估用例还应断言：
+
+| 维度 | 例子 |
+|---|---|
+| **证据与授权链** | 每次高风险调用能关联用户目标、允许来源和审批记录 |
+| **策略合规** | 未越权、未调用禁用工具，审批发生在执行前 |
+| **状态转移正确性** | 中间写入满足不变量；失败后没有留下半完成或重复副作用 |
+| **恢复与幂等** | 超时/重试后能恢复，重复执行不重复扣款、发信或删除 |
+| **最小充分性** | 在完成任务前提下避免冗余调用、无关数据读取和多余权限 |
+
+轨迹不应与单一“黄金步骤序列”逐字比对；应通过这些可执行约束判断不同合法路径。含检索与引用的 Agent 还应复用 [RAG 评估](../rag/18-rag-evaluation.md) 的 Citation、时效和鲁棒性用例。
+
+### 14.4.6 成本与延迟
 
 $$
-\text{CostPerTask} = \frac{\sum_{i=1}^{N}\left(c_{\text{in}} \cdot T_{\text{in}}^{(i)} + c_{\text{out}} \cdot T_{\text{out}}^{(i)}\right)}{N}
+\mathrm{CostPerTask} = \frac{\sum_{i=1}^{N}\left(c_{\mathrm{in}} \cdot T_{\mathrm{in}}^{(i)} + c_{\mathrm{out}} \cdot T_{\mathrm{out}}^{(i)}\right)}{N}
 $$
 
-其中 $c_{\text{in}}$、$c_{\text{out}}$ 是输入输出单价，$T^{(i)}$ 是任务 $i$ 的 Token 消耗。
+其中 $c_{\mathrm{in}}$、$c_{\mathrm{out}}$ 是输入输出单价，$T^{(i)}$ 是任务 $i$ 的 Token 消耗。
 
 **成本必须和成功率一起报告。** 只报成功率会鼓励无限增加反思轮次和搜索宽度。实践中常用的联合指标是「单位成功任务的成本」：
 
 $$
-\text{CostPerSuccess} = \frac{\text{CostPerTask}}{\text{SuccessRate}}
+\mathrm{CostPerSuccess} = \frac{\mathrm{CostPerTask}}{\mathrm{SuccessRate}}
 $$
 
 即把总成本摊到成功任务上。一个成功率 90% 但单任务成本 0.5 美元的方案，实际优于成功率 95% 但单任务成本 2 美元的方案。同理，延迟应报告 P50 与 P95 而非平均值，因为 Agent 的延迟分布通常是长尾的。
@@ -316,13 +336,13 @@ flowchart LR
 | 字段 | 用途 |
 |---|---|
 | trace_id / span_id | 关联完整调用链 |
-| 每步的 Thought / Action / Observation | 复盘决策过程 |
-| Tool 名称、参数、返回、耗时、是否报错 | 定位组件级问题 |
+| 每步的 Action、Observation、结构化决策理由/状态摘要 | 复盘可审计决策过程；理由必须是显式生成且允许记录的摘要 |
+| Tool 名称、参数、返回、耗时、是否报错 | 定位组件级问题；按敏感级别脱敏与访问控制 |
 | 输入输出 Token 数与模型版本 | 成本归因与版本对比 |
 | 终止原因 | 区分正常完成 / 超轮次 / 超时 / 报错 |
 | 用户反馈信号 | 隐式（是否重问、是否采纳）与显式（点赞点踩） |
 
-**终止原因是最容易被遗漏、但诊断价值最高的字段。** 没有它，「失败率 8%」这个数字无法进一步拆解。
+**不得保存或要求模型暴露隐藏 Thought / 私有 CoT。** 它既不是可靠解释，也可能包含敏感上下文；用工具调用、可见观察、状态变化和专门生成的简短理由摘要完成审计。终止原因同样不能遗漏，否则「失败率 8%」无法进一步拆解。
 
 ### 14.7.2 线上核心监控指标
 
@@ -398,7 +418,7 @@ Agent 评估与 LLM 评估的根本区别在于：评估对象是**轨迹和环�
 
 1. **四层指标**：组件层归因、轨迹层诊断、任务层主指标、系统层监控；
 2. **判定优先级**：程序化断言 > 校准过的 LLM-as-Judge > 人工评估；
-3. **稳定性指标**：无人值守场景看 $\text{pass}\hat{\ }k$ 而非 $\text{pass@}k$；
+3. **稳定性指标**：无人值守场景看 $\mathrm{pass}^{k}$ 而非 $\mathrm{pass@}k$，并验证轨迹的授权、状态转移与恢复；
 4. **成本联合报告**：成功率必须与单位成功成本、P95 延迟一起看；
 5. **分层评测集**：Smoke / Regression / Full 对应不同运行频率，线上失败样例持续回流；
 6. **在线可观测**：完整轨迹落库，终止原因必须记录；
@@ -422,6 +442,6 @@ Agent 评估与 LLM 评估的根本区别在于：评估对象是**轨迹和环�
 - [MLE-bench: Evaluating Machine Learning Agents on Machine Learning Engineering](https://arxiv.org/abs/2410.07095)
 - [Humanity's Last Exam](https://arxiv.org/abs/2501.14249)
 - [AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents](https://arxiv.org/abs/2406.13352)
-- [OpenTelemetry: Semantic Conventions for Generative AI](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
+- [OpenTelemetry: Generative AI Semantic Conventions](https://github.com/open-telemetry/semantic-conventions-genai)
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
 - [Anthropic: How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system)

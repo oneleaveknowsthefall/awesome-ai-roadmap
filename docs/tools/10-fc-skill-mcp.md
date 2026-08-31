@@ -65,7 +65,7 @@ flowchart TB
 | MCP | MCP Client ↔ MCP Server | 工具的标准化封装与发现 | 一个工具 / 一组工具 |
 | Skill | Agent ↔ 知识模块 | 流程与标准的可复用封装 | 一类完整任务 |
 
-注意粒度的跨度：「查询订单表」是一个 **MCP 工具**，「代码审查」「数据分析报告」是一个 **Skill**——一个 Skill 内部可能有好几个步骤，每步调用好几个 MCP 工具，每次调用都是一次 Function Calling。
+注意粒度的跨度：「查询订单表」是一个 **MCP 工具**，「代码审查」「数据分析报告」是一个 **Skill**——一个 Skill 内部可能有好几个步骤，每步可调用多个 MCP 工具；由 LLM 驱动时，常以 Function Calling 或结构化输出表达调用意图。
 
 ## 10.3 层级依赖是单向的
 
@@ -85,8 +85,8 @@ flowchart TB
 为什么是这个方向：
 
 - **Function Calling 在最底层**，因为它是模型触发调用的「语言」。没有它，模型无法告诉外部「我要调什么、传什么参数」，上层一切能力都无从谈起；
-- **MCP 依赖 Function Calling**，因为 MCP Server 暴露的工具最终还是要转成 Function Calling 的格式交给模型，由模型来触发。[第六章](06-mcp-vs-function-calling.md) 已经详细拆过这条时序链；
-- **Skill 依赖 MCP 和 Function Calling**，因为 Skill 只是流程说明，执行中每一步要动手时，还是得靠工具。
+- **MCP 可与 Function Calling 配合**：许多 Host 会把 MCP Tool 转成模型 schema，但 MCP 不强制这条适配路径。[第六章](06-mcp-vs-function-calling.md) 详细拆过这条时序链；
+- **Skill 依赖可执行能力而非特定协议**：执行中可使用 MCP、内嵌函数或其他受控集成。
 
 反过来则不成立：**只有 Function Calling 也能工作**（把工具定义硬编码在应用里），**只有 FC + MCP 也能工作**（模型自己临场决定怎么用工具）。Skill 是最上层的增强，不是必需品。
 
@@ -155,7 +155,7 @@ sequenceDiagram
 
 ### 10.6.2 说不清依赖方向
 
-依赖是**单向向下**的：Skill → MCP → Function Calling。能说出「MCP Server 的工具最终还是转成 FC 格式交给模型」，就说明真的理解了。
+更准确的关系是：Skill 编排能力；MCP 标准化一部分能力接入；Function Calling 是模型选择工具时常见的表达层。三者可组合，不构成强制的单向依赖。
 
 ### 10.6.3 认为三者缺一不可
 
@@ -167,7 +167,7 @@ sequenceDiagram
 
 ### 10.6.5 把 MCP 说成「Anthropic 版的 Function Calling」
 
-MCP 不是 FC 的替代实现，而是**建立在 FC 之上**的一层。同一个 MCP Server 可以同时服务于 OpenAI 和 Anthropic 的模型，因为 Client 会把工具定义翻译成各家的 FC 格式。
+MCP 不是 FC 的替代实现，也不建立在 FC 之上。同一个 MCP Server 可以服务不同 Host；当 Host 使用模型工具接口时，可将工具定义翻译成各家的 FC schema，也可采用其他调用路径。
 
 ### 10.6.6 只背概念不讲协作
 
@@ -178,7 +178,7 @@ MCP 不是 FC 的替代实现，而是**建立在 FC 之上**的一层。同一�
 1. **三者是从底到顶的三层，不是竞争方案**；
 2. **主语法可以快速区分**：模型说「我要调」、服务说「我能提供」、手册说「按这个流程做」；
 3. **演进逻辑清晰**：调用协议 → 接入标准化 → 流程复用，每层都是上一层普及后的新痛点；
-4. **依赖单向向下**：Skill → MCP → Function Calling，MCP 的工具最终仍以 FC 格式交给模型；
+4. **可组合而非强制依赖**：Skill 可编排 MCP 或其他能力；MCP Tool 可由 Function Calling、结构化输出或确定性流程触发；
 5. **粒度跨度大**：一次调用 / 一个工具 / 一类完整任务；
 6. **不是缺一不可**：只有 FC 也能工作，MCP 和 Skill 解决的是规模化之后的成本与稳定性问题；
 7. **答题要用完整场景串三层**，比分别给三段定义有说服力得多。

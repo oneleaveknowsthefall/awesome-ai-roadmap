@@ -265,7 +265,7 @@ Token、延迟和干扰都会上升，**必须裁剪/删除/摘要**。
 
 - [LangChain: Short-term Memory](https://docs.langchain.com/oss/python/langchain/short-term-memory)
 - [LangChain: Long-term Memory](https://docs.langchain.com/oss/python/langchain/long-term-memory)
-- [LangGraph 持久化文档](https://langchain-ai.github.io/langgraph/concepts/persistence/)
-- [LangGraph Memory 概念文档](https://langchain-ai.github.io/langgraph/concepts/memory/)
+- [LangGraph 持久化文档](https://docs.langchain.com/oss/python/langgraph/persistence)
+- [LangGraph Store 文档](https://docs.langchain.com/oss/python/langgraph/stores)
 - [LangChain: Middleware](https://docs.langchain.com/oss/python/langchain/middleware)
 - [LangChain v1 迁移指南](https://docs.langchain.com/oss/python/migrate/langchain-v1)

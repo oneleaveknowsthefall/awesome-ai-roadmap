@@ -86,7 +86,7 @@ $H$ 是头数。比如 $d_{model}=512$、$H=8$ 时，$d_k = 64$。
 准备好之后代入注意力公式：
 
 $$
-\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^{T}}{\sqrt{d_k}}\right) V
+\mathrm{Attention}(Q, K, V) = \mathrm{softmax}\!\left(\frac{QK^{T}}{\sqrt{d_k}}\right) V
 $$
 
 ## 2.4 为什么要除以 √d_k
@@ -150,7 +150,7 @@ flowchart TB
 Multi-Head Attention 把 Q/K/V 投影到多个不同子空间（比如 8 个或 32 个头），**每组独立计算注意力，最后把所有头的输出拼接**。
 
 $$
-\text{MultiHead}(Q,K,V) = \text{Concat}(\text{head}_1, \ldots, \text{head}_H) W^{O}
+\mathrm{MultiHead}(Q,K,V) = \mathrm{Concat}(\mathrm{head}_1, \ldots, \mathrm{head}_H) W^{O}
 $$
 
 每个头可以专注捕捉不同类型的语言关联，整体表达能力更强。
@@ -170,7 +170,7 @@ Self-Attention 有一个天然缺陷：**它的计算是对称的，不考虑词
 每个 Transformer 块里除了注意力层，还有一个前馈网络——两层全连接加一个激活函数：
 
 $$
-\text{FFN}(x) = W_2 \cdot \sigma(W_1 x + b_1) + b_2
+\mathrm{FFN}(x) = W_2 \cdot \sigma(W_1 x + b_1) + b_2
 $$
 
 它对**每个位置独立**做非线性变换。两个作用：

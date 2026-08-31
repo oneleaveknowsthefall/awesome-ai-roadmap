@@ -992,6 +992,8 @@ A2A 解决互操作协议，不替代：
 - 费用结算；
 - 结果验证。
 
+A2A 的 binding、Agent Card 与 Task 状态机详见 [Tools：A2A 协议](../tools/11-a2a-protocol.md)；跨组织身份、回调 SSRF、token audience 和 Card 信任边界详见 [Tool Protocol 安全](../tools/15-tool-protocol-security.md)。
+
 ## 13.33 Agent 协作消息 Schema
 
 推荐消息字段：

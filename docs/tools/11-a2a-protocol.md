@@ -54,7 +54,7 @@ Agent A 要把任务委托给 Agent B，前提是它得知道 B 能做什么。
 
 ### 11.2.1 Agent Card
 
-每个 A2A Agent 在一个约定路径发布一份 JSON 名片。规范推荐路径是 `/.well-known/agent-card.json`（早期版本叫 `agent.json`，社区里两种都能看到）：
+Agent Card 是 JSON 能力声明。部署可通过配置、目录或 `/.well-known/agent-card.json` 等发现约定取得它；调用方应使用已知或可信的 Card URL，而非把任意网络位置自动视为可信。
 
 ```json
 {
@@ -90,7 +90,7 @@ Agent A 要把任务委托给 Agent B，前提是它得知道 B 能做什么。
 
 ### 11.2.2 可插拔是这套机制的价值
 
-新加一个 Agent，只需发布它的 Agent Card，调度 Agent 就能自动发现并利用它，**完全不用改调度 Agent 的代码**。
+新加一个 Agent 后，支持相同发现机制的调用方可以读取其 Agent Card 并考虑调用它；是否自动接纳仍应经过信任、认证和策略检查。
 
 这和 MCP 的 `tools/list` 自动发现是同一个思路——[第四章](04-what-is-mcp.md) 里说过，「自动发现」才是标准化协议真正的价值所在。
 
@@ -124,7 +124,7 @@ stateDiagram-v2
 |---|---|---|
 | **轮询** | 定期查 Task 状态 | 实现简单，任务不多时够用 |
 | **Push Notification** | 接收方完成时主动回调调用方 | 任务多、耗时长，避免空轮询 |
-| **流式（SSE）** | 执行过程中持续推送中间状态 | 需要给用户展示进度 |
+| **流式** | HTTP/JSON-RPC binding 通常用 SSE，gRPC binding 用 server streaming | 需要给用户展示进度 |
 
 ### 11.3.2 黑盒是解耦的意义
 
@@ -138,19 +138,32 @@ stateDiagram-v2
 
 | 微服务 | A2A |
 |---|---|
-| 独立部署的 HTTP 服务 | 独立部署的 Agent |
+| 独立部署的服务（HTTP、gRPC 等） | 独立部署的 Agent |
 | API 文档 / OpenAPI | Agent Card |
 | 服务注册中心的一条记录 | `/.well-known/agent-card.json` |
 | 异步消息队列 | Task 状态机 + Push Notification |
-| 服务间 HTTP 调用 | Agent 间 A2A 调用 |
+| 服务间多种 RPC/HTTP 调用 | Agent 间 A2A 调用 |
 
-每个 A2A Agent 对外就是一个 HTTP 服务，任何支持 A2A 的系统都能发现它、给它派任务、接收结果，**不绑定 AI 框架，不依赖编程语言**。
+一个 A2A Agent 可通过 JSON-RPC、HTTP/REST、gRPC 或协商的 custom binding 暴露服务。兼容调用方可在完成发现、认证和策略检查后提交任务并接收结果；A2A 不绑定特定 AI 框架或编程语言。
 
 这个理念和 MCP 一脉相承：**MCP 让工具成为独立标准化服务，A2A 让 Agent 成为独立标准化服务。**
 
 A2A 由 Google 在 2025 年 4 月提出，同年 6 月捐给 Linux 基金会独立治理——这一步和 MCP 走的路径也很像：先由一家推出，再交给中立组织维护，以争取生态采纳。
 
-## 11.5 A2A 与 MCP：一纵一横
+## 11.5 A2A 的多种 protocol binding
+
+A2A 把**数据模型与操作**和网络 binding 分开。v1.0.0 定义 JSON-RPC、gRPC、HTTP/REST binding，并允许自定义 binding；同一 Task、Message、Part、Artifact 语义不应因 binding 改变。
+
+| binding | 常见用途 | 流式更新 |
+|---|---|---|
+| **JSON-RPC** | 复用 RPC 方法与错误模型 | `message/stream` 使用 SSE |
+| **HTTP/REST** | Web 网关与资源式 HTTP 集成 | SSE 传递 Task/Artifact 更新 |
+| **gRPC** | 强类型服务间调用 | server streaming RPC |
+| **Custom binding** | 双方已协商的特定环境 | 由扩展定义 |
+
+WebSocket **不是 A2A 核心 binding**；需要它的双方可定义 custom binding 或用它承载自己的会话层，但不能据此宣称通用 A2A 互操作。WebRTC 同样不是 A2A binding：A2A 可通过 file URI 或文件 Part 交换音频/视频等内容，实时媒体协商与传输需由应用另行设计。
+
+## 11.6 A2A 与 MCP：一纵一横
 
 理清两者关系最简单的方式是**看方向**：
 
@@ -182,7 +195,7 @@ flowchart TB
 
 复杂系统里两者同时在用：MCP 管纵向连接，A2A 管横向协作。
 
-### 11.5.1 一个自然的推论
+### 11.6.1 一个自然的推论
 
 既然一个 Agent 对外是 A2A 服务、对下用 MCP 连工具，那么**能不能把一个 Agent 直接包装成 MCP Server 给别的 Agent 用**？
 
@@ -193,48 +206,49 @@ flowchart TB
 
 判断依据是：**这个委托更像「调一次接口」还是「派一个活」**。
 
-## 11.6 常见错误
+## 11.7 常见错误
 
-### 11.6.1 把 A2A 当成 MCP 的竞品
+### 11.7.1 把 A2A 当成 MCP 的竞品
 
 这是这道题最大的雷。两者面向的对象完全不同——一个连工具，一个连 Agent。它们互补且常常同时使用。
 
-### 11.6.2 说不出「为什么需要 A2A」
+### 11.7.2 只把 A2A 当成一种 HTTP API
 
-要能说出单 Agent 的三个天花板：工具数量、上下文窗口、专业能力。尤其要说清**上下文隔离**这个收益——中间过程留在子 Agent 内部，调度 Agent 只收结论。
+A2A 定义的是跨实现共享的数据模型、任务生命周期、发现和安全语义，不只是一组 HTTP endpoint。v1.0 提供 JSON-RPC、HTTP/REST、gRPC 和 custom binding；SSE 是相应 binding 的流式承载方式，WebSocket/WebRTC 不属于核心 binding。
 
-### 11.6.3 忽略 Task 状态机的设计动机
+### 11.7.3 忽略 Task 状态机的设计动机
 
 状态机不是为了好看，是因为 A2A 专为**长时间异步任务**设计。同步阻塞的场景根本不需要这么复杂的状态管理。
 
-### 11.6.4 把 A2A 的 skill 和 Agent Skill 混为一谈
+### 11.7.4 把 A2A 的 skill 和 Agent Skill 混为一谈
 
 名字撞车但层次不同：A2A 的 skill 是对外的能力声明条目，Agent Skill 是 Agent 内部的流程知识模块。
 
-### 11.6.5 认为有了 A2A 就必须用 A2A
+### 11.7.5 认为有了 A2A 就必须用 A2A
 
 绝大多数多 Agent 系统跑在**单进程内**（比如 LangGraph 的多节点图），Agent 之间直接传共享状态就行，根本不需要跨进程协议。A2A 的价值出现在**Agent 由不同团队开发、独立部署、跨组织协作**的时候。为一个单进程系统引入 A2A 是过度设计。
 
-### 11.6.6 忽略 Agent Card 的描述质量
+### 11.7.6 忽略 Agent Card 的描述质量
 
 和工具 description 一样，写得含糊的 Agent Card 会导致这个 Agent 要么永远派不到活，要么被派到不该做的活。
 
-## 11.7 本章总结
+## 11.8 本章总结
 
 1. **A2A 解决的是单 Agent 的三个天花板**：工具数量、上下文窗口、专业能力；
 2. **多 Agent 在上下文层面的真正收益是中间过程隔离**，调度 Agent 只收结论不收原始素材；
-3. **Agent Card 实现能力声明与自动发现**，发布在 `/.well-known/agent-card.json`，skills 描述决定路由；
+3. **Agent Card 实现能力声明与发现**；可通过已知 URL、配置或 well-known 约定取得，skills 描述可辅助路由；
 4. **Task 是一等公民**，完整状态机是为异步长任务设计的，支持轮询、回调、流式三种感知方式；
 5. **架构本质是 Agent 的微服务化**：Agent Card 对应 API 文档，Task 状态机对应异步消息队列；
-6. **与 MCP 是一纵一横**：MCP 向下连工具，A2A 向外连 Agent，互补不竞争；
-7. **不是所有多 Agent 系统都需要 A2A**，单进程内协作用共享状态更简单，A2A 面向跨团队跨部署的场景。
+6. **多 binding 保持同一语义**：JSON-RPC、HTTP/REST、gRPC 是核心 binding；SSE 用于相应 binding 的流式更新，WebSocket/WebRTC 不属于核心 binding；
+7. **与 MCP 是一纵一横**：MCP 向下连工具，A2A 向外连 Agent，互补不竞争；
+8. **不是所有多 Agent 系统都需要 A2A**，单进程内协作用共享状态更简单，A2A 面向跨团队跨部署的场景。
 
 > **一句话概括：MCP 让 Agent 有工具箱，A2A 让 Agent 有同事——前者是纵向的能力接入，后者是横向的任务交接。**
 
 ## 参考资料
 
 - [A2A 协议官网](https://a2a-protocol.org/)
-- [A2A 规范](https://a2a-protocol.org/latest/specification/)
+- [A2A v1.0.0 规范](https://a2a-protocol.org/v1.0.0/specification)
 - [Google: Announcing the Agent2Agent Protocol](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/)
 - [Linux Foundation: A2A Project](https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents)
 - [Model Context Protocol 官方文档](https://modelcontextprotocol.io/docs/getting-started/intro)

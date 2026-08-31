@@ -20,4 +20,33 @@
 14. [Agent 评估与 Benchmark](14-agent-evaluation.md)
 15. [Agent 安全与 Prompt Injection](15-agent-security.md)
 
+协议细节不在本目录重复展开：工具发现与连接见[Tools：MCP](../tools/04-what-is-mcp.md)，跨 Agent 互操作见[Tools：A2A](../tools/11-a2a-protocol.md)。
+
+## 知识图谱
+
+```mermaid
+flowchart TB
+    LLM[大语言模型] --> FOUNDATION[01 Agent 基础]
+    FOUNDATION --> ARCH[02 现代系统架构]
+    ARCH --> BUILD[03 构建单元]
+    BUILD --> PATTERN[04 Agent 设计范式]
+    PATTERN --> REASON[05 推理与搜索]
+    REASON --> DECOMP[06 任务拆分]
+    REASON --> PLAN[11 规划能力]
+    PATTERN --> REFLECT[12 反思与验证]
+
+    ARCH --> MEMORY[07 记忆机制]
+    MEMORY --> MEMIMPL[08 长短期记忆实现]
+    MEMIMPL --> COMPRESS[10 上下文压缩]
+
+    DECOMP --> MULTI[09 Single vs Multi-Agent]
+    MULTI --> COORD[13 协作与路由]
+    COORD --> EVAL[14 评估]
+    PLAN --> EVAL
+    REFLECT --> EVAL
+    EVAL --> SEC[15 安全]
+    BUILD --> SEC
+    MEMORY --> SEC
+```
+
 返回[文档主题索引](../README.md)。

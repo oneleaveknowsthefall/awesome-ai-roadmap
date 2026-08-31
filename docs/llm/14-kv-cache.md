@@ -48,7 +48,7 @@ $$
 ### 14.3.1 为什么可以这么做
 
 $$
-\text{Attention}(Q, K, V) = \mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
+\mathrm{Attention}(Q, K, V) = \mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
 $$
 
 注意三件事：
@@ -99,15 +99,15 @@ for step in range(max_tokens):
 速度上去了，代价是显存——**前面所有 token 的 K/V 都要常驻显存**。
 
 $$
-\text{显存} = 2 \times B \times N \times L \times H \times d_k \times 2\ \text{字节}
+M_{\mathrm{KV}} = 2 \times B \times N \times L \times H \times d_k \times 2\ \mathrm{bytes}
 $$
 
 （首个 2 是 K 和 V 各一份，末尾 2 字节是 FP16）
 
-对一个 7B 模型（$L=32$、$H=32$、$d_k=128$），batch=1、$N=32\text{K}$：
+对一个 7B 模型（$L=32$、$H=32$、$d_k=128$），batch=1、$N=32\mathrm{K}$：
 
 $$
-2 \times 1 \times 32000 \times 32 \times 32 \times 128 \times 2 \approx 17\ \text{GB}
+2 \times 1 \times 32000 \times 32 \times 32 \times 128 \times 2 \approx 17\ \mathrm{GB}
 $$
 
 **光 KV Cache 就 17GB，加上权重 14GB 共 31GB，一张 24GB 的 4090 根本放不下。**
@@ -250,13 +250,13 @@ Anthropic 的 ephemeral 缓存默认有效期约 5 分钟，超时没命中就�
 
 **但 KV Cache 对量化误差比权重更敏感**，尤其长链路推理（数学题、代码题）。这仍是研究热点，主流方案还在演进。
 
-### 14.9.2 PagedAttention
+#### 14.9.2 PagedAttention 与 Automatic Prefix Caching
 
 vLLM 的核心创新，**灵感来自操作系统的虚拟内存**。
 
 把 KV Cache 切成固定大小的 Block（典型 16 个 token 一块），每个请求拿到的是逻辑 Block 列表，由一张 Block Table 映射到物理显存。
 
-**效果**：消除了 KV Cache 的显存碎片，部署时显存利用率从 30–40% 拉到 90% 以上。
+PagedAttention 还使前缀块可被安全引用和回收。vLLM 的 **Automatic Prefix Caching（APC）** 会按已计算 token 前缀自动复用 KV block；它不是只属于 SGLang/RadixAttention 的能力。是否命中取决于 token 前缀、缓存容量、淘汰和当前版本配置，应以目标版本文档与压测为准。
 
 ## 14.10 常见错误
 
@@ -304,7 +304,7 @@ K、V 由已有 token 的 embedding 算出、不随新 token 变化；新 token 
 8. **收益是成本与首 token 延迟**，但写入有额外费用，**要 2 次以上命中才划算**；
 9. **最大的工程陷阱是前缀必须完全一致**——固定内容在前、动态内容在后；
 10. **低流量场景可能反而更贵**，因为缓存只有约 5 分钟时效；
-11. **两个进阶方向**：KV Cache 量化（对误差比权重更敏感）与 PagedAttention（显存利用率从 30–40% 提到 90%+）。
+11. **两个进阶方向**：KV Cache 量化（对误差比权重更敏感）与 PagedAttention/APC（降低块管理和重复前缀的开销）。
 
 > **一句话概括：KV Cache 和 Prompt Caching 干的是同一件事——把已经算过的 K/V 留着别扔，区别只在于「留到这次生成结束」还是「留到下一个用户来」。**
 
@@ -317,3 +317,4 @@ K、V 由已有 token 的 embedding 算出、不随新 token 变化；新 token 
 - [OpenAI: Prompt Caching](https://platform.openai.com/docs/guides/prompt-caching)
 - [KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache](https://arxiv.org/abs/2402.02750)
 - [SGLang: Efficient Execution of Structured Language Model Programs](https://arxiv.org/abs/2312.07104)
+- [vLLM: Automatic Prefix Caching](https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/)

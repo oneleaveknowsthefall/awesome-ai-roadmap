@@ -8,11 +8,11 @@
 
 | 痛点 | 表现 |
 |---|---|
-| **① KV Cache 显存碎片严重** | 每个请求预分配「最大可能长度」（如 4096 token）的显存，但实际大多数请求只用 200–500 token。**一台 80GB H100 理论能跑 100 并发，实际只能跑 30，显存浪费 60–70%** |
+| **① KV Cache 显存碎片严重** | 朴素实现可能为请求预留接近最大长度的连续空间，而实际长度短得多，导致可用并发下降 |
 | **② 批量推理调度低效** | Static batching 是「凑齐 N 个请求一起跑、一起结束」。但生成长度差异大（有的 50 token 有的 1000 token），**短请求等长请求，GPU 大量时间跑了一半在等** |
 | **③ 重复计算** | 所有用户共用同一段 1000 token 的 System Prompt，**每次都要重新算它的 KV Cache** |
 
-**所以三大优化方向就是**：内存高效（解决碎片）+ 批量调度（解决吞吐）+ 缓存复用（解决重复计算）。每个主流框架都在攻击其中某个维度。
+**因此常见优化方向是**：内存高效（缓解碎片）+ 批量调度（提高利用率）+ 缓存复用（避免重复计算）。各框架的覆盖与实现随版本变化。
 
 ## 20.2 vLLM：PagedAttention + Continuous Batching
 
@@ -33,9 +33,9 @@ flowchart LR
     style BT fill:#e8f0fe
 ```
 
-一个请求实际用了 200 token 就只占 13 个 Block（$200/16$），**没有「预分配 4096 但只用 200」的浪费**。
+一个请求实际用了 200 token 就只占 13 个 Block（$200/16$），避免了为该请求保留整段 4096-token 连续空间的常见浪费。
 
-> **实测把显存利用率从 30–40% 拉到 90%+，同样硬件下能跑 2–4 倍并发。**
+> 实际收益取决于请求长度分布、block 大小、模型、并发限制和 KV-cache 预算；应使用生产形态的 trace 压测，而非套用固定百分比。
 
 ### 20.2.2 第二个杀手锏：Continuous Batching
 
@@ -49,7 +49,7 @@ t5: A 生成完退出 → 新请求 D 立刻加入
 t8: B 生成完退出 → 新请求 E 加入
 ```
 
-**GPU 一刻不闲，吞吐率比 static batching 高 3–5 倍。**
+它可减少由长度不均造成的空槽时间；吞吐增益取决于到达率、输出长度和调度策略。
 
 > **vLLM = PagedAttention（显存高效）+ Continuous Batching（吞吐高效）**，是当前生产环境部署 LLM API 的常见默认选择。
 
@@ -64,7 +64,7 @@ SGLang 不是要替代 vLLM，而是针对 **vLLM 没解决好的特定场景：
 - **多轮对话历史**：每轮都包含前 N 轮的完整历史；
 - **Agent 工作流**：Agent 多次调用 LLM，每次上下文都从同一个 System Prompt 开始。
 
-**vLLM 的问题**：PagedAttention 虽然显存高效，但**不同请求的 KV Cache 仍然各存各的**。10 个用户都用同样的 1000 token System Prompt，vLLM 要存 10 份相同的 KV Cache。
+**需要更新的说法**：vLLM 不只有 PagedAttention，也提供 **Automatic Prefix Caching（APC）**，可复用相同 token 前缀的 KV block。是否开启、命中和收益依版本、配置及缓存压力而定；不能把「跨请求前缀复用」说成 SGLang 独有。
 
 ### 20.3.2 RadixAttention：用基数树组织 KV Cache
 
@@ -80,31 +80,31 @@ flowchart TB
 
 **多个请求开头 N 个 token 一样，就共享根节点到第 N 层的同一条路径**，第 N+1 层才分叉。
 
-> **显存按「所有请求的并集」算，而不是「各自的和」。** 前缀重复率高时显存能省 50–80%。
+> 前缀树可让共享部分只保留一份；实际节省由前缀重合、驱逐策略和并发共同决定。
 
 ### 20.3.3 更妙的一点：自动复用历史请求
 
-**1 小时前有用户问过相同 System Prompt 的问题，那段 KV Cache 还在显存里**（按 LRU 淘汰），新用户直接复用，省去重新计算的几百毫秒延迟。
+若相同前缀的 KV block 尚未被逐出，后来的请求可复用它们；缓存驻留时长和首 token 延迟收益都由部署配置与负载决定。
 
-实测在 Agent 场景下，**首 token 延迟降低 2–3 倍、吞吐提升 30–50%**。
+SGLang 的 RadixAttention 对高前缀复用工作负载尤其值得评估；vLLM APC、SGLang 与其他运行时都应在同一模型、硬件、并发和 trace 下比较。
 
 > **但要注意：纯单请求、无前缀共享的场景下，SGLang 相对 vLLM 优势不明显。两者是互补关系，不是替代关系。**
 
-## 20.4 TGI：HuggingFace 生态集成方案
+## 20.4 TGI：处于维护模式的 HuggingFace 服务方案
 
-**核心卖点不是绝对性能，而是生态集成 + 企业级特性。**
+Hugging Face 已声明 TGI 进入**维护模式**：接受小型修复、文档和轻量维护工作，并推荐新部署评估 vLLM、SGLang 或本地兼容运行时。现有 TGI 用户仍应按自身版本的支持矩阵维护部署。
 
 | 维度 | 说明 |
 |---|---|
 | **生态集成** | 直接读 HF Hub 模型 ID 自动下载部署，不用手动转格式；支持 safetensors / quantization 配置；兼容 HF tokenizer 和 chat template |
 | **企业级特性** | HTTP / gRPC 双协议、鉴权（API Key / JWT）、Prometheus metrics、健康检查、优雅重启、SSE 流式响应 |
-| **性能** | 也支持连续批处理、量化、流式输出，**但极致吞吐通常不如 vLLM / SGLang** |
+| **能力** | 提供连续批处理、量化和 SSE 流式输出；新项目需将维护状态和目标模型支持纳入选型 |
 
 **适合**：公司本来就用 HuggingFace 全套；需要快速 POC 不想折腾推理框架；模型在 HF Hub 上有现成的；需要企业级可观测性。
 
-## 20.5 llama.cpp：CPU / 边缘设备的事实标准
+## 20.5 llama.cpp：CPU / 边缘设备的常用方案
 
-**核心思路和 vLLM/TGI 完全不同：用纯 C++ 重写整个推理栈，零依赖，最大化 CPU 性能。**
+**核心思路与服务端 GPU 运行时不同**：用 C/C++ 实现轻量推理栈，面向 CPU、Apple Silicon 与边缘场景。
 
 **为什么这么做**——绝大多数个人设备没有独立 GPU：Mac（统一内存架构）、集显笔记本、树莓派 / Jetson、手机。
 
@@ -116,16 +116,16 @@ flowchart TB
 
 | 档位 | 说明 |
 |---|---|
-| Q8_0 | 8-bit，几乎无损 |
+| Q8_0 | 8-bit，通常比更低比特格式保留更多质量 |
 | Q5_K_M | 5-bit，精度和体积平衡 |
-| **Q4_K_M** | 4-bit，**最常用**，体积压到 1/4 |
+| **Q4_K_M** | 4-bit，常见的体积与质量折中 |
 | Q3_K_S | 3-bit，极端压缩，精度有损 |
 
 > **再强调一次：GGUF 是文件格式不是量化算法**（见 [第十五章](15-quantization.md)）。
 
 **② SIMD 优化**
 
-针对各种 CPU 指令集（AVX2、AVX512、ARM NEON）手工优化的矩阵乘法 kernel，**CPU 推理能跑到 GPU 的 30–50%**——不如 GPU，但对个人使用足够。
+针对 AVX2、AVX512、ARM NEON 等指令集提供优化 kernel。CPU 与 GPU 的速度比较高度依赖模型、量化、内存带宽和批量大小，不应使用固定比例。
 
 **③ Metal 后端（Apple Silicon）**
 
@@ -149,7 +149,7 @@ flowchart TB
 | 对每个具体 GPU 型号做硬件级 fine-tuning | **工程门槛高**，需要先编译 engine |
 | 集成 NVIDIA 自家内核库 | **只支持 NVIDIA GPU** |
 | 支持 FP8、INT4 等所有硬件支持的精度 | 文档生态不如开源框架活跃 |
-| **性能通常比 vLLM 再高 10–30%** | |
+| 性能需针对具体 GPU、模型、编译配置和服务负载进行基准测试 | |
 
 **适合**：有 NVIDIA 大集群的大厂、追求极致 GPU 利用率、愿意承担额外工程复杂度。
 
@@ -157,17 +157,17 @@ flowchart TB
 
 | 框架 | 核心创新 | 最佳场景 | 性能 | 生态 |
 |---|---|---|---|---|
-| **vLLM** | PagedAttention + Continuous Batching | 高吞吐 LLM API | 极高 | 开源活跃 |
-| **SGLang** | RadixAttention（共享前缀） | Agent / 多轮 / Few-shot | 特定场景超 vLLM | 较新但快速增长 |
-| **TGI** | HF 生态集成 | 企业级 + HF 生态 | 高 | HF 全家桶 |
-| **llama.cpp** | C++ 重写 + GGUF | CPU / Mac / 边缘 | CPU 上极强 | 个人 / 边缘 |
-| **TensorRT-LLM** | NVIDIA 硬件极致优化 | 大厂 NVIDIA 集群 | 特定硬件上很强 | NVIDIA 官方开源 |
+| **vLLM** | PagedAttention、Continuous Batching、APC | 高吞吐 LLM API 与重复前缀工作负载 | 需实测 | 开源活跃 |
+| **SGLang** | RadixAttention（共享前缀） | Agent / 多轮 / Few-shot | 高前缀复用时值得评估 | 快速演进 |
+| **TGI** | HF 服务生态 | 既有 TGI 部署 | 已进入维护模式 | HF 生态 |
+| **llama.cpp** | C/C++ 推理 + GGUF | CPU / Mac / 边缘 | 需按设备实测 | 个人 / 边缘 |
+| **TensorRT-LLM** | NVIDIA 运行时优化 | NVIDIA 集群 | 需按 engine 与负载实测 | NVIDIA 官方开源 |
 
 ### 20.7.1 四个常见误用
 
 | 误用 | 后果 | 正确做法 |
 |---|---|---|
-| **用 vLLM 跑 Agent 多轮对话** | 前缀重复率高但没有 RadixAttention，每次重算 KV Cache 浪费大量算力 | 改用 SGLang，首 token 延迟降 2–3 倍 |
+| **认为 vLLM 没有前缀复用** | 忽略 APC，导致错误的架构判断 | 查目标版本 APC 配置，并用真实 trace 比较 vLLM 与 SGLang |
 | **用 llama.cpp 做高并发服务** | 批量调度弱，并发上去后吞吐瓶颈 | 生产 API 用 GPU + vLLM |
 | **用 TGI 追求绝对性能** | 瓶颈是 GPU 吞吐时它通常不是第一选择 | 优先评估 vLLM / SGLang / TensorRT-LLM。**具体差距随模型、硬件、量化和 batch 策略变化，别死记固定百分比** |
 | **用 TensorRT-LLM 做快速 POC** | 每个模型 / GPU 组合都要编译 engine | 模型经常换的场景不适合 |
@@ -176,9 +176,9 @@ flowchart TB
 
 ### 20.8.1 显存碎片在长上下文场景还是会出现
 
-PagedAttention **大幅缓解但没有完全消除**。当请求长度极不均匀（有的 100 token、有的 100K token），仍会有 5–10% 碎片。
+PagedAttention **可大幅缓解但不能保证消除**碎片。当请求长度极不均匀时，仍会有尾块、调度和预留空间等开销。
 
-**应对**：监控 GPU 显存利用率，跌破 70% 时考虑加 swap 或调整 `max-model-len`。
+**应对**：监控 GPU 显存、KV-cache 命中率和排队延迟，再结合 trace 调整 `max-model-len`、并发与交换策略。
 
 ### 20.8.2 KV Cache 量化的支持差异大
 
@@ -220,7 +220,7 @@ Agent 前缀重复率极高，SGLang 的 RadixAttention 正是为此而生。
 
 ### 20.9.6 认为 PagedAttention 彻底消除了显存碎片
 
-长度极不均匀时仍有 5–10%。
+长度极不均匀时仍会有尾块、调度和预留空间等开销。
 
 ### 20.9.7 假设所有框架的 KV Cache 量化支持一致
 
@@ -233,15 +233,14 @@ Agent 前缀重复率极高，SGLang 的 RadixAttention 正是为此而生。
 ## 20.10 本章总结
 
 1. **部署框架解决三大痛点**：KV Cache 显存碎片、批量调度低效、共享前缀重复计算；
-2. **vLLM 的 PagedAttention 借鉴操作系统虚拟内存**，Block Table 映射逻辑到物理，显存利用率从 30–40% 提到 90%+；
-3. **Continuous Batching 让请求异步进出**，吞吐比 static batching 高 3–5 倍；
-4. **SGLang 的 RadixAttention 用基数树共享前缀**，前缀重复率高时显存省 50–80%，还能跨请求复用历史 KV Cache；
-5. **Agent、多轮对话、Few-shot 场景是 SGLang 的主场**，首 token 延迟降 2–3 倍；
-6. **但两者是互补不是替代**，无前缀共享时优势不明显；
-7. **TGI 卖生态集成和企业级特性**，不是绝对性能；
-8. **llama.cpp 纯 C++ 重写 + GGUF**，是 CPU / Mac / 边缘的事实标准，但不适合高并发和多卡集群；
-9. **TensorRT-LLM 在 NVIDIA 硬件上性能最强**，代价是要编译 engine、只支持 N 卡；
-10. **三大隐藏陷阱**：长上下文仍有 5–10% 碎片、KV Cache 量化支持差异大、MoE 部署复杂度远高于 Dense。
+2. **vLLM 的 PagedAttention 借鉴操作系统虚拟内存**，Block Table 映射逻辑到物理；APC 可自动复用匹配前缀的 KV block；
+3. **Continuous Batching 让请求异步进出**，可改善长度不均工作负载的利用率；
+4. **SGLang 的 RadixAttention 用基数树共享前缀**，高前缀复用时可减少缓存和 prefill 重算；
+5. **vLLM APC 与 SGLang 都应按实际 trace 评估**，不存在脱离版本与负载的固定胜负；
+6. **TGI 已进入维护模式**；新项目需优先检查目标模型与运行时的当前支持；
+7. **llama.cpp 纯 C++ 实现 + GGUF**，是 CPU / Mac / 边缘的常用方案；高并发和多卡能力应按目标版本实测；
+8. **TensorRT-LLM 针对 NVIDIA 硬件深度优化**，代价是 engine 构建与平台绑定；是否领先取决于模型、硬件、精度与请求负载；
+9. **三大隐藏陷阱**：长上下文仍有碎片与调度开销、KV Cache 量化支持差异大、MoE 部署复杂度通常高于 Dense。
 
 > **一句话概括：部署框架的选型本质是问三个问题——你的显存浪费在哪里、你的 GPU 在等什么、你的请求之间有多少内容是重复的，答案不同就该选不同的框架。**
 
@@ -251,7 +250,9 @@ Agent 前缀重复率极高，SGLang 的 RadixAttention 正是为此而生。
 - [SGLang: Efficient Execution of Structured Language Model Programs（RadixAttention）](https://arxiv.org/abs/2312.07104)
 - [Orca: A Distributed Serving System for Transformer-Based Generative Models（Continuous Batching）](https://www.usenix.org/conference/osdi22/presentation/yu)
 - [vLLM 文档](https://docs.vllm.ai/)
+- [vLLM: Automatic Prefix Caching](https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/)
 - [SGLang 仓库](https://github.com/sgl-project/sglang)
 - [Text Generation Inference 仓库](https://github.com/huggingface/text-generation-inference)
+- [TGI 官方文档（维护模式说明）](https://huggingface.co/docs/text-generation-inference/main/en/index)
 - [llama.cpp 仓库](https://github.com/ggml-org/llama.cpp)
 - [TensorRT-LLM 仓库](https://github.com/NVIDIA/TensorRT-LLM)

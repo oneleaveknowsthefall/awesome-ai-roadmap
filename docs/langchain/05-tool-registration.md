@@ -124,7 +124,7 @@ agent = create_agent(
 | **任务参数** | 城市、关键词、订单号 | **模型**根据用户问题生成 |
 | **可信参数** | 用户 ID、租户、权限、当前状态 | **应用运行时注入** |
 
-### 5.5.2 ToolRuntime 的三个作用域
+### 5.5.2 ToolRuntime 的三个作用域与完整接线
 
 | 来源 | 存放 |
 |---|---|
@@ -135,30 +135,63 @@ agent = create_agent(
 ```python
 from dataclasses import dataclass
 
+from langchain.agents import create_agent
 from langchain.tools import ToolRuntime, tool
+from langgraph.store.memory import InMemoryStore
 
 @dataclass
 class UserContext:
-    # 这些字段由应用运行时提供，不让模型生成
+    """仅由已认证的应用边界创建，绝不从聊天文本或 Tool 参数解析。"""
     user_id: str
-    role: str
+    tenant_id: str
+    permissions: frozenset[str]
 
 @tool
-def get_balance(
-    account_type: str,
+def save_locale(
+    locale: str,
     runtime: ToolRuntime[UserContext],
 ) -> str:
-    """查询当前登录用户的账户余额。"""
-    # 先使用可信 Context 做权限检查
-    if runtime.context.role not in {"user", "finance_admin"}:
-        return "当前用户无权查询余额"
+    """保存当前登录用户的界面语言，如 zh-CN 或 en-US。"""
+    if locale not in {"zh-CN", "en-US"}:
+        return "不支持的语言"
+    if "profile:write" not in runtime.context.permissions:
+        return "当前用户无权修改偏好"
 
-    # 用户 ID 来自 Runtime，而不是模型参数
-    user_id = runtime.context.user_id
-    return f"用户 {user_id} 的 {account_type} 账户余额为 100 元"
+    # namespace 必须包含租户和用户，避免跨租户/跨用户读取长期数据。
+    namespace = ("profile", runtime.context.tenant_id, runtime.context.user_id)
+    runtime.store.put(namespace, "locale", {"value": locale})
+    return f"已保存语言偏好：{locale}"
+
+@tool
+def get_locale(runtime: ToolRuntime[UserContext]) -> str:
+    """读取当前登录用户已保存的界面语言。"""
+    namespace = ("profile", runtime.context.tenant_id, runtime.context.user_id)
+    item = runtime.store.get(namespace, "locale")
+    return item.value["value"] if item else "zh-CN"
+
+store = InMemoryStore()  # 仅为可运行示例；生产环境换成持久化 Store。
+agent = create_agent(
+    model="<provider>:<your-model-id>",
+    tools=[save_locale, get_locale],
+    context_schema=UserContext,
+    store=store,
+)
+
+# Web/API 层先验证 session/JWT，再由服务端构造 Context；不要接受客户端声称的 user_id。
+authenticated_context = UserContext(
+    user_id="u_123",
+    tenant_id="tenant_acme",
+    permissions=frozenset({"profile:write"}),
+)
+result = agent.invoke(
+    {"messages": [{"role": "user", "content": "把我的语言设为 en-US"}]},
+    context=authenticated_context,
+)
 ```
 
-> **模型能够看到并填写 `account_type`，却看不到 `runtime`。** 可信用户身份由应用传入而不是模型生成——**这是工具权限控制的重要边界**。
+`context_schema=UserContext` 是让框架知道 Context 类型的接线；没有它，`ToolRuntime[UserContext]` 只是工具函数的类型标注。模型只能看到 `locale`，看不到 `runtime`、身份或 Store namespace。
+
+> **可信身份边界在 Agent 外部**：认证层验证凭证、查出服务端权限后才构造 `UserContext`。不要从用户消息、模型输出、工具参数或浏览器传入的 `user_id` 创建它；工具服务还应对该身份重新执行授权。`runtime.state` 是当前线程的业务状态，不应用来伪造身份；`runtime.store` 也不是访问控制系统。
 
 ## 5.6 异步工具怎么处理
 
@@ -250,7 +283,7 @@ Trace 要能排查问题，**但不能落密钥和完整身份凭证**。
 3. **`@tool` 是大多数业务工具的首选**，Pydantic 字段描述与枚举既指导模型也拦截非法输入；
 4. **`StructuredTool` 解决运行时组装**（改名、同步异步合一），**`BaseTool` 解决组件生命周期**；
 5. **参数必须二分**：任务参数由模型生成，**可信参数由运行时注入**；
-6. **ToolRuntime 三作用域**：context（调用上下文）、state（会话状态）、store（跨会话长期）；
+6. **ToolRuntime 三作用域**：`context_schema` 定义并接入可信的调用上下文，context（调用上下文）、state（会话状态）、store（跨会话长期）各司其职；
 7. **异步要真异步**，底层客户端、工具、调用链三者一致；
 8. **错误分四类**：参数错误、业务结果、临时故障、真实缺陷——处理方式完全不同；
 9. **有副作用的工具必须幂等 + 审批 + 审计**；
@@ -264,5 +297,5 @@ Trace 要能排查问题，**但不能落密钥和完整身份凭证**。
 - [LangChain: Tools 概念文档](https://docs.langchain.com/oss/python/langchain/tools)
 - [LangChain: Agents 概念文档](https://docs.langchain.com/oss/python/langchain/agents)
 - [LangChain: Middleware](https://docs.langchain.com/oss/python/langchain/middleware)
-- [langchain-core Tools API 参考](https://python.langchain.com/api_reference/core/tools.html)
+- [langchain-core Tools API 参考](https://reference.langchain.com/python/langchain-core/tools/)
 - [Pydantic 官方文档](https://docs.pydantic.dev/latest/)

@@ -297,9 +297,9 @@ flowchart TB
 
 ## 参考资料
 
-- [LangChain 官方文档](https://python.langchain.com/)
+- [LangChain 官方文档](https://docs.langchain.com/oss/python/langchain/overview)
 - [LangChain Expression Language（LCEL）](https://python.langchain.com/docs/concepts/lcel/)
 - [Runnable 接口概念文档](https://python.langchain.com/docs/concepts/runnables/)
-- [langchain-core Runnables API 参考](https://python.langchain.com/api_reference/core/runnables.html)
+- [langchain-core Runnables API 参考](https://reference.langchain.com/python/langchain-core/runnables/)
 - [LangChain v1 迁移指南](https://docs.langchain.com/oss/python/migrate/langchain-v1)
-- [LangGraph 官方文档](https://langchain-ai.github.io/langgraph/)
+- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)

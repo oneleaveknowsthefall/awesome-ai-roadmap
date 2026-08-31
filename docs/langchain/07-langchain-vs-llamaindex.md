@@ -154,10 +154,10 @@ agent = create_agent(
 
 ## 参考资料
 
-- [LangChain 官方文档](https://python.langchain.com/)
+- [LangChain 官方文档](https://docs.langchain.com/oss/python/langchain/overview)
 - [LangChain: Agents 概念文档](https://docs.langchain.com/oss/python/langchain/agents)
-- [LangChain: Retrieval 概念文档](https://python.langchain.com/docs/concepts/retrieval/)
-- [LangGraph 官方文档](https://langchain-ai.github.io/langgraph/)
+- [LangChain: Retrieval 概念文档](https://docs.langchain.com/oss/python/langchain/retrieval)
+- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
 - [LlamaIndex 官方文档](https://docs.llamaindex.ai/)
 - [LlamaIndex: Building an Agent](https://docs.llamaindex.ai/en/stable/understanding/agent/)
 - [LlamaIndex: Workflows](https://docs.llamaindex.ai/en/stable/understanding/workflows/)

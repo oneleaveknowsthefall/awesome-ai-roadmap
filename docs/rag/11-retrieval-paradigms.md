@@ -23,10 +23,10 @@ BM25 的打分逻辑可以拆成三个直觉：
 打分形式大致是：
 
 $$
-\text{score}(q, d) = \sum_{t \in q} \text{IDF}(t) \cdot \frac{f(t, d) \cdot (k_1 + 1)}{f(t, d) + k_1 \cdot \left(1 - b + b \cdot \frac{|d|}{\text{avgdl}}\right)}
+\mathrm{score}(q, d) = \sum_{t \in q} \mathrm{IDF}(t) \cdot \frac{f(t, d) \cdot (k_1 + 1)}{f(t, d) + k_1 \cdot \left(1 - b + b \cdot \frac{|d|}{\mathrm{avgdl}}\right)}
 $$
 
-其中 $f(t,d)$ 是词 $t$ 在文档 $d$ 中的频次，$|d|$ 是文档长度，$\text{avgdl}$ 是平均文档长度，$k_1$ 和 $b$ 是可调参数。
+其中 $f(t,d)$ 是词 $t$ 在文档 $d$ 中的频次，$|d|$ 是文档长度，$\mathrm{avgdl}$ 是平均文档长度，$k_1$ 和 $b$ 是可调参数。
 
 **面试时不需要背这个公式，但要能说出上面那三个直觉。**
 

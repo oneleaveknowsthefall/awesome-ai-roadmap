@@ -116,6 +116,8 @@ flowchart LR
 
 ## 5.5 Chain of Thought：链式推理
 
+> 本节聚焦 CoT 的推理机制与局限；CoT 与行动规划的边界见[第十一章](11-llm-agent-planning.md)，可记录的轨迹不等于隐藏 CoT，见[第十四章](14-agent-evaluation.md)。
+
 ### 5.5.1 基本思想
 
 CoT（Chain of Thought）通过生成中间推理步骤，将复杂问题拆成一条连续推理链：

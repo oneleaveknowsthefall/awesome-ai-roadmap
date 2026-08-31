@@ -219,10 +219,10 @@ LangGraph 把流程建模为 **State + Node + Edge**：
 
 ## 参考资料
 
-- [LangChain 官方文档](https://python.langchain.com/)
+- [LangChain 官方文档](https://docs.langchain.com/oss/python/langchain/overview)
 - [LangChain: Agents 概念文档](https://docs.langchain.com/oss/python/langchain/agents)
 - [LangChain: Messages 概念文档](https://docs.langchain.com/oss/python/langchain/messages)
 - [LangChain: Tools 概念文档](https://docs.langchain.com/oss/python/langchain/tools)
 - [LangChain: Middleware 概念文档](https://docs.langchain.com/oss/python/langchain/middleware)
 - [LangChain v1 迁移指南](https://docs.langchain.com/oss/python/migrate/langchain-v1)
-- [LangGraph 官方文档](https://langchain-ai.github.io/langgraph/)
+- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)

@@ -60,9 +60,14 @@ MoE 把 Transformer 每一层的 FFN 替换成 $N$ 个**并行的 FFN**。**结�
 结构通常就是**一个简单的线性层**：
 
 ```python
-gate_logits    = token_embedding @ W_router   # 算每个专家的偏好分数
-expert_weights = softmax(gate_logits)         # 归一化成概率
-top_k_experts  = topk(expert_weights, k=2)    # 选 Top-K 个专家
+gate_logits = token_embedding @ W_router      # 每个专家的路由分数
+gate_probs  = softmax(gate_logits)            # 全部专家上的概率分布
+weights, indices = topk(gate_probs, k=2)      # torch.topk 返回 (values, indices)
+weights = weights / weights.sum()             # 通常在已选专家内重新归一化
+output = sum(
+    weights[i] * expert[indices[i]](token_embedding)
+    for i in range(len(indices))
+)
 ```
 
 **最常见的 $K$ 值**：
@@ -161,7 +166,7 @@ flowchart LR
 
 ### 19.6.2 Router 训练不稳定
 
-Router 是个分类网络，**梯度要通过 softmax + topk 这两个不可微操作传播**，本身就不稳定。
+Router 的优化确实敏感，但表述要精确：softmax 是可微的；`topk` 的**索引选择**是离散操作，梯度通常只流向被选中的 gate 值与专家，未选专家收不到该 token 的任务梯度。这会放大早期负载失衡，而不是「梯度穿过两个不可微操作」。
 
 | 稳定化技巧 | 说明 |
 |---|---|
@@ -237,7 +242,7 @@ Dense 在延迟敏感、部署简单的场景仍有很强生命力。
 
 ### 19.9.7 说不出 Router 为什么训练不稳定
 
-梯度要穿过 softmax + topk 这两个不可微操作。
+softmax 本身可微；Top-K 的离散索引选择使未选专家收不到该 token 的任务梯度，因此需要负载均衡、容量管理等稳定化设计。
 
 ## 19.10 本章总结
 
@@ -247,7 +252,7 @@ Dense 在延迟敏感、部署简单的场景仍有很强生命力。
 4. **专家不平衡是最著名的训练难题**，Auxiliary-Loss-Free 用动态偏置项替代辅助损失；
 5. **最核心的认知：显存按总参数走，推理速度按激活参数走**；
 6. **趋势是专家越来越多、激活率越来越低、共享专家越来越普及**；
-7. **训练三挑战**：专家不平衡、Router 不稳定（softmax + topk 不可微）、All-to-All 通信复杂；
+7. **训练三挑战**：专家不平衡、离散 Top-K 路由造成的优化与容量管理问题、All-to-All 通信复杂；
 8. **部署三挑战**：显存按总参数、批量推理通信开销大导致吞吐不占优、热门专家负载不均；
 9. **MoE 是老想法**，因训练 know-how 成熟 + 推理框架完善 + 成本被打下来才真正爆发；
 10. **MoE 与 Dense 各有边界**：前者适合把容量做大、成本压低，后者适合部署简单、延迟可控。

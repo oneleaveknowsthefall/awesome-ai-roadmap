@@ -15,7 +15,7 @@ MCP 解决的是完全不同的一组问题：
 
 一句话：
 
-> **Function Calling 是模型和应用之间的约定，MCP 是应用和工具提供方之间的约定。两者是上下游关系，不是替代关系。**
+> **Function Calling 是一种常见的模型—应用接口；MCP 是 Host/Client—Server 的开放协议。二者可在同一应用中配合，但 MCP 本身不规定、更不必然依赖某家模型的 Function Calling。**
 
 ## 4.2 没有 MCP 之前：M×N 的对接地狱
 
@@ -97,32 +97,32 @@ flowchart TB
 | 角色 | 职责 | 数量关系 |
 |---|---|---|
 | **Host** | AI 应用本身。管理 Client 生命周期、执行安全策略、处理用户授权、协调 LLM 调用、聚合多个 Server 的上下文 | 1 |
-| **Client** | 协议连接器。每个 Client 只连**一个** Server，维护 Server 之间的安全边界 | N |
+| **Client** | Host 内的协议连接器，通常对应一个 Server 连接 | N |
 | **Server** | 工具实现方。独立运行，职责聚焦，暴露 Tools / Resources / Prompts | N |
 
-**为什么 Client 和 Server 必须是 1:1**？这是安全设计。每个 Server 被隔离在自己的 Client 里，一个 Server 拿不到另一个 Server 的数据。如果让一个 Client 同时连多个 Server，Server 之间的隔离边界就没了——恶意的 Server 可以窥探其他 Server 的调用内容。
+Host 通常为每个 Server 维护独立 Client/连接，便于生命周期和错误隔离；但这不是协议自动提供的安全沙箱。Server 能看到什么仍取决于 Host 传入的参数、进程与网络权限，隔离必须由 Host、操作系统和网络策略共同实现。
 
 **Host 才是权限的把关者**。用户授权、敏感操作确认、把哪些工具暴露给模型，这些决策都在 Host 层做，Server 无权决定。
 
 ## 4.5 三类核心能力：Tools、Resources、Prompts
 
-MCP Server 可以暴露三类能力，区分它们的核心维度是**副作用**和**控制权**。
+MCP Server 可以暴露三类能力。规范强调的是**默认发起方/控制路径**，而不是以副作用给能力定性；实际调用始终由 Host 许可、执行与审计。
 
 | 能力 | 有副作用吗 | 谁来触发 | 类比 |
 |---|---|---|---|
-| **Tools** | 是，会改变外部状态 | **模型**决定调用 | 手 |
-| **Resources** | 否，只读 | **应用**决定加载 | 资料室 |
-| **Prompts** | 否 | **用户**主动选择 | 模板库 |
+| **Tools** | 可读、可写或有外部副作用，取决于实现 | 模型或 Host 工作流可建议调用，Host 最终决定 | 手 |
+| **Resources** | 面向应用提供可读取的上下文；通常应设计为安全读取 | Host/Client 决定何时列出、读取或注入 | 资料室 |
+| **Prompts** | 返回提示模板或消息 | 用户或 Host 选择并取得 | 模板库 |
 
 ### 4.5.1 Tools：模型控制
 
-对应 Function Calling 里的函数。本质是**有副作用的操作**：创建文件、提交代码、发 Slack 消息、调第三方 API。执行完之后环境状态变了，而且往往不可逆。
+Tools 是可由模型或工作流选择的可执行能力：可以是只读搜索，也可以是创建文件、提交代码、发消息等写操作。是否有副作用**不能**从 `tools/call` 这一类型本身推断。
 
-正因为不可逆，Tools 通常需要用户授权确认才能执行。这是 Host 的职责。
+对转账、删除、发布等高风险 Tool，Host 应在执行前按策略要求确认、授权或审批；低风险只读 Tool 也应遵循最小权限。这是 Host 的职责，不能交给模型或 Server 自行判断。
 
 ### 4.5.2 Resources：应用控制
 
-和 Tools 最本质的区别只有一个字：**只读**。读日志文件、查数据库记录、获取文档内容都属于 Resources。
+Resources 是 Server 暴露给 Client 的、由 URI 标识的上下文数据。它们通常用于读取文档、日志或记录；“Resource”不是对底层实现绝无副作用的安全保证，Host 不应仅凭类别跳过信任与访问控制。
 
 一个常被搞混的点：**Resources 不是模型自己去读的**。是宿主应用决定把哪些资源加载进上下文——比如用户在 IDE 里打开了某个文件，应用把它作为 Resource 提供给模型。这个控制权的差异，是 Tools 和 Resources 的分界线，而不只是「读」和「写」。
 
@@ -152,9 +152,9 @@ MCP 的消息格式是 JSON-RPC 2.0——一种用 JSON 表达「远程函数调
 
 传输方式（stdio / Streamable HTTP）的细节见 [第十二章](12-mcp-transport.md)。
 
-## 4.7 协议的演进：从有状态到无状态
+## 4.7 生命周期与版本兼容
 
-这是 2026 年理解 MCP 最重要的一件事，也是大部分中文资料还没跟上的部分。
+不要把某个 SDK 的实现策略当成 MCP 的强制语义。**截至 2026-07-28 规范，MCP 已改为无状态、请求自包含的模型**：每个请求都携带协议版本与 Client capabilities；Server 可通过 `server/discover` 提前声明版本和能力。旧版基于 `initialize` 的连接级会话仍有兼容路径，但不再是当前核心语义。
 
 ### 4.7.1 版本时间线
 
@@ -163,51 +163,18 @@ MCP 的消息格式是 JSON-RPC 2.0——一种用 JSON 表达「远程函数调
 | 2024-11-05 | 初版。HTTP + SSE 双端点传输 |
 | 2025-03-26 | Streamable HTTP 取代 HTTP+SSE 双端点 |
 | 2025-06-18 | 授权规范完善，结构化工具输出 |
-| 2025-11-25 | OAuth 增强、图标元数据、实验性 Tasks |
-| **2026-07-28** | **协议无状态化**：移除 session、移除 `initialize` 握手、引入 MRTR |
+| 2025-11-25 | 授权、任务与元数据等能力持续演进；以发布规范及 changelog 为准 |
+| 2026-07-28 | 改为无状态、每请求携带版本与能力；引入 `server/discover` 和订阅流，旧初始化模型进入兼容路径 |
 
-### 4.7.2 2026-07-28 做了什么
+### 4.7.2 每请求协商与旧版兼容
 
-这一版是迄今最大的一次架构调整，核心是**把 MCP 变成无状态协议**：
+新规范中，请求通过 `_meta.io.modelcontextprotocol/*` 携带协议版本和 Client capabilities。Client 可先调用 `server/discover` 获取 Server 支持的版本与能力，也可直接发起带元数据的业务请求。需要持续通知时，Client 显式建立 subscription；需要模型或用户补充输入时，Server 在响应中返回 `InputRequiredResult`，Client 补齐输入后重发原请求。
 
-- **移除协议级 session 与 `Mcp-Session-Id` 头**。需要跨调用状态的 Server，改用显式的、由 Server 生成的 handle，作为普通工具参数传递；
-- **移除 `initialize` / `notifications/initialized` 握手**。每个请求自带协议版本和客户端能力（放在 `_meta` 里）；
-- **新增 `server/discover`**：Server 必须实现，用于声明支持的协议版本、能力和身份。Client 可以在任何请求之前调用它来做版本协商；
-- **引入 MRTR（Multi Round-Trip Requests）**：过去 Server 需要反向请求 Client 时（如 sampling、elicitation、roots），是 Server 主动发起请求。现在改成 Server 返回一个 `resultType: "input_required"` 的结果，Client 补上信息后**重试原请求**；
-- **移除 SSE 流的可恢复性**：断流即丢失在途请求，Client 必须用新的 request ID 重发。
+与旧版 Server 互操作时，SDK 可按兼容矩阵回退到 `initialize`、`notifications/initialized` 和连接级 session。应用必须区分“当前协议语义”和“兼容旧端点”，不能把旧握手继续写成所有 MCP 调用的必经步骤。
 
-### 4.7.3 为什么要这么改
+### 4.7.3 工程上要注意什么
 
-```mermaid
-flowchart TB
-    subgraph OLD["有状态设计的代价"]
-        O1[连接必须先握手] --> O2[Server 要维护 session]
-        O2 --> O3[水平扩展需要粘性会话]
-        O3 --> O4[Serverless 环境难部署]
-        O2 --> O5[Server 可反向发请求<br/>协议是全双工]
-        O5 --> O6[实现复杂度高]
-    end
-
-    subgraph NEW["无状态设计的收益"]
-        N1[每个请求自包含] --> N2[任意实例都能处理]
-        N2 --> N3[水平扩展无障碍]
-        N3 --> N4[Serverless / 边缘部署友好]
-        N1 --> N5[请求-响应单向模型]
-        N5 --> N6[实现门槛大幅降低]
-    end
-
-    style NEW fill:#e6f4ea
-```
-
-根本动因是**部署形态**。MCP 早期主要面向本地场景（Claude Desktop 起一个本地子进程），有状态没什么问题。但当 MCP Server 开始被大规模部署成远程服务时，session 就成了扩展的枷锁：负载均衡器必须做粘性会话，Serverless 平台的实例随时可能被回收，一次重启就断掉所有连接。
-
-无状态化之后，任意一个实例都能处理任意一个请求，这才让 MCP Server 可以像普通 HTTP 服务一样部署。
-
-### 4.7.4 工程上要注意什么
-
-**多版本共存是常态**。协议改得快，但生态跟进慢。你会长期面对同时存在 2025-03-26、2025-06-18、2026-07-28 版本 Server 的情况。SDK 通常会处理兼容，但涉及新特性时必须检查目标 Server 的版本。
-
-**不要假设 Server 会记得你**。在新规范下，Server 不维护会话状态。任何跨调用的上下文，要么由 Client 保存并在每次请求里带上，要么用 Server 返回的显式 handle。
+**多版本共存是常态**。涉及 transports、authorization、sampling 或任务等特性时，应核对 Client、Server 与目标发布版本的兼容性，不能凭教程假定其存在或不存在。
 
 ## 4.8 MCP 生态为什么起得这么快
 
@@ -251,23 +218,23 @@ if __name__ == "__main__":
 
 ### 4.9.1 认为 MCP 取代了 Function Calling
 
-MCP Server 暴露的 Tool，最终依然要被转成模型能理解的 Schema，塞进 `tools` 参数，由模型输出 `tool_calls` 来触发。**MCP 底层依然是 Function Calling 在驱动**，它替换的是「应用怎么获得工具」，不是「模型怎么调工具」。
+许多 LLM Host 会把 MCP Tool 转为该模型的 Function Calling schema，再将模型输出路由为 `tools/call`。但这只是常见适配方式：Host 也可用结构化输出、规则工作流或人工选择调用 MCP。**MCP 不把 Function Calling 作为协议前提。**
 
 ### 4.9.2 把 Host 和 Client 混为一谈
 
-Client 只是一个协议连接器，一对一连 Server。Host 才是管权限、管生命周期、管安全策略的角色。这个区分在讨论 MCP 安全模型时至关重要——**授权决策必须在 Host**。
+Client 是 Host 内的协议连接器，通常对应一个 Server。这个映射便于管理，但不是安全沙箱；Host 才是管权限、生命周期和策略的角色。这个区分在讨论 MCP 安全模型时至关重要——**授权决策必须在 Host**。
 
 ### 4.9.3 用 Tools 实现只读查询
 
-只读操作用 Resources 更合适：无副作用、不需要授权确认、可以更宽松地提供。全都做成 Tools 会让授权确认变得频繁而无意义，用户很快就会习惯性点「同意」，安全提示形同虚设。
+只读数据常适合用 Resources 提供，而需要模型选择并执行的查询也可以是 Tool。不要从类别推导「无副作用」或「无需授权」：按数据敏感度、调用者身份与实际动作做最小授权和审批。
 
 ### 4.9.4 以为 Resources 是模型主动读的
 
-Resources 是**应用**控制的。模型不会自己去 `resources/read`，是宿主应用决定加载什么进上下文。搞错这一点会导致整个交互设计做反。
+协议调用由 Client 发起；Host 可以让用户、固定工作流或模型决策触发 `resources/read`，再决定哪些内容进入上下文。MCP 不规定某种 UI，也不能据此假定 Resource 天然可信或无需授权。
 
 ### 4.9.5 按旧规范理解 MCP 的状态模型
 
-「MCP 连接需要先 initialize 握手」「Server 维护 session」这些说法在 2026-07-28 规范里已经不成立了。协议已经无状态化，这直接影响你的部署架构设计。
+2026-07-28 规范是每请求自包含的无状态模型；`initialize` 和连接级 session 属于旧版兼容语义。应固定目标协议版本并按官方兼容矩阵实现，不能混用不同年代的消息流。
 
 ### 4.9.6 忽视 MCP Server 的信任边界
 
@@ -275,13 +242,13 @@ Resources 是**应用**控制的。模型不会自己去 `resources/read`，是�
 
 ## 4.10 本章总结
 
-1. **MCP 与 Function Calling 是上下游关系**：前者管工具怎么被发现和提供，后者管模型怎么表达调用；
+1. **MCP 与 Function Calling 可以配合但并非依赖关系**：前者定义 Host/Client 与 Server 的互操作，后者是常见的模型调用接口；
 2. **核心价值是把 M×N 变成 M+N**，工具实现一次，所有支持 MCP 的应用都能用；
 3. **「自动发现」是关键能力**，工具方新增工具，接入方零改动；
-4. **三个角色**：Host 管权限与生命周期，Client 一对一连 Server 维持隔离，Server 提供能力；
-5. **三类能力按控制权区分**：Tools 模型控制、Resources 应用控制、Prompts 用户控制；
+4. **三个角色**：Host 管权限与生命周期，Client 连接 Server，Server 提供能力；安全隔离要由 Host 与运行环境落实；
+5. **三类能力按默认控制路径区分**：Tools 可由模型/工作流选择，Resources 由 Client 加载，Prompts 由用户/Host 取得；副作用须逐项声明和治理；
 6. **底层是 JSON-RPC 2.0**，选它是为了降低生态实现门槛；
-7. **2026-07-28 规范把 MCP 无状态化**，移除 session 和握手，为远程与 Serverless 部署扫清障碍；
+7. **版本语义发生过结构性变化**：当前版本按请求携带版本与能力，旧初始化/会话模型只在兼容路径出现；
 8. **生态起飞靠两点**：SDK 让实现成本降到 30 行，头部工具第一时间提供官方 Server。
 
 > **一句话概括：MCP 是 AI 工具生态的 USB 标准，它不改变模型怎么调工具，改变的是工具怎么被接进来。**
@@ -290,7 +257,7 @@ Resources 是**应用**控制的。模型不会自己去 `resources/read`，是�
 
 - [Model Context Protocol 官方文档](https://modelcontextprotocol.io/docs/getting-started/intro)
 - [MCP 规范 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)
-- [MCP 规范 2026-07-28 变更说明](https://modelcontextprotocol.io/specification/2026-07-28/changelog)
+- [MCP 版本兼容说明](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning)
 - [MCP 架构说明](https://modelcontextprotocol.io/specification/2026-07-28/architecture)
 - [Anthropic: Introducing the Model Context Protocol](https://www.anthropic.com/news/model-context-protocol)
 - [JSON-RPC 2.0 规范](https://www.jsonrpc.org/specification)

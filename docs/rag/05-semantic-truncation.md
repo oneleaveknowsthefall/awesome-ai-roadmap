@@ -195,6 +195,8 @@ flowchart TB
 
 ### 5.5.3 把 Prompt Caching 说成一种压缩或补上下文的方法
 
+Prompt Caching 的机制、与 KV Cache/记忆压缩的边界及生命周期限制见[Agent 记忆与上下文压缩](../agent/10-agent-memory-compression.md)；本节只讨论其在上下文增强索引成本中的作用。
+
 它是计算层优化，不改变被索引的内容。混淆这一点是典型的概念不清。
 
 ### 5.5.4 把上下文增强和命题化混为一谈

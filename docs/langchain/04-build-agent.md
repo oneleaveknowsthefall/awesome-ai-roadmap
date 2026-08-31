@@ -96,7 +96,42 @@ class SupportReply(BaseModel):
     needs_human: bool = Field(description="是否需要转人工")
 ```
 
-> **结构化输出可以约束字段和类型，但不能保证业务事实正确。** 事实仍必须来自可信工具，权限仍必须由业务服务控制。
+> **结构化输出可以约束字段和类型，但不能保证业务事实正确，也不会执行授权。** 事实仍必须来自可信工具，权限仍必须由业务服务控制。
+
+### 4.4.2 模型字段不是授权开关
+
+`needs_human: bool` 只是模型产出的一个字段：模型可以漏填、误填，甚至被提示注入诱导填成 `false`。因此，**不能用它决定敏感操作是否真的执行**；同样，不能把「模型没有调用敏感工具」当作授权结论。
+
+把不可协商的策略放在确定性执行路径上。对标准工具调用 Agent，优先用 middleware 在工具执行前中断；工具服务仍要按可信身份再次授权：
+
+```python
+from langchain.agents import create_agent
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langchain.tools import tool
+from langgraph.checkpoint.memory import InMemorySaver
+
+@tool
+def request_refund(order_id: str) -> str:
+    """提交退款申请；实际退款服务必须基于可信身份重新授权并使用幂等键。"""
+    return f"退款申请已提交：{order_id}"
+
+agent = create_agent(
+    model="<provider>:<your-model-id>",
+    tools=[lookup_order, request_refund],
+    middleware=[
+        HumanInTheLoopMiddleware(
+            interrupt_on={
+                "lookup_order": False,
+                "request_refund": {"allowed_decisions": ["approve", "reject"]},
+            }
+        )
+    ],
+    # 示例使用内存；生产环境必须使用持久化 checkpointer。
+    checkpointer=InMemorySaver(),
+)
+```
+
+金额阈值、租户隔离、职责分离等业务规则若不属于一次 Tool Call，则应在调用 Agent 前的确定性路由节点，或在 LangGraph 节点与边中执行。**中断和服务端授权才是控制点；模型字段只是供界面和后续流程参考的数据。**
 
 ## 4.5 第四步：组装 Agent
 
@@ -189,6 +224,8 @@ flowchart TB
     style L3 fill:#fff3cd
 ```
 
+如何把 Trace、生产反馈、Dataset、离线实验和发布门禁连成闭环，见 [LangSmith 生产质量闭环](13-langsmith-production-loop.md)。
+
 ### 4.8.1 上线前检查清单
 
 - [ ] 任务和**停止条件**是否明确
@@ -217,23 +254,27 @@ flowchart TB
 
 **它只约束字段和类型**，事实要来自可信工具。
 
-### 4.9.5 把 Checkpointer 和 Store 混用
+### 4.9.5 把模型字段当授权结论
+
+`needs_human=false`、风险分低或未选中敏感工具，都**不是**执行权限。敏感 Tool Call 要由确定性 middleware/`interrupt()` 暂停，业务服务还要基于可信身份授权。
+
+### 4.9.6 把 Checkpointer 和 Store 混用
 
 一个是线程内状态恢复，一个是跨线程长期数据，**用途完全不同**。
 
-### 4.9.6 给有副作用的工具配自动重试
+### 4.9.7 给有副作用的工具配自动重试
 
 **没有幂等就会重复扣款、重复发信。**
 
-### 4.9.7 以为流式能加快任务
+### 4.9.8 以为流式能加快任务
 
 **它只改善等待体验**，超时、取消、并发限制仍要单独设计。
 
-### 4.9.8 只对比最终文本做测试
+### 4.9.9 只对比最终文本做测试
 
 **必须测工具轨迹**——选对工具、参数正确、无越权，这些用最终文本看不出来。
 
-### 4.9.9 用内存版 Checkpointer 上生产
+### 4.9.10 用内存版 Checkpointer 上生产
 
 进程重启状态全丢，**必须换持久化实现**。
 
@@ -243,7 +284,7 @@ flowchart TB
 2. **第一步定边界**：允许动作、禁止动作、成功/失败/停止条件、转人工条件；
 3. **模型负责判断，Tool 负责动作**；模型需支持工具调用、结构化输出和足够上下文；
 4. **Tool 分两层**：给模型看的一层帮它选对，服务端一层保证做得安全；
-5. **`system_prompt` 约束行为，`response_format` 固定业务输出**，但都不保证事实正确；
+5. **`system_prompt` 约束行为，`response_format` 固定业务输出**，但都不保证事实正确或授权；敏感动作由确定性 middleware/`interrupt()` 与服务端授权控制；
 6. **`create_agent` 是 v1 的标准入口**，底层由 LangGraph 管理模型与工具的循环；
 7. **Checkpointer 管线程内恢复，Store 管跨线程长期数据**，二者不可混淆；
 8. **Middleware 承接横切逻辑**：重试、摘要、权限、审批、安全校验；
@@ -262,4 +303,4 @@ flowchart TB
 - [LangChain: Short-term Memory](https://docs.langchain.com/oss/python/langchain/short-term-memory)
 - [LangChain: Long-term Memory](https://docs.langchain.com/oss/python/langchain/long-term-memory)
 - [LangChain: Streaming](https://docs.langchain.com/oss/python/langchain/streaming)
-- [LangGraph 持久化文档](https://langchain-ai.github.io/langgraph/concepts/persistence/)
+- [LangGraph 持久化文档](https://docs.langchain.com/oss/python/langgraph/persistence)

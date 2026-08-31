@@ -91,7 +91,7 @@ $$
 
 ## 4.4 RoPE：用旋转把相对位置编进点积
 
-RoPE（Rotary Position Embedding）由苏剑林在 2021 年提出，现在是大模型的事实标准。
+RoPE（Rotary Position Embedding）由苏剑林在 2021 年提出，已成为许多主流大模型采用的位置编码基线。
 
 ### 4.4.1 核心思路
 
@@ -158,7 +158,7 @@ RoPE 的外推能力远好于 sin/cos。原因是**旋转是连续的角度变�
 在 softmax 之前，给每对 token 的注意力分数加上偏置：
 
 $$
-\text{score}_{ij} = \frac{q_i \cdot k_j}{\sqrt{d_k}} - m \cdot |i - j|
+\mathrm{score}_{ij} = \frac{q_i \cdot k_j}{\sqrt{d_k}} - m \cdot |i - j|
 $$
 
 $|i-j|$ 是两个 token 的距离，$m$ 是固定斜率（**每个 head 不同**）。
@@ -194,7 +194,7 @@ flowchart TB
     R2["理由二 · 表达力最强<br/>相对位置直接编进点积<br/>不牺牲精细语序建模"]
     R3["理由三 · 生态兼容<br/>与 KV Cache / Flash Attention<br/>/ GQA 无缝叠加"]
 
-    R1 --> WIN["RoPE 成为事实标准"]
+    R1 --> WIN["RoPE 成为常用基线"]
     R2 --> WIN
     R3 --> WIN
 

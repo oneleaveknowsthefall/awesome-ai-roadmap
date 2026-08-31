@@ -189,9 +189,9 @@ flowchart LR
 
 ### 3.5.3 把工具定义放在 Prompt 最前面
 
-工具 Schema 在多轮对话里是**完全不变**的部分。放在最前面，就能被 Prompt Caching 命中，后续每轮只对变化的部分计费。
+工具 Schema 常是多轮对话中较稳定的部分。将稳定内容放在前面可提高支持前缀缓存的提供方/运行时的命中机会，但是否命中、计费和 TTL 以具体服务为准。
 
-顺序上的通行原则是：**固定内容在前，动态内容在后**。工具定义 → System Prompt → 历史对话 → 当前问题。详见 LLM 主题的 KV Cache 与 Prompt Caching 章节。
+顺序上的通行原则是：**固定内容在前，动态内容在后**。工具定义 → System Prompt → 历史对话 → 当前问题。详见 LLM 主题的 [KV Cache 与 Prompt Caching](../llm/14-kv-cache.md) 章节。
 
 ## 3.6 工具粒度：粗一点还是细一点
 

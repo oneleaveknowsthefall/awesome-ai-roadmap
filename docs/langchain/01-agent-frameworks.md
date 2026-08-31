@@ -221,8 +221,8 @@ flowchart TB
 
 ## 参考资料
 
-- [LangChain 官方文档](https://python.langchain.com/)
-- [LangGraph 官方文档](https://langchain-ai.github.io/langgraph/)
+- [LangChain 官方文档](https://docs.langchain.com/oss/python/langchain/overview)
+- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
 - [LlamaIndex 官方文档](https://docs.llamaindex.ai/)
 - [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/)
 - [CrewAI 官方文档](https://docs.crewai.com/)

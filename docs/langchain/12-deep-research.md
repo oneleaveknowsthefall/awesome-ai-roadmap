@@ -15,9 +15,9 @@
 | **LangChain** | 提供模型、工具和 Agent 等**高层积木** |
 | **LangGraph** | 负责**有状态流程如何编排和运行** |
 | **open_deep_research** | 展示一套**具体研究流程** |
-| **Deep Agents** | 把**规划、子 Agent 和上下文管理**提炼成更通用的能力 |
+| **Deep Agents** | 构建在 LangGraph 上的 Python **agent harness**：提供规划、子 Agent、上下文管理和文件系统工具；不是一个保证研究正确性的托管研究产品 |
 
-> **说明这层区别即可，不需要背诵每个托管产品和仓库实现。**
+> **当前边界要说清**：Deep Agents 是单独安装的 `deepagents` SDK/harness，不是 LangChain 核心包的开关，也不替你提供模型、身份系统、业务授权、数据治理或安全隔离。`task` 子 Agent 默认是一次性、隔离上下文后只回传最终报告；任务清单从 v0.7 起是 opt-in，不应假设每个 Deep Agent 都会规划或长期记忆。
 
 ## 12.2 核心流程
 
@@ -118,6 +118,22 @@ flowchart TB
 
 > **对于金融、医疗、法律和安全决策，Deep Research 只能辅助资料整理，不能因为报告带有引用就取消专家复核。**
 
+### 12.5.3 Deep Agents 的文件系统与沙箱边界
+
+Deep Agents 向模型提供的是**可插拔 backend 后面的文件系统工具面**：`ls`、`read_file`、`write_file`、`edit_file`、`delete`、`glob`、`grep`。这不是抽象概念——给错 backend 就可能让模型读写真实文件。
+
+| Backend / 场景 | 数据与能力 | 安全边界 |
+|---|---|---|
+| 默认 State backend | 文件随 LangGraph state/checkpointer 在**同一 thread**内保存 | 适合临时工作区；不跨 thread 共享 |
+| `StoreBackend` | 文件跨 thread 持久化 | namespace、租户隔离、保留与删除策略由应用负责 |
+| `FilesystemBackend` | 访问指定根目录的本地文件 | 只授予专用、最小目录；不要把主机目录、密钥目录或用户主目录作为 root |
+| `LocalShellBackend` | 本机文件系统，另有 `execute` | **没有隔离**；仅限受控开发环境 |
+| Sandbox backend | 隔离的文件系统和 `execute` | 适合不可信代码与自主 Agent；仍须限制网络、凭证、挂载目录、资源和生命周期 |
+
+> 只有 Sandbox 和 LocalShell backend 会提供 shell `execute`。Sandbox 是隔离边界，不是「默认安全」的同义词：把最小权限凭证按需注入，使用只读/受限网络与 CPU、内存、时间配额，并在删除、外发、付费调用等动作前启用 `interrupt_on` 审批。不要把宿主机的环境变量或云凭证直接暴露给 Agent。
+
+**推荐组合**：临时中间产物放 thread-scoped State backend；经审核、需要跨会话保留的资料放带租户 namespace 的 Store backend；代码执行放一次性 sandbox。需要同时使用时用 Composite backend 按路径路由，而不是把所有数据和权限放进一个可写本地目录。
+
 ## 12.6 哪些场景适合
 
 **三项都成立时才值得使用**：
@@ -195,6 +211,10 @@ flowchart TB
 
 **不能代替企业自己的业务数据集。**
 
+### 12.7.13 把 Deep Agents 当成默认隔离环境
+
+文件工具和 `execute` 的权限由 backend 决定；`LocalShellBackend` 直接操作宿主机。对不可信输入或自主代码执行，应选 sandbox，并单独约束凭证、网络、挂载和资源。
+
 ## 12.8 本章总结
 
 1. **Deep Research 是一类研究型 Agent 架构**，不是核心包中的一个开关；
@@ -209,6 +229,7 @@ flowchart TB
 10. **成本受宽度和深度双重影响**，单分支上限之外还要有总预算和取消策略；
 11. **外部文档是不可信输入**：工具只读、最小权限、密钥隔离、高风险人工审批；
 12. **三项条件都成立才值得用**：问题足够开放、子课题可独立、报告价值覆盖成本。
+13. **Deep Agents 是 SDK/harness 而非安全或正确性承诺**：文件、持久化和 shell 权限取决于 backend；不可信代码要在受限 sandbox 中执行。
 
 > **一句话概括：Deep Research 的本质是把一个没有固定路径的研究任务，拆成「Supervisor 规划补缺 + Researcher 隔离上下文并行搜证 + 统一写作阶段综合报告」的有状态流程，而它能不能上线，取决于你有没有同时控住宽度、深度、预算、来源可信度和提示词注入风险。**
 
@@ -216,8 +237,10 @@ flowchart TB
 
 - [LangChain 官方博客：Open Deep Research](https://blog.langchain.com/open-deep-research/)
 - [open_deep_research 官方仓库](https://github.com/langchain-ai/open_deep_research)
-- [LangChain 官方博客：Deep Agents](https://blog.langchain.com/deep-agents/)
+- [Deep Agents 概览](https://docs.langchain.com/oss/python/deepagents/overview)
+- [Deep Agents Backends](https://docs.langchain.com/oss/python/deepagents/backends)
+- [Deep Agents Sandboxes](https://docs.langchain.com/oss/python/deepagents/sandboxes)
 - [deepagents 官方仓库](https://github.com/langchain-ai/deepagents)
-- [LangGraph 官方文档](https://langchain-ai.github.io/langgraph/)
-- [LangSmith Evaluation 文档](https://docs.smith.langchain.com/evaluation)
+- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
+- [LangSmith Evaluation 文档](https://docs.langchain.com/langsmith/evaluation)
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)

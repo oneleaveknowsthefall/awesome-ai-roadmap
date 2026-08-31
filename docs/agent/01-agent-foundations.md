@@ -161,6 +161,8 @@ Agent 能够把复杂目标拆解为多个步骤，并根据执行反馈调整�
 
 ## 1.5 MCP：连接 Agent 与外部工具
 
+> 本节只说明 Agent 如何使用协议；MCP 的生命周期、传输和安全规范详见[Tools：MCP](../tools/04-what-is-mcp.md)，跨 Agent 协作协议详见[Tools：A2A](../tools/11-a2a-protocol.md)。
+
 Anthropic 在 2024 年 11 月提出了 MCP。2025 年 12 月，Anthropic 将 MCP 捐赠给 Linux 基金会旗下的 Agentic AI Foundation（AAIF）；MCP 由社区维护者负责技术治理，AAIF 提供厂商中立的组织与基础设施支持。
 
 **MCP = Model Context Protocol（模型上下文协议）**

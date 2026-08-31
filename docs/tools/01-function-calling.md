@@ -284,7 +284,7 @@ Function Calling 只解决了「模型怎么表达调用意图」。它没有解
 | 多个 Agent 之间怎么**互相调用** | [A2A](11-a2a-protocol.md) |
 | 多模型、多供应商怎么**统一治理** | [LLM 网关](14-llm-gateway.md) |
 
-理解这个边界很重要：后面几章介绍的所有协议，**底层依然是 Function Calling 在驱动**。MCP Server 暴露的 Tool，最终也要被转换成模型能理解的 Schema 塞进 `tools` 参数。它们是上层建筑，不是替代品。
+理解这个边界很重要：许多 LLM Host 会将 MCP Tool 转为模型能理解的 schema 并用 Function Calling 驱动调用；但 MCP 与 A2A 不以 Function Calling 为协议前提，Host 也可通过规则、结构化输出或人工流程发起调用。
 
 ## 1.8 常见错误
 

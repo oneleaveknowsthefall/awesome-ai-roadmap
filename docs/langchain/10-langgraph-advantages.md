@@ -141,11 +141,17 @@ flowchart LR
 - **`interrupt()` 的调用顺序不要随意改变**；
 - **中断载荷应保持可序列化**。
 
+### 10.5.4 审批恢复是安全协议，不是一个布尔转换
+
+不要写 `bool(review["approved"])`：`bool("false")` 在 Python 中是 `True`。恢复载荷必须用严格 schema 校验，并与**正在等待的任务 ID 和审批版本**绑定；审批人身份只能由认证后的服务端注入，不能相信浏览器、模型或恢复 JSON 自报的 `reviewer_id`。
+
+同一任务版本只接受一个决策。把「写入审批决定」做成带唯一约束的原子操作（如数据库唯一键 `(request_id, approval_version)`）；网络重试携带同一个 `decision_id` 时返回原结果，不得再次触发采购。
+
 ## 10.6 失败后为什么不必整段重跑
 
 **传统脚本失败后，开发者常见的选择只有两个**：整段重跑，或者手工改数据库再祈祷流程能继续。
 
-### 10.6.1 节点失败处理的三层
+### 10.6.1 节点失败处理的三层与版本边界
 
 ```mermaid
 flowchart TB
@@ -156,9 +162,40 @@ flowchart TB
     style D fill:#fff3cd
 ```
 
+| 能力 | 最低版本 / 条件 | 说明 |
+|---|---|---|
+| `RetryPolicy` | 当前 LangGraph 版本均可用 | 只为可重试的临时故障配置；明确 `retry_on`，不要重试参数、权限和业务拒绝 |
+| 节点 `timeout`、`error_handler` | **`langgraph>=1.2`** | timeout 仅适用于 `async` 节点；超时会成为可由 Retry Policy 处理的 `NodeTimeoutError` |
+| `asyncio.timeout()` | **Python 3.11+** | 在节点内为单个 SDK/API 调用设更细的超时；阻塞 I/O 先用 `asyncio.to_thread` 隔离 |
+
+```python
+import asyncio
+
+from langgraph.errors import NodeTimeoutError
+from langgraph.types import RetryPolicy, TimeoutPolicy
+
+async def check_budget(state: PurchaseState) -> dict:
+    # API 自己的超时比整个节点更细；不要在 async 节点直接调用阻塞客户端。
+    async with asyncio.timeout(10):
+        approved = await budget_client.check(state["amount"])
+    return {"budget_ok": approved}
+
+builder.add_node(
+    "budget",
+    check_budget,
+    timeout=TimeoutPolicy(run_timeout=30, idle_timeout=10),
+    retry_policy=RetryPolicy(
+        max_attempts=3,
+        retry_on=(NodeTimeoutError, TimeoutError, ConnectionError),
+    ),
+)
+```
+
+> `max_attempts` 包含第一次尝试。节点级 timeout/error handler 是 LangGraph 1.2 的能力；若受限于更旧版本，应在异步节点中用 `asyncio.timeout()`（或调用方超时）实现限制，而不是假设 `timeout=` 会生效。
+
 ### 10.6.2 并行节点失败会怎样
 
-> **LangGraph 会保存同一步中已经成功完成节点的结果。恢复时，成功分支不必全部重跑，只重试失败部分。**
+> **配合持久化检查点，LangGraph 会保存同一步中已经成功完成节点的结果。恢复时，成功分支不必全部重跑，只重试失败部分。**
 
 **这对并行抓取多个数据源特别有价值**——否则一个慢接口失败，就会让其他已经成功的请求也重新付费。
 
@@ -221,7 +258,33 @@ LangGraph 的 streaming 不只有模型 Token，还能输出**每步 State 更�
 
 > **底层事件才真正变成用户能理解的进度。**
 
-**LangChain Agent 因为运行在 LangGraph 上，也能使用相同的底层流式能力。** 直接使用 LangGraph 的优势仍然是：**节点和业务阶段由我们定义，所以流式事件可以与产品进度条、审计日志和告警规则精确对应。**
+**LangChain Agent 因为运行在 LangGraph 上，也能使用相同的底层流式能力。** 对前端和多数应用集成，优先使用 `stream_events(..., version="v3")` 的类型化投影；不要把原始 State、Tool 参数或完整 Trace 直接透传给浏览器。
+
+```python
+# 仅投影产品需要的公开字段；默认拒绝，不做“删几个敏感字段”的黑名单。
+PUBLIC_PROGRESS_FIELDS = {"phase", "completed_sources", "total_sources", "status"}
+
+def project_progress(state: dict) -> dict:
+    return {
+        key: state[key]
+        for key in PUBLIC_PROGRESS_FIELDS
+        if key in state
+    }
+
+stream = agent.stream_events(
+    {"messages": [{"role": "user", "content": "研究采购政策"}]},
+    version="v3",
+)
+for kind, item in stream.interleave("messages", "values"):
+    if kind == "messages":
+        for token in item.text:
+            yield {"type": "token", "text": token}
+    else:
+        # 不要输出 auth header、用户资料、密钥、内部证据全文或审批意见。
+        yield {"type": "progress", "data": project_progress(item)}
+```
+
+> v3 投影简化了消息、工具调用、状态和子图事件的消费；它**不自动脱敏**。在产生事件处建立白名单，并为日志/Trace 使用独立脱敏策略。原始协议事件只应进入受控的调试通道。
 
 ## 10.9 状态如何走向生产部署
 
@@ -256,22 +319,47 @@ LangGraph 的 streaming 不只有模型 Token，还能输出**每步 State 更�
 ```python
 from typing import Literal, TypedDict
 
+from pydantic import BaseModel, ConfigDict, Field
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
+class ApprovalDecision(BaseModel):
+    # strict=True 拒绝 "false"、1 等隐式布尔值；extra="forbid" 拒绝意外字段。
+    model_config = ConfigDict(strict=True, extra="forbid")
+    request_id: str = Field(min_length=1)
+    approval_version: int = Field(ge=1)
+    decision_id: str = Field(min_length=1)
+    reviewer_id: str = Field(min_length=1)
+    action: Literal["approve", "reject"]
+
 class PurchaseState(TypedDict, total=False):
     # request_id 也可作为外部采购接口的幂等键
     request_id: str
+    approval_version: int
     amount: float
     budget_ok: bool
     compliance_ok: bool
     approved: bool
+    approval_decision_id: str
     result: str
+
+# 教学用内存账本；生产中使用事务表和唯一键 (request_id, approval_version)。
+approval_ledger: dict[tuple[str, int], ApprovalDecision] = {}
+
+def record_decision_once(decision: ApprovalDecision) -> ApprovalDecision:
+    key = (decision.request_id, decision.approval_version)
+    existing = approval_ledger.get(key)
+    if existing is None:
+        approval_ledger[key] = decision
+        return decision
+    if existing.decision_id == decision.decision_id:
+        return existing  # 同一决策的安全重试
+    raise ValueError("该任务版本已作出不可覆盖的审批决定")
 
 def normalize_request(state: PurchaseState) -> dict:
     # 真实项目应在这里完成字段校验和权限检查
-    return {"amount": round(state["amount"], 2)}
+    return {"amount": round(state["amount"], 2), "approval_version": 1}
 
 def check_budget(state: PurchaseState) -> dict:
     # 该节点可以替换为预算系统查询，并配置重试与超时
@@ -283,14 +371,25 @@ def check_compliance(state: PurchaseState) -> dict:
 
 def human_review(state: PurchaseState) -> dict:
     # 暂停流程，将两项检查结果交给审核系统
-    review = interrupt(
+    raw_decision = interrupt(
         {
             "request_id": state["request_id"],
+            "approval_version": state["approval_version"],
             "budget_ok": state["budget_ok"],
             "compliance_ok": state["compliance_ok"],
         }
     )
-    return {"approved": bool(review["approved"])}
+    decision = ApprovalDecision.model_validate(raw_decision)
+    if (
+        decision.request_id != state["request_id"]
+        or decision.approval_version != state["approval_version"]
+    ):
+        raise ValueError("审批载荷不属于当前等待的任务版本")
+    stored = record_decision_once(decision)
+    return {
+        "approved": stored.action == "approve",
+        "approval_decision_id": stored.decision_id,
+    }
 
 def route_after_review(state: PurchaseState) -> Literal["execute", "reject"]:
     # 审批结果决定后续确定性路径
@@ -326,7 +425,16 @@ builder.add_edge("reject", END)
 
 # 内存检查点仅用于示例，生产环境应替换为数据库后端
 graph = builder.compile(checkpointer=InMemorySaver())
+
+def resume_from_authenticated_reviewer(
+    reviewer_id: str, client_payload: dict, config: dict
+) -> dict:
+    # Web/API 层必须先验证会话、MFA 和审批权限；覆盖而非采纳客户端 reviewer_id。
+    server_payload = {**client_payload, "reviewer_id": reviewer_id}
+    return graph.invoke(Command(resume=server_payload), config=config)
 ```
+
+> 示例账本只展示语义，进程重启会丢失数据。生产实现应在事务中写入审批决定、审计审批身份和时间，并以 `request_id`（或等价业务幂等键）调用采购系统；恢复、超时重试和重复点击都不得执行第二次。
 
 ## 10.11 常见错误
 
@@ -354,23 +462,27 @@ graph = builder.compile(checkpointer=InMemorySaver())
 
 **是从节点开头重新执行**，中断之前的副作用也要幂等。
 
-### 10.11.7 并行写同一字段不定义 Reducer
+### 10.11.7 用 `bool()` 解析审批载荷
+
+`bool("false")` 是 `True`。恢复载荷要严格 schema 校验，绑定任务 ID 与审批版本；审批身份由认证服务端注入，同一版本的决定必须一次性、幂等地持久化。
+
+### 10.11.8 并行写同一字段不定义 Reducer
 
 **不能指望最后写入者碰巧正确。**
 
-### 10.11.8 把 time travel 当成「撤销现实操作」
+### 10.11.9 把 time travel 当成「撤销现实操作」
 
 **它只是可定位、可重放、可分叉的调试基础**，重放后模型输出和副作用可能不同。
 
-### 10.11.9 认为多 Agent 一定更好
+### 10.11.10 认为多 Agent 一定更好
 
 **角色越多，交接、定位和成本越高**，很多场景单 Agent + middleware 更简单。
 
-### 10.11.10 说「用了 LangGraph 就自动高可用」
+### 10.11.11 说「用了 LangGraph 就自动高可用」
 
 **自托管时数据库、队列、扩缩容、监控都是团队责任。**
 
-### 10.11.11 把开源框架和托管服务混为一谈
+### 10.11.12 把开源框架和托管服务混为一谈
 
 **LangGraph 是编排框架和运行时**，托管是另一个选择。
 
@@ -382,23 +494,24 @@ graph = builder.compile(checkpointer=InMemorySaver())
 4. **显式状态支持输入/输出/内部三分**，中间变量不必全塞进消息历史；
 5. **两种 API**：Graph API 适合复杂拓扑，Functional API 适合已有过程式代码，可混合；
 6. **主线二「可靠」**：Checkpointer 答「走到哪」，Store 答「以后记什么」；**durable execution 的难点是幂等而非落盘**；
-7. **`interrupt()` 可放节点内任意位置**，支持修改、补充材料、多级审批；**恢复从节点开头重跑**；
-8. **节点容错三层**：Retry Policy、Timeout、Error Handler，失败可返回 `Command` 走补偿或人工；并行失败**只重试失败分支**；
+7. **`interrupt()` 可放节点内任意位置**，支持修改、补充材料、多级审批；**恢复从节点开头重跑**。审批恢复必须严格验证任务 ID、版本和决策，身份来自认证边界，并以一次性、幂等的持久化决策保护副作用；
+8. **节点容错三层**：Retry Policy、Timeout、Error Handler；节点 timeout/error handler 需要 **`langgraph>=1.2`** 且 timeout 只适用于 async 节点。并行失败在持久化检查点下只重试失败分支；
 9. **time travel 是可定位/可重放/可分叉的调试基础**，不是撤销现实操作；
 10. **子图带来模块化**，但多 Agent 有交接与成本代价，不是越多越好；
-11. **主线三「工程化」**：流式事件与业务阶段对应、短长期记忆分层、部署边界清晰；
+11. **主线三「工程化」**：使用 `stream_events(..., version="v3")` 的类型化投影，按白名单输出脱敏进度；短长期记忆分层、部署边界清晰；
 12. **选型边界**：标准工具调用 Agent 优先 `create_agent`，简单审批优先 middleware，**只有当业务拓扑、状态作用域、恢复边界或多角色协作成为主要复杂度时才直接用 LangGraph**。
 
 > **一句话概括：LangGraph 的优势可以收成三条主线——控制（把业务拓扑和状态摊开成一等公民）、可靠（checkpoint、中断和节点级容错让长任务能暂停恢复）、工程化（流式事件、记忆分层和部署边界支撑有状态生产系统），而它换来的代价是你必须自己对状态设计、合并语义和副作用幂等负责。**
 
 ## 参考资料
 
-- [LangGraph 官方文档](https://langchain-ai.github.io/langgraph/)
-- [LangGraph: Graph API](https://langchain-ai.github.io/langgraph/how-tos/graph-api/)
-- [LangGraph: Functional API](https://langchain-ai.github.io/langgraph/concepts/functional_api/)
-- [LangGraph 持久化文档](https://langchain-ai.github.io/langgraph/concepts/persistence/)
-- [LangGraph: Human-in-the-loop](https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/)
-- [LangGraph: Time Travel](https://langchain-ai.github.io/langgraph/concepts/time-travel/)
-- [LangGraph: Subgraphs](https://langchain-ai.github.io/langgraph/concepts/subgraphs/)
-- [LangGraph: Streaming](https://langchain-ai.github.io/langgraph/concepts/streaming/)
+- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
+- [LangGraph: Graph API](https://docs.langchain.com/oss/python/langgraph/use-graph-api)
+- [LangGraph: Functional API](https://docs.langchain.com/oss/python/langgraph/functional-api)
+- [LangGraph 持久化文档](https://docs.langchain.com/oss/python/langgraph/persistence)
+- [LangGraph: Human-in-the-loop](https://docs.langchain.com/oss/python/langgraph/interrupts)
+- [LangGraph: Time Travel](https://docs.langchain.com/oss/python/langgraph/use-time-travel)
+- [LangGraph: Subgraphs](https://docs.langchain.com/oss/python/langgraph/use-subgraphs)
+- [LangGraph: Fault tolerance](https://docs.langchain.com/oss/python/langgraph/fault-tolerance)
+- [LangChain: Event streaming](https://docs.langchain.com/oss/python/langchain/event-streaming)
 - [LangChain: Agents 概念文档](https://docs.langchain.com/oss/python/langchain/agents)

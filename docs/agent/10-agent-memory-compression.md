@@ -682,6 +682,8 @@ $$
 
 ## 10.14 Prompt Caching 是什么
 
+> 本节说明跨请求的计算复用；RAG 上下文增强中如何使用它控制索引成本，见[RAG：语义被切断怎么办](../rag/05-semantic-truncation.md)。
+
 Prompt Caching 缓存重复 Prompt 前缀的中间计算结果，使后续请求可以复用。
 
 ```mermaid

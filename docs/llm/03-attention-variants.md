@@ -26,7 +26,7 @@ LLM 是自回归生成，每生成一个新 token 都要对前面所有 token �
 但它本身很吃显存：
 
 $$
-\text{KVCache} = 2 \times B \times N \times L \times H \times d_k \times 2\ \text{bytes}
+\mathrm{KVCache} = 2 \times B \times N \times L \times H \times d_k \times 2\ \mathrm{bytes}
 $$
 
 （前面的 2 是 K 和 V 各一份，后面的 2 是 FP16 每个数 2 字节）
@@ -34,7 +34,7 @@ $$
 以一个 7B 模型（$L=32$、$H=32$、$d_k=128$）跑 $B=1$、$N=32000$ 为例：
 
 $$
-2 \times 1 \times 32000 \times 32 \times 32 \times 128 \times 2 \approx 17\ \text{GB}
+2 \times 1 \times 32000 \times 32 \times 32 \times 128 \times 2 \approx 17\ \mathrm{GB}
 $$
 
 **光 KV Cache 就 17GB，加上模型权重 14GB 一共 31GB——一张 24GB 的 4090 根本放不下。**

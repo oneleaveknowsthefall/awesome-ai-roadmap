@@ -4,7 +4,7 @@
 
 第一次接触 MCP，最劝退的是名词密度：Host、Client、Server、Tools、Resources、Prompts、JSON-RPC、stdio、Streamable HTTP、sampling、elicitation、roots……
 
-其实把它拆成三层就清楚了，而且**三层之间完全解耦**：
+其实把它拆成三层就清楚了，而且它们在设计上尽量解耦：
 
 ```mermaid
 flowchart TB
@@ -13,7 +13,7 @@ flowchart TB
     end
 
     subgraph L2["第二层 · 能力类型：Server 能提供什么"]
-        B["Tools / Resources / Prompts<br/>+ 反向能力 Sampling / Elicitation / Roots"]
+        B["Tools / Resources / Prompts<br/>+ Client input capabilities"]
     end
 
     subgraph L3["第三层 · 传输协议：消息怎么传"]
@@ -23,7 +23,7 @@ flowchart TB
     L1 --> L2 --> L3
 ```
 
-解耦的意思是：换传输方式不影响能力定义，加一类新能力不影响角色架构。这也是为什么 MCP 在 2026 年做了那么大的传输层重构，而工具定义部分几乎没动。
+解耦的意思是：传输可替换而不改变核心能力语义；能力扩展也不必重写角色模型。
 
 ## 5.2 第一层：角色架构
 
@@ -32,34 +32,34 @@ flowchart TB
 | 角色 | 是什么 | 核心职责 |
 |---|---|---|
 | **Host** | AI 应用本身（Claude Desktop、Cursor、你的 Agent） | 启动和管理所有 Client、决定连哪些 Server、执行安全策略、处理用户授权、协调 LLM 调用 |
-| **Client** | Host 内部的连接模块 | 与**一个** Server 通信、能力发现、转发请求与结果、维持安全边界 |
+| **Client** | Host 内部的连接模块 | 通信、能力发现和转发请求/结果；通常对应一个 Server 连接 |
 | **Server** | 工具提供方的独立进程 | 暴露 Tools / Resources / Prompts，不关心上游是谁 |
 
 用一个公司的类比：Host 是公司，决定和哪些供应商合作；Client 是派驻到每个供应商的联络员，一人对接一家；Server 是供应商，只管按标准交付，不关心客户是谁。
 
-### 5.2.2 为什么 Client 与 Server 必须 1:1
+### 5.2.2 一对一连接便于隔离，但不是安全保证
 
-这是**安全设计**，不是实现上的偷懒。
+Host 常为每个 Server 建立独立 Client/连接，便于管理生命周期、认证与故障；规范不会因此自动隔离 Server 的文件、网络或进程权限。
 
 ```mermaid
 flowchart TB
-    subgraph GOOD["1:1 隔离（MCP 的设计）"]
+    subgraph GOOD["独立 Client / 连接"]
         H1[Host] --> C1[Client 1] --> S1[财务数据 Server]
         H1 --> C2[Client 2] --> S2[第三方工具 Server]
-        NOTE1["Server 2 看不到<br/>Server 1 的任何数据"]
+        NOTE1["便于分别管理<br/>版本、认证、故障与生命周期"]
     end
 
-    subgraph BAD["假如 1:N"]
-        H2[Host] --> C3[Client] --> S3[财务数据 Server]
-        C3 --> S4[第三方工具 Server]
-        NOTE2["共享连接上下文<br/>存在越界窥探风险"]
+    subgraph BOUNDARY["真正的安全边界"]
+        P["Host 策略"] --> R["进程 / 容器权限"]
+        P --> N["网络出口与数据过滤"]
+        P --> A["用户授权与审计"]
     end
 
     style GOOD fill:#e6f4ea
-    style BAD fill:#fce8e6
+    style BOUNDARY fill:#fff3cd
 ```
 
-每个 Server 被隔离在自己的 Client 里，拿不到其他 Server 的调用内容。考虑到 MCP Server 大量来自第三方，这个隔离是必需的。
+面对第三方 Server，Host 还应使用最小权限、进程/容器隔离、网络出口控制和参数过滤。只有这些运行时策略才能限制一个 Server 能读取和执行的范围。
 
 ### 5.2.3 Host 是唯一的权限把关者
 
@@ -78,15 +78,15 @@ Server 无权决定自己的工具会不会被调用，Client 也无权替用户
 
 ### 5.3.1 Server 提供的三类能力
 
-区分它们的关键维度是**控制权归谁**，而不只是「读还是写」：
+区分它们的关键是**默认控制路径**，而不是「读还是写」或是否有副作用：
 
 | 能力 | 控制权 | 有副作用 | 典型场景 |
 |---|---|---|---|
-| **Tools** | 模型 | 是 | 创建 Issue、发消息、写文件、执行 SQL |
-| **Resources** | 应用 | 否 | 读日志、读文档、读数据库记录 |
-| **Prompts** | 用户 | 否 | 代码审查模板、周报生成模板 |
+| **Tools** | 模型或 Host 工作流可选择，Host 最终放行 | 可读、可写或有副作用 | 搜索、创建 Issue、发消息、写文件 |
+| **Resources** | Client/Host 决定何时读取/注入 | 通常是可读取上下文；不构成安全承诺 | 读日志、读文档、读数据库记录 |
+| **Prompts** | 用户或 Host 取得 | 返回模板/消息 | 代码审查模板、周报生成模板 |
 
-> **Tools 改变世界，Resources 观察世界，Prompts 结构化表达。**
+> **Tools 是可执行能力，Resources 是可加载上下文，Prompts 是可取得的模板；每一项实际权限都由 Host 的策略决定。**
 
 对应的 JSON-RPC 方法：
 
@@ -101,50 +101,37 @@ Server 无权决定自己的工具会不会被调用，Client 也无权替用户
 
 `*/list` 这组方法就是「自动发现」的实现。应用不需要硬编码工具清单，连上就问一句。
 
-### 5.3.2 容易被漏掉的第四类：Server 反向要东西
+### 5.3.2 容易被漏掉的第四类：Server 需要 Client 输入
 
-上面三类是 Server **提供**给 Client 的。反过来，Server 有时需要向 Client **索取**东西，这一类经常被忽略但很重要：
+上面三类是 Server **提供**给 Client 的。执行过程中，Server 有时还需要模型推理或用户补充信息。2026-07-28 规范不再让 Server 反向发起 JSON-RPC request，而是在当前响应中返回 `InputRequiredResult`；Client 处理后带输入重发原请求。
 
 | 能力 | Server 想要什么 | 用途 |
 |---|---|---|
-| **Sampling** | 让 Client 那边的 LLM 跑一次推理 | Server 内部需要模型能力，但自己不持有 API Key |
-| **Elicitation** | 向用户提问，索取额外信息 | 参数不全时补充，或请求确认 |
-| **Roots** | 询问当前工作目录 / 项目边界 | 文件类 Server 需要知道能操作哪些路径 |
+| **Sampling** | 让 Host 一侧的模型完成受控推理 | Server 需要模型能力，但不应持有 Host 的模型密钥 |
+| **Elicitation** | 向用户索取结构化补充信息 | 参数不全时补充；不能替代高风险动作的独立审批 |
 
-**Sampling 的设计很巧妙**：Server 不需要自己的模型 API Key，也不需要付推理费用，而是借用 Host 侧已有的模型能力。这让 MCP Server 可以保持轻量和无状态。同时 Host 可以审查这些请求，防止 Server 滥用模型资源。
+Sampling 让 Server 不必持有 Host 的模型 API Key。Host 仍要审查模型、预算、可见上下文与返回范围，防止远端 Server 滥用推理资源或诱导数据外带。
 
-### 5.3.3 这类反向请求在 2026 规范里变了
+### 5.3.3 InputRequiredResult 的往返模式
 
-旧规范里，Server 直接向 Client 发起请求——这意味着协议必须是**全双工**的，传输层要支持双向主动通信。
-
-2026-07-28 规范引入了 **MRTR（Multi Round-Trip Requests）** 来消除这个要求：
+当前消息方向仍是 Client request → Server response。需要 Client 输入时，Server 暂停当前处理并返回输入需求：
 
 ```mermaid
 sequenceDiagram
     participant C as Client
     participant S as Server
 
-    rect rgb(252, 232, 230)
-    Note over C,S: 旧模式：Server 主动反向请求（需要全双工）
-    C->>S: tools/call
-    S->>C: sampling/createMessage（Server 发起）
-    C->>S: 推理结果
-    S->>C: 工具结果
-    end
-
     rect rgb(230, 244, 234)
-    Note over C,S: MRTR：Server 只返回结果，Client 重试
+    Note over C,S: Server 需要模型输入
     C->>S: tools/call
-    S-->>C: resultType="input_required"<br/>inputRequests: [需要一次采样]
-    Note over C: Client 自己去跑推理
-    C->>S: 重试 tools/call + inputResponses
-    S-->>C: resultType="complete" 工具结果
+    S-->>C: InputRequiredResult(sampling)
+    C->>C: Host 审查并执行模型调用
+    C->>S: 重发 tools/call + input
+    S-->>C: 工具结果
     end
 ```
 
-好处是协议退化成了纯粹的**请求-响应**模型：Server 永远不主动发起请求，只回复。这样一来，MCP 可以跑在任何普通的 HTTP 基础设施上，不需要长连接和双向通道支持。
-
-这是 2026 规范无状态化改造的一部分——为了让 MCP Server 能像普通 Web 服务一样部署。
+并非每个 Server 都使用这些能力。Host 应逐请求声明允许的 Client capabilities，并把用户交互、模型访问、预算和数据边界纳入授权策略。
 
 ## 5.4 第三层：传输协议
 
@@ -187,10 +174,10 @@ sequenceDiagram
     participant S as Server
     participant M as LLM
 
-    Note over H,S: 启动阶段
+    Note over H,S: 可选发现阶段
     H->>C: 创建 Client 连接 GitHub Server
-    C->>S: server/discover（协商版本与能力）
-    S-->>C: 支持的版本、能力、身份
+    C->>S: server/discover
+    S-->>C: 支持的版本与能力
     C->>S: tools/list
     S-->>C: [create_issue, search_repos, ...]
     C->>H: 汇总工具清单
@@ -212,9 +199,9 @@ sequenceDiagram
 
 从这张图能看出三个关键事实：
 
-1. **模型看到的仍然是普通的 Function Calling Schema**。MCP 的存在对模型是透明的；
+1. **若 Host 使用模型 Function Calling**，可将 MCP Tool 转为该模型的 schema；也可由规则、结构化输出或人工操作调用 MCP。MCP 对模型接口没有强制要求；
 2. **用户授权发生在 Host 层**，在调用真正发出去之前；
-3. **能力发现在启动时完成**，运行时不需要重复问。
+3. **能力可提前发现，但协商是逐请求的**；每个请求仍携带版本与 Client capabilities，不能只信启动时缓存。
 
 ## 5.6 常见错误
 
@@ -222,34 +209,34 @@ sequenceDiagram
 
 面试时把 Host/Client/Server 和 Tools/Resources/Prompts 和 stdio/HTTP 混着说，听起来像在背名词。分成三层，每层回答一个问题（谁在通信、提供什么、怎么传），结构立刻清晰。
 
-### 5.6.2 认为 Client 可以连多个 Server
+### 5.6.2 把连接映射误作安全沙箱
 
-1:1 是安全设计。想连三个 Server，Host 就创建三个 Client。
+独立 Client/连接有助于管理；但安全边界要靠 Host 的授权、运行时隔离和网络策略，不能只靠对象关系。
 
 ### 5.6.3 把 Host 的职责安到 Client 上
 
 授权、安全策略、生命周期管理都在 Host。Client 只是管道。
 
-### 5.6.4 只知道三类能力，不知道反向能力
+### 5.6.4 只知道三类 Server 能力，不知道输入需求
 
-Sampling、Elicitation、Roots 是区分度很高的知识点。尤其是 Sampling——「Server 借用 Host 的模型能力」这个设计能体现对协议的理解深度。
+Sampling 与 Elicitation 让 Server 在执行中请求 Host 提供模型或用户输入。当前规范通过 `InputRequiredResult` 完成往返，不应继续照抄旧版 Server→Client request 流程。
 
 ### 5.6.5 忽略 stdout 污染问题
 
 stdio 模式下往 stdout 打日志会直接破坏协议消息流，而且报错信息通常是难懂的 JSON 解析失败。日志一律写 stderr。
 
-### 5.6.6 假设传输层还是全双工
+### 5.6.6 忽略逐请求能力协商
 
-MRTR 之后，Server 不再主动发请求。按旧模型设计的架构（比如依赖 Server 主动推送）在新规范下会失效。
+每个请求都要携带版本与 Client capabilities；不要只在启动时发现一次后永久相信缓存，也不要假定任意 Host 都允许 sampling 或 elicitation。
 
 ## 5.7 本章总结
 
 1. **三层拆解**：角色架构解决「谁和谁通信」，能力类型解决「提供什么」，传输协议解决「怎么传」；
-2. **三层完全解耦**，这是 MCP 能大改传输层而不动工具定义的原因；
-3. **Host 是决策者，Client 是管道，Server 是提供者**，Client 与 Server 严格 1:1 以保证隔离；
-4. **三类正向能力按控制权区分**：Tools 归模型、Resources 归应用、Prompts 归用户；
-5. **三类反向能力容易被漏**：Sampling 让 Server 借用 Host 的模型，Elicitation 补信息，Roots 划定边界；
-6. **MRTR 把协议退化成纯请求-响应**，Server 不再主动发起请求，部署门槛大幅降低；
+2. **三层尽量解耦**，传输和能力可分别演进；
+3. **Host 是决策者，Client 是连接器，Server 是提供者**；独立连接不替代运行时安全隔离；
+4. **三类正向能力按默认控制路径区分**：Tools 可由模型/工作流选择，Resources 由 Client 加载，Prompts 由用户/Host 取得；
+5. **输入需求容易被漏**：Sampling 让 Server 受控借用 Host 模型，Elicitation 补充用户信息；
+6. **当前规范用 `InputRequiredResult` 而非 Server 反向 request**，Client capabilities 随每个请求声明并由 Host 策略控制；
 7. **消息格式与传输方式解耦**，同一个 Server 换配置就能在本地和远程之间切换；
 8. **stdio 下 stdout 是协议专用通道**，日志必须走 stderr。
 
@@ -260,6 +247,6 @@ MRTR 之后，Server 不再主动发请求。按旧模型设计的架构（比�
 - [MCP 架构说明](https://modelcontextprotocol.io/specification/2026-07-28/architecture)
 - [MCP 规范 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)
 - [MCP Server 能力：Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
-- [MCP Client 能力：Sampling](https://modelcontextprotocol.io/specification/2026-07-28/client/sampling)
+- [MCP Client 输入模式](https://modelcontextprotocol.io/specification/2026-07-28/client)
 - [MCP 传输层规范](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
 - [JSON-RPC 2.0 规范](https://www.jsonrpc.org/specification)

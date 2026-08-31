@@ -10,6 +10,8 @@
 
 > **LangChain 给我们一套装好的 Agent，LangGraph 让我们自己设计整条业务路线。**
 
+> **本章只回答层次、选型和组合边界；第十章再展开 interrupt 审批协议、节点容错版本、流式脱敏和持久化实现。** 这样不会把同一套运行时能力在两章各讲一遍。
+
 | 框架 | 官方定位 |
 |---|---|
 | **LangChain** | **高层 Agent 框架**，提供模型、工具和常见的 Agent 循环 |
@@ -196,16 +198,9 @@ workflow = builder.compile()
 
 > **真正的差异在控制粒度**：LangChain 给标准 Agent 暴露便利入口，**LangGraph 让开发者在任意节点和子图层面设计状态保存与恢复边界**。
 
-### 9.6.2 durable execution 不只是「把数据存进数据库」
+### 9.6.2 durable execution 的选型含义
 
-> **一个长流程中途失败后，如果从头重跑发邮件、扣款等副作用，状态虽然保存了，业务仍可能出事故。**
-
-**可靠恢复要求**：
-
-1. 把**非确定性操作和副作用**放进可记录的任务边界；
-2. 保证可能重试的操作**幂等**。
-
-**直接设计 LangGraph 时这些边界会更显式**；LangChain 标准 Agent 虽然能借用同一运行时，**复杂业务副作用仍需要开发者认真建模**。
+Checkpointer 能恢复状态，不会替业务保证副作用安全；复杂流程需要显式设计任务边界与幂等。这正是业务需要下沉 LangGraph 的信号之一。**恢复语义、审批协议和容错实现见[第十章](10-langgraph-advantages.md)。**
 
 ## 9.7 人工介入有什么区别
 
@@ -217,6 +212,8 @@ workflow = builder.compile()
 > **底层状态都由 LangGraph 持久化，恢复时继续使用相同的 `thread_id`。**
 >
 > **准确说法是**：LangChain 提供了围绕 Agent 工具调用的**高层审批体验**，LangGraph 提供了**更通用的中断与恢复原语**。前者省事，后者表达范围更广。
+>
+> 审批载荷的严格 schema、身份边界、任务/版本绑定和一次性幂等决策属于实现要求，见[第十章](10-langgraph-advantages.md)，不要仅把它当成一个布尔确认框。
 
 ## 9.8 流式输出能看到多深
 
@@ -231,6 +228,8 @@ workflow = builder.compile()
 | **LangGraph** | 更低层的 `values`、`updates`、`messages`、`custom`、`checkpoints`、`tasks`、`debug` 等事件类型，还能处理**子图命名空间** |
 
 > **两者都能流式输出**——LangChain 优先给常见 Agent 体验，LangGraph 允许观察完整执行引擎。
+
+`stream_events(..., version="v3")` 的类型化投影和前端状态白名单属于具体实现，见[第十章](10-langgraph-advantages.md)。
 
 ## 9.9 部署与调试如何分工
 
@@ -331,12 +330,12 @@ flowchart TB
 
 ## 参考资料
 
-- [LangChain 官方文档](https://python.langchain.com/)
+- [LangChain 官方文档](https://docs.langchain.com/oss/python/langchain/overview)
 - [LangChain: Agents 概念文档](https://docs.langchain.com/oss/python/langchain/agents)
 - [LangChain: Middleware](https://docs.langchain.com/oss/python/langchain/middleware)
 - [LangChain: Streaming](https://docs.langchain.com/oss/python/langchain/streaming)
-- [LangGraph 官方文档](https://langchain-ai.github.io/langgraph/)
-- [LangGraph: Graph API](https://langchain-ai.github.io/langgraph/how-tos/graph-api/)
-- [LangGraph 持久化文档](https://langchain-ai.github.io/langgraph/concepts/persistence/)
-- [LangGraph: Human-in-the-loop](https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/)
-- [LangSmith 官方文档](https://docs.smith.langchain.com/)
+- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
+- [LangGraph: Graph API](https://docs.langchain.com/oss/python/langgraph/use-graph-api)
+- [LangGraph 持久化文档](https://docs.langchain.com/oss/python/langgraph/persistence)
+- [LangGraph: Human-in-the-loop](https://docs.langchain.com/oss/python/langgraph/interrupts)
+- [LangSmith 官方文档](https://docs.langchain.com/langsmith/observability)

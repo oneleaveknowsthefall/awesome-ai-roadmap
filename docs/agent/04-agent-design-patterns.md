@@ -487,12 +487,12 @@ flowchart LR
 
 ```mermaid
 quadrantChart
-    title 任务复杂度与质量要求
-    x-axis 低任务复杂度 --> 高任务复杂度
-    y-axis 低质量要求 --> 高质量要求
-    quadrant-1 Plan-and-Execute + Reflection
-    quadrant-2 ReAct + Reflection
-    quadrant-3 单次调用或简单 Workflow
+    title Task complexity and quality requirements
+    x-axis Low complexity --> High complexity
+    y-axis Low quality requirement --> High quality requirement
+    quadrant-1 Plan-and-Execute plus Reflection
+    quadrant-2 ReAct plus Reflection
+    quadrant-3 Simple workflow
     quadrant-4 Plan-and-Execute
     ReAct: [0.30, 0.40]
     Plan-and-Execute: [0.78, 0.48]

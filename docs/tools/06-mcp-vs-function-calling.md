@@ -4,7 +4,7 @@
 
 「MCP 和 Function Calling 有什么区别」这个问题本身有点误导性，因为它暗示两者是并列的竞品。实际上：
 
-> **MCP 建立在 Function Calling 之上。它不是替代，而是上层建筑。**
+> **MCP 和 Function Calling 解决不同接口边界，常被同一个 Host 组合使用；MCP 并不规定或要求模型必须支持 Function Calling。**
 
 准确的区分是：
 
@@ -38,7 +38,7 @@ flowchart TB
 
 核心问题不是「写起来麻烦」，而是**同一个工具，换个应用就要重新对接一遍，每次都是一次性的手工活**。工具的管理、复用和跨平台兼容，Function Calling 一个都没解决——因为它压根不负责这些。
 
-## 6.3 MCP 底层依然靠 Function Calling 驱动
+## 6.3 常见集成：Host 用 Function Calling 路由 MCP Tool
 
 这是最关键、也最能体现理解深度的一点。
 
@@ -63,12 +63,12 @@ sequenceDiagram
     M-->>H: 最终答案
 ```
 
-从模型的视角看，它做的就是普通的 Function Calling。MCP 的所有「魔法」——自动发现、Schema 格式转换、调用路由、结果回传——**全部发生在宿主程序层**。
+在这种集成中，模型的视角确实是普通 Function Calling，能力发现、schema 转换、调用路由和结果回传都在 Host 层完成。这种桥接很常见，但不是 MCP 的规范要求。
 
 这个事实有两个直接推论：
 
-1. **模型不支持 Function Calling，MCP 就用不了**。翻译层失效了，MCP Server 里的工具没办法被表达给模型。这正是 [第七章](07-reasoning-models-and-tools.md) 要展开的问题；
-2. **上一章讲的工具 Schema 工程，在 MCP 下同样适用**。MCP Server 的工具描述写得烂，模型照样选错。协议标准化了传输，没有标准化质量。
+1. **模型不支持某厂商的 Function Calling 时，只有这条桥接路径不可用**。Host 仍可通过结构化输出、确定性工作流或人工界面调用 MCP Tool；
+2. **若由模型选择 Tool，工具 schema 工程仍然适用**。MCP 规定互操作格式，不保证模型会正确选择或填写参数。
 
 ## 6.4 选型：什么时候用哪个
 
@@ -196,9 +196,9 @@ if __name__ == "__main__":
 
 ## 6.6 常见错误
 
-### 6.6.1 说 MCP 取代了 Function Calling
+### 6.6.1 说 MCP 必然建立在 Function Calling 之上
 
-两者是上下游关系。MCP Server 的工具最终仍要转成 FC Schema 给模型。说成替代关系，等于没理解 MCP 到底在哪一层。
+二者并非替代品，也不是必然上下游。Function Calling 是常见的模型适配层；MCP 定义 Host/Client 与 Server 的协议。Host 可采用其他机制发起 `tools/call`。
 
 ### 6.6.2 只说「MCP 更标准化」
 
@@ -222,10 +222,10 @@ if __name__ == "__main__":
 
 ## 6.7 本章总结
 
-1. **MCP 建立在 Function Calling 之上**，不是替代关系；
+1. **MCP 与 Function Calling 可以配合，但不存在强制依赖**；
 2. **本质区别是「内嵌 vs 独立」**，这个直觉能推导出所有选型结论；
 3. **FC 的痛点是工具管理与复用**，M 个应用 × N 个工具的维护成本会线性爆炸；
-4. **模型完全感知不到 MCP**，所有转换发生在宿主层；因此模型不支持 FC 就用不了 MCP；
+4. **在 Function Calling 桥接中，模型无需感知 MCP**；模型不支持 FC 时，Host 可选择其他 MCP 调用路径；
 5. **FC 适合轻量、专属、需精细控制、部署受限的场景**；
 6. **MCP 适合有现成实现、需跨项目复用、工具规模大、构建 Agent 系统的场景**；
 7. **判断顺序**：先看社区有没有现成的 → 再看要不要复用 → 再看环境和维护成本；

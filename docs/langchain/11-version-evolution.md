@@ -203,9 +203,9 @@ flowchart LR
 ## 参考资料
 
 - [LangChain v1 迁移指南](https://docs.langchain.com/oss/python/migrate/langchain-v1)
-- [LangChain 官方文档](https://python.langchain.com/)
+- [LangChain 官方文档](https://docs.langchain.com/oss/python/langchain/overview)
 - [LangChain v1 发布说明](https://docs.langchain.com/oss/python/releases/langchain-v1)
 - [LangChain v0.3 版本说明（Pydantic 2 迁移）](https://python.langchain.com/docs/versions/v0_3/)
 - [LangChain 官方博客](https://blog.langchain.com/)
-- [LangGraph 官方文档](https://langchain-ai.github.io/langgraph/)
+- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
 - [Pydantic 迁移指南](https://docs.pydantic.dev/latest/migration/)

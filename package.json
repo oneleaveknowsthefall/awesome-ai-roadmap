@@ -1,0 +1,11 @@
+{
+  "name": "awesome-ai-roadmap-docs",
+  "private": true,
+  "scripts": {
+    "check:mermaid": "node scripts/check_mermaid.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0",
+    "mermaid": "11.12.0"
+  }
+}

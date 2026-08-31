@@ -33,7 +33,7 @@ flowchart TB
 以 150 万条、1024 维、float32 为例：
 
 $$
-1{,}500{,}000 \times 1024 \times 4\ \text{Bytes} \approx 6.1\ \text{GB}
+1{,}500{,}000 \times 1024 \times 4\ \mathrm{Bytes} \approx 6.1\ \mathrm{GB}
 $$
 
 ### 9.3.2 索引结构的额外开销
@@ -41,7 +41,7 @@ $$
 HNSW 的图结构本身也要占内存，量级大致是**每个节点存 M 个邻居 ID**：
 
 $$
-1{,}500{,}000 \times 32 \times 2 \times 8\ \text{Bytes} \approx 0.77\ \text{GB}
+1{,}500{,}000 \times 32 \times 2 \times 8\ \mathrm{Bytes} \approx 0.77\ \mathrm{GB}
 $$
 
 （式中 32 为 `M`，乘 2 是因为底层通常有约 2M 个连接，8 字节为一个节点 ID 的大致占用。）
