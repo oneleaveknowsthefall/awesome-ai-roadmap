@@ -37,7 +37,7 @@ flowchart TB
 
 | 层次 | 主题 | 目录 | 状态 |
 |---|---|---|---|
-| 底层原理 | LLM 相关知识点 | [`docs/llm/`](docs/llm/README.md) | 规划 22 章，撰写中 |
+| 底层原理 | LLM 相关知识点 | [`docs/llm/`](docs/llm/README.md) | 已完成 22 章 |
 | 协议接口 | Tools 相关知识点 | [`docs/tools/`](docs/tools/README.md) | 已完成 14 章 |
 | 应用架构 | Agent 相关知识点 | [`docs/agent/`](docs/agent/README.md) | 已完成 15 章 |
 | 应用架构 | RAG 相关知识点 | [`docs/rag/`](docs/rag/README.md) | 已完成 20 章 |
@@ -206,4 +206,68 @@ flowchart TB
     T10 --> T14[14 LLM 网关]
     T13 --> T14
     T11 --> T14
+```
+
+## LLM 相关知识点
+
+1. [大语言模型与传统 NLP 的本质区别](docs/llm/01-what-is-llm.md)
+2. [Transformer 架构原理](docs/llm/02-transformer-architecture.md)
+3. [MHA 的局限与 MQA、GQA、Flash Attention](docs/llm/03-attention-variants.md)
+4. [位置编码：sin/cos、RoPE 与 ALiBi](docs/llm/04-position-encoding.md)
+5. [Tokenizer 分词器原理](docs/llm/05-tokenizer.md)
+6. [大模型的三阶段训练流程](docs/llm/06-llm-training.md)
+7. [Scaling Law 与涌现能力](docs/llm/07-scaling-law-emergence.md)
+8. [微调方案全景](docs/llm/08-finetuning.md)
+9. [LoRA 技术详解](docs/llm/09-lora.md)
+10. [Post-Training：RLHF、DPO、GRPO 与拒绝采样](docs/llm/10-post-training.md)
+11. [DPO 与 PPO 的区别](docs/llm/11-dpo-vs-ppo.md)
+12. [解码策略：贪心、Beam Search 与采样](docs/llm/12-decoding-strategies.md)
+13. [Temperature、Top-P 与 Top-K](docs/llm/13-temperature-top-p-top-k.md)
+14. [KV Cache 与 Prompt Caching](docs/llm/14-kv-cache.md)
+15. [模型量化：INT8、INT4、GPTQ 与 AWQ](docs/llm/15-quantization.md)
+16. [Prompt 工程实践](docs/llm/16-prompt-engineering.md)
+17. [CoT 思维链的原理与局限](docs/llm/17-cot.md)
+18. [大模型幻觉的根因与缓解](docs/llm/18-hallucination.md)
+19. [MoE 混合专家模型](docs/llm/19-moe.md)
+20. [部署方案：vLLM、SGLang、TGI 与 llama.cpp](docs/llm/20-deployment-frameworks.md)
+21. [大模型能力评测指标](docs/llm/21-evaluation-metrics.md)
+22. [主流大模型对比与选型](docs/llm/22-model-selection.md)
+
+## LLM 知识图谱
+
+```mermaid
+flowchart TB
+    L1[01 LLM 与传统 NLP] --> L2[02 Transformer 架构]
+
+    L2 --> L3[03 注意力变体与优化]
+    L2 --> L4[04 位置编码]
+    L1 --> L5[05 Tokenizer]
+
+    L2 --> L6[06 三阶段训练流程]
+    L6 --> L7[07 Scaling Law 与涌现]
+    L6 --> L8[08 微调方案全景]
+    L8 --> L9[09 LoRA]
+    L6 --> L10[10 Post-Training]
+    L10 --> L11[11 DPO vs PPO]
+
+    L2 --> L12[12 解码策略]
+    L12 --> L13[13 采样参数调参]
+    L3 --> L14[14 KV Cache 与 Prompt Caching]
+    L9 --> L15[15 模型量化]
+    L14 --> L15
+
+    L13 --> L16[16 Prompt 工程]
+    L16 --> L17[17 CoT 思维链]
+    L17 --> L18[18 幻觉根因与缓解]
+    L10 --> L18
+
+    L2 --> L19[19 MoE 混合专家]
+    L14 --> L20[20 部署框架选型]
+    L15 --> L20
+    L19 --> L20
+
+    L7 --> L21[21 能力评测指标]
+    L18 --> L21
+    L21 --> L22[22 模型对比与选型]
+    L20 --> L22
 ```
