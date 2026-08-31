@@ -45,7 +45,7 @@ flowchart TB
 | 应用架构 | RAG 相关知识点 | [`docs/rag/`](docs/rag/README.md) | 21 章 |
 | 框架实现 | LangChain 相关知识点 | [`docs/langchain/`](docs/langchain/README.md) | 13 章 |
 
-完整章节目录、跨主题归属约定与推荐阅读路径见 [`docs/README.md`](docs/README.md)。每个主题的 `README.md` 是该主题章节导航与知识图谱的唯一维护入口。
+完整目录、跨主题归属约定与推荐阅读路径见 [`docs/README.md`](docs/README.md)。每个主题 README 维护子模块入口与模块关系，每个子模块 README 维护具体章节顺序。
 
 ## 文档质量
 

@@ -8,7 +8,7 @@ from collections import defaultdict
 
 
 issues: list[str] = []
-chapter_files = sorted(glob.glob("docs/*/[0-9][0-9]-*.md"))
+chapter_files = sorted(glob.glob("docs/*/*/[0-9][0-9]-*.md"))
 
 
 def report(path: str, message: str) -> None:
@@ -93,11 +93,39 @@ topic_names = {
     "langchain": "LangChain",
 }
 for topic, display_name in topic_names.items():
-    count = len(glob.glob(f"docs/{topic}/[0-9][0-9]-*.md"))
+    count = len(glob.glob(f"docs/{topic}/*/[0-9][0-9]-*.md"))
     topic_readme = open(f"docs/{topic}/README.md", encoding="utf-8").read()
-    listed = len(re.findall(rf"^\d+\. \[[^\]]+\]\(\d{{2}}-[^)]+\.md\)$", topic_readme, re.MULTILINE))
-    if listed != count:
-        report(f"docs/{topic}/README.md", f"lists {listed} chapters but directory has {count}")
+    module_dirs = sorted(
+        path for path in glob.glob(f"docs/{topic}/[0-9][0-9]-*")
+        if os.path.isdir(path)
+    )
+    listed_modules = len(re.findall(
+        r"^\d+\. \[[^\]]+\]\(\d{2}-[^/]+/README\.md\)$",
+        topic_readme,
+        re.MULTILINE,
+    ))
+    if listed_modules != len(module_dirs):
+        report(
+            f"docs/{topic}/README.md",
+            f"lists {listed_modules} modules but directory has {len(module_dirs)}",
+        )
+    indexed_chapters = 0
+    for module in module_dirs:
+        module_readme_path = os.path.join(module, "README.md")
+        if not os.path.exists(module_readme_path):
+            report(module, "missing module README.md")
+            continue
+        module_readme = open(module_readme_path, encoding="utf-8").read()
+        indexed_chapters += len(re.findall(
+            r"^\d+\. \[[^\]]+\]\(\d{2}-[^)]+\.md\)$",
+            module_readme,
+            re.MULTILINE,
+        ))
+    if indexed_chapters != count:
+        report(
+            f"docs/{topic}",
+            f"module indexes list {indexed_chapters} chapters but directory has {count}",
+        )
     if not re.search(rf"docs/{topic}/.*\|\s*{count} 章\s*\|", root_readme):
         report("README.md", f"{topic} chapter count is not {count}")
     if not re.search(rf"\|\s*{display_name}.*\|\s*{count}\s*\|", docs_readme):

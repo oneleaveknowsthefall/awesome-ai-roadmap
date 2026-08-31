@@ -2,8 +2,8 @@
 
 ## 目录与命名
 
-- 章节放在对应的 `docs/<topic>/` 目录，文件名使用 `NN-lowercase-slug.md`。
-- 每个主题只在自己的 `README.md` 维护章节目录和知识图谱；根 `README.md` 仅维护主题级入口。
+- 章节放在对应的 `docs/<topic>/<module>/` 目录，文件名使用 `NN-lowercase-slug.md`。
+- 每个主题 README 维护子模块目录与模块关系；每个子模块 README 维护章节目录；根 README 仅维护主题级入口。
 - 新概念应先确认其「详解归属地」。其他主题只解释本层视角，并链接到主章节，避免复制整段内容。
 
 ## 章节结构
@@ -29,4 +29,4 @@ npm install
 npm run check:mermaid
 ```
 
-新增章节后同步更新主题 `README.md` 和 `docs/README.md` 的主题计数。
+新增章节后同步更新子模块 `README.md`、主题 `README.md` 中的章节范围，以及 `docs/README.md` 的主题计数。
