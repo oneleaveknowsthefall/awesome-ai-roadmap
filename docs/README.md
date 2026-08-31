@@ -6,5 +6,5 @@
 |---|---|---|
 | Agent | 架构、工具、记忆、规划、反思、多 Agent、评估与安全 | [进入 Agent 相关知识点](agent/README.md) |
 | LLM | 模型原理、训练、推理、评估与部署 | [进入 LLM 相关知识点](llm/README.md) |
-| RAG | 数据处理、检索、重排、生成与评估 | [进入 RAG 相关知识点](rag/README.md) |
+| RAG | 文档处理、切分、Embedding、向量库、检索、重排、生成、评估、更新与安全 | [进入 RAG 相关知识点](rag/README.md) |
 | LangChain | LangChain、LangGraph 及相关工程实践 | [进入 LangChain 相关知识点](langchain/README.md) |

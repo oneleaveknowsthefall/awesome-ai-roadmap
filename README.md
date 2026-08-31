@@ -8,7 +8,7 @@
 |---|---|---|
 | Agent 相关知识点 | [`docs/agent/`](docs/agent/README.md) | 持续更新，现有 15 章 |
 | LLM 相关知识点 | [`docs/llm/`](docs/llm/README.md) | 已建立目录 |
-| RAG 相关知识点 | [`docs/rag/`](docs/rag/README.md) | 已建立目录 |
+| RAG 相关知识点 | [`docs/rag/`](docs/rag/README.md) | 持续更新，现有 20 章 |
 | LangChain 相关知识点 | [`docs/langchain/`](docs/langchain/README.md) | 已建立目录 |
 
 完整文档索引见 [`docs/README.md`](docs/README.md)。
@@ -71,4 +71,61 @@ flowchart TB
     TOOLS --> SEC
     MEMORY --> SEC
     EXTERNAL --> SEC
+```
+
+## RAG 相关知识点
+
+1. [RAG 是什么，解决什么问题](docs/rag/01-what-is-rag.md)
+2. [RAG、微调与长上下文的三方取舍](docs/rag/02-rag-finetune-longcontext.md)
+3. [文档解析与预处理](docs/rag/03-document-parsing.md)
+4. [Chunking 策略与粒度选择](docs/rag/04-chunking-strategy.md)
+5. [语义被切断怎么办](docs/rag/05-semantic-truncation.md)
+6. [Embedding 原理与技术演进](docs/rag/06-embedding-principles.md)
+7. [Embedding 模型选型与评估](docs/rag/07-embedding-selection.md)
+8. [向量数据库与 ANN 索引](docs/rag/08-vector-database.md)
+9. [向量库生产实践与性能调优](docs/rag/09-vectordb-production.md)
+10. [RAG 在线链路全流程](docs/rag/10-online-pipeline.md)
+11. [检索范式：稀疏、稠密与后期交互](docs/rag/11-retrieval-paradigms.md)
+12. [Query 理解与改写](docs/rag/12-query-rewriting.md)
+13. [多路召回、RRF 融合与 Rerank](docs/rag/13-hybrid-retrieval-rerank.md)
+14. [检索优化的四层框架](docs/rag/14-retrieval-optimization.md)
+15. [高级 RAG 范式](docs/rag/15-advanced-rag-paradigms.md)
+16. [GraphRAG 与图检索](docs/rag/16-graphrag.md)
+17. [生成、Grounding 与幻觉规避](docs/rag/17-generation-hallucination.md)
+18. [RAG 评估体系](docs/rag/18-rag-evaluation.md)
+19. [知识库的动态更新与增量索引](docs/rag/19-dynamic-update.md)
+20. [RAG 落地难点与安全](docs/rag/20-rag-challenges-security.md)
+
+## RAG 知识图谱
+
+```mermaid
+flowchart TB
+    R1[01 RAG 是什么] --> R2[02 微调 长上下文 三方取舍]
+    R1 --> OFF[离线链路]
+    R1 --> ON[在线链路]
+
+    OFF --> R3[03 文档解析与预处理]
+    R3 --> R4[04 Chunking 策略与粒度]
+    R4 --> R5[05 语义切断的解法]
+    R5 --> R6[06 Embedding 原理与演进]
+    R6 --> R7[07 Embedding 选型与评估]
+    R7 --> R8[08 向量库与 ANN 索引]
+    R8 --> R9[09 生产实践与调优]
+
+    ON --> R10[10 在线链路全流程]
+    R10 --> R12[12 Query 理解与改写]
+    R12 --> R11[11 检索范式]
+    R11 --> R13[13 多路召回 RRF 与 Rerank]
+    R13 --> R17[17 生成 Grounding 与幻觉]
+
+    R9 --> R11
+    R13 --> R14[14 检索优化四层框架]
+    R14 --> R15[15 高级 RAG 范式]
+    R15 --> R16[16 GraphRAG 与图检索]
+
+    R17 --> R18[18 RAG 评估体系]
+    R14 --> R18
+    R18 --> R19[19 动态更新与增量索引]
+    R19 --> R20[20 落地难点与安全]
+    R17 --> R20
 ```
