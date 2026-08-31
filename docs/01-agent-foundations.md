@@ -161,7 +161,7 @@ Agent 能够把复杂目标拆解为多个步骤，并根据执行反馈调整�
 
 ## 1.5 MCP：连接 Agent 与外部工具
 
-Anthropic 在 2024 年底提出了 MCP：
+Anthropic 在 2024 年 11 月提出了 MCP。2025 年 12 月，Anthropic 将 MCP 捐赠给 Linux 基金会旗下的 Agentic AI Foundation（AAIF）；MCP 由社区维护者负责技术治理，AAIF 提供厂商中立的组织与基础设施支持。
 
 **MCP = Model Context Protocol（模型上下文协议）**
 
@@ -195,9 +195,9 @@ $$
 
 ## 1.6 A2A：连接 Agent 与 Agent
 
-Google 在 2025 年 4 月推出了 A2A：
+Google 在 2025 年 4 月推出了 A2A。2025 年 6 月，A2A 项目进入 Linux 基金会，以厂商中立的方式继续治理和发展：
 
-**A2A = Agent-to-Agent Protocol（Agent 间通信协议）**
+**A2A = Agent2Agent Protocol（Agent 间通信协议）**
 
 如果说 MCP 解决的是“Agent 如何调用外部工具”，那么 A2A 解决的就是“Agent 如何发现并与另一个 Agent 协作”。
 
@@ -251,3 +251,10 @@ flowchart TB
 ```
 
 MCP 让每个 Agent 能够方便地“伸手拿工具”，A2A 则让多个 Agent 能够“相互沟通与分工”。二者共同构成多 Agent 系统走向标准化和互操作的重要基础。
+
+## 参考资料
+
+- [Anthropic: Introducing the Model Context Protocol](https://www.anthropic.com/news/model-context-protocol)
+- [MCP joins the Agentic AI Foundation](https://blog.modelcontextprotocol.io/posts/2025-12-09-mcp-joins-agentic-ai-foundation/)
+- [Linux Foundation: Agent2Agent Protocol Project](https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents)
+- [A2A Protocol Specification](https://a2a-protocol.org/latest/specification/)

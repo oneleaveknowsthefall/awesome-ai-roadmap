@@ -16,24 +16,39 @@
 10. [Agent 记忆与上下文压缩](docs/10-agent-memory-compression.md)
 11. [如何赋予 LLM 与 Agent 规划能力](docs/11-llm-agent-planning.md)
 12. [Agent 的反思、验证与自我改进](docs/12-agent-reflection.md)
+13. [Multi-Agent 协作、路由与动态切换](docs/13-multi-agent-coordination.md)
 
 ## 知识图谱
 
 ```mermaid
-flowchart LR
-    LLM[大语言模型] --> LIMIT[模型局限]
-    LIMIT --> FREEZE[知识冻结]
-    LIMIT --> STATE[缺少持续状态]
-    LIMIT --> ACTION[无法直接行动]
+flowchart TB
+    LLM[大语言模型] --> FOUNDATION[01 Agent 基础]
+    FOUNDATION --> ARCH[02 现代系统架构]
 
-    LLM --> AGENT[AI Agent]
-    AGENT --> LOOP[感知-规划-行动闭环]
-    AGENT --> TOOL[工具调用]
-    AGENT --> MEMORY[记忆机制]
-    AGENT --> REASON[多步推理与纠错]
+    ARCH --> BUILD[03 构建单元]
+    BUILD --> TOOLS[Tools 与 Skills]
+    BUILD --> WORKFLOW[Workflows]
+    BUILD --> MCP[MCP]
 
-    AGENT --> MCP[MCP]
-    AGENT --> A2A[A2A]
-    MCP --> EXT[外部工具与数据]
-    A2A --> MULTI[多 Agent 协作]
+    ARCH --> PATTERN[04 Agent 设计范式]
+    PATTERN --> REACT[ReAct]
+    PATTERN --> PLANEXEC[Plan-and-Execute]
+    PATTERN --> REFLECT[Reflection]
+
+    PATTERN --> REASON[05 推理与搜索方法]
+    REASON --> PLAN[11 规划能力]
+    PLAN --> DECOMP[06 复杂任务拆分]
+    REFLECT --> REFMECH[12 反思与验证]
+
+    ARCH --> MEMORY[07 记忆机制]
+    MEMORY --> MEMIMPL[08 长短期记忆实现]
+    MEMIMPL --> COMPRESS[10 记忆与上下文压缩]
+
+    DECOMP --> MULTI[09 Single-Agent 与 Multi-Agent]
+    MULTI --> COORD[13 协作、路由与动态切换]
+    COORD --> A2A[A2A]
+
+    MCP --> EXTERNAL[外部工具与数据]
+    A2A --> REMOTE[跨系统 Agent 协作]
+    WORKFLOW --> MULTI
 ```

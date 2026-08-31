@@ -179,6 +179,8 @@ sequenceDiagram
 
 MCP（Model Context Protocol）为 AI 应用连接工具和数据源提供了标准协议。
 
+MCP 最初由 Anthropic 在 2024 年提出，2025 年 12 月成为 Linux 基金会旗下 Agentic AI Foundation 的创始项目。基金会提供厂商中立的组织治理，协议的技术方向仍由 MCP 社区维护者管理。
+
 MCP 包含三个主要角色：
 
 - **Host**：面向用户的 AI 应用，负责模型、权限和整体交互；
@@ -524,8 +526,8 @@ Agent 的结果具有非确定性，仅判断“最终有没有回答”通常�
 | LangChain | 模型、工具、检索和 Agent 组件集成 |
 | LangGraph | 有状态工作流、图执行、checkpoint 和人工介入 |
 | LlamaIndex | 数据连接、索引、检索、Context Engineering 和 Agent |
-| AutoGen | 多 Agent 对话、协作与任务编排 |
-| Semantic Kernel | 企业应用中的插件、流程、模型和服务编排 |
+| Microsoft Agent Framework | 结合 AutoGen 的 Agent 抽象与 Semantic Kernel 的企业能力，提供 Agent、Workflow、状态、中间件和可观测性 |
+| AutoGen / Semantic Kernel | 已进入向 Microsoft Agent Framework 迁移的旧框架阶段，适合维护现有系统，不宜作为新项目的默认选择 |
 
 框架只是实现手段。设计 Agent 时，应先明确状态、控制流、权限和评估方式，再选择合适的框架，而不是让框架替代系统架构设计。
 
@@ -536,3 +538,10 @@ Agent 的结果具有非确定性，仅判断“最终有没有回答”通常�
 > **接收目标 → 读取状态与记忆 → 规划下一步 → 请求工具或 Agent → Runtime 安全执行 → 获取观察 → 更新状态 → 评估并继续**
 
 四组件模型解释了 Agent 的基本能力，而 Runtime、Guardrails 和 Observability 决定了这些能力能否安全、稳定地运行在真实环境中。
+
+## 参考资料
+
+- [MCP Governance and Stewardship](https://modelcontextprotocol.io/community/governance)
+- [MCP joins the Agentic AI Foundation](https://blog.modelcontextprotocol.io/posts/2025-12-09-mcp-joins-agentic-ai-foundation/)
+- [Microsoft Agent Framework Overview](https://learn.microsoft.com/en-us/agent-framework/overview/)
+- [AutoGen Maintenance Mode](https://github.com/microsoft/autogen)

@@ -1139,6 +1139,6 @@ Multi-Agent 的真实价值来自：
 ## 参考资料
 
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
-- [Google A2A Protocol](https://a2a-protocol.org/)
+- [Agent2Agent (A2A) Protocol](https://a2a-protocol.org/)
 - [AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation](https://arxiv.org/abs/2308.08155)
-- [CAMEL: Communicative Agents for Mind Exploration](https://arxiv.org/abs/2303.17760)
+- [CAMEL: Communicative Agents for Mind Exploration of Large Language Model Society](https://arxiv.org/abs/2303.17760)
