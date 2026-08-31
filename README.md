@@ -2,16 +2,48 @@
 
 本仓库用于系统梳理 LLM、RAG、Agent 和应用框架等 AI 知识，并采用便于 DeepWiki 索引的分层文档结构。
 
+## 总体策略图
+
+本仓库按「抽象层次」组织知识，五个主题自下而上构成一条完整的栈。
+
+```mermaid
+flowchart TB
+    subgraph L1["第一层 · 模型底层原理"]
+        LLM["LLM · 22 章<br/>Transformer / 训练 / 推理 / 部署"]
+    end
+
+    subgraph L2["第二层 · 协议与接口"]
+        TOOLS["Tools · 14 章<br/>Function Calling / MCP / Skill / A2A"]
+    end
+
+    subgraph L3["第三层 · 应用架构"]
+        AGENT["Agent · 15 章<br/>规划 / 记忆 / 反思 / 多智能体"]
+        RAG["RAG · 20 章<br/>索引 / 检索 / 重排 / 生成"]
+    end
+
+    subgraph L4["第四层 · 框架实现"]
+        LC["LangChain · 12 章<br/>编排 / 状态 / 持久化"]
+    end
+
+    LLM --> TOOLS
+    TOOLS --> AGENT
+    LLM --> RAG
+    AGENT --> LC
+    RAG --> LC
+    RAG -.知识增强.-> AGENT
+```
+
 ## 主题目录
 
-| 主题 | 目录 | 状态 |
-|---|---|---|
-| Agent 相关知识点 | [`docs/agent/`](docs/agent/README.md) | 持续更新，现有 15 章 |
-| LLM 相关知识点 | [`docs/llm/`](docs/llm/README.md) | 已建立目录 |
-| RAG 相关知识点 | [`docs/rag/`](docs/rag/README.md) | 持续更新，现有 20 章 |
-| LangChain 相关知识点 | [`docs/langchain/`](docs/langchain/README.md) | 已建立目录 |
+| 层次 | 主题 | 目录 | 状态 |
+|---|---|---|---|
+| 底层原理 | LLM 相关知识点 | [`docs/llm/`](docs/llm/README.md) | 规划 22 章，撰写中 |
+| 协议接口 | Tools 相关知识点 | [`docs/tools/`](docs/tools/README.md) | 规划 14 章，撰写中 |
+| 应用架构 | Agent 相关知识点 | [`docs/agent/`](docs/agent/README.md) | 已完成 15 章 |
+| 应用架构 | RAG 相关知识点 | [`docs/rag/`](docs/rag/README.md) | 已完成 20 章 |
+| 框架实现 | LangChain 相关知识点 | [`docs/langchain/`](docs/langchain/README.md) | 规划 12 章，撰写中 |
 
-完整文档索引见 [`docs/README.md`](docs/README.md)。
+完整文档索引与主题间交叉引用约定见 [`docs/README.md`](docs/README.md)。
 
 ## Agent 相关知识点
 

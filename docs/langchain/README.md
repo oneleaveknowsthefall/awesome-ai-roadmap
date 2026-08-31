@@ -1,15 +1,29 @@
 # LangChain 相关知识点
 
-本目录用于梳理 LangChain 生态及其工程实践。
+本目录梳理 LangChain 生态的**框架实现层**：同样的概念在 [Agent](../agent/README.md) 和 [RAG](../rag/README.md) 里讲的是原理与取舍，在这里讲的是「这个框架具体是怎么做的、为什么这么设计、什么时候该下沉到 LangGraph」。
 
-## 规划内容
+> 本主题正在撰写中，章节链接将随内容提交逐步开放。
 
-1. Models、Messages、Prompts 与 Output Parsers；
-2. Tools、Structured Output 与 Middleware；
-3. Runnables 与 LCEL；
-4. Document Loaders、Retrievers 与 Vector Stores；
-5. LangGraph State、Node、Edge 与 Checkpoint；
-6. Memory、Human-in-the-loop 与 Multi-Agent；
-7. LangSmith Tracing、Evaluation 与 Deployment。
+## 目录
+
+1. 主流 AI Agent 开发框架概览
+2. Chain 的设计理念与 LCEL
+3. LangChain v1 的底层架构
+4. 用 LangChain 构建 Agent 的核心步骤
+5. 为 Agent 注册工具
+6. 短期记忆与长期记忆的实现
+7. LangChain 与 LlamaIndex 的区别
+8. LangChain4j 与 Java 生态
+9. LangChain 与 LangGraph 的核心区别
+10. LangGraph 的核心优势与适配场景
+11. LangChain 大版本升级的核心变化
+12. Deep Research 的实现逻辑
+
+## 阅读建议
+
+- **入门路线**：第 1、2、3 章建立框架心智模型，再看第 4 章动手；
+- **工程落地路线**：第 4、5、6 章覆盖构建 Agent 的完整闭环；
+- **架构选型路线**：第 7、9、10 章解决「用哪个框架、什么时候下沉」；
+- **进阶路线**：第 11、12 章理解演进方向与复杂 Agent 的实现范式。
 
 返回[文档主题索引](../README.md)。
