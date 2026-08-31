@@ -162,7 +162,7 @@ DPO 训练简单、稳定、容易实现，是很多开源 Instruct 模型的偏
 
 > **但别把所有模型都说成 DPO 训出来的。** Llama 2-Chat 公开论文里的主线是 SFT + 拒绝采样 + PPO/RLHF，不是 DPO；Llama 3 系列则使用了更复杂的多阶段 post-training。说「DPO 是开源社区常见方案」没问题，说「Llama 2 是 DPO 训的」就不严谨了。
 
-两者的详细对比见 第十一章，更完整的 post-training 方法谱系见 第十章。
+两者的详细对比见 [第十一章](11-dpo-vs-ppo.md)，更完整的 post-training 方法谱系见 [第十章](10-post-training.md)。
 
 ## 6.5 三阶段为什么缺一不可
 
