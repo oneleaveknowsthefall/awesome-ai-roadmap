@@ -32,5 +32,5 @@ python3 -m venv .venv
 .venv/bin/mkdocs build --strict
 ```
 
-新增章节后同步更新子模块 `README.md`、主题 `README.md` 中的章节范围，以及 `docs/README.md` 的主题计数。
+新增章节后同步更新子模块 `README.md`、主题 `README.md`、根目录索引中的章节范围与主题计数。
 新增、删除或移动页面时，还需同步更新 `mkdocs.yml` 中的 Wiki 导航。

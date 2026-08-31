@@ -1,6 +1,6 @@
 # AI 知识图谱
 
-本仓库系统梳理 LLM、Tools、Agent、RAG 与应用框架等 AI 知识。文档采用主题目录、主题索引和章节交叉链接构成的分层结构，并通过 MkDocs Material 发布为可搜索的 Wiki。
+本仓库系统梳理从模型原理到生产治理的 AI 技术栈。文档采用“主题 → 子模块 → 章节”的知识图谱结构，并通过 MkDocs Material 发布为可搜索的 Wiki。
 
 **在线 Wiki：** <https://zongyangbigpolo.github.io/awesome-ai-roadmap/>
 
@@ -8,12 +8,13 @@
 
 ## 总体策略图
 
-本仓库按「抽象层次」组织知识，五个主题自下而上构成一条完整的技术栈。
+八个主题按“模型能力 → 协议接口 → 应用架构 → 框架实现 → 生产治理”组织，共 138 章。
 
 ```mermaid
 flowchart TB
-    subgraph L1["第一层 · 模型底层原理"]
-        LLM["LLM · 23 章<br/>Transformer / 训练 / 多模态 / 推理 / 部署"]
+    subgraph L1["第一层 · 模型与多模态能力"]
+        LLM["LLM · 23 章<br/>Transformer / 训练 / 推理 / 部署"]
+        MM["多模态 AI · 10 章<br/>视觉 / 语音 / 图像与视频生成"]
     end
 
     subgraph L2["第二层 · 协议与接口"]
@@ -21,19 +22,31 @@ flowchart TB
     end
 
     subgraph L3["第三层 · 应用架构"]
-        AGENT["Agent · 15 章<br/>规划 / 记忆 / 反思 / 多智能体"]
+        AGENT["Agent · 23 章<br/>Harness / 规划 / 记忆 / 多智能体"]
         RAG["RAG · 21 章<br/>索引 / 检索 / 多模态 / 生成"]
     end
 
     subgraph L4["第四层 · 框架实现"]
-        LC["LangChain · 13 章<br/>编排 / 状态 / 持久化 / 评测"]
+        FW["框架与编排 · 23 章<br/>LangChain / LlamaIndex / DSPy / Semantic Kernel"]
     end
 
+    subgraph L5["第五层 · 生产与治理"]
+        ENG["AI Engineering · 13 章<br/>评测 / 可观测性 / 发布 / SLO / 成本"]
+        SAFE["AI 安全与治理 · 10 章<br/>威胁 / 隔离 / 红队 / 审计"]
+    end
+
+    LLM --> MM
     LLM --> TOOLS
     TOOLS --> AGENT
     LLM --> RAG
-    AGENT --> LC
-    RAG --> LC
+    MM --> AGENT
+    MM --> RAG
+    AGENT --> FW
+    RAG --> FW
+    FW --> ENG
+    ENG --> SAFE
+    AGENT -.风险输入.-> SAFE
+    RAG -.风险输入.-> SAFE
     RAG -.知识增强.-> AGENT
 ```
 
@@ -42,10 +55,13 @@ flowchart TB
 | 层次 | 主题 | 目录 | 状态 |
 |---|---|---|---|
 | 底层原理 | LLM 相关知识点 | [`docs/llm/`](docs/llm/README.md) | 23 章 |
+| 模型能力 | 多模态 AI | [`docs/multimodal/`](docs/multimodal/README.md) | 10 章 |
 | 协议接口 | Tools 相关知识点 | [`docs/tools/`](docs/tools/README.md) | 15 章 |
-| 应用架构 | Agent 相关知识点 | [`docs/agent/`](docs/agent/README.md) | 15 章 |
+| 应用架构 | Agent 相关知识点 | [`docs/agent/`](docs/agent/README.md) | 23 章 |
 | 应用架构 | RAG 相关知识点 | [`docs/rag/`](docs/rag/README.md) | 21 章 |
-| 框架实现 | LangChain 相关知识点 | [`docs/langchain/`](docs/langchain/README.md) | 13 章 |
+| 框架实现 | AI 框架与编排 | [`docs/frameworks/`](docs/frameworks/README.md) | 23 章 |
+| 生产工程 | AI Engineering / LLMOps | [`docs/engineering/`](docs/engineering/README.md) | 13 章 |
+| 安全治理 | AI 安全与治理 | [`docs/safety/`](docs/safety/README.md) | 10 章 |
 
 完整目录、跨主题归属约定与推荐阅读路径见 [`docs/README.md`](docs/README.md)。每个主题 README 维护子模块入口与模块关系，每个子模块 README 维护具体章节顺序。
 

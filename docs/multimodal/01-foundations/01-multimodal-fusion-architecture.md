@@ -1,0 +1,140 @@
+# 第一章：多模态表征与融合架构
+
+> 本章聚焦"不同模态的信号如何在架构层面接入同一个模型"这一具体问题。多模态模型的整体训练/推理/评测/安全概览见 [LLM · 多模态模型](../../llm/06-multimodal/23-multimodal-models.md)，本章只展开其中的融合架构维度，不重复该章已有内容。
+
+## 1.1 融合发生在流水线的哪一步
+
+“融合”指的是模态特征与语言表示合并、开始互相影响彼此计算的位置。这个位置越靠前，模型对跨模态交互建模的能力理论上越强，但训练成本、数据需求和工程复杂度也越高。
+
+```mermaid
+flowchart LR
+    subgraph Late["Late Fusion / Adapter"]
+        L1[冻结或微调的视觉编码器] --> L2[Projector] --> L3[语言模型主干]
+    end
+    subgraph Cross["Cross-Attention Fusion"]
+        C1[视觉编码器] --> C2[Resampler] --> C3["语言模型<br/>交叉注意力层"]
+    end
+    subgraph Early["Early Fusion / 统一 Token 化"]
+        E1[图像离散化] --> E4[统一 Token 序列]
+        E2[音频离散化] --> E4
+        E3[文本 Token] --> E4
+        E4 --> E5[单一 Transformer<br/>联合建模]
+    end
+```
+
+三条路线并非互斥的历史阶段，而是当前同时在用的三类工程取舍：
+
+| 路线 | 融合位置 | 典型代表 | 核心取舍 |
+|---|---|---|---|
+| Late Fusion / Adapter | 语言模型输入层，特征投影后与文本 token 拼接 | LLaVA、Qwen-VL 早期版本 | 复用现成 LLM 和视觉 encoder，训练成本低；长序列占满上下文 |
+| Cross-Attention Fusion | 语言模型中间层，通过专门的交叉注意力子层读取模态特征 | Flamingo、IDEFICS | 视觉 token 数不占用文本上下文；架构改动更大，需从头设计交叉层 |
+| Early Fusion / 统一 Token 化 | 输入层之前，多模态先统一离散化为同构 token 序列 | Chameleon、GPT-4o（原生多模态） | 单一目标函数联合建模所有模态；数据配比和训练稳定性要求高 |
+
+## 1.2 Late Fusion：投影拼接架构
+
+Late Fusion 架构把问题拆成两段：先用专门的编码器 $E_v$ 把图像编码为特征，再用一个轻量的 projector $C$（通常是 MLP 或线性层）把特征投影到语言模型的隐藏维度，最后与文本 token 拼接后一起送入语言模型：
+
+$$
+z=E_v(x_{\mathrm{img}}),\qquad h=C(z),\qquad
+p(y\mid x_{\mathrm{img}},x_t)=\mathrm{LLM}([h;\,\mathrm{Embed}(x_t)])
+$$
+
+LLaVA 的训练分两阶段：先只训练 projector，让视觉特征对齐到语言模型已有的词嵌入空间；再解冻语言模型（或用 LoRA）做指令微调，让模型学会用视觉证据回答问题、遵循格式。这个两阶段设计的关键前提是：语言模型的推理能力在预训练阶段已经具备，projector 只需要学会"翻译"，不需要重新教会模型如何推理。
+
+这条路线最大的工程痛点是**视觉 token 数量**。一张图像切分为 patch 后往往产生几百到上千个 token，多图或高分辨率输入会迅速占满上下文窗口、拉长 prefill 时间。Resampler（见 1.3 节）和 token 压缩/剪枝是常见的缓解手段。
+
+## 1.3 Cross-Attention Fusion：不占用文本上下文的读取方式
+
+Flamingo 提出的架构把语言模型本身冻结，在其内部插入新的 **gated cross-attention** 层：语言 token 作为 Query，通过交叉注意力从视觉特征中按需读取信息，而不是把视觉 token 拼接进输入序列。
+
+$$
+\mathrm{Attn}(Q,K,V)=\mathrm{softmax}\!\left(\frac{QK^{\top}}{\sqrt{d_k}}\right)V,\qquad
+Q=W_qh_t,\ K=W_kz,\ V=W_vz
+$$
+
+其中 $h_t$ 是语言模型隐藏状态，$z$ 是视觉特征。新增的交叉注意力层用一个可学习的门控标量 $\tanh(\alpha)$ 加权，$\alpha$ 初始化为零，这样训练一开始新层的输出接近零，语言模型的原有能力不会被破坏，随训练逐步"学会"引入视觉信息。
+
+在把原始特征喂给交叉注意力之前，Flamingo 和后续工作（如 IDEFICS）通常先用一个 **Perceiver Resampler** 把变长、数量巨大的视觉特征压缩为固定数量（例如 64 个）的 latent token。Resampler 本身是一组可学习的 latent 向量，通过交叉注意力反复"查询"原始特征来提炼信息：
+
+$$
+\ell^{(i+1)}=\mathrm{CrossAttn}(\ell^{(i)},z)+\ell^{(i)}
+$$
+
+这种设计把"视觉 token 数量"和"原始特征分辨率"解耦：无论输入多少帧、多高分辨率，语言模型看到的始终是固定长度的压缩表示，代价是可能丢失细粒度细节（小物体、密集文字）。
+
+## 1.4 Early Fusion：统一 Token 化架构
+
+Late Fusion 和 Cross-Attention 都保留了"语言模型为主、视觉为辅"的不对称结构。Early Fusion 走另一条路：把图像（有时还包括音频）先离散化为和文本 token 同构的符号序列，再用**同一个** Transformer、**同一个**自回归目标联合建模所有模态。
+
+离散化通常基于 VQ-VAE / VQGAN 一类向量量化方法：编码器把图像映射到连续特征，再从一个学习到的 codebook $\{e_k\}_{k=1}^{K}$ 中找最近邻，把每个位置替换成离散编码索引：
+
+$$
+z_q=e_k,\quad k=\arg\min_j\lVert z_e-e_j\rVert_2
+$$
+
+得到的离散 token 序列可以和文本 token 直接拼接进同一个词表，模型不再区分"这是图像 token 还是文本 token"，而是统一做下一 token 预测。Meta 的 Chameleon 是这一路线的公开代表：图像和文本共享同一个 token 空间和同一个 Transformer 权重，训练目标从头就是混合模态的语言建模，而不是先训练纯文本模型再"外挂"视觉模块。OpenAI 的 GPT-4o 系统卡片同样将其描述为跨文本、视觉、音频端到端训练的原生模型，而非独立组件拼接的管线。
+
+Early Fusion 的收益是模型可以在同一组权重和注意力模式里自由建立跨模态关联，不受"projector 只做一次性翻译"或"cross-attention 只读取压缩特征"的结构限制；代价是训练数据配比、序列长度和优化稳定性的工程复杂度显著上升——图像离散化后的 token 序列通常远长于对应的文本描述，需要专门的数据配比和课程设计（详见 [第九章](../05-data-training-evaluation/09-multimodal-data-alignment.md)）。
+
+## 1.5 统一 Embedding 空间：对齐而非生成
+
+以上三条路线都服务于"理解或生成"，还有一类架构目标不同：不产出文本，而是把不同模态映射到**同一个可比较的向量空间**，用于检索、路由和跨模态匹配。
+
+CLIP 用图文对比学习训练一对独立编码器 $E_v,E_t$，让匹配的图文对在同一空间里余弦相似度更高：
+
+$$
+\mathcal{L}=-\frac{1}{N}\sum_{i=1}^{N}\log\frac{\exp(\mathrm{sim}(v_i,t_i)/\tau)}{\sum_{j=1}^{N}\exp(\mathrm{sim}(v_i,t_j)/\tau)}
+$$
+
+这是标准的 InfoNCE 形式：$\mathrm{sim}$ 通常取归一化向量点积，$\tau$ 是温度系数，分母对一个批次内的所有图文对做归一化，让匹配对的相似度相对其余负样本最大化。SigLIP 用 sigmoid 损失替代了 softmax 版本的对比损失，去掉了对全局归一化项的依赖，使大批次训练更稳定、也更容易扩展。
+
+ImageBind 把这一思路扩展到六种模态（图像、文本、音频、深度、热成像、IMU），核心发现是：**只需要把每种模态分别与图像对齐，就能让所有模态在同一空间里两两可比**，不需要为每一对模态单独收集配对数据。这类统一 embedding 常被用作检索路由的第一层，而不是直接承担生成任务；多模态 RAG 中如何使用图文共享向量空间做召回，见 [RAG · 多模态 RAG](../../rag/04-advanced/21-multimodal-rag.md)。
+
+## 1.6 架构对比与选型
+
+| 维度 | Late Fusion | Cross-Attention | Early Fusion（统一 Token） |
+|---|---|---|---|
+| 训练成本 | 低，可复用预训练 LLM | 中，需从头训练新增层 | 高，通常需要从预训练阶段就联合设计 |
+| 上下文占用 | 视觉 token 直接占用文本上下文 | 可通过 Resampler 压缩为固定长度 | 视觉 token 与文本 token 共享同一序列 |
+| 跨模态交互深度 | 浅，仅输入层拼接 | 中，语言模型每层都可查询视觉特征 | 深，同一组权重联合建模 |
+| 工程复杂度 | 低 | 中 | 高 |
+| 典型场景 | 快速在现有 LLM 上加视觉能力 | 需要处理多图/多帧、控制上下文成本 | 追求原生统一的多模态生成与理解 |
+
+选型不是"哪个更先进"的问题，而是应该先问：现有语言模型能否复用、上下文预算是否紧张、是否需要模型原生生成图像/音频（而不仅是理解）。这三个问题的答案共同决定了合适的融合位置。
+
+## 1.7 常见错误
+
+### 1.7.1 把"能接收图片输入"等同于某种特定融合架构
+
+接口层面支持多模态输入的产品，底层可能是上述任意一种架构，甚至是"先用独立模型做 caption 再喂给纯文本 LLM"的外部管线。不看架构报告或技术卡片就假设某个能力（如多图交互、细粒度定位）默认存在，是常见的评测误判来源。
+
+### 1.7.2 混淆"统一 Embedding 空间"与"统一生成架构"
+
+CLIP、SigLIP、ImageBind 这类模型解决的是跨模态检索与对齐问题，不直接具备生成图像或文本的能力；Chameleon、GPT-4o 这类模型才是"同一组权重联合生成多模态输出"的架构。两者常被笼统称为"统一多模态模型"，但训练目标和适用任务完全不同。
+
+### 1.7.3 认为 Resampler 压缩没有代价
+
+固定数量的 latent token 提升了效率和上下文可控性，但对密集文字、小物体和精细空间关系的保留能力通常弱于未压缩的高分辨率 patch 特征。需要 OCR 级别精度的任务应实测该压缩是否损失了必要细节，相关评测口径见 [OCR 与 Document AI](../02-vision-document/03-ocr-document-ai.md)。
+
+## 1.8 本章总结
+
+1. 融合架构按"模态特征何时、何处与语言表示合并"可分为 Late Fusion、Cross-Attention Fusion 和 Early Fusion（统一 Token 化）三类；
+2. Late Fusion 用 projector 把视觉特征投影后拼接进文本序列，简单但占用上下文；
+3. Cross-Attention Fusion 通过新增的门控交叉注意力层和 Resampler，把视觉 token 压缩为固定长度、不占用文本上下文，代价是架构改动更大；
+4. Early Fusion 把多模态先离散化为同构 token，用单一 Transformer 联合建模，跨模态交互最深但训练工程复杂度最高；
+5. 统一 Embedding 空间（CLIP、SigLIP、ImageBind）解决的是对齐与检索问题，与上述生成式架构是不同的问题维度，不应混为一谈。
+
+> **一句话概括：融合架构的本质是在"跨模态交互深度"与"训练/推理成本"之间选择一个具体的权衡点，选型应从现有资产、上下文预算和是否需要原生生成出发，而不是追逐某种架构标签。**
+
+## 参考资料
+
+- [CLIP: Learning Transferable Visual Models From Natural Language Supervision](https://arxiv.org/abs/2103.00020)
+- [Sigmoid Loss for Language Image Pre-Training (SigLIP)](https://arxiv.org/abs/2303.15343)
+- [ImageBind: One Embedding Space To Bind Them All](https://arxiv.org/abs/2305.05665)
+- [Flamingo: a Visual Language Model for Few-Shot Learning](https://arxiv.org/abs/2204.14198)
+- [Perceiver IO: A General Architecture for Structured Inputs & Outputs](https://arxiv.org/abs/2107.14795)
+- [LLaVA: Visual Instruction Tuning](https://arxiv.org/abs/2304.08485)
+- [Chameleon: Mixed-Modal Early-Fusion Foundation Models](https://arxiv.org/abs/2405.09818)
+- [Neural Discrete Representation Learning (VQ-VAE)](https://arxiv.org/abs/1711.00937)
+- [Taming Transformers for High-Resolution Image Synthesis (VQGAN)](https://arxiv.org/abs/2012.09841)
+- [OpenAI GPT-4o System Card](https://openai.com/index/gpt-4o-system-card/)

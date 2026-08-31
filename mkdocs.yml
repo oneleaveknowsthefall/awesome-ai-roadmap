@@ -41,6 +41,27 @@ plugins:
       lang:
         - zh
         - en
+  - redirects:
+      redirect_maps:
+        langchain/README.md: frameworks/01-langchain/README.md
+        langchain/01-foundations/README.md: frameworks/01-langchain/01-foundations/README.md
+        langchain/01-foundations/01-agent-frameworks.md: frameworks/01-langchain/01-foundations/01-agent-frameworks.md
+        langchain/01-foundations/02-chain-and-lcel.md: frameworks/01-langchain/01-foundations/02-chain-and-lcel.md
+        langchain/01-foundations/03-langchain-architecture.md: frameworks/01-langchain/01-foundations/03-langchain-architecture.md
+        langchain/02-agent-building/README.md: frameworks/01-langchain/02-agent-building/README.md
+        langchain/02-agent-building/04-build-agent.md: frameworks/01-langchain/02-agent-building/04-build-agent.md
+        langchain/02-agent-building/05-tool-registration.md: frameworks/01-langchain/02-agent-building/05-tool-registration.md
+        langchain/02-agent-building/06-memory.md: frameworks/01-langchain/02-agent-building/06-memory.md
+        langchain/03-ecosystem/README.md: frameworks/01-langchain/03-ecosystem/README.md
+        langchain/03-ecosystem/07-langchain-vs-llamaindex.md: frameworks/01-langchain/03-ecosystem/07-langchain-vs-llamaindex.md
+        langchain/03-ecosystem/08-langchain4j.md: frameworks/01-langchain/03-ecosystem/08-langchain4j.md
+        langchain/03-ecosystem/11-version-evolution.md: frameworks/01-langchain/03-ecosystem/11-version-evolution.md
+        langchain/04-langgraph/README.md: frameworks/01-langchain/04-langgraph/README.md
+        langchain/04-langgraph/09-langchain-vs-langgraph.md: frameworks/01-langchain/04-langgraph/09-langchain-vs-langgraph.md
+        langchain/04-langgraph/10-langgraph-advantages.md: frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md
+        langchain/05-production/README.md: frameworks/01-langchain/05-production/README.md
+        langchain/05-production/12-deep-research.md: frameworks/01-langchain/05-production/12-deep-research.md
+        langchain/05-production/13-langsmith-production-loop.md: frameworks/01-langchain/05-production/13-langsmith-production-loop.md
 
 markdown_extensions:
   - admonition
@@ -112,6 +133,28 @@ nav:
       - 多模态:
           - 模块导览: llm/06-multimodal/README.md
           - 多模态模型: llm/06-multimodal/23-multimodal-models.md
+  - 多模态 AI:
+      - 主题导览: multimodal/README.md
+      - 基础与架构:
+          - 模块导览: multimodal/01-foundations/README.md
+          - 多模态表征与融合架构: multimodal/01-foundations/01-multimodal-fusion-architecture.md
+      - 视觉与文档智能:
+          - 模块导览: multimodal/02-vision-document/README.md
+          - 视觉语言模型与 Grounding: multimodal/02-vision-document/02-vlm-grounding.md
+          - OCR 与 Document AI: multimodal/02-vision-document/03-ocr-document-ai.md
+          - Computer Use 与 GUI Agent: multimodal/02-vision-document/04-computer-use.md
+      - 语音与音频:
+          - 模块导览: multimodal/03-speech-audio/README.md
+          - ASR、TTS 与音频语言模型: multimodal/03-speech-audio/05-asr-tts-audio-lm.md
+          - 实时全双工语音: multimodal/03-speech-audio/06-realtime-duplex-voice.md
+      - 多模态生成:
+          - 模块导览: multimodal/04-generation/README.md
+          - 扩散、Flow Matching 与图像生成: multimodal/04-generation/07-diffusion-flow-matching-image.md
+          - 视频生成模型: multimodal/04-generation/08-video-generation.md
+      - 训练、评测与服务:
+          - 模块导览: multimodal/05-data-training-evaluation/README.md
+          - 多模态训练数据与对齐: multimodal/05-data-training-evaluation/09-multimodal-data-alignment.md
+          - 多模态评测、安全与服务: multimodal/05-data-training-evaluation/10-evaluation-safety-serving.md
   - Tools:
       - 主题导览: tools/README.md
       - Function Calling:
@@ -146,6 +189,16 @@ nav:
           - 从大模型到 AI Agent: agent/01-foundations/01-agent-foundations.md
           - Agent 现代系统架构: agent/01-foundations/02-agent-architecture.md
           - Agentic Building Blocks: agent/01-foundations/03-agentic-building-blocks.md
+      - Runtime 与 Harness:
+          - 模块导览: agent/02-runtime-harness/README.md
+          - Harness 定义、边界与分层: agent/02-runtime-harness/16-harness-definition-and-boundaries.md
+          - Agent Loop 与运行时状态机: agent/02-runtime-harness/17-agent-loop-and-runtime-state-machine.md
+          - Context Engineering 与装配: agent/02-runtime-harness/18-context-engineering-assembly.md
+          - Tool Registry 与执行管线: agent/02-runtime-harness/19-tool-registry-and-execution-pipeline.md
+          - 权限、沙箱与隔离: agent/02-runtime-harness/20-permissions-sandbox-isolation.md
+          - Checkpoint、持久化与恢复: agent/02-runtime-harness/21-checkpoint-persistence-recovery.md
+          - Human-in-the-loop 与中断: agent/02-runtime-harness/22-human-in-the-loop-and-interruption.md
+          - Tracing、评测与 Coding Agent: agent/02-runtime-harness/23-tracing-evaluation-cost-and-coding-agent-case-study.md
       - 推理、规划与反思:
           - 模块导览: agent/02-reasoning-planning/README.md
           - Agent 设计范式: agent/02-reasoning-planning/04-agent-design-patterns.md
@@ -201,28 +254,99 @@ nav:
           - 模块导览: rag/06-operations-security/README.md
           - 动态更新与增量索引: rag/06-operations-security/19-dynamic-update.md
           - RAG 落地难点与安全: rag/06-operations-security/20-rag-challenges-security.md
-  - LangChain:
-      - 主题导览: langchain/README.md
-      - 基础架构:
-          - 模块导览: langchain/01-foundations/README.md
-          - Agent 开发框架概览: langchain/01-foundations/01-agent-frameworks.md
-          - Chain 与 LCEL: langchain/01-foundations/02-chain-and-lcel.md
-          - LangChain v1 架构: langchain/01-foundations/03-langchain-architecture.md
-      - Agent 构建:
-          - 模块导览: langchain/02-agent-building/README.md
-          - 构建生产级 Agent: langchain/02-agent-building/04-build-agent.md
-          - Tool 注册与工具契约: langchain/02-agent-building/05-tool-registration.md
-          - 短期与长期记忆: langchain/02-agent-building/06-memory.md
-      - 生态与演进:
-          - 模块导览: langchain/03-ecosystem/README.md
-          - LangChain 与 LlamaIndex: langchain/03-ecosystem/07-langchain-vs-llamaindex.md
-          - LangChain4j: langchain/03-ecosystem/08-langchain4j.md
-          - LangChain 版本演进: langchain/03-ecosystem/11-version-evolution.md
-      - LangGraph:
-          - 模块导览: langchain/04-langgraph/README.md
-          - LangChain 与 LangGraph: langchain/04-langgraph/09-langchain-vs-langgraph.md
-          - LangGraph 核心优势: langchain/04-langgraph/10-langgraph-advantages.md
-      - 生产闭环:
-          - 模块导览: langchain/05-production/README.md
-          - Deep Research 实现逻辑: langchain/05-production/12-deep-research.md
-          - LangSmith 生产质量闭环: langchain/05-production/13-langsmith-production-loop.md
+  - 框架与编排:
+      - 主题导览: frameworks/README.md
+      - LangChain 生态:
+          - 模块导览: frameworks/01-langchain/README.md
+          - 基础架构:
+              - 模块导览: frameworks/01-langchain/01-foundations/README.md
+              - Agent 框架概览: frameworks/01-langchain/01-foundations/01-agent-frameworks.md
+              - Chain 与 LCEL: frameworks/01-langchain/01-foundations/02-chain-and-lcel.md
+              - LangChain v1 架构: frameworks/01-langchain/01-foundations/03-langchain-architecture.md
+          - Agent 构建:
+              - 模块导览: frameworks/01-langchain/02-agent-building/README.md
+              - 构建生产级 Agent: frameworks/01-langchain/02-agent-building/04-build-agent.md
+              - Tool 注册与工具契约: frameworks/01-langchain/02-agent-building/05-tool-registration.md
+              - 短期与长期记忆: frameworks/01-langchain/02-agent-building/06-memory.md
+          - 生态与演进:
+              - 模块导览: frameworks/01-langchain/03-ecosystem/README.md
+              - LangChain 与 LlamaIndex: frameworks/01-langchain/03-ecosystem/07-langchain-vs-llamaindex.md
+              - LangChain4j: frameworks/01-langchain/03-ecosystem/08-langchain4j.md
+              - LangChain 版本演进: frameworks/01-langchain/03-ecosystem/11-version-evolution.md
+          - LangGraph:
+              - 模块导览: frameworks/01-langchain/04-langgraph/README.md
+              - LangChain 与 LangGraph: frameworks/01-langchain/04-langgraph/09-langchain-vs-langgraph.md
+              - LangGraph 核心优势: frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md
+          - 生产闭环:
+              - 模块导览: frameworks/01-langchain/05-production/README.md
+              - Deep Research 实现逻辑: frameworks/01-langchain/05-production/12-deep-research.md
+              - LangSmith 生产质量闭环: frameworks/01-langchain/05-production/13-langsmith-production-loop.md
+      - LlamaIndex:
+          - 模块导览: frameworks/02-llamaindex/README.md
+          - 数据与索引抽象: frameworks/02-llamaindex/14-data-index-abstractions.md
+          - 查询引擎与 Workflows: frameworks/02-llamaindex/15-query-engine-workflows.md
+      - DSPy:
+          - 模块导览: frameworks/03-dspy/README.md
+          - 声明式编程模型: frameworks/03-dspy/16-declarative-programming-model.md
+          - 编译器与优化器: frameworks/03-dspy/17-compiler-and-optimizers.md
+      - Semantic Kernel:
+          - 模块导览: frameworks/04-semantic-kernel/README.md
+          - Kernel、Plugin 与 Planner: frameworks/04-semantic-kernel/18-kernel-plugin-planner.md
+          - Process 与 Agent Framework: frameworks/04-semantic-kernel/19-process-and-agent-framework.md
+      - 轻量级 Agent 框架:
+          - 模块导览: frameworks/05-lightweight-agent-frameworks/README.md
+          - AutoGen 与 CrewAI: frameworks/05-lightweight-agent-frameworks/20-autogen-and-crewai.md
+          - PydanticAI 与选型矩阵: frameworks/05-lightweight-agent-frameworks/21-pydanticai-and-decision-matrix.md
+      - 选型与可移植架构:
+          - 模块导览: frameworks/06-selection-portability/README.md
+          - 跨框架技术解构: frameworks/06-selection-portability/22-cross-framework-technical-taxonomy.md
+          - Lock-in 与迁移策略: frameworks/06-selection-portability/23-lockin-and-portable-architecture.md
+  - AI Engineering:
+      - 主题导览: engineering/README.md
+      - 基础与生产架构:
+          - 模块导览: engineering/01-foundations/README.md
+          - LLMOps、MLOps 与 DevOps: engineering/01-foundations/01-llmops-vs-mlops-devops.md
+          - AI 应用生产架构: engineering/01-foundations/02-production-architecture-overview.md
+      - 请求路径可靠性:
+          - 模块导览: engineering/02-request-reliability/README.md
+          - 模型网关、路由与回退: engineering/02-request-reliability/03-model-gateway-routing-fallback.md
+          - 重试、超时、幂等与熔断: engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md
+      - 输出质量与安全:
+          - 模块导览: engineering/03-output-safety/README.md
+          - 结构化输出与契约校验: engineering/03-output-safety/05-structured-output-contracts.md
+          - Guardrails 与降级: engineering/03-output-safety/06-guardrails-degradation.md
+      - 评测与可观测性:
+          - 模块导览: engineering/04-evaluation-observability/README.md
+          - 离线评测与 EDD: engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md
+          - 在线可观测性与 Tracing: engineering/04-evaluation-observability/08-online-observability-tracing.md
+      - 版本管理与发布:
+          - 模块导览: engineering/05-release-pipeline/README.md
+          - Prompt、模型与数据版本: engineering/05-release-pipeline/09-prompt-model-data-versioning.md
+          - LLM CI/CD 与灰度发布: engineering/05-release-pipeline/10-llm-cicd-canary-ab.md
+      - 性能、成本与运营:
+          - 模块导览: engineering/06-performance-operations/README.md
+          - 缓存、批处理与成本: engineering/06-performance-operations/11-caching-batching-throughput-cost.md
+          - SLO、容量与事故响应: engineering/06-performance-operations/12-slo-capacity-incident-response.md
+          - 反馈闭环与数据飞轮: engineering/06-performance-operations/13-feedback-loop-data-flywheel.md
+  - AI 安全与治理:
+      - 主题导览: safety/README.md
+      - 威胁建模:
+          - 模块导览: safety/01-threat-modeling/README.md
+          - AI 威胁建模与攻击面: safety/01-threat-modeling/01-ai-threat-modeling-attack-surface.md
+      - 提示与内容层攻击:
+          - 模块导览: safety/02-prompt-content-attacks/README.md
+          - Prompt Injection 与 Jailbreak: safety/02-prompt-content-attacks/02-prompt-injection-jailbreak-system-prompt-leakage.md
+          - 输出处理与 Secret Exfiltration: safety/02-prompt-content-attacks/03-output-handling-secret-exfiltration.md
+      - 数据与模型供应链:
+          - 模块导览: safety/03-data-model-supply-chain/README.md
+          - 训练、微调与 RAG 投毒: safety/03-data-model-supply-chain/04-training-finetuning-rag-poisoning.md
+          - 模型供应链与序列化风险: safety/03-data-model-supply-chain/05-model-supply-chain-serialization-risks.md
+          - 隐私、PII 与记忆泄漏: safety/03-data-model-supply-chain/06-privacy-pii-memory-leakage.md
+      - Agent 与执行环境:
+          - 模块导览: safety/04-agent-execution-isolation/README.md
+          - 最小权限与身份治理: safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md
+          - 代码与浏览器沙箱: safety/04-agent-execution-isolation/08-code-execution-browser-computer-use-sandboxing.md
+      - 评测、治理与保障:
+          - 模块导览: safety/05-assurance-governance/README.md
+          - 安全评测、红队与持续保障: safety/05-assurance-governance/09-security-evaluation-red-teaming-continuous-assurance.md
+          - 风险分级、审计与内容出处: safety/05-assurance-governance/10-ai-governance-risk-classification-audit-provenance.md

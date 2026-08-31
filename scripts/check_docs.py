@@ -8,7 +8,7 @@ from collections import defaultdict
 
 
 issues: list[str] = []
-chapter_files = sorted(glob.glob("docs/*/*/[0-9][0-9]-*.md"))
+chapter_files = sorted(glob.glob("docs/**/[0-9][0-9]-*.md", recursive=True))
 
 
 def report(path: str, message: str) -> None:
@@ -87,49 +87,64 @@ root_readme = open("README.md", encoding="utf-8").read()
 docs_readme = open("docs/README.md", encoding="utf-8").read()
 topic_names = {
     "llm": "LLM",
+    "multimodal": "多模态 AI",
     "tools": "Tools",
     "agent": "Agent",
     "rag": "RAG",
-    "langchain": "LangChain",
+    "frameworks": "框架与编排",
+    "engineering": "AI Engineering",
+    "safety": "AI 安全与治理",
 }
 for topic, display_name in topic_names.items():
-    count = len(glob.glob(f"docs/{topic}/*/[0-9][0-9]-*.md"))
+    count = len(glob.glob(
+        f"docs/{topic}/**/[0-9][0-9]-*.md", recursive=True
+    ))
     topic_readme = open(f"docs/{topic}/README.md", encoding="utf-8").read()
-    module_dirs = sorted(
+    top_module_dirs = sorted(
         path for path in glob.glob(f"docs/{topic}/[0-9][0-9]-*")
         if os.path.isdir(path)
     )
     listed_modules = len(re.findall(
-        r"^\d+\. \[[^\]]+\]\(\d{2}-[^/]+/README\.md\)$",
+        r"^\d+\. \[[^\]]+\]\(\d{2}-[^/]+/README\.md\)",
         topic_readme,
         re.MULTILINE,
     ))
-    if listed_modules != len(module_dirs):
+    if listed_modules != len(top_module_dirs):
         report(
             f"docs/{topic}/README.md",
-            f"lists {listed_modules} modules but directory has {len(module_dirs)}",
+            f"lists {listed_modules} modules but directory has {len(top_module_dirs)}",
         )
-    indexed_chapters = 0
+    module_dirs = sorted(
+        path for path in glob.glob(
+            f"docs/{topic}/**/[0-9][0-9]-*", recursive=True
+        )
+        if os.path.isdir(path)
+    )
     for module in module_dirs:
         module_readme_path = os.path.join(module, "README.md")
         if not os.path.exists(module_readme_path):
             report(module, "missing module README.md")
             continue
         module_readme = open(module_readme_path, encoding="utf-8").read()
-        indexed_chapters += len(re.findall(
-            r"^\d+\. \[[^\]]+\]\(\d{2}-[^)]+\.md\)$",
-            module_readme,
-            re.MULTILINE,
-        ))
-    if indexed_chapters != count:
-        report(
-            f"docs/{topic}",
-            f"module indexes list {indexed_chapters} chapters but directory has {count}",
-        )
+        parent_readme_path = os.path.join(os.path.dirname(module), "README.md")
+        parent_readme = open(parent_readme_path, encoding="utf-8").read()
+        module_link = f"({os.path.basename(module)}/README.md)"
+        if module_link not in parent_readme:
+            report(parent_readme_path, f"missing module link: {module_link}")
+        for chapter_path in glob.glob(os.path.join(module, "[0-9][0-9]-*.md")):
+            chapter_link = f"({os.path.basename(chapter_path)})"
+            if chapter_link not in module_readme:
+                report(module_readme_path, f"missing chapter link: {chapter_link}")
     if not re.search(rf"docs/{topic}/.*\|\s*{count} 章\s*\|", root_readme):
         report("README.md", f"{topic} chapter count is not {count}")
     if not re.search(rf"\|\s*{display_name}.*\|\s*{count}\s*\|", docs_readme):
         report("docs/README.md", f"{topic} chapter count is not {count}")
+
+mkdocs_config = open("mkdocs.yml", encoding="utf-8").read()
+for path in glob.glob("docs/**/*.md", recursive=True):
+    nav_path = os.path.relpath(path, "docs")
+    if nav_path not in mkdocs_config:
+        report("mkdocs.yml", f"missing page from navigation: {nav_path}")
 
 
 if issues:

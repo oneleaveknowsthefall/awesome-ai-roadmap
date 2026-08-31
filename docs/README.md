@@ -1,6 +1,6 @@
 # 文档主题索引
 
-本仓库按「抽象层次」而非「技术名词」组织知识。五个主题自下而上构成一条完整的栈：底层的模型原理决定了能力上限，中间的协议层决定了模型怎么接触外部世界，应用层决定了怎么把能力组织成能干活的系统，框架层决定了这一切用什么轮子落地。
+本仓库按「抽象层次」而非「产品清单」组织知识。八个主题覆盖模型原理、多模态能力、协议接口、应用架构、框架实现、生产工程与安全治理。
 
 目录采用三级结构：**主题 → 子模块 → 章节**。主题 README 负责展示模块关系，子模块 README 负责维护具体章节顺序，章节之间通过相对链接形成跨主题知识图谱。
 
@@ -8,8 +8,9 @@
 
 ```mermaid
 flowchart TB
-    subgraph L1["第一层 · 模型底层原理"]
+    subgraph L1["第一层 · 模型与多模态能力"]
         LLM["LLM<br/>Transformer / 训练 / 推理 / 部署"]
+        MM["多模态 AI<br/>视觉 / 语音 / 图像与视频生成"]
     end
 
     subgraph L2["第二层 · 协议与接口"]
@@ -17,19 +18,31 @@ flowchart TB
     end
 
     subgraph L3["第三层 · 应用架构"]
-        AGENT["Agent<br/>规划 / 记忆 / 反思 / 多智能体"]
+        AGENT["Agent<br/>Harness / 规划 / 记忆 / 多智能体"]
         RAG["RAG<br/>索引 / 检索 / 重排 / 生成"]
     end
 
     subgraph L4["第四层 · 框架实现"]
-        LC["LangChain / LangGraph<br/>编排 / 状态 / 持久化"]
+        FW["框架与编排<br/>LangChain / LlamaIndex / DSPy / Semantic Kernel"]
     end
 
+    subgraph L5["第五层 · 生产与治理"]
+        ENG["AI Engineering / LLMOps<br/>评测 / 观测 / 发布 / 可靠性"]
+        SAFE["AI 安全与治理<br/>威胁 / 隔离 / 红队 / 审计"]
+    end
+
+    LLM --> MM
     LLM --> TOOLS
     TOOLS --> AGENT
     LLM --> RAG
-    AGENT --> LC
-    RAG --> LC
+    MM --> AGENT
+    MM --> RAG
+    AGENT --> FW
+    RAG --> FW
+    FW --> ENG
+    ENG --> SAFE
+    AGENT -.风险输入.-> SAFE
+    RAG -.风险输入.-> SAFE
     RAG -.知识增强.-> AGENT
 ```
 
@@ -37,30 +50,37 @@ flowchart TB
 
 | 层次 | 主题 | 内容范围 | 章数 | 入口 |
 |---|---|---|---|---|
-| 底层原理 | LLM | Transformer、注意力优化、位置编码、训练与对齐、解码与量化、多模态、MoE 与部署、评测选型 | 23 | [进入 LLM 相关知识点](llm/README.md) |
-| 协议接口 | Tools | Function Calling、工具学习与训练、MCP、Skill、A2A、传输协议、安全与 LLM 网关 | 15 | [进入 Tools 相关知识点](tools/README.md) |
-| 应用架构 | Agent | 架构、工具、记忆、规划、反思、多 Agent、评估与安全 | 15 | [进入 Agent 相关知识点](agent/README.md) |
-| 应用架构 | RAG | 文档处理、切分、Embedding、向量库、检索、重排、多模态、生成、评估、更新与安全 | 21 | [进入 RAG 相关知识点](rag/README.md) |
-| 框架实现 | LangChain | Chain 与 LCEL、v1 架构、Agent 构建、工具注册、记忆、LangGraph、Deep Agents 与 LangSmith | 13 | [进入 LangChain 相关知识点](langchain/README.md) |
+| 底层原理 | LLM | Transformer、训练与对齐、解码、量化、MoE、部署与评测选型 | 23 | [进入 LLM](llm/README.md) |
+| 模型能力 | 多模态 AI | 融合架构、VLM、Document AI、语音、图像与视频生成、评测与服务 | 10 | [进入多模态 AI](multimodal/README.md) |
+| 协议接口 | Tools | Function Calling、工具学习、MCP、Skill、A2A、传输协议、安全与 LLM 网关 | 15 | [进入 Tools](tools/README.md) |
+| 应用架构 | Agent | 架构、Runtime/Harness、工具、记忆、规划、反思、多 Agent、评估与安全 | 23 | [进入 Agent](agent/README.md) |
+| 应用架构 | RAG | 文档处理、Embedding、向量库、检索、重排、多模态、生成、评估、更新与安全 | 21 | [进入 RAG](rag/README.md) |
+| 框架实现 | 框架与编排 | LangChain、LangGraph、LlamaIndex、DSPy、Semantic Kernel、轻量 Agent 框架与迁移 | 23 | [进入框架与编排](frameworks/README.md) |
+| 生产工程 | AI Engineering | LLMOps、网关与回退、评测、可观测性、CI/CD、SLO、成本与数据飞轮 | 13 | [进入 AI Engineering](engineering/README.md) |
+| 安全治理 | AI 安全与治理 | 威胁建模、Prompt 攻击、供应链、隐私、执行隔离、红队、治理与审计 | 10 | [进入 AI 安全与治理](safety/README.md) |
 
 ## 主题之间的关系
 
-同一个概念在不同层次会被反复提到，但视角完全不同。为避免重复展开，仓库约定了「详解归属地」，其他章节只做交叉引用：
+同一个概念在不同层次会被反复提到，但视角不同。仓库通过「详解归属地」避免重复维护：
 
 | 概念 | 详解归属 | 引用方 | 视角差异 |
 |---|---|---|---|
-| CoT 思维链 | LLM | Agent 规划章、RAG 生成章 | LLM 讲为什么有效，Agent 讲怎么变成规划能力 |
-| 幻觉 | LLM | RAG 生成章、Agent 安全章 | LLM 讲生成机制根因，RAG 讲怎么用外部知识压制 |
-| KV Cache / Prompt Caching | LLM | Agent 上下文压缩章、RAG 语义切断章 | LLM 讲缓存机制，应用层讲怎么摆放上下文吃到缓存 |
-| Function Calling / MCP | Tools | Agent 构建单元章、LangChain 工具注册章 | Tools 讲协议本身，Agent 讲怎么用，LangChain 讲怎么注册 |
-| MCP / A2A 安全 | Tools | Agent 协作章、Agent 安全章 | Tools 讲身份与协议边界，Agent 讲任务级授权与运行时隔离 |
-| 记忆 | Agent | LangChain 记忆章 | Agent 讲分层与取舍，LangChain 讲这个框架的具体实现 |
-| 评测与选型 | LLM | Agent 评估章、RAG 评估章 | LLM 讲通用能力评测，应用层讲端到端任务评测 |
-| 向量检索 | RAG | LangChain 框架选型章 | RAG 讲索引与召回原理，LangChain 讲组件封装 |
+| CoT 思维链 | LLM | Agent 规划章、RAG 生成章 | LLM 讲机制，Agent 讲如何转化为规划能力 |
+| 幻觉 | LLM | RAG 生成章、Agent 安全章 | LLM 讲根因，RAG 讲如何通过知识约束生成 |
+| KV Cache / Prompt Caching | LLM | Agent 上下文、AI Engineering | LLM 讲缓存机制，应用与工程层讲使用策略 |
+| VLM / 语音 / 生成模型 | 多模态 AI | Agent Computer Use、RAG 多模态章 | 多模态讲模型能力，应用层讲如何进入任务链路 |
+| Function Calling / MCP | Tools | Agent Harness、框架与编排 | Tools 讲协议，Agent 讲运行时，框架讲具体封装 |
+| Runtime / Harness | Agent | 框架与编排、AI Engineering | Agent 讲通用运行时，框架讲实现，工程层讲生产运营 |
+| 记忆 | Agent | 框架与编排的 LangChain 模块 | Agent 讲分层与取舍，框架主题讲具体实现 |
+| 向量检索 | RAG | 框架与编排 | RAG 讲索引与召回原理，框架主题讲组件封装 |
+| 可观测性与发布 | AI Engineering | 各应用主题 | 工程层讲跨应用生产闭环，应用主题定义领域信号 |
+| 跨层安全治理 | AI 安全与治理 | LLM、Tools、Agent、RAG | 各层讲局部控制，治理主题统一威胁模型、红队和审计 |
 
 ## 阅读建议
 
 - **零基础入门**：LLM 第 1–5 章 → Tools 第 1、4 章 → Agent 第 1–2 章 → RAG 第 1 章；
-- **面向 Agent 岗位**：Agent 全部 → Tools 全部 → LLM 第 3、10、14、17、18、23 章 → LangChain 全部；
-- **面向 RAG / 知识库岗位**：RAG 全部 → LLM 第 5、18、21、23 章 → LangChain 第 7、13 章；
-- **面向推理与部署岗位**：LLM 第 3、12–15、19、20 章 → Tools 第 14 章。
+- **Agent / Harness 工程**：Agent 全部 → Tools 全部 → 框架与编排 → AI Engineering；
+- **RAG / 知识系统**：RAG 全部 → LLM 第 5、18、21、23 章 → 框架与编排第 14–15 章；
+- **多模态应用**：多模态 AI → Agent 第 16–23 章或 RAG 第 21 章 → AI Engineering；
+- **生产平台与 SRE**：AI Engineering → LLM 推理部署 → Tools 网关 → AI 安全与治理；
+- **安全与治理**：AI 安全与治理 → Agent、Tools、RAG 各自的安全章节。

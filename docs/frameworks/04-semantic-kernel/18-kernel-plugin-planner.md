@@ -1,0 +1,99 @@
+# 第十八章：Semantic Kernel 的核心抽象：Kernel、Plugin 与 Planner
+
+## 18.1 定位：企业中间件，而不是研究框架
+
+前三个模块的框架（LangChain、LlamaIndex、DSPy）都诞生于 Python 生态，服务对象偏向快速迭代的应用团队。Semantic Kernel 从命名（"Kernel"）到设计目标都更接近**企业中间件**：它把「怎么把 AI 模型接入已有的 C#/Java/Python 代码库、已有的权限体系、已有的可观测性基础设施」当作核心问题，而不是「怎么最快搭出一个原型」。
+
+> **微软官方把它定义为「轻量级、开源的开发套件，帮助你把最新的 AI 模型集成进 C#、Python 或 Java 代码库，充当高效的中间件」**——「中间件」这个词准确概括了它和 LangChain 的定位差异：LangChain 更像一套完整的应用开发框架，Semantic Kernel 更像一层接入已有企业系统的适配层。
+
+## 18.2 `Kernel`：依赖注入容器，不是执行引擎
+
+`Kernel` 对象本身并不执行任何 AI 逻辑，它是一个**依赖注入容器**，负责注册和管理模型服务、Plugin、过滤器（filter）等组件：
+
+```csharp
+var builder = Kernel.CreateBuilder();
+builder.AddAzureOpenAIChatCompletion(deploymentName, endpoint, apiKey);
+builder.Plugins.AddFromType<OrderPlugin>();
+Kernel kernel = builder.Build();
+```
+
+**这种「容器 + 注册」的模式是 .NET 企业开发里的标准范式**（类似 ASP.NET Core 的依赖注入），对已经在用 .NET 技术栈的团队来说几乎零学习成本；对习惯了 LangChain 那种「直接实例化对象、函数式组合」风格的团队,则需要适应一层额外的容器抽象。
+
+## 18.3 Plugin：Semantic Function 与 Native Function 的统一契约
+
+Semantic Kernel 用 **Plugin** 统一了「用自然语言描述的函数」和「用代码写的函数」：
+
+- **Semantic Function**：本质是一个 Prompt 模板，声明输入变量和期望输出，交给模型执行；
+- **Native Function**：普通的 C#/Python/Java 方法，用 `[KernelFunction]`（C#）或 `@kernel_function`（Python）装饰后即可被模型发现和调用。
+
+```python
+class OrderPlugin:
+    @kernel_function(description="查询订单的物流状态")
+    def get_shipping_status(self, order_id: str) -> str:
+        return shipping_service.query(order_id)
+```
+
+两者对模型来说是**同一种调用契约**——模型只看到函数名、描述和参数 Schema，不关心背后是一次 Prompt 补全还是一次数据库查询。这与 [Tools 主题](../../tools/README.md) 中 Function Calling 的协议本质是一致的：**Semantic Kernel 没有发明新协议，而是把 Function Calling 包装成了一套面向企业代码库的注册与发现机制**。
+
+## 18.4 Planner：从「手写编排」到「模型自动规划」
+
+早期 Semantic Kernel 提供显式的 Planner（如 Stepwise Planner），让模型根据已注册的 Plugin 自动生成一个函数调用序列去完成目标。**随着底层模型的 Function Calling 能力增强，这一层规划逻辑已经越来越多地下沉为模型原生能力**（模型自己决定调用哪个函数、按什么顺序调用），Planner 更多变成了「自动规划」与「手写显式流程」之间的一个可选项，而不是唯一路径。
+
+```mermaid
+flowchart TB
+    G["业务目标"] --> D{"流程复杂度"}
+    D -->|"简单、一两步"| M["直接用模型的 Function Calling 自动选择 Plugin"]
+    D -->|"复杂、需要人工审核关键步骤"| PF["显式编写 Process Framework 流程（见第十九章）"]
+```
+
+> **这条分岔路径和 [LangChain 生态 · 第九章](../01-langchain/04-langgraph/09-langchain-vs-langgraph.md) 讨论的「什么时候从 `create_agent` 下沉到 LangGraph」是同一类工程判断**：简单场景交给模型自动规划，复杂到需要精细控制分支、审批和恢复时，才显式建模流程——只是 Semantic Kernel 把这条「显式流程」路径独立命名为 Process Framework（见第十九章）。
+
+## 18.5 企业治理层：Filter 与 Hook
+
+Semantic Kernel 把「内容安全、审计日志、成本控制」这类横切关注点抽象成 **Filter**（也称 Hook），可以在函数调用前后、Prompt 渲染前后插入统一的检查逻辑：
+
+```python
+class AuditFilter(FunctionInvocationFilter):
+    async def on_function_invocation(self, context, next):
+        log_audit_trail(context.function.name, context.arguments)
+        await next(context)
+        redact_sensitive_output(context.result)
+```
+
+这一层设计目标与 [LangChain 生态 · 第五章](../01-langchain/02-agent-building/05-tool-registration.md) 中的 Middleware 概念高度相似——**都是在工具调用的生命周期里插入统一的横切逻辑**，区别在于 Semantic Kernel 的 Filter 从设计之初就把「合规审计」列为一等场景，文档和示例也更偏向企业安全团队会关心的问题（数据分类、内容安全策略、遥测标准）。
+
+## 18.6 常见错误
+
+### 18.6.1 把 `Kernel` 当作一次性执行对象
+
+`Kernel` 是长生命周期的依赖注入容器，通常在应用启动时构建一次，而不是每次请求都重新 `CreateBuilder()`——重复构建会丢失服务注册和 Filter 链的复用价值。
+
+### 18.6.2 忽视 Semantic Function 和 Native Function 的边界含糊问题
+
+同一个功能既可以写成 Semantic Function（靠 Prompt 生成结果）也可以写成 Native Function（靠代码计算结果），选择应该基于「这个逻辑是否需要语言理解能力」，而不是团队更熟悉哪种写法——把本该用代码精确计算的逻辑交给 Semantic Function，会引入不必要的不确定性。
+
+### 18.6.3 认为 Planner 是唯一的编排方式
+
+模型原生的 Function Calling 已经能覆盖大量简单编排场景，不是所有项目都需要显式 Planner；反过来，复杂流程也不应该指望 Planner 自动规划出可靠的多步骤业务逻辑，应该走 Process Framework。
+
+### 18.6.4 把 Filter 只当作日志埋点
+
+Filter 的价值不只是记录日志，还包括在函数调用前做权限校验、在调用后做敏感信息脱敏——只用来打日志会浪费这层横切能力。
+
+## 18.7 本章总结
+
+1. **Semantic Kernel 的定位是企业中间件**，核心问题是「怎么把 AI 模型接入已有的多语言代码库和治理体系」，而不是「怎么最快搭原型」；
+2. **`Kernel` 是依赖注入容器**，管理模型服务、Plugin 和 Filter 的注册，通常在应用启动时构建一次；
+3. **Plugin 统一了 Semantic Function（Prompt 驱动）和 Native Function（代码驱动）**，对模型暴露相同的调用契约，本质仍是 Function Calling；
+4. **Planner 的角色正在从「唯一编排方式」演变为「简单场景的自动规划选项」**，复杂流程应该显式建模（见第十九章 Process Framework）；
+5. **Filter/Hook 把内容安全、审计、成本控制这些企业级横切关注点变成一等公民**，是它区别于其他框架 Middleware 概念的重点。
+
+> **一句话概括：Semantic Kernel 不是在和 LangChain 比谁的 Agent 能力更强，而是在解决「AI 能力怎么在企业已有的多语言代码库、依赖注入体系和合规审计要求下被安全接入」这个更朴素但同样关键的问题。**
+
+## 参考资料
+
+- [Semantic Kernel 官方文档：Introduction](https://learn.microsoft.com/en-us/semantic-kernel/overview/)
+- [Semantic Kernel: Kernel 概念](https://learn.microsoft.com/en-us/semantic-kernel/concepts/kernel)
+- [Semantic Kernel: Plugins 概念](https://learn.microsoft.com/en-us/semantic-kernel/concepts/plugins/)
+- [Semantic Kernel: Planning 概念](https://learn.microsoft.com/en-us/semantic-kernel/concepts/planning)
+- [Semantic Kernel: Filters 概念](https://learn.microsoft.com/en-us/semantic-kernel/concepts/filters)

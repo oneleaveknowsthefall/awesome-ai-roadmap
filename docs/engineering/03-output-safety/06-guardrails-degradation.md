@@ -1,0 +1,118 @@
+# 第六章：Guardrails 与降级策略
+
+## 6.1 Guardrails 解决的是契约校验管不到的问题
+
+[第 5 章](05-structured-output-contracts.md)的契约校验回答"输出格式对不对",Guardrails 回答的是另一件事:**输出内容是否安全、是否符合业务允许的边界**——即使一段文本完全符合 JSON Schema,它仍然可能包含泄露的隐私信息、越权的操作指令,或者只是单纯地跑题了。
+
+```mermaid
+flowchart TB
+    IN["用户输入"] --> INGUARD["输入护栏:<br/>Prompt 注入检测 · 越权请求识别"]
+    INGUARD -->|拦截| REJECT1["拒绝 / 转人工"]
+    INGUARD -->|通过| MODEL["模型生成"]
+    MODEL --> OUTGUARD["输出护栏:<br/>PII 过滤 · 内容安全 · 事实边界"]
+    OUTGUARD -->|拦截| DEGRADE["降级路径"]
+    OUTGUARD -->|通过| RESP["返回用户"]
+    DEGRADE --> RESP
+
+    style INGUARD fill:#e8f0fe
+    style OUTGUARD fill:#e8f0fe
+    style DEGRADE fill:#fff3cd
+```
+
+## 6.2 输入护栏:在模型看到之前拦下风险
+
+| 检查项 | 防什么 | 常见实现 |
+|---|---|---|
+| Prompt 注入检测 | 用户通过特殊指令劫持系统 Prompt 或越权调用工具 | 关键词/正则规则 + 专用分类模型双层检测 |
+| 越权请求识别 | 用户尝试让 Agent 执行超出其权限范围的操作 | 结合业务权限系统做前置校验,而非指望模型自己拒绝 |
+| 输入内容安全 | 违规、有害的输入内容 | 内容安全 API(如 OpenAI Moderation)前置调用 |
+
+> **越权识别不应该完全依赖模型自己判断该不该执行。** 模型的拒绝行为可以被对抗性 Prompt 绕过,真正的权限边界应该在业务系统层面用确定性规则强制,模型层的拒绝只是第一道、不是唯一一道防线。
+
+## 6.3 输出护栏:模型生成之后、返回用户之前
+
+| 检查项 | 防什么 |
+|---|---|
+| PII 检测与脱敏 | 模型在回答中意外复述了输入上下文里的身份证号、手机号等敏感信息 |
+| 内容安全审核 | 生成内容本身违规或有害 |
+| 事实边界检查 | 涉及金额、日期等强事实性字段时,与结构化数据源做交叉校验而非只信任模型输出 |
+| 引用完整性(RAG 场景) | 生成内容中的引用是否能在检索到的原文中找到依据,这部分详细展开见 [RAG · 生成与评估](../../rag/05-generation-evaluation/README.md) |
+
+```python
+def output_guardrail(text: str, context: dict) -> GuardrailResult:
+    if contains_pii(text) and not context.get("pii_allowed"):
+        return GuardrailResult(action="redact", reason="pii_detected")
+    if moderation_flagged(text):
+        return GuardrailResult(action="block", reason="content_safety")
+    return GuardrailResult(action="allow")
+```
+
+## 6.4 降级不是"报错",而是一个有梯度的策略阶梯
+
+护栏拦截之后,直接给用户返回 500 是最差的处理方式。**更成熟的做法是设计一个从"轻度降级"到"完全兜底"的阶梯**,阶梯越靠后,用户体验损失越大,但系统仍然保持可用:
+
+```mermaid
+flowchart LR
+    L1["Lv1: 换用更保守的模型重新生成"] --> L2["Lv2: 缩小任务范围<br/>(如放弃个性化,给通用回答)"]
+    L2 --> L3["Lv3: 返回缓存的历史相似答案"]
+    L3 --> L4["Lv4: 模板化兜底回复<br/>(如'请稍后重试'或转人工)"]
+
+    style L1 fill:#e6f4ea
+    style L4 fill:#fce8e6
+```
+
+| 阶梯 | 触发条件 | 用户感知 |
+|---|---|---|
+| Lv1:换模型重试 | 单次护栏拦截,怀疑是偶发问题 | 几乎无感,只是延迟略增加 |
+| Lv2:缩小任务范围 | 复杂任务多次拦截 | 回答变得通用,但仍然有用 |
+| Lv3:返回缓存答案 | 高频重复问题触发拦截 | 答案可能不是最新的,但至少相关 |
+| Lv4:模板兜底/转人工 | 前三层都失败,或触发高风险类别(如涉及支付、医疗) | 明确告知系统当前无法处理,而不是返回一个可能有害的答案 |
+
+**关键原则:降级阶梯的选择应该和触发原因的风险等级匹配,而不是无脑从 Lv1 试到 Lv4。** 涉及支付、医疗、法律等高风险类别一旦触发护栏,应该直接跳到 Lv4 转人工,不应该尝试用换模型或缩小范围来"绕过"安全拦截。
+
+## 6.5 护栏本身也需要评测和监控
+
+护栏不是配置一次就一劳永逸的规则集。**误报(把正常请求当成风险拦下)和漏报(真实风险没拦住)都需要持续监控**:
+
+| 指标 | 关注点 |
+|---|---|
+| 护栏拦截率 | 突然上升可能意味着上游输入分布变化,也可能是护栏规则误伤扩大 |
+| 人工复核后的误报率 | 通过抽样人工复核部分被拦截样本,评估规则是否过严 |
+| 已知攻击样本的漏报率 | 用[第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)的红队测试集持续验证护栏有效性 |
+
+## 6.6 常见错误
+
+### 6.6.1 把护栏完全交给模型自我审查
+
+依赖系统 Prompt 里一句"不要泄露隐私信息"来防止 PII 泄露,而不做程序化检测,对抗性输入很容易绕过这种"君子协定"。
+
+### 6.6.2 拦截之后直接报错,没有降级路径
+
+用户体验是"这次系统崩了",而不是"系统换了个方式回答了我"。降级阶梯的价值就在于把安全拦截对用户体验的冲击降到最低。
+
+### 6.6.3 所有触发原因都走同一个降级阶梯
+
+高风险类别(涉及资金、医疗)不应该被允许通过"换模型重试"之类的手段绕过拦截,应直接进入最严格的兜底路径。
+
+### 6.6.4 护栏规则上线后不再监控误报率
+
+规则集是静态的,但输入分布和攻击手法在持续变化,不做持续监控会导致规则逐渐失效或者误伤持续扩大而不自知。
+
+## 6.7 本章总结
+
+1. **Guardrails 和契约校验是两回事**:前者管内容安全与业务边界,后者管格式是否可被程序消费;
+2. **输入护栏和输出护栏各有分工**:前者在模型生成之前拦截风险请求,后者在返回用户之前拦截风险输出;
+3. **权限边界不应完全依赖模型自我拒绝**,业务系统层面的确定性规则才是真正的防线;
+4. **降级应该是有梯度的阶梯**,从换模型重试到模板兜底,风险越高触发的阶梯应该越靠后;
+5. **降级阶梯要按触发原因的风险等级匹配**,高风险类别应直接跳到最保守的兜底路径;
+6. **护栏本身需要持续评测**:监控误报率、漏报率,并用红队测试集验证有效性。
+
+> **一句话概括:Guardrails 的目标不是把系统变成"什么都不敢说",而是在拦下真正的风险之后,仍然有一整套有梯度的降级手段,让系统在大多数情况下保持"能用",只有面对高风险场景才彻底收紧。**
+
+## 参考资料
+
+- [OpenAI: Moderation API](https://platform.openai.com/docs/guides/moderation)
+- [OWASP Top 10 for LLM Applications](https://genai.owasp.org/llm-top-10/)
+- [Anthropic: Guardrails against misuse](https://www.anthropic.com/news/expanding-our-model-safety-bug-bounty-program)
+- [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)
+- [Google Cloud: Responsible AI practices](https://ai.google/responsibility/responsible-ai-practices/)
