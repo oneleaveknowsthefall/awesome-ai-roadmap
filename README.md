@@ -38,7 +38,7 @@ flowchart TB
 | 层次 | 主题 | 目录 | 状态 |
 |---|---|---|---|
 | 底层原理 | LLM 相关知识点 | [`docs/llm/`](docs/llm/README.md) | 规划 22 章，撰写中 |
-| 协议接口 | Tools 相关知识点 | [`docs/tools/`](docs/tools/README.md) | 规划 14 章，撰写中 |
+| 协议接口 | Tools 相关知识点 | [`docs/tools/`](docs/tools/README.md) | 已完成 14 章 |
 | 应用架构 | Agent 相关知识点 | [`docs/agent/`](docs/agent/README.md) | 已完成 15 章 |
 | 应用架构 | RAG 相关知识点 | [`docs/rag/`](docs/rag/README.md) | 已完成 20 章 |
 | 框架实现 | LangChain 相关知识点 | [`docs/langchain/`](docs/langchain/README.md) | 规划 12 章，撰写中 |
@@ -160,4 +160,50 @@ flowchart TB
     R18 --> R19[19 动态更新与增量索引]
     R19 --> R20[20 落地难点与安全]
     R17 --> R20
+```
+
+## Tools 相关知识点
+
+1. [Function Calling 是什么，原理是什么](docs/tools/01-function-calling.md)
+2. [LLM 如何学会调用工具](docs/tools/02-tool-learning.md)
+3. [工具定义与 Schema 工程](docs/tools/03-tool-schema-design.md)
+4. [MCP 模型上下文协议的核心内容](docs/tools/04-what-is-mcp.md)
+5. [MCP 的三层组成](docs/tools/05-mcp-components.md)
+6. [MCP 与 Function Calling 的区别与选型](docs/tools/06-mcp-vs-function-calling.md)
+7. [为什么有些推理模型不支持 MCP](docs/tools/07-reasoning-models-and-tools.md)
+8. [Skill 是什么](docs/tools/08-what-is-skill.md)
+9. [Skill 与 MCP 的区别](docs/tools/09-skill-vs-mcp.md)
+10. [Function Calling、Skill、MCP 三者关系](docs/tools/10-fc-skill-mcp.md)
+11. [A2A 协议与 Agent 间通信](docs/tools/11-a2a-protocol.md)
+12. [MCP 的传输方式](docs/tools/12-mcp-transport.md)
+13. [SSE、WebSocket 与 WebRTC](docs/tools/13-sse-websocket-webrtc.md)
+14. [LLM 网关](docs/tools/14-llm-gateway.md)
+
+## Tools 知识图谱
+
+```mermaid
+flowchart TB
+    MODEL[大语言模型] --> T1[01 Function Calling 原理]
+
+    T1 --> T2[02 模型如何学会调工具]
+    T1 --> T3[03 工具定义与 Schema 工程]
+    T2 --> T7[07 推理模型与工具调用]
+
+    T1 --> T4[04 MCP 核心内容]
+    T4 --> T5[05 MCP 三层组成]
+    T4 --> T6[06 MCP vs Function Calling]
+
+    T3 --> T8[08 Skill 是什么]
+    T8 --> T9[09 Skill vs MCP]
+    T4 --> T9
+    T6 --> T10[10 三者关系总览]
+    T9 --> T10
+
+    T4 --> T11[11 A2A 协议]
+    T5 --> T12[12 MCP 传输方式]
+    T12 --> T13[13 SSE / WebSocket / WebRTC]
+
+    T10 --> T14[14 LLM 网关]
+    T13 --> T14
+    T11 --> T14
 ```

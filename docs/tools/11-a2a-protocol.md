@@ -1,0 +1,241 @@
+# 第十一章：A2A 协议
+
+## 11.1 单个 Agent 的三个天花板
+
+一个 Agent 的本质是 **一个 LLM + 一组工具 + 一段上下文窗口**。这三个维度各有上限：
+
+| 维度 | 上限表现 |
+|---|---|
+| **工具数量** | 装 100 个工具，模型选择准确率显著下降，且工具定义每轮全量重传（见 [第三章](03-tool-schema-design.md)） |
+| **上下文窗口** | 复杂任务的中间产物（搜索结果、草稿、反思记录）会迅速填满窗口 |
+| **专业能力** | 同一个 Agent 既做代码审查又做市场分析，不如各自专精的 Agent |
+
+举个具体任务：**「做一份 AI 编程工具的竞品分析报告，要有行业趋势、技术对比、商业模式分析和 SWOT」**。
+
+单 Agent 做这件事的问题是：搜索结果和草稿会把上下文撑满，等写到 SWOT 时，前面的行业趋势分析早已被挤出有效注意力范围；而且市场调研和技术分析需要不同的知识侧重。
+
+### 11.1.1 多 Agent 在上下文层面的真正收益
+
+有个值得追问的问题：**拆成多个 Agent，上下文压力就真的变小了吗？**
+
+关键在于**中间过程被隔离了**：
+
+```mermaid
+flowchart LR
+    subgraph SINGLE["单 Agent"]
+        S1["上下文里堆着：<br/>几十个网页原文<br/>+ 多版草稿<br/>+ 反思记录<br/>+ 最终结论"]
+    end
+
+    subgraph MULTI["多 Agent"]
+        O["调度 Agent<br/>上下文里只有<br/>三份几百字摘要"]
+        A1["市场 Agent<br/>几十个网页在<br/>它自己的上下文里"]
+        A2["技术 Agent<br/>工具文档在<br/>它自己的上下文里"]
+        O --> A1
+        O --> A2
+        A1 -.只回传结论.-> O
+        A2 -.只回传结论.-> O
+    end
+
+    style S1 fill:#fce8e6
+    style O fill:#e6f4ea
+```
+
+市场 Agent 自己去搜几十个网页、写草稿、反复迭代，这些**中间过程全在它自己的上下文里**。任务完成后只把一份几百字的结论回传。
+
+调度 Agent 的上下文里只多了一份摘要，而不是几十个网页原文。**这就是多 Agent 协作在上下文层面的核心收益：把调研过程的上下文压力隔离在专业 Agent 内部。**
+
+## 11.2 基础问题：Agent 之间怎么互相认识
+
+Agent A 要把任务委托给 Agent B，前提是它得知道 B 能做什么。
+
+**最笨的方案**是写死配置：A 的代码里硬编码「B 可以做竞品分析」。B 的能力一变，A 的代码就得改，完全没法维护。
+
+**A2A 的方案**是让 B 主动「发名片」——**Agent Card**。
+
+### 11.2.1 Agent Card
+
+每个 A2A Agent 在一个约定路径发布一份 JSON 名片。规范推荐路径是 `/.well-known/agent-card.json`（早期版本叫 `agent.json`，社区里两种都能看到）：
+
+```json
+{
+  "name": "Market Research Agent",
+  "description": "面向科技行业的市场趋势与竞品调研",
+  "url": "https://agents.example.com/market",
+  "version": "1.2.0",
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": true
+  },
+  "skills": [
+    {
+      "id": "competitor-analysis",
+      "name": "竞品分析",
+      "description": "针对指定产品品类，输出竞品清单、定位对比与差异化分析",
+      "examples": ["分析国内 AI 编程助手的竞争格局"]
+    },
+    {
+      "id": "trend-analysis",
+      "name": "行业趋势分析",
+      "description": "基于公开数据与新闻，输出指定行业未来 12 个月的趋势判断"
+    }
+  ]
+}
+```
+
+名片里最关键的是 **skills 列表**。调度 Agent 靠这些描述做路由决策——「这个任务和哪个 Agent 的哪个 skill 最匹配」。
+
+这和 [工具的 description](03-tool-schema-design.md) 起的作用完全一致：**都是在被选择的那一刻，对方唯一能看到的信息**。写得含糊，这个 Agent 就永远不会被派到活。
+
+> 注意这里的 `skills` 和 [第八章](08-what-is-skill.md) 讲的 Agent Skill **不是一回事**。A2A 的 skill 是「对外声明的能力条目」，Agent Skill 是「Agent 内部的流程知识模块」。名字撞车，层次完全不同。
+
+### 11.2.2 可插拔是这套机制的价值
+
+新加一个 Agent，只需发布它的 Agent Card，调度 Agent 就能自动发现并利用它，**完全不用改调度 Agent 的代码**。
+
+这和 MCP 的 `tools/list` 自动发现是同一个思路——[第四章](04-what-is-mcp.md) 里说过，「自动发现」才是标准化协议真正的价值所在。
+
+## 11.3 Task 是 A2A 的一等公民
+
+A2A 里任务协作的基本单位是 **Task**：调度 Agent 委托任务 = 创建一个 Task；接收方执行；完成后把产出（**artifacts**，可以是文本、文件等）返回。
+
+```mermaid
+stateDiagram-v2
+    [*] --> submitted: 调度 Agent 提交
+    submitted --> working: 接收方开始执行
+    working --> input_required: 需要补充信息
+    input_required --> working: 调用方补充后继续
+    working --> completed: 执行成功
+    working --> failed: 执行失败
+    working --> canceled: 调用方取消
+    completed --> [*]
+    failed --> [*]
+    canceled --> [*]
+```
+
+### 11.3.1 为什么需要这么完整的状态机
+
+因为 **A2A 是专门为长时间任务设计的**。
+
+一个「竞品分析」任务可能要跑几分钟：先搜索、再整理、再写报告。不可能让调度 Agent 同步阻塞等着。
+
+所以调度 Agent 提交任务后可以去处理别的事，通过两种方式得知完成：
+
+| 方式 | 说明 | 适用 |
+|---|---|---|
+| **轮询** | 定期查 Task 状态 | 实现简单，任务不多时够用 |
+| **Push Notification** | 接收方完成时主动回调调用方 | 任务多、耗时长，避免空轮询 |
+| **流式（SSE）** | 执行过程中持续推送中间状态 | 需要给用户展示进度 |
+
+### 11.3.2 黑盒是解耦的意义
+
+调度 Agent 的视角非常干净：**提交 Task → 查状态 → 取 artifacts**。
+
+它完全不需要知道接收方内部用了什么工具、调了几次 LLM、是不是又委托给了别的 Agent。每个专业 Agent 的实现对外不可见——这正是解耦的价值。
+
+## 11.4 架构本质：Agent 的微服务化
+
+有后端经验的话，A2A 会很眼熟——**它就是 Agent 世界里的微服务架构**：
+
+| 微服务 | A2A |
+|---|---|
+| 独立部署的 HTTP 服务 | 独立部署的 Agent |
+| API 文档 / OpenAPI | Agent Card |
+| 服务注册中心的一条记录 | `/.well-known/agent-card.json` |
+| 异步消息队列 | Task 状态机 + Push Notification |
+| 服务间 HTTP 调用 | Agent 间 A2A 调用 |
+
+每个 A2A Agent 对外就是一个 HTTP 服务，任何支持 A2A 的系统都能发现它、给它派任务、接收结果，**不绑定 AI 框架，不依赖编程语言**。
+
+这个理念和 MCP 一脉相承：**MCP 让工具成为独立标准化服务，A2A 让 Agent 成为独立标准化服务。**
+
+A2A 由 Google 在 2025 年 4 月提出，同年 6 月捐给 Linux 基金会独立治理——这一步和 MCP 走的路径也很像：先由一家推出，再交给中立组织维护，以争取生态采纳。
+
+## 11.5 A2A 与 MCP：一纵一横
+
+理清两者关系最简单的方式是**看方向**：
+
+```mermaid
+flowchart TB
+    A1["市场分析 Agent"]
+    A2["技术研究 Agent"]
+    ORCH["调度 Agent"]
+
+    ORCH <-->|"A2A · 横向"| A1
+    ORCH <-->|"A2A · 横向"| A2
+
+    A1 -->|"MCP · 纵向"| T1[(搜索引擎)]
+    A1 -->|"MCP · 纵向"| T2[(浏览器)]
+    A2 -->|"MCP · 纵向"| T3[(代码执行器)]
+    A2 -->|"MCP · 纵向"| T4[(GitHub)]
+
+    style ORCH fill:#e6f4ea
+    style A1 fill:#e8f0fe
+    style A2 fill:#e8f0fe
+```
+
+| | 连接方向 | 对端是谁 | 解决什么 |
+|---|---|---|---|
+| **MCP** | 向下（纵向） | 工具、数据源 | Agent 怎么获得外部能力 |
+| **A2A** | 向外（横向） | 其他 Agent | Agent 之间怎么分工协作 |
+
+类比：**MCP 是每个员工的工具箱**，决定这个人能用什么工具干活；**A2A 是公司的协作流程**，决定不同岗位的人怎么分工交接。工具箱和协作流程是两回事，缺哪个都不行。
+
+复杂系统里两者同时在用：MCP 管纵向连接，A2A 管横向协作。
+
+### 11.5.1 一个自然的推论
+
+既然一个 Agent 对外是 A2A 服务、对下用 MCP 连工具，那么**能不能把一个 Agent 直接包装成 MCP Server 给别的 Agent 用**？
+
+技术上可以，而且社区里确实有这种做法。但两者的语义不同：
+
+- **包成 MCP 工具**：调用方把它当成一次同步的函数调用，期待快速返回。适合能力边界窄、执行快的 Agent；
+- **走 A2A**：有完整的任务生命周期、异步、可取消、可补充输入、可流式。适合长时间、多轮、需要澄清的复杂委托。
+
+判断依据是：**这个委托更像「调一次接口」还是「派一个活」**。
+
+## 11.6 常见错误
+
+### 11.6.1 把 A2A 当成 MCP 的竞品
+
+这是这道题最大的雷。两者面向的对象完全不同——一个连工具，一个连 Agent。它们互补且常常同时使用。
+
+### 11.6.2 说不出「为什么需要 A2A」
+
+要能说出单 Agent 的三个天花板：工具数量、上下文窗口、专业能力。尤其要说清**上下文隔离**这个收益——中间过程留在子 Agent 内部，调度 Agent 只收结论。
+
+### 11.6.3 忽略 Task 状态机的设计动机
+
+状态机不是为了好看，是因为 A2A 专为**长时间异步任务**设计。同步阻塞的场景根本不需要这么复杂的状态管理。
+
+### 11.6.4 把 A2A 的 skill 和 Agent Skill 混为一谈
+
+名字撞车但层次不同：A2A 的 skill 是对外的能力声明条目，Agent Skill 是 Agent 内部的流程知识模块。
+
+### 11.6.5 认为有了 A2A 就必须用 A2A
+
+绝大多数多 Agent 系统跑在**单进程内**（比如 LangGraph 的多节点图），Agent 之间直接传共享状态就行，根本不需要跨进程协议。A2A 的价值出现在**Agent 由不同团队开发、独立部署、跨组织协作**的时候。为一个单进程系统引入 A2A 是过度设计。
+
+### 11.6.6 忽略 Agent Card 的描述质量
+
+和工具 description 一样，写得含糊的 Agent Card 会导致这个 Agent 要么永远派不到活，要么被派到不该做的活。
+
+## 11.7 本章总结
+
+1. **A2A 解决的是单 Agent 的三个天花板**：工具数量、上下文窗口、专业能力；
+2. **多 Agent 在上下文层面的真正收益是中间过程隔离**，调度 Agent 只收结论不收原始素材；
+3. **Agent Card 实现能力声明与自动发现**，发布在 `/.well-known/agent-card.json`，skills 描述决定路由；
+4. **Task 是一等公民**，完整状态机是为异步长任务设计的，支持轮询、回调、流式三种感知方式；
+5. **架构本质是 Agent 的微服务化**：Agent Card 对应 API 文档，Task 状态机对应异步消息队列；
+6. **与 MCP 是一纵一横**：MCP 向下连工具，A2A 向外连 Agent，互补不竞争；
+7. **不是所有多 Agent 系统都需要 A2A**，单进程内协作用共享状态更简单，A2A 面向跨团队跨部署的场景。
+
+> **一句话概括：MCP 让 Agent 有工具箱，A2A 让 Agent 有同事——前者是纵向的能力接入，后者是横向的任务交接。**
+
+## 参考资料
+
+- [A2A 协议官网](https://a2a-protocol.org/)
+- [A2A 规范](https://a2a-protocol.org/latest/specification/)
+- [Google: Announcing the Agent2Agent Protocol](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/)
+- [Linux Foundation: A2A Project](https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents)
+- [Model Context Protocol 官方文档](https://modelcontextprotocol.io/docs/getting-started/intro)
+- [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
