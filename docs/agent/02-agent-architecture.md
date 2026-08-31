@@ -267,26 +267,132 @@ State 描述任务当前执行到哪里，例如：
 
 ## 2.8 Context Engineering：管理有限上下文
 
-复杂任务可能产生大量工具结果。若将所有内容不断追加到 Prompt，会导致：
+### 2.8.1 上下文是会耗尽的预算，不是可以填满的桶
+
+复杂任务会产生大量工具结果。若将所有内容不断追加到 Prompt，会导致：
 
 - 超出上下文窗口；
 - 推理成本和延迟增加；
 - 关键信息被噪音淹没；
 - 模型出现“中间遗忘”或关注错误内容。
 
-常见策略包括：
+一个常见的误解是：上下文窗口越来越大，这个问题就自动消失了。
 
-| 策略 | 做法 | 主要风险 |
+事实并非如此。实验证据表明，模型性能会随输入长度**非均匀地下降**，而且这种下降在远未触及窗口上限时就已经发生——这一现象通常被称为 **Context Rot**。经典的“大海捞针”式测试之所以显得乐观，是因为它只考察字面匹配的检索，而真实任务需要的是在长上下文中做语义判断与多步推理。
+
+因此正确的心智模型是：
+
+> **把上下文当作有限且会随使用而衰减的注意力预算，目标是找到“完成当前决策所需的最小充分 Token 集合”，而不是尽量多塞。**
+
+### 2.8.2 上下文失效的四种形态
+
+把“上下文太长”笼统当成一个问题，是无法定位故障的。工程上应该区分四种不同的失效模式，它们的成因和解法都不同：
+
+| 失效模式 | 表现 | 成因 | 解法 |
+|---|---|---|---|
+| Context Poisoning（污染） | 一个幻觉或错误结论进入上下文后被反复引用，越滚越实 | 错误内容没有被校验就沉淀下来 | 关键结论标注来源与置信度；发现错误立即清除而非追加更正 |
+| Context Distraction（分心） | 上下文过长后，模型过度依赖历史轨迹而不再灵活决策 | 历史信息权重压过了当前任务需求 | 压缩历史，突出当前目标 |
+| Context Confusion（混淆） | 无关的工具或文档内容干扰了选择 | 塞入了当前任务用不到的内容 | 按需加载工具与文档 |
+| Context Clash（冲突） | 上下文中存在互相矛盾的信息 | 多轮澄清、多来源信息未做合并 | 冲突检测与显式取舍，保留结论而非全部过程 |
+
+**Context Confusion 是最容易被低估的一个。** 已有评测显示，可选工具数量增长到几十个量级时，工具选择准确率就会明显下降——**这远早于上下文被填满**。这直接否定了“把所有 MCP 工具都挂上去，模型自己会挑”的做法。
+
+### 2.8.3 四类基本操作：Write / Select / Compress / Isolate
+
+业界常用的一个组织框架，是把所有上下文管理手段归为四类操作：
+
+```mermaid
+flowchart TB
+    CE[Context Engineering] --> W[Write 写出去]
+    CE --> S[Select 选进来]
+    CE --> C[Compress 压缩]
+    CE --> I[Isolate 隔离]
+
+    W --> W1[Scratchpad / 笔记文件]
+    W --> W2[长期记忆]
+    S --> S1[检索记忆与文档]
+    S --> S2[按需加载工具]
+    C --> C1[摘要 / Compaction]
+    C --> C2[结果裁剪]
+    I --> I1[Sub-Agent 独立上下文]
+    I --> I2[沙箱中处理大对象]
+```
+
+| 操作 | 含义 | 典型做法 |
 |---|---|---|
-| 滑动窗口 | 只保留最近若干轮 | 丢失早期关键约束 |
-| 摘要压缩 | 将历史浓缩为摘要 | 摘要可能遗漏或扭曲信息 |
-| 选择性检索 | 按当前任务召回相关内容 | 检索可能漏召回 |
-| 外部化 | 将大结果写入文件或 Artifact | 需要可靠的引用与读取机制 |
-| 分层摘要 | 保存任务、阶段和步骤多级摘要 | 实现复杂度较高 |
+| Write | 把信息存到上下文**之外** | 写入 `NOTES.md`、待办清单、长期记忆库 |
+| Select | 在需要时把信息**取回**上下文 | 记忆检索、文档检索、工具检索 |
+| Compress | 只保留必需的 Token | 摘要压缩、Compaction、结果裁剪 |
+| Isolate | 把上下文**拆开** | Sub-Agent、沙箱执行、多环境分区 |
 
-现代 Agent 通常组合使用这些策略，而不是只依赖滑动窗口。
+前面的策略表可以映射到这个框架里：
 
-> 记忆工程的核心，不是“保存得越多越好”，而是在正确的时刻提供完成当前决策所需的最小充分上下文。
+| 策略 | 归类 | 做法 | 主要风险 |
+|---|---|---|---|
+| 滑动窗口 | Compress | 只保留最近若干轮 | 丢失早期关键约束 |
+| 摘要压缩 / Compaction | Compress | 将历史浓缩为摘要 | 摘要可能遗漏或扭曲信息 |
+| 选择性检索 | Select | 按当前任务召回相关内容 | 检索可能漏召回 |
+| 外部化 | Write | 将大结果写入文件或 Artifact | 需要可靠的引用与读取机制 |
+| 分层摘要 | Compress | 保存任务、阶段和步骤多级摘要 | 实现复杂度较高 |
+| Sub-Agent 隔离 | Isolate | 子任务使用独立上下文，只回传结论 | 主 Agent 丢失中间细节 |
+
+### 2.8.4 Just-in-Time 检索：只维护引用，用时再取
+
+一种已被生产系统验证的做法是：**上下文里只保留轻量引用**（文件路径、查询语句、URL、ID），真正的内容在需要时通过工具动态加载。
+
+这模仿了人类使用文件系统的方式——你不会把整个代码库背下来，而是记住目录结构，需要时再打开具体文件。
+
+实践中效果最好的通常是**混合模式**：
+
+- **预加载**少量稳定且高价值的内容，例如项目约定文件（`AGENTS.md` / `CLAUDE.md`）、核心业务规则；
+- **JIT 加载**体量大或时效性强的内容，例如具体源文件、检索结果、数据库记录。
+
+需要注意的是，JIT 检索本身也有成本：每次加载都要多一轮工具调用，会增加延迟。**对于每次任务都必然用到的内容，预加载反而更划算。**
+
+### 2.8.5 Compaction：接近上限时重建上下文
+
+当上下文接近窗口上限时，把历史压缩为摘要，然后用「摘要 + 少量最近工作集」重新初始化会话。典型的工作集包括最近访问的几个文件、当前待办清单、以及尚未验证的假设。
+
+压缩时的一条实用原则是：**先保证召回，再考虑精简**。宁可摘要长一点也不要漏掉关键决策与约束，因为漏掉的信息在后续轮次里无法恢复。
+
+Compaction 有两个必须知道的风险：
+
+1. **摘要会把不确定的结论固化成事实**。例如某个命令因超时被中断、只输出了部分结果，摘要却把它记录成“已确认的执行结果”，这个虚假的确定性会跨会话传播且不会被重新验证。**缓解方式是在摘要中显式保留状态标记**（已验证 / 未验证 / 失败），而不是只记结论。
+2. **反复压缩会累积信息损耗**。长周期项目中，早期的关键决策经过多轮压缩后可能彻底丢失，形成难以追溯的“历史债”。**缓解方式是把重要决策同时写入外部文件**（Write 操作），而不是只依赖上下文内的摘要链。
+
+### 2.8.6 结构化笔记：把状态放到上下文之外
+
+让 Agent 主动维护外部笔记文件（进度、已确认事实、待办、失败尝试），是成本极低但收益很高的做法。它的价值在于**上下文可以被重置，但文件不会丢**，从而让 Agent 具备跨越压缩边界甚至跨会话的连续性。
+
+这一做法在长时间运行的任务中效果尤其明显：即使中途多次触发 Compaction，Agent 依然能通过重读笔记恢复完整的任务状态。
+
+### 2.8.7 Sub-Agent 隔离：用于分离关注点，而不只是并行
+
+把探索性的子任务交给 Sub-Agent，让它在**干净的上下文**中工作，最后只向主 Agent 回传一份浓缩结论（通常在一两千 Token 量级）。
+
+这里有一个常见误解需要澄清：**Sub-Agent 的首要价值是上下文隔离，而不是并行加速。** 即使串行执行，让子任务的大量中间过程不污染主上下文，本身就是收益。
+
+主 Agent 的上下文因此只包含「目标 + 各子任务结论」，而不是「目标 + 所有中间过程」，这让它在长任务中更不容易分心。
+
+### 2.8.8 工具与知识的渐进式披露
+
+对于工具和技能这类“可能用得上、但大多数任务用不到”的内容，正确做法是**分级加载**：
+
+1. **一级**：只加载名称与一句话描述（判断相关性用）；
+2. **二级**：判定相关后，才加载完整说明与用法；
+3. **三级**：需要细节时，再读取绑定的参考文件或脚本。
+
+这样绑定的知识总量可以近乎无限，而运行时实际占用的上下文保持很小。Anthropic 的 Agent Skills 就是这一思路的标准化实现。
+
+工具规模较大时（几十上百个），进一步的做法是**用检索代替全量注入**：提供一个 `search_tools` 元工具，由 Agent 先检索出候选工具再调用。另一种更彻底的思路是**把工具暴露成代码 API**，让模型写代码来调用工具，并在沙箱内先对结果做过滤和聚合，只把最终需要的少量数据送回上下文。已公开的工程实践显示，这类改造在工具数量庞大的场景下可以把工具相关的 Token 占用降低一到两个数量级。
+
+需要保持清醒的是，**渐进式披露不是无条件有效的**。已有对照研究指出，当底层 Agent 框架本身已经具备较强的检索与导航能力时，额外的分级结构收益接近于零，甚至再增加一层路由会损害准确率。它买到的是**上下文空间，而不是智能**——决定是否采用，取决于你的工具/文档规模和框架的原生导航能力。
+
+### 2.8.9 小结
+
+现代 Agent 通常组合使用上述所有策略，而不是只依赖滑动窗口。
+
+> 上下文工程的核心，不是“保存得越多越好”，而是在正确的时刻提供完成当前决策所需的最小充分上下文。
 
 ## 2.9 记忆写入、检索与衰减
 
@@ -545,3 +651,11 @@ Agent 的结果具有非确定性，仅判断“最终有没有回答”通常�
 - [MCP joins the Agentic AI Foundation](https://blog.modelcontextprotocol.io/posts/2025-12-09-mcp-joins-agentic-ai-foundation/)
 - [Microsoft Agent Framework Overview](https://learn.microsoft.com/en-us/agent-framework/overview/)
 - [AutoGen Maintenance Mode](https://github.com/microsoft/autogen)
+- [Anthropic: Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
+- [Chroma Research: Context Rot — How Increasing Input Tokens Impacts LLM Performance](https://research.trychroma.com/context-rot)
+- [LangChain: Context Engineering for Agents](https://blog.langchain.com/context-engineering-for-agents/)
+- [Drew Breunig: How Contexts Fail and How to Fix Them](https://www.dbreunig.com/2025/06/22/how-contexts-fail-and-how-to-fix-them.html)
+- [Anthropic: Equipping agents for the real world with Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
+- [Anthropic: Code execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp)
+- [Cloudflare: Code Mode — the better way to use MCP](https://blog.cloudflare.com/code-mode/)
+- [RAG-MCP: Mitigating Prompt Bloat in LLM Tool Selection via Retrieval-Augmented Generation](https://arxiv.org/abs/2505.03275)

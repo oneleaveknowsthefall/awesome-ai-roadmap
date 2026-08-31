@@ -887,6 +887,24 @@ Agent 能否从压缩后的 Context 和外部 State：
 
 会鼓励系统删除真正有价值的信息。
 
+### 10.21.8 摘要把「未验证的结论」写成「已确认的事实」
+
+这是长周期 Agent 中危害最大、也最隐蔽的一种压缩失效。
+
+典型场景：某个命令因超时或被中断而只输出了部分结果，摘要却把它记录为「已执行成功，结果为 X」。这条虚假的确定性会随摘要一路传播到后续所有轮次，而且因为它以「事实」形式出现，**后续不会有任何环节去重新验证它**。
+
+缓解方式有三条：
+
+1. 摘要中显式保留状态标记（`verified` / `unverified` / `failed`），而不是只记结论；
+2. 保留工具调用的退出码与截断标记，不要在摘要阶段丢弃；
+3. 对关键结论保留原始引用（日志位置、文件路径），使其可被重新核对。
+
+### 10.21.9 只依赖上下文内的摘要链承载长期决策
+
+多轮压缩会累积信息损耗，早期的关键决策与约束在若干轮压缩后可能彻底消失，形成难以追溯的「历史债」。
+
+正确做法是把重要决策**同时写入外部文件或结构化状态**（即 10.9 节的 Externalization），让它不依赖摘要链的存续。压缩链负责「最近发生了什么」，外部文件负责「已经定下来的事」。
+
 ## 10.22 推荐的生产级压缩管道
 
 ```mermaid
@@ -975,6 +993,9 @@ Prompt Caching 与这些方法位于不同层次：
 ## 参考资料
 
 - [MemGPT: Towards LLMs as Operating Systems](https://arxiv.org/abs/2310.08560)
+- [Anthropic: Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
+- [Chroma Research: Context Rot](https://research.trychroma.com/context-rot)
+- [LangChain: Context Engineering for Agents](https://blog.langchain.com/context-engineering-for-agents/)
 - [Anthropic Prompt Caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching)
 - [OpenAI Prompt Caching](https://platform.openai.com/docs/guides/prompt-caching)
 - [LangGraph Memory](https://docs.langchain.com/oss/python/langgraph/add-memory)

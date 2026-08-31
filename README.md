@@ -6,7 +6,7 @@
 
 | 主题 | 目录 | 状态 |
 |---|---|---|
-| Agent 相关知识点 | [`docs/agent/`](docs/agent/README.md) | 持续更新，现有 13 章 |
+| Agent 相关知识点 | [`docs/agent/`](docs/agent/README.md) | 持续更新，现有 15 章 |
 | LLM 相关知识点 | [`docs/llm/`](docs/llm/README.md) | 已建立目录 |
 | RAG 相关知识点 | [`docs/rag/`](docs/rag/README.md) | 已建立目录 |
 | LangChain 相关知识点 | [`docs/langchain/`](docs/langchain/README.md) | 已建立目录 |
@@ -28,6 +28,8 @@
 11. [如何赋予 LLM 与 Agent 规划能力](docs/agent/11-llm-agent-planning.md)
 12. [Agent 的反思、验证与自我改进](docs/agent/12-agent-reflection.md)
 13. [Multi-Agent 协作、路由与动态切换](docs/agent/13-multi-agent-coordination.md)
+14. [Agent 评估与 Benchmark](docs/agent/14-agent-evaluation.md)
+15. [Agent 安全与 Prompt Injection](docs/agent/15-agent-security.md)
 
 ## Agent 知识图谱
 
@@ -62,4 +64,11 @@ flowchart TB
     MCP --> EXTERNAL[外部工具与数据]
     A2A --> REMOTE[跨系统 Agent 协作]
     WORKFLOW --> MULTI
+
+    COORD --> EVAL[14 评估与 Benchmark]
+    REFMECH --> EVAL
+    EVAL --> SEC[15 安全与 Prompt Injection]
+    TOOLS --> SEC
+    MEMORY --> SEC
+    EXTERNAL --> SEC
 ```

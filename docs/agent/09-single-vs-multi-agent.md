@@ -219,6 +219,30 @@ flowchart LR
 
 任务复杂并不自动意味着应该使用 Multi-Agent。若任务无法清晰拆分，多 Agent 可能只是把一个困难问题变成多个协调困难的问题。
 
+### 9.6.1 业界的两种立场
+
+这个问题在工程界存在过一场有价值的公开分歧，理解它比记住结论更重要。
+
+**反对方（Cognition）**的核心论点是：多个 Agent 并行工作时，各自的上下文是割裂的，A 不知道 B 做了什么决定。而**每个动作都隐含了未被写出来的决策前提**，只传递「结果」而不传递「完整轨迹」，就会导致各分支基于互相冲突的隐含假设工作，最后合并时产生不一致。因此其主张是：优先做**单线程、上下文连续**的 Agent，必要时用压缩而不是拆分。
+
+**支持方（Anthropic）**在其研究型 Agent 的实践中报告了显著收益：由一个主 Agent 带多个子 Agent 的架构，在内部研究评测上明显优于单 Agent。但同一篇文章也坦率指出两点代价——**Token 消耗约为普通对话的十几倍**，且**多数编码任务中可真正并行的子任务比研究任务少得多**。
+
+### 9.6.2 分歧的实质与调和
+
+两者其实并不矛盾，差别在于**隔离边界划在哪里**：
+
+| 边界划法 | 效果 |
+|---|---|
+| 扁平对等的并行 Agent，各自决策、事后合并 | 上下文割裂，隐含假设冲突，容易失败 |
+| 明确的角色分层（规划者 / 执行者），上下文按职责天然分离 | 规划者的上下文不被实现细节填满，执行者的上下文不被全局规划填满 |
+| 探索型子任务隔离，只回传浓缩结论 | 主上下文保持干净，是 Multi-Agent 收益最稳的形态 |
+
+可以归纳为一条可操作的判据：
+
+> **Multi-Agent 的收益来自「上下文按职责隔离」，而不是来自「Agent 数量变多」。如果拆分之后各 Agent 仍然需要共享大量彼此的中间决策，说明这条边界划错了。**
+
+另外值得注意的是，任务是否真的可并行差异很大：研究类任务天然可以按主题并行检索，而编码类任务的子任务之间往往存在强依赖，强行并行反而引入冲突与返工。**并行度低的任务，应该优先考虑「角色分层」而不是「同层并行」。**
+
 ## 9.7 Single-Agent 适合什么场景
 
 - 任务步骤较少；
@@ -1139,6 +1163,9 @@ Multi-Agent 的真实价值来自：
 ## 参考资料
 
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
+- [Anthropic: How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system)
+- [Cognition: Don't Build Multi-Agents](https://cognition.ai/blog/dont-build-multi-agents)
+- [Why Do Multi-Agent LLM Systems Fail? (MAST)](https://arxiv.org/abs/2503.13657)
 - [Agent2Agent (A2A) Protocol](https://a2a-protocol.org/)
 - [AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation](https://arxiv.org/abs/2308.08155)
 - [CAMEL: Communicative Agents for Mind Exploration of Large Language Model Society](https://arxiv.org/abs/2303.17760)

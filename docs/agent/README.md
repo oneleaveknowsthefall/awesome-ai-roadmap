@@ -17,5 +17,7 @@
 11. [如何赋予 LLM 与 Agent 规划能力](11-llm-agent-planning.md)
 12. [Agent 的反思、验证与自我改进](12-agent-reflection.md)
 13. [Multi-Agent 协作、路由与动态切换](13-multi-agent-coordination.md)
+14. [Agent 评估与 Benchmark](14-agent-evaluation.md)
+15. [Agent 安全与 Prompt Injection](15-agent-security.md)
 
 返回[文档主题索引](../README.md)。
