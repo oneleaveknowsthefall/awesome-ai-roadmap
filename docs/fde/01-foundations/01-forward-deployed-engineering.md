@@ -272,7 +272,151 @@ $$
 
 FDE 与产品团队需要定期评审现场模式，而不是让 FDE 直接把所有客户代码合入核心产品。详见 [框架锁定与可移植架构](../../frameworks/06-selection-portability/23-lockin-and-portable-architecture.md)。
 
-## 1.10 常见错误
+## 1.10 大公司与一线工程师的真实实践
+
+公开案例天然存在选择性披露：公司倾向于发布成功项目，个人分享也可能服务于招聘或品牌建设。因此，本节把信息分成三层：
+
+1. **事实层**：公开材料明确描述做了什么；
+2. **经验层**：从做法中提炼出的可复用原则；
+3. **证据边界**：数字是否经过第三方审计、客户是否具名、内容是否来自厂商单方面叙述。
+
+### 1.10.1 Palantir：价值不只来自模型，而来自受治理的执行系统
+
+Palantir 产品安全团队公开介绍了内部的 Security Forge：团队用一年以上时间，将多 Agent 安全分析与 AIP 编排、Foundry/Ontology 的组织上下文以及 Apollo 发布流程连接起来，随后把内部能力产品化。
+
+这个案例最值得借鉴的不是具体产品，而是三个工程判断：
+
+- **Agent 必须运行在有边界的 Harness 中。** 代码访问、任务范围、证据保留和结果流转都由系统控制，不能只依赖 Prompt；
+- **组织上下文需要治理。** 代码、资产、历史决策和数据血缘决定了发现是否可操作，同时必须满足数据主权要求；
+- **瓶颈会迁移。** 当 Agent 能快速发现大量问题后，修复、验证和发布反而成为新瓶颈，因此检测流水线必须接入正常的工程工作流。
+
+Palantir 给出的实践顺序是：资产盘点 → 有界任务 → 受控 Harness → 多模型/多次运行评测 → 保留证据与决策血缘 → 接入修复、发布和回滚。成功指标应是**经过验证的风险降低**，而不是生成了多少条发现。
+
+> **证据边界：**这是 Palantir 对自有产品的官方工程叙述，没有披露可独立验证的效率数字。
+
+### 1.10.2 Anthropic、Descript 与 Bolt：Eval 必须随产品成熟
+
+Anthropic 在 Agent Eval 实践文章中总结了两个客户案例：
+
+| 团队 | 实际做法 | 可复用经验 |
+|---|---|---|
+| Descript | 将视频编辑 Agent 拆成“不破坏已有内容、完成用户要求、完成质量足够好”三个维度；从人工评分逐步发展到 LLM Grader，并保留周期性人工校准 | 先让产品和领域专家定义“好”的含义，再自动化评分；质量评测与回归保护应分开 |
+| Bolt | 产品已有真实用户后，用三个月建立 Eval 系统；结合静态分析、浏览器 Agent 和 LLM Judge 验证生成应用 | 不同失败类型需要不同 Grader；能用确定性检查的地方不要只依赖 LLM Judge |
+
+Anthropic 进一步区分：
+
+- **能力 Eval**：初始通过率可以较低，用于寻找系统还能提升多少；
+- **回归 Eval**：通过率应接近稳定上限，用于阻止已经解决的问题重新出现。
+
+当某项能力成熟后，其代表性样本应从能力 Eval “毕业”进入回归集。这比维护一个不断膨胀、目标混杂的总分更容易定位退化。
+
+> **证据边界：**案例由 Anthropic 官方转述，Descript 和 Bolt 并非文章的共同作者；“三个月”是公开材料中的项目周期，不代表所有团队的合理工期。
+
+### 1.10.3 Microsoft：不要让专家评价长篇输出，要让专家核验原子事实
+
+Microsoft 工程师分享过一个客户现场案例：团队用 Agent 为约 150 个 COBOL 模块中的一个生成逆向分析文档。最初把约 2,500 字输出直接交给领域专家并询问“是否符合预期”，得到的反馈只有“看起来不错”。
+
+问题不在专家不负责，而在评审任务不可执行：长篇文本混合了大量正确、错误和无法确认的陈述，专家很难给出稳定标签。
+
+改进方式是：
+
+1. 从输出中提取离散的业务规则和事实声明；
+2. 每条声明只表达一个可证伪判断；
+3. 让专家逐条确认、纠正或标记证据不足；
+4. 把确认结果写入 Eval，而不是只保留评审意见；
+5. 用同一批原子检查比较不同模型、Prompt 和 Harness 版本。
+
+这条实践可以概括为：**没有明确结果的检查，不是检查。** FDE 应负责把专家隐性的判断过程转成可执行验收，而不是持续消耗专家阅读模型长文。
+
+> **证据边界：**这是 Microsoft 官方工程博客上的第一人称经验，但客户匿名，无法独立验证项目细节。
+
+### 1.10.4 OpenAI：Build、Prove、Generalize
+
+OpenAI Deployment Company 将现场循环概括为 **build → prove → generalize**：
+
+1. **Build**：围绕真实工作流构建可以使用的系统，而不是孤立 Demo；
+2. **Prove**：通过 Eval、业务指标和生产行为证明价值；
+3. **Generalize**：把重复模式沉淀为 SDK、评测工具、可靠性组件和产品能力。
+
+OpenAI 的 FDE 职位描述也把职责写成：映射客户问题、组织交付、必要时直接写代码，并把可复用模式和现场信号反馈给 Product 与 Research。
+
+这说明“把项目做完”和“完成 FDE 闭环”并不相同。如果经验没有进入平台、Eval 或产品路线图，现场交付仍然是一次性工程。
+
+> **证据边界：**这是 OpenAI 对自身部署组织的公开定位，缺少统一披露的跨项目复用率或第三方对照数据。
+
+### 1.10.5 Baseten：让 FDE 留在 Engineering，并跟踪产品回流
+
+Baseten 在官方博客和 X 账号中公开了其 FDE 团队设计：
+
+- FDE 放在 Engineering，而不是 GTM，目的是保留技术深度、代码所有权和工程自主性；
+- 招聘优先考察软件工程基础和跨栈能力，ML 领域知识与客户沟通方式可以在工作中补齐；
+- 尽量移除会议协调等非工程负担，让 FDE 保持构建能力；
+- 将“FDE 构建内容有多少进入核心产品”作为 North Star。
+
+Baseten 给出的目标是 **70% 的 FDE 工作最终进入产品**。这个数字可以作为“复用率需要被显式管理”的真实例子，但不应被机械复制为行业基准。不同公司所处阶段、产品成熟度和客户集中度不同，合理比例也会不同。
+
+更通用的做法是同时记录：
+
+- 现场代码进入共享产品、Adapter 或模板的比例；
+- 重复问题从首次发现到平台解决的时间；
+- 后续项目复用已有能力节省的交付时间；
+- 临时特例的数量、生命周期和移除率。
+
+> **证据边界：**70% 是 Baseten 自报的团队目标，并非审计后的实际达成率；文章同时承担招聘功能。
+
+### 1.10.6 AWS 与 INRIX：先对齐多角色工作流，再组合 RAG 和生成模型
+
+AWS 与 INRIX 工程师共同撰写的案例介绍了交通规划 PoC：系统使用 RAG 生成规划建议，并使用图像生成模型展示道路安全改造的概念效果。
+
+该案例首先描述原流程涉及交通工程、城市规划、景观设计、CAD、安全分析和公共工程等多类角色，需要多轮评审，而不是从“应该使用哪个模型”开始。可复用经验包括：
+
+1. 先画清跨角色工作流和审批节点；
+2. 文本建议与视觉概念图解决的是不同子任务，应分别建立 Eval；
+3. 生成结果用于加速讨论，不等于替代工程验证和正式设计；
+4. 让客户工程师共同撰写案例，有助于暴露实际流程，而不只是供应商视角。
+
+文章称设计周期“可能从数周降到数天”，但使用的是潜在效果表述，没有公开对照实验。因此它适合作为方案模式参考，不应作为已证实 ROI。
+
+### 1.10.7 X 上的一线实践：Audit → Evals → Deployment
+
+Varick Agents 从业者 [@vasuman](https://x.com/vasuman) 在一篇可直接访问的 [X 长文](https://x.com/vasuman/article/2057177266984226892) 中给出三阶段方法：
+
+**Audit**
+
+- 进入一线团队观察真实流程，而不是只访谈管理者；
+- 将候选任务分为确定性代码、适合 Agent 的任务，以及仍应保留人工判断的任务；
+- 先确认任务频率和价值，避免自动化一个几乎不会发生的流程。
+
+**Evals**
+
+- 追踪专家完成任务的真实步骤；
+- 建立小规模、高质量的 Golden Set；
+- 不只评价最终答案，还评价检索、决策、工具调用等关键 checkpoint。
+
+**Deployment**
+
+- 优先通过 API 适配既有数据层，避免为了 AI 项目先进行大规模数据迁移；
+- 在客户环境内建立受控沙箱；
+- 从最小自治单元开始，例如先让 Agent 调查问题并起草工单，再逐步开放写代码或提交 PR。
+
+其中最重要的可迁移原则是：**确定性步骤用代码，判断步骤才交给模型；自治权限随证据逐级提升。**
+
+> **证据边界：**这是具名从业者的第一人称 X 内容，并由 Varick 官方招聘页面证明该公司存在前线部署岗位；具体项目和成效没有量化证据，文章末尾包含招聘宣传，因此应作为实践观点而非行业事实。
+
+### 1.10.8 从案例中提炼的 Best Practices
+
+| Best Practice | 真实案例信号 | 落地动作 |
+|---|---|---|
+| 从工作流而不是模型开始 | Microsoft、AWS/INRIX、X 从业者 | 现场观察用户、画出现状流程、记录基线和审批点 |
+| 把专家判断变成原子 Eval | Microsoft、Descript | 提取可证伪声明，逐项确认并沉淀为回归数据 |
+| 分离能力 Eval 和回归 Eval | Anthropic、Bolt | 新能力用低通过率数据找提升空间，成熟样本进入高通过率回归集 |
+| 选择最小自治单元 | X 从业者、Anthropic | 先只读、建议或草稿，再按 Eval 证据开放写入和执行 |
+| 把 Agent 放进受治理 Harness | Palantir | 限定上下文、工具、权限和证据链，并接入发布与回滚 |
+| 显式衡量产品回流 | Baseten、OpenAI | 跟踪复用率、平台化周期、临时代码数量和后续交付节省 |
+| 预期瓶颈迁移 | Palantir | 自动化检测后同步扩展验证、修复和运营能力 |
+| 对厂商 ROI 数字保持克制 | AWS/INRIX、Baseten | 区分目标、潜在效果和实测结果，保留基线与对照 |
+
+## 1.11 常见错误
 
 - **把客户给出的方案当成需求。** “做一个 Agent”不等于已经定义问题，应先建立任务、基线和验收标准。
 - **把 FDE 当成高级售前。** 如果没有生产代码和结果所有权，就缺少 Forward Deployed Engineering 的关键闭环。
@@ -283,7 +427,7 @@ FDE 与产品团队需要定期评审现场模式，而不是让 FDE 直接把�
 - **所有现场需求都进入核心产品。** 未经跨客户验证的特例会把平台变成难以升级的定制代码集合。
 - **交付后 FDE 永久承担运维。** 应通过自动化、文档和责任移交让系统由正式运行团队接管。
 
-## 1.11 本章总结
+## 1.12 本章总结
 
 1. FDE 是一种贴近现场、对生产结果负责的工程模式，但不是统一标准岗位；
 2. 需求发现应从业务基线、真实任务、失败代价和环境约束出发；
@@ -294,7 +438,7 @@ FDE 与产品团队需要定期评审现场模式，而不是让 FDE 直接把�
 7. 现场反馈必须转化成回归数据、模板、平台能力或模型改进；
 8. 通过 Adapter、模板、产品化门槛和明确 owner，避免陷入“一客一套”。
 
-## 1.12 一手参考资料
+## 1.13 一手参考资料
 
 - [Palantir：Dev versus Delta——工程角色的区别](https://medium.com/palantir/dev-versus-delta-demystifying-engineering-roles-at-palantir-ad44c2a6e87)
 - [Palantir：A Day in the Life of a Forward Deployed Software Engineer](https://medium.com/palantir/a-day-in-the-life-of-a-palantir-forward-deployed-software-engineer-45ef2de257b1)
@@ -306,5 +450,12 @@ FDE 与产品团队需要定期评审现场模式，而不是让 FDE 直接把�
 - [OpenAI：Production best practices](https://platform.openai.com/docs/guides/production-best-practices)
 - [OpenAI：Data controls](https://platform.openai.com/docs/guides/your-data)
 - [Anthropic：Building Effective AI Agents](https://www.anthropic.com/engineering/building-effective-agents)
+- [Palantir：Securing Software at the Speed of AI（官方工程案例，2026）](https://blog.palantir.com/securing-software-at-the-speed-of-ai-0b1d7ddd2bf0)
+- [Anthropic：Demystifying evals for AI agents（官方工程文章）](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
+- [Microsoft：Only Believe What You Can Validate（客户现场工程分享，2026）](https://devblogs.microsoft.com/all-things-azure/only-believe-what-you-can-validate/)
+- [Baseten：Forward Deployed Engineering on the Frontier of AI（官方团队实践，2025）](https://www.baseten.co/blog/forward-deployed-engineering/)
+- [Baseten 官方 X：FDE 实践文章发布](https://x.com/baseten/status/1932549196126593527)
+- [AWS 与 INRIX：交通规划 PoC 实践（客户与厂商共同撰写，2025）](https://aws.amazon.com/blogs/machine-learning/how-inrix-accelerates-transportation-planning-with-amazon-bedrock/)
+- [@vasuman：Forward Deployed Engineering 101（X 一线从业者长文）](https://x.com/vasuman/article/2057177266984226892)
 
 返回 [FDE 模块目录](README.md)。
