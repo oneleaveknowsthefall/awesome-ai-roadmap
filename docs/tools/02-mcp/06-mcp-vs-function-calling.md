@@ -1,6 +1,6 @@
 # 第六章：MCP 与 Function Calling 的区别与选型
 
-## 6.1 先纠正一个提法
+## 6.1 这个问题容易问偏
 
 「MCP 和 Function Calling 有什么区别」这个问题本身有点误导性，因为它暗示两者是并列的竞品。实际上：
 
@@ -40,7 +40,7 @@ flowchart TB
 
 ## 6.3 常见集成：Host 用 Function Calling 路由 MCP Tool
 
-这是最关键、也最能体现理解深度的一点。
+项目里最常见的接法，就是 Host 用 Function Calling 路由 MCP Tool。
 
 ```mermaid
 sequenceDiagram
@@ -65,7 +65,7 @@ sequenceDiagram
 
 在这种集成中，模型的视角确实是普通 Function Calling，能力发现、schema 转换、调用路由和结果回传都在 Host 层完成。这种桥接很常见，但不是 MCP 的规范要求。
 
-这个事实有两个直接推论：
+沿着这条集成链路往下看，会得到两个结论：
 
 1. **模型不支持某厂商的 Function Calling 时，只有这条桥接路径不可用**。Host 仍可通过结构化输出、确定性工作流或人工界面调用 MCP Tool；
 2. **若由模型选择 Tool，工具 schema 工程仍然适用**。MCP 规定互操作格式，不保证模型会正确选择或填写参数。
@@ -231,7 +231,6 @@ if __name__ == "__main__":
 7. **判断顺序**：先看社区有没有现成的 → 再看要不要复用 → 再看环境和维护成本；
 8. **混用是常态**：通用能力走 MCP，业务专属能力走 FC。
 
-> **一句话概括：Function Calling 让模型会调工具，MCP 让工具不用被重复接入，前者是模型的能力，后者是生态的基础设施。**
 
 ## 参考资料
 

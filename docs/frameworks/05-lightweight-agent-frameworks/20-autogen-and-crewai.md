@@ -1,6 +1,6 @@
 # 第二十章：AutoGen 与 CrewAI 的多智能体抽象
 
-## 20.1 两种回答「多智能体协作怎么编排」的路线
+## 20.1 两条多智能体编排路线
 
 [Semantic Kernel · 第十九章](../04-semantic-kernel/19-process-and-agent-framework.md) 已经指出，多智能体协作的编排模式在不同框架里换了不同名字。AutoGen 和 CrewAI 是社区里最常被拿来比较的两个专精多智能体协作的框架，它们代表了两条不同的技术路线：
 
@@ -38,16 +38,16 @@ team = RoundRobinGroupChat([researcher, writer])
 result = await team.run(task="调研并撰写一份市场分析简报")
 ```
 
-**`RoundRobinGroupChat` 只是众多编排策略中的一种**（还有 `SelectorGroupChat` 让模型动态选择下一个发言者、`Swarm` 让 Agent 之间显式移交控制权）——AutoGen 把「谁在什么时候发言」本身建模成可替换的策略对象，这是它「事件驱动、可扩展」定位的直接体现：**换一种协作策略不需要改动 Agent 本身的定义，只需要换一个 Team 实现**。
+**`RoundRobinGroupChat` 只是众多编排策略中的一种**（还有 `SelectorGroupChat` 让模型动态选择下一个发言者、`Swarm` 让 Agent 之间显式移交控制权）。AutoGen 把「谁在什么时候发言」单独建模成可替换的策略对象；要更换协作方式，通常只需要替换 Team 实现，不必改 Agent 本身的定义。
 
-> **和 Semantic Kernel Agent Framework 的 `GroupChatOrchestration` 对照**：两者在「多个 Agent + 一个决定发言顺序的策略」这一层概念上是同构的，AutoGen 的差异化优势在于底层 Actor 运行时原生支持跨进程、跨语言的分布式部署，这在需要把不同 Agent 部署到不同服务、不同团队维护的场景下是刚需。
+和 Semantic Kernel Agent Framework 的 `GroupChatOrchestration` 对照，两者在「多个 Agent + 一个决定发言顺序的策略」这一层概念上是同构的。AutoGen 的差异点在于底层 Actor 运行时原生支持跨进程、跨语言的分布式部署；如果不同 Agent 需要部署到不同服务、由不同团队维护，这一点会直接影响架构选择。
 
 ## 20.3 CrewAI：Crew 处理协作，Flow 处理确定性控制
 
 CrewAI 的核心抽象也分两层，但分工逻辑和 AutoGen 不同：
 
 - **`Crew`**：一组 `Agent`（带 `role`、`goal`、`backstory`）执行一组 `Task`，协作模式可以是 `sequential`（顺序执行）或 `hierarchical`（由一个管理者 Agent 分派任务）。**Crew 内部的执行细节相对不透明**——具体哪个 Agent 什么时候做什么，很大程度依赖 LLM 在运行时的判断；
-- **`Flow`**：用 `@start`、`@listen` 装饰器构建的事件驱动工作流,负责**确定性的控制流和跨 Crew 状态管理**——可以在 Flow 里调用多个 Crew，用普通 Python 条件判断决定下一步走向。
+- **`Flow`**：用 `@start`、`@listen` 装饰器构建的事件驱动工作流，负责**确定性的控制流和跨 Crew 状态管理**——可以在 Flow 里调用多个 Crew，用普通 Python 条件判断决定下一步走向。
 
 ```python
 from crewai.flow.flow import Flow, listen, start
@@ -64,7 +64,7 @@ class ResearchFlow(Flow):
         return crew.kickoff(inputs={"topic": self.state["topic"]})
 ```
 
-**这条分层设计回答了一个 CrewAI 用户经常遇到的问题**：「Crew 内部的协作结果不够确定，怎么保证整体流程可控？」——答案是**不要试图靠 Crew 本身获得确定性，而是用 Flow 包一层确定性的控制骨架**，把「哪些步骤必须按固定顺序执行」交给 Flow，把「一组 Agent 怎么协作完成某个具体子任务」交给 Crew。这个设计取舍与 [LlamaIndex · 第十五章](../02-llamaindex/15-query-engine-workflows.md) 中「事件驱动 Workflows」的定位有相似之处——都是用一层显式的事件驱动骨架，包裹住内部更不确定的执行细节。
+这条分层设计把确定性控制和角色协作拆开处理：需要固定顺序执行的步骤交给 Flow，具体子任务里的多 Agent 协作交给 Crew。它与 [LlamaIndex · 第十五章](../02-llamaindex/15-query-engine-workflows.md) 中 Workflows 的定位有相似之处，都是用一层显式的事件驱动骨架包裹内部更不确定的执行细节。
 
 ## 20.4 两种路线的工程含义对比
 
@@ -93,7 +93,7 @@ Crew 内部的协作细节依赖 LLM 运行时判断，不适合直接承载「�
 
 ### 20.5.4 把「角色化」等同于「更聪明」
 
-CrewAI 的 `role`/`goal`/`backstory` 本质是结构化的 Prompt 组成部分，帮助模型进入特定角色语境,不会让底层模型的推理能力本身变强。
+CrewAI 的 `role`/`goal`/`backstory` 实际上是结构化 Prompt 的组成部分，帮助模型进入特定角色语境，不会改变底层模型本身的推理能力。
 
 ## 20.6 本章总结
 
@@ -103,7 +103,7 @@ CrewAI 的 `role`/`goal`/`backstory` 本质是结构化的 Prompt 组成部分�
 4. **AutoGen 更适合需要真正分布式部署或研究级灵活性的场景，CrewAI 更适合快速验证角色化协作流程**，两者不是同一问题的两种实现，而是针对不同复杂度来源的不同答案；
 5. **无论哪个框架，多智能体协作的「协作策略」和「确定性控制」都需要分开设计**，不能指望一层抽象同时解决两个问题。
 
-> **一句话概括：AutoGen 用 Actor 模型把多智能体协作变成一个分布式系统工程问题，CrewAI 用团队协作隐喻把它变成一个易于上手的业务建模问题，两者的分层设计（Core/AgentChat 与 Crew/Flow）都指向同一个共识——协作的「灵活性」和「确定性」需要用不同的抽象层分别承接。**
+AutoGen 用 Actor 模型处理分布式协作问题，CrewAI 用团队协作隐喻降低多角色流程的搭建门槛；两者的分层设计（Core / AgentChat 与 Crew / Flow）都把「协作灵活性」和「确定性控制」分到不同抽象层承接。
 
 ## 参考资料
 

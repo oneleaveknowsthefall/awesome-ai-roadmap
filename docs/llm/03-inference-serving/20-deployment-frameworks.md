@@ -55,7 +55,7 @@ t8: B 生成完退出 → 新请求 E 加入
 
 ## 20.3 SGLang：RadixAttention 攻共享前缀
 
-SGLang 不是要替代 vLLM，而是针对 **vLLM 没解决好的特定场景：多请求共享前缀**。
+SGLang 更适合前缀复用率高的场景，尤其是**多请求共享前缀**。
 
 ### 20.3.1 哪些场景前缀重复率高
 
@@ -64,7 +64,7 @@ SGLang 不是要替代 vLLM，而是针对 **vLLM 没解决好的特定场景：
 - **多轮对话历史**：每轮都包含前 N 轮的完整历史；
 - **Agent 工作流**：Agent 多次调用 LLM，每次上下文都从同一个 System Prompt 开始。
 
-**需要更新的说法**：vLLM 不只有 PagedAttention，也提供 **Automatic Prefix Caching（APC）**，可复用相同 token 前缀的 KV block。是否开启、命中和收益依版本、配置及缓存压力而定；不能把「跨请求前缀复用」说成 SGLang 独有。
+vLLM 不只有 PagedAttention，也提供 **Automatic Prefix Caching（APC）**，可复用相同 token 前缀的 KV block。是否开启、命中和收益依版本、配置及缓存压力而定；不能把「跨请求前缀复用」说成 SGLang 独有。
 
 ### 20.3.2 RadixAttention：用基数树组织 KV Cache
 
@@ -146,7 +146,7 @@ Hugging Face 已声明 TGI 进入**维护模式**：接受小型修复、文档�
 
 | 特点 | 代价 |
 |---|---|
-| 对每个具体 GPU 型号做硬件级 fine-tuning | **工程门槛高**，需要先编译 engine |
+| 对每个具体 GPU 型号做硬件级调优 | **工程门槛高**，需要先编译 engine |
 | 集成 NVIDIA 自家内核库 | **只支持 NVIDIA GPU** |
 | 支持 FP8、INT4 等所有硬件支持的精度 | 文档生态不如开源框架活跃 |
 | 性能需针对具体 GPU、模型、编译配置和服务负载进行基准测试 | |
@@ -242,7 +242,6 @@ Agent 前缀重复率极高，SGLang 的 RadixAttention 正是为此而生。
 8. **TensorRT-LLM 针对 NVIDIA 硬件深度优化**，代价是 engine 构建与平台绑定；是否领先取决于模型、硬件、精度与请求负载；
 9. **三大隐藏陷阱**：长上下文仍有碎片与调度开销、KV Cache 量化支持差异大、MoE 部署复杂度通常高于 Dense。
 
-> **一句话概括：部署框架的选型本质是问三个问题——你的显存浪费在哪里、你的 GPU 在等什么、你的请求之间有多少内容是重复的，答案不同就该选不同的框架。**
 
 ## 参考资料
 

@@ -1,6 +1,6 @@
 # 框架与编排 · LangChain 生态
 
-本模块是「AI 框架与编排」主题下最完整的一支：LangChain 从 Chain/LCEL 起步，经 `create_agent` 走向标准化 Agent 构建，再用 LangGraph 补上图编排、持久化与人工介入，最后用 LangSmith 闭环生产质量。它是本主题里唯一原生覆盖「从原型到生产」全链路的框架，也是后续 02–06 各模块反复对照的基线（见各章节内的“与 LangChain 比较”段落）。
+本模块沿着 LangChain 生态展开：从 Chain/LCEL、`create_agent`，到 LangGraph 的图编排、持久化与人工介入，再到 LangSmith 的生产质量闭环。在本主题现有模块中，它也是唯一原生覆盖「从原型到生产」全链路的框架，并作为后续 02–06 各模块对照时的参考基线（见各章节内的“与 LangChain 比较”段落）。
 
 本模块集中维护 LangChain、LangGraph、LangSmith 及相关生态内容，结构与原有学习路径保持一致。
 

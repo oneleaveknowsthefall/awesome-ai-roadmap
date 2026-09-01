@@ -2,7 +2,7 @@
 
 ## 18.1 定位：企业中间件，而不是研究框架
 
-前三个模块的框架（LangChain、LlamaIndex、DSPy）都诞生于 Python 生态，服务对象偏向快速迭代的应用团队。Semantic Kernel 从命名（"Kernel"）到设计目标都更接近**企业中间件**：它把「怎么把 AI 模型接入已有的 C#/Java/Python 代码库、已有的权限体系、已有的可观测性基础设施」当作核心问题，而不是「怎么最快搭出一个原型」。
+前三个模块的框架（LangChain、LlamaIndex、DSPy）都诞生于 Python 生态，服务对象偏向快速迭代的应用团队。Semantic Kernel 从命名（"Kernel"）到设计目标都更接近**企业中间件**：它优先解决的是「怎么把 AI 模型接入已有的 C#/Java/Python 代码库、权限体系和可观测性基础设施」，而不是「怎么最快搭出一个原型」。
 
 > **微软官方把它定义为「轻量级、开源的开发套件，帮助你把最新的 AI 模型集成进 C#、Python 或 Java 代码库，充当高效的中间件」**——「中间件」这个词准确概括了它和 LangChain 的定位差异：LangChain 更像一套完整的应用开发框架，Semantic Kernel 更像一层接入已有企业系统的适配层。
 
@@ -17,7 +17,7 @@ builder.Plugins.AddFromType<OrderPlugin>();
 Kernel kernel = builder.Build();
 ```
 
-**这种「容器 + 注册」的模式是 .NET 企业开发里的标准范式**（类似 ASP.NET Core 的依赖注入），对已经在用 .NET 技术栈的团队来说几乎零学习成本；对习惯了 LangChain 那种「直接实例化对象、函数式组合」风格的团队,则需要适应一层额外的容器抽象。
+**这种「容器 + 注册」的模式是 .NET 企业开发里的标准范式**（类似 ASP.NET Core 的依赖注入），对已经在用 .NET 技术栈的团队来说几乎零学习成本；对习惯了 LangChain 那种「直接实例化对象、函数式组合」风格的团队，则需要适应一层额外的容器抽象。
 
 ## 18.3 Plugin：Semantic Function 与 Native Function 的统一契约
 
@@ -46,7 +46,7 @@ flowchart TB
     D -->|"复杂、需要人工审核关键步骤"| PF["显式编写 Process Framework 流程（见第十九章）"]
 ```
 
-> **这条分岔路径和 [LangChain 生态 · 第九章](../01-langchain/04-langgraph/09-langchain-vs-langgraph.md) 讨论的「什么时候从 `create_agent` 下沉到 LangGraph」是同一类工程判断**：简单场景交给模型自动规划，复杂到需要精细控制分支、审批和恢复时，才显式建模流程——只是 Semantic Kernel 把这条「显式流程」路径独立命名为 Process Framework（见第十九章）。
+这条分岔路径和 [LangChain 生态 · 第九章](../01-langchain/04-langgraph/09-langchain-vs-langgraph.md) 讨论的「什么时候从 `create_agent` 下沉到 LangGraph」属于同一类工程判断：简单场景交给模型自动规划；复杂到需要精细控制分支、审批和恢复时，再显式建模流程。Semantic Kernel 只是把这条「显式流程」路径独立命名为 Process Framework（见第十九章）。
 
 ## 18.5 企业治理层：Filter 与 Hook
 
@@ -88,7 +88,7 @@ Filter 的价值不只是记录日志，还包括在函数调用前做权限校�
 4. **Planner 的角色正在从「唯一编排方式」演变为「简单场景的自动规划选项」**，复杂流程应该显式建模（见第十九章 Process Framework）；
 5. **Filter/Hook 把内容安全、审计、成本控制这些企业级横切关注点变成一等公民**，是它区别于其他框架 Middleware 概念的重点。
 
-> **一句话概括：Semantic Kernel 不是在和 LangChain 比谁的 Agent 能力更强，而是在解决「AI 能力怎么在企业已有的多语言代码库、依赖注入体系和合规审计要求下被安全接入」这个更朴素但同样关键的问题。**
+可以把 Semantic Kernel 看作一层企业接入中间件：它不把重点放在 Agent 玩法的丰富度上，而是放在 AI 能力如何进入既有代码库、依赖注入体系和合规审计流程。
 
 ## 参考资料
 

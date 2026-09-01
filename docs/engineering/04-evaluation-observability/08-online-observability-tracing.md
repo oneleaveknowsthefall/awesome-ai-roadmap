@@ -58,7 +58,7 @@ def trace_metadata(tenant_id: str, prompt_version: str, trace_key: bytes) -> dic
     return {"tenant_hash": tenant_hash, "prompt_version": prompt_version}
 ```
 
-> 这套脱敏原则和 [LangSmith 生产质量闭环](../../frameworks/01-langchain/05-production/13-langsmith-production-loop.md)里讲的做法完全一致——本章讲的是厂商中立的可观测性数据模型,LangSmith 是这套模型在 LangChain 生态里的一种具体实现,选用其他 Tracing 方案时同样适用这些边界原则。
+> 这套脱敏原则和 [LangSmith 生产质量闭环](../../frameworks/01-langchain/05-production/13-langsmith-production-loop.md)里讲的做法完全一致——这里用的是厂商中立的可观测性数据模型,LangSmith 是这套模型在 LangChain 生态里的一种具体实现,选用其他 Tracing 方案时同样适用这些边界原则。
 
 ## 8.5 采样策略:不是所有流量都值得全量记录
 
@@ -116,8 +116,6 @@ Trace 堆积如山但没有形成 p99 延迟、错误率这类可以设阈值告
 4. **数据边界必须在采集前确定**,密钥、PII 等敏感信息默认不采集或脱敏后采集;
 5. **采样策略按风险分层**,安全类和失败请求优先全量记录;
 6. **Trace 数据要聚合成可告警的指标**,是 SLO 体系(第 12 章)的直接输入。
-
-> **一句话概括:可观测性的价值不在于记录得多细,而在于用脱敏、分层采样过的证据,把"生产里到底发生了什么"变成可以下钻排查、也可以聚合告警的结构化数据。**
 
 ## 参考资料
 

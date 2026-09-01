@@ -2,7 +2,7 @@
 
 ## 19.1 两套编排能力，两种复杂度来源
 
-第十八章末尾提到，简单场景可以让模型用 Function Calling 自动规划，复杂场景则需要显式建模。Semantic Kernel 把「复杂」进一步拆成两种不同的来源，并给出两套对应的框架：
+第十八章末尾提到，简单场景可以让模型用 Function Calling 自动规划，复杂场景则需要显式建模。Semantic Kernel 把复杂度分成两类来源，并给出两套对应的框架：
 
 - **Process Framework**：复杂度来自**业务流程本身**——一个多步骤、有明确阶段划分的业务流程（比如「收到工单 → 分类 → 路由给对应团队 → 等待处理 → 关闭并通知」），部分步骤需要 AI，部分步骤是纯业务代码；
 - **Agent Framework**：复杂度来自**多个智能体之间的协作**——多个各有专长的 Agent 需要互相通信、共享上下文、决定谁来处理当前请求。
@@ -49,7 +49,7 @@ orchestration = GroupChatOrchestration(agents=[researcher, writer])
 result = await orchestration.invoke(task="调研并总结季度行业趋势")
 ```
 
-这套「多个带角色的 Agent + 一个决定发言顺序的编排策略」的设计，和 [轻量级 Agent 框架](../05-lightweight-agent-frameworks/README.md) 模块要讲的 AutoGen `GroupChat`、CrewAI `Crew` 在概念层面几乎是同构的——**这也是本章要强调的判断**：多智能体协作的编排模式，在不同框架里换了不同的名字（GroupChat / Crew / Orchestration），但要解决的核心问题（角色划分、发言策略、共享上下文的边界）是一致的，选型时不必被术语差异迷惑。
+这套「多个带角色的 Agent + 一个决定发言顺序的编排策略」的设计，和 [轻量级 Agent 框架](../05-lightweight-agent-frameworks/README.md) 模块里的 AutoGen `GroupChat`、CrewAI `Crew` 在概念层面几乎是同构的。多智能体协作在不同框架里换了不同名字（GroupChat / Crew / Orchestration），但要解决的仍是同一组问题：角色划分、发言策略，以及共享上下文的边界。
 
 ## 19.4 多语言一致性与企业落地的取舍
 
@@ -61,7 +61,7 @@ Semantic Kernel 的 C#、Python、Java 三个 SDK **共享同一套核心概念�
 | 需要用到最新发布的实验性能力 | 应优先确认该能力是否已经覆盖到团队实际使用的语言 SDK，而不是假设三语言功能对等 |
 | 追求版本升级的稳定性 | Semantic Kernel 1.0+ 承诺不做破坏性变更，这对长期维护的企业系统是显著优势，但也意味着新范式（比如更激进的 Agent 抽象）落地速度可能慢于社区驱动、迭代更快的框架 |
 
-> **这正是 [框架选型与可移植架构](../06-selection-portability/README.md) 反复强调的判断维度之一**：稳定性和创新速度是一组权衡，企业级中间件通常用前者换后者，选型时要明确自己的团队更需要哪一种。
+这里体现的是 [框架选型与可移植架构](../06-selection-portability/README.md) 反复出现的一组取舍：稳定性和创新速度通常无法同时最大化，企业级中间件往往用前者换后者，选型时要先明确团队更需要哪一边。
 
 ## 19.5 常见错误
 
@@ -89,7 +89,7 @@ Semantic Kernel 的 C#、Python、Java 三个 SDK **共享同一套核心概念�
 4. **多语言一致性是 Semantic Kernel 的核心卖点，但不是绝对的功能对等**，选型前需要确认目标语言 SDK 的具体能力覆盖；
 5. **稳定性与创新速度是一组权衡**：1.0+ 的不破坏性变更承诺换来了长期维护友好性，代价可能是新范式的落地速度慢于社区驱动的框架。
 
-> **一句话概括：Semantic Kernel 的 Process Framework 和 Agent Framework 分别是「业务流程复杂度」和「多智能体协作复杂度」两个不同问题的答案，它们在能力上并不比 LangGraph、AutoGen 等社区框架有本质领先，真正的差异化优势始终落在多语言一致性和企业治理能力上。**
+Semantic Kernel 的 Process Framework 和 Agent Framework 分别对应「业务流程复杂度」和「多智能体协作复杂度」两类问题。与 LangGraph、AutoGen 等社区框架相比，它更稳定的差异点仍然是多语言一致性和企业治理能力。
 
 ## 参考资料
 

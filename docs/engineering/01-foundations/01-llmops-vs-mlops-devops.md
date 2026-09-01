@@ -93,8 +93,6 @@ Prompt 工程只是 LLMOps 里的一小部分。路由与回退、评测门禁�
 4. **评测方式的差异是核心**：MLOps 是确定性测试集指标，LLMOps 是开放式生成任务的概率性质量评估；
 5. **三种角色通常共存于同一个团队**，只是分管生产生命周期的不同切片，不是互斥选择。
 
-> **一句话概括：LLMOps 之所以自成一派，是因为它要对一个自己看不见内部、随时可能被厂商悄悄改变的「黑盒」模型，建立起和传统软件同等级别的生产可靠性。**
-
 ## 参考资料
 
 - [Google Cloud: MLOps: Continuous delivery and automation pipelines in machine learning](https://cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning)

@@ -161,9 +161,7 @@ Self-Attention 有一个天然缺陷：**它的计算是对称的，不考虑词
 
 「我打你」和「你打我」对 Attention 来说可能得到一样的结果——它只看哪些词相关，不看谁在前谁在后。
 
-所以需要显式给每个 token 注入位置信息。具体方案有 sin/cos、RoPE、ALiBi 等多种，各有不同的设计哲学和长上下文外推能力，[第四章](04-position-encoding.md) 专门展开。
-
-本节只需知道：**Transformer 靠加上位置编码来让模型感知词序**。
+所以需要显式给每个 token 注入位置信息。这里先记住结论：**Transformer 要靠位置编码感知词序**。具体方案有 sin/cos、RoPE、ALiBi 等多种，[第四章](04-position-encoding.md) 会展开讲。
 
 ## 2.7 前馈网络（FFN）的作用
 
@@ -211,7 +209,7 @@ flowchart TB
 
 ## 2.9 为什么 Decoder-only 赢了
 
-这是面试里最容易被追问的点。三个原因：
+Decoder-only 胜出，主要是三个工程原因：
 
 ### 2.9.1 目标极其统一
 
@@ -282,7 +280,6 @@ RAG 里的 embedding 模型和 reranker 大量还是 Encoder 架构。正确表�
 9. **Decoder-only 胜出的三个原因**：目标统一、可在无标注数据上高效自监督、规模化后能力涌现；
 10. **另外两种架构仍有价值**，Encoder-only 在检索与嵌入场景是主力。
 
-> **一句话概括：Transformer 用「每个位置直接看向所有位置」换掉了 RNN 的逐步传递，代价是平方复杂度，收益是可并行与无衰减的长距离依赖——而 Decoder-only 之所以胜出，是因为它把所有任务压缩成了一个可以无限 scale 的训练目标。**
 
 ## 参考资料
 

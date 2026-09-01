@@ -2,7 +2,7 @@
 
 ## 12.1 传输方式与消息格式是解耦的
 
-这是理解 MCP 通信最重要的一句话。
+先把消息格式和传输方式分开看：
 
 ```mermaid
 flowchart TB
@@ -32,7 +32,7 @@ flowchart TB
 
 ### 12.2.1 为什么选它
 
-原因很朴素：MCP 需要的通信模式就是「Client 调用 Server 的方法，Server 返回结果」——这本质上是**远程过程调用（RPC）**。
+原因很朴素：MCP 需要的就是「Client 调用 Server 的方法，Server 返回结果」这类**远程过程调用（RPC）**。
 
 JSON-RPC 2.0 是现成的、足够轻量的 RPC 规范：JSON 易读易调试，任何语言都能实现。Server 是 Python 写的还是 TypeScript 写的，消息格式完全一样，不需要额外的序列化工具（对比 gRPC 要编译 protobuf、Thrift 要生成 stub）。
 
@@ -87,7 +87,7 @@ sequenceDiagram
     Note over C,S: Client 退出时子进程一并终止
 ```
 
-「管道」是什么？可以理解成**操作系统在内存里给两个进程分配的一段先进先出缓冲区**。Client 往里塞一行 JSON，Server 从另一头读出来处理，处理完往另一条管道塞回去。
+这里的「管道」可以理解成**操作系统在内存里给两个进程分配的一段先进先出缓冲区**。Client 往里塞一行 JSON，Server 从另一头读出来处理，处理完往另一条管道塞回去。
 
 整个过程**不经过网卡、不经过 TCP/IP 协议栈**，数据在 RAM 里走了一趟就到了。
 
@@ -190,7 +190,7 @@ Client POST 了一条消息后网络突然断了——**那条消息到底被处
 
 而且两条通道对负载均衡器很不友好：POST 和 SSE 长连接可能被路由到不同的后端实例。
 
-### 12.5.2 一个重要澄清
+### 12.5.2 SSE 还在，只是端点合并了
 
 **Streamable HTTP 并没有抛弃 SSE。**
 
@@ -214,7 +214,7 @@ MCP 的标准 transport 是 stdio 和 Streamable HTTP。WebSocket 可由双方�
 
 ### 12.7.3 把消息格式和传输方式混为一谈
 
-这是这道题最关键的加分点。JSON-RPC 2.0 是消息格式，stdio / Streamable HTTP 是传输方式，两者解耦。切换传输不影响上层逻辑。
+消息格式和传输方式不要混在一起。JSON-RPC 2.0 是消息格式，stdio / Streamable HTTP 是传输方式，两者解耦。切换传输不影响上层逻辑。
 
 ### 12.7.4 认为 Streamable HTTP 抛弃了 SSE
 
@@ -239,7 +239,6 @@ MCP 的标准 transport 是 stdio 和 Streamable HTTP。WebSocket 可由双方�
 7. **Streamable HTTP 内部仍用 SSE**，变的是架构不是技术；
 8. **标准 transport 之外可使用 custom transport**；例如 WebSocket 需由双方显式支持，不能冒充通用标准。
 
-> **一句话概括：MCP 的消息永远是 JSON-RPC 2.0，变的只是把它送过去的方式——本地靠一根内存管道，远程靠一个能吐 JSON 也能吐流的 HTTP 端点。**
 
 ## 参考资料
 

@@ -118,8 +118,6 @@ def parse_with_repair(raw_text: str, schema: type, max_repairs: int = 1):
 5. **契约需要版本号**,Prompt 和它对应的输出 Schema 应作为同一个可版本化单元管理;
 6. **校验失败要有分级修复策略**,从原样重试到回填错误上下文,再到最终的降级路径。
 
-> **一句话概括:结构化输出的工程价值不在于"让模型说人话变成说 JSON",而在于把模型输出和下游程序之间那条脆弱的隐式约定,变成一份有版本、可校验、失败可修复的显式契约。**
-
 ## 参考资料
 
 - [OpenAI: Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs)

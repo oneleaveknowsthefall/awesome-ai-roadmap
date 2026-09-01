@@ -1,6 +1,6 @@
 # LangChain · 基础架构
 
-从框架全景、LCEL 到 LangChain v1 的核心抽象。
+覆盖框架概览、LCEL 和 LangChain v1 的主要抽象。
 
 ## 章节
 

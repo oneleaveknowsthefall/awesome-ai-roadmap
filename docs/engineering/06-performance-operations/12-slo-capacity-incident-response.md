@@ -108,8 +108,6 @@ LLM 服务返回 200 不代表内容质量合格,不设质量类 SLI 会让"服�
 4. **"质量下降但无报错"是 LLM 服务特有的故障类型**,排查依赖足够的元数据和版本记录;
 5. **事故复盘必须产出可执行的改进项**,包括新增回归测试、调整告警阈值等,而非空泛的"下次注意"。
 
-> **一句话概括:LLM 服务的稳定性运营,是把 Google SRE 那套 SLI/SLO/错误预算体系,叠加上"质量也是一种可用性""容量很大程度上不由自己掌控"这两个 LLM 特有的维度。**
-
 ## 参考资料
 
 - [Google SRE Book: Service Level Objectives](https://sre.google/sre-book/service-level-objectives/)

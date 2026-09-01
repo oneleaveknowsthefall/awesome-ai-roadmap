@@ -4,7 +4,7 @@
 
 第一次接触 MCP，最劝退的是名词密度：Host、Client、Server、Tools、Resources、Prompts、JSON-RPC、stdio、Streamable HTTP、sampling、elicitation、roots……
 
-其实把它拆成三层就清楚了，而且它们在设计上尽量解耦：
+把它拆成三层来看，会清楚很多，而且这三层在设计上本来就是解耦的：
 
 ```mermaid
 flowchart TB
@@ -63,7 +63,7 @@ flowchart TB
 
 ### 5.2.3 Host 是唯一的权限把关者
 
-面试里最容易混的是 Host 和 Client。记住一句话：**Client 只是管道，Host 才是决策者**。
+Host 和 Client 经常被混在一起。Client 负责通信和转发，授权与策略决定仍在 Host。
 
 具体来说，这些决策全在 Host：
 
@@ -137,7 +137,7 @@ sequenceDiagram
 
 ### 5.4.1 消息格式与传输方式是解耦的
 
-这是这一层最重要的设计点：
+这一层的设计点，就是把消息格式和传输方式分开：
 
 ```mermaid
 flowchart TB
@@ -197,7 +197,7 @@ sequenceDiagram
     H->>U: 最终答案
 ```
 
-从这张图能看出三个关键事实：
+这次完整调用里，有三点最值得注意：
 
 1. **若 Host 使用模型 Function Calling**，可将 MCP Tool 转为该模型的 schema；也可由规则、结构化输出或人工操作调用 MCP。MCP 对模型接口没有强制要求；
 2. **用户授权发生在 Host 层**，在调用真正发出去之前；
@@ -240,7 +240,6 @@ stdio 模式下往 stdout 打日志会直接破坏协议消息流，而且报错
 7. **消息格式与传输方式解耦**，同一个 Server 换配置就能在本地和远程之间切换；
 8. **stdio 下 stdout 是协议专用通道**，日志必须走 stderr。
 
-> **一句话概括：把 MCP 拆成角色、能力、传输三层，每层只回答一个问题，所有名词就各归其位了。**
 
 ## 参考资料
 

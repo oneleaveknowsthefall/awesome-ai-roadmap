@@ -223,7 +223,7 @@ if choice.finish_reason == "tool_calls":
 | `{"type":"function","function":{"name":"x"}}` | 强制调指定工具 | 结构化抽取：把工具当输出格式用 |
 | `"none"` | 禁止调用 | 需要模型纯文本总结的收尾轮 |
 
-最后一种用法值得单独说：把 `tool_choice` 锁定到某个工具，本质上是在用 Function Calling 做**结构化输出**。这是 Structured Output / JSON Mode 出现之前的通行做法，现在仍然被大量代码沿用。
+把 `tool_choice` 锁定到某个工具时，Function Calling 实际上就在充当**结构化输出**接口。这是 Structured Output / JSON Mode 出现之前的通行做法，现在仍然被大量代码沿用。
 
 ## 1.6 并行工具调用
 
@@ -322,7 +322,6 @@ Function Calling 只解决了「模型怎么表达调用意图」。它没有解
 6. **并行调用把 N 轮压缩成 2 轮**，前提是工具之间无依赖，且要正确处理部分失败；
 7. **它只解决了表达问题**，工具发现、跨进程、生态标准化由 MCP 等上层协议补齐。
 
-> **一句话概括：Function Calling 让模型学会用结构化 JSON 说「我要调这个工具」，而执行这件事，从头到尾都是你的代码在做。**
 
 ## 参考资料
 

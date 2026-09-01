@@ -134,8 +134,6 @@ Agent 内部多轮工具调用如果各自生成新的幂等键,重试时下游�
 5. **熔断器防止对已过载的服务继续加压**,配合回退链路使用;
 6. **舱壁隔离防止故障在不同任务类型之间传染**,不同优先级任务应有独立资源池。
 
-> **一句话概括:重试、超时、幂等、熔断这套模式本身不新,LLMOps 的工作是把它们的参数和触发条件,按 LLM 调用「慢、贵、部分非幂等」的特性重新校准一遍。**
-
 ## 参考资料
 
 - [Google Cloud: Implementing exponential backoff](https://cloud.google.com/storage/docs/retry-strategy)

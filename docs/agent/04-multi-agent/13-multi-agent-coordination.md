@@ -101,7 +101,7 @@ flowchart TB
     A --> O
 ```
 
-中心化模式通常是单团队生产系统的稳健默认方案，因为：
+对单团队生产系统，中心化模式通常是比较稳妥的默认选项，因为：
 
 - 全局目标集中；
 - 路由可追踪；
@@ -1363,21 +1363,13 @@ Router 和 Orchestrator 无法根据失败状态决策。
 
 ## 13.44 本章总结
 
-Multi-Agent 协作需要同时设计：
+Multi-Agent 协作要把通信、状态、路由、控制权转移、可靠性、安全和可观测性一起设计清楚，少掉任何一项，系统一放大就容易出问题。
 
-1. **Communication**：Request/Response、Queue、Pub/Sub、Event Stream；
-2. **State**：Global、Task、Private、Artifact、Audit；
-3. **Routing**：Static、Capability、Score、LLM、Hybrid；
-4. **Control Transfer**：Delegation 与 Handoff；
-5. **Reliability**：幂等、Lease、Timeout、Retry、Cancellation；
-6. **Safety**：Allowlist、最小权限、Handoff 授权；
-7. **Observability**：Trace、Route、Task 和 Artifact 关联。
-
-最稳健的默认架构通常是：
+单团队生产环境里，更常见的组合是：
 
 > **Workflow 控制高层边界，Orchestrator 管理任务，Hybrid Router 选择 Worker，消息触发执行，State 记录事实，Artifact 传递结果，Verifier 检查质量。**
 
-Handoff 适合专业 Agent 接管后续交互；Delegation 适合 Worker 完成子任务后把结果交还调用方。动态路由应限制在允许的 Agent 集合中，真正无法判断或涉及高风险时，应安全停止或交给人工。
+Handoff 适合让专业 Agent 直接接住后续交互；Delegation 更像把一段子任务外包出去，结果再交回原调用方。动态路由也别放得太开，候选集、权限、预算和退出条件都要先收紧；真正拿不准或已经碰到高风险时，直接安全停止或转人工更稳妥。
 
 ## 参考资料
 

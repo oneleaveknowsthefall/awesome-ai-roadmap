@@ -9,7 +9,7 @@
 
 实体记忆既可以暂存在当前任务中，也可以作为长期记忆持久化，因此不应与短期、长期记忆严格并列。
 
-更准确的做法是从三条轴理解 Agent Memory：
+工程上通常会从三条轴理解 Agent Memory：
 
 ```mermaid
 flowchart TB
@@ -60,7 +60,7 @@ flowchart LR
     CB --> CTX[Current Model Context]
 ```
 
-需要特别注意：
+工程上容易混淆的点有四个：
 
 - Context Window 是模型本次调用的输入空间，不等于全部记忆；
 - Messages 只是 Working Memory 的一种载体；
@@ -242,7 +242,7 @@ Entity Memory 保存围绕实体组织的结构化事实和关系，例如：
 }
 ```
 
-Entity Memory 信息密度通常较高，也便于更新和精确查询。但它本质上通常属于结构化 Semantic Memory，而不是独立的时间层级。
+Entity Memory 信息密度通常较高，也便于更新和精确查询。从建模上看，它通常仍属于结构化 Semantic Memory，而不是独立的时间层级。
 
 适合使用：
 
@@ -257,7 +257,7 @@ Entity Memory 信息密度通常较高，也便于更新和精确查询。但它
 
 > 2026 年 8 月 28 日，用户在 Agent 知识图谱项目中明确要求所有文档直接推送到 main。
 
-它可以同时表示为：
+落到系统表示时，往往会拆成几类记忆：
 
 - Episodic Memory：记录一次具体交互；
 - Entity Memory：更新用户或项目偏好；
@@ -287,7 +287,7 @@ flowchart LR
     UP --> I
 ```
 
-可以归纳为六个工程问题：
+工程实现通常会落到六个问题：
 
 1. 存什么？
 2. 如何表示和存储？
@@ -322,7 +322,7 @@ flowchart LR
 
 ### 7.9.3 写入决策信号
 
-Memory Writer 可以综合：
+Memory Writer 通常会综合这些信号：
 
 - Importance：未来价值；
 - Novelty：是否提供新信息；
@@ -454,7 +454,7 @@ flowchart TB
 
 ## 7.12 什么时候取：Retrieval Trigger
 
-你的理解中“任务开始前主动检索、执行中按需检索”是正确的，可以扩展为四种触发方式。
+检索触发点通常分成四类，其中最常见的是任务开始前主动检索和执行中按需检索。
 
 ### 7.12.1 任务开始前
 
@@ -731,7 +731,7 @@ flowchart LR
 
 多 Agent 系统不应默认让所有 Agent 共享全部记忆。
 
-可以划分：
+常见做法会把共享范围分成几层：
 
 - **Private Memory**：单个 Agent 的局部状态；
 - **Task Workspace**：同一任务内共享的计划和 Artifact；
@@ -860,7 +860,7 @@ Documentation preference:
 | Privacy Violations | 是否错误保存或泄露敏感数据 |
 | User Correction Rate | 用户需要纠正记忆的频率 |
 
-记忆系统的价值最终应体现在：
+这些指标最后还是要落到几类结果上：
 
 - 更高任务成功率；
 - 更少重复询问；
@@ -974,11 +974,11 @@ Agent 记忆不能只用“四层记忆 + 向量数据库”概括。更完整�
 - Knowledge Graph；
 - Event / Artifact Store。
 
-工程上最关键的问题是：
+工程设计最终要回答的是：
 
 > **存什么、如何表示、何时检索、怎样排序、如何更新遗忘，以及如何保证安全与隐私。**
 
-最终目标不是让 Agent “记住一切”，而是：
+系统上线后，更有价值的状态不是“记住一切”，而是：
 
 > **在正确时间，以正确权限，为当前任务提供最小充分且可信的记忆。**
 

@@ -1,8 +1,8 @@
 # AI 框架与编排
 
-本主题定位为「框架实现层」的全景视图：[Agent](../agent/README.md) 与 [RAG](../rag/README.md) 主题讲清楚了原理和取舍，[Tools](../tools/README.md) 主题讲清楚了协议本身，本主题讲**这些原理和协议在不同框架里被实现成了什么样的具体抽象**——以及更重要的问题：**当框架不再适合项目时，怎么判断代价、怎么迁移**。
+本主题聚焦「框架实现层」：[Agent](../agent/README.md) 与 [RAG](../rag/README.md) 主题讨论原理与取舍，[Tools](../tools/README.md) 主题单独说明协议；这里关注这些原理和协议在不同框架中的落地方式，以及框架不再适合项目时的迁移成本和路径。
 
-第一个子模块 [LangChain 生态](01-langchain/README.md) 保留原有 LangChain/LangGraph 学习路径；后续五个子模块把视野扩展到 LlamaIndex、DSPy、Semantic Kernel 以及更轻量的 Agent 框架，最后用一个专门的模块做跨框架的技术解构与选型指南。
+当前内容按六个子模块组织。[LangChain 生态](01-langchain/README.md) 沿用原有 LangChain/LangGraph 路径，其余模块分别展开 LlamaIndex、DSPy、Semantic Kernel、轻量级 Agent 框架，以及跨框架的选型与可移植架构。
 
 ## 子模块
 

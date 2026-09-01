@@ -12,7 +12,7 @@ flowchart TB
     A --> A3[系统包含训练、微调、检索、<br/>工具、多 Agent 协作等新阶段]
 ```
 
-因此，AI 系统的威胁建模需要在传统的资产、信任边界和攻击者画像之外，额外回答三个问题：**模型从哪里获得了它现在的行为？运行时哪些不可信内容会进入模型的决策链路？模型的输出能触发什么后果？** 本章给出覆盖这三个问题的框架，后续章节都是对具体环节的深入。
+因此，AI 系统的威胁建模需要在传统的资产、信任边界和攻击者画像之外，额外回答三个问题：**模型从哪里获得了它现在的行为？运行时哪些不可信内容会进入模型的决策链路？模型的输出能触发什么后果？** 后续章节只是把这三个问题拆到具体环节里展开。
 
 ## 1.2 AI 系统的资产与信任边界
 
@@ -46,7 +46,7 @@ NIST AI Risk Management Framework 定义了 **Govern、Map、Measure、Manage** 
 
 OWASP 维护两份互补清单：**LLM Applications Top 10**（面向单模型应用，如 LLM01 Prompt Injection、LLM02 Sensitive Information Disclosure、LLM03 Supply Chain、LLM04 Data and Model Poisoning、LLM05 Improper Output Handling、LLM06 Excessive Agency、LLM07 System Prompt Leakage、LLM08 Vector and Embedding Weaknesses、LLM09 Misinformation、LLM10 Unbounded Consumption）和 **Agentic AI / Multi-Agentic System Top 10**（面向自主 Agent，覆盖工具滥用、身份冒充、级联失控、人机协同失效等）。两份清单的粒度接近 CWE，适合作为代码评审和安全测试的检查项。
 
-三者的关系可以概括为：**ATLAS 告诉你敌人怎么打，RMF 告诉你组织怎么管，OWASP 告诉你代码里该查什么。**
+三者分工不同：ATLAS 描述攻击者的战术与技术，RMF 管理组织风险，OWASP 提供应用实现层的漏洞检查项。
 
 ```mermaid
 flowchart LR
@@ -151,8 +151,6 @@ flowchart TB
 3. 攻击面应沿「训练/微调 → 分发 → 运行时输入/检索/工具调用/执行 → 输出 → 治理」的生命周期铺开，而不是零散罗列；
 4. 攻击者能力应分级（匿名用户到内部人员），防御投入应优先覆盖门槛最低、暴露面最大的等级；
 5. `docs/safety/` 负责跨层框架、标准映射和第2-10章覆盖的补充环节，Agent/Tools/RAG 已有的架构级防御细节通过交叉引用复用，不重复展开。
-
-> **一句话概括：AI 安全的第一步不是挑一个具体漏洞去修，而是先把资产、生命周期阶段和攻击者能力摆清楚，再用 ATLAS、RMF、OWASP 三张地图对齐威胁优先级。**
 
 ## 参考资料
 

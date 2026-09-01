@@ -1,10 +1,10 @@
 # 第十四章：LlamaIndex 的数据与索引抽象
 
-## 14.1 第一性问题：不是「工具怎么调度」，而是「数据怎么变上下文」
+## 14.1 先看问题定义：不是「工具怎么调度」，而是「数据怎么变上下文」
 
-[LangChain 生态](../01-langchain/README.md) 的核心抽象是 Model / Message / Tool 的统一接口——它假设「让模型正确调用工具」是主要工程难题。LlamaIndex 从一开始就把问题定义在更上游：**模型没见过你的私有数据，你的私有数据也不是天然可检索的**，所以第一性问题是「怎么把 PDF、数据库、工单系统里的内容，加工成模型能高质量使用的上下文」。
+[LangChain 生态](../01-langchain/README.md) 的主要抽象是 Model / Message / Tool 的统一接口，重点放在模型如何稳定地调用工具。LlamaIndex 把问题放在更上游：模型默认并不了解私有数据，而这些数据也不是天然可检索的，因此更关注如何把 PDF、数据库、工单系统里的内容加工成模型可用的高质量上下文。
 
-> **两者不是竞争关系，而是分工关系**：LlamaIndex 把「数据 → 索引 → 检索」这条链路拆得比大多数框架更细，LangChain 把「模型 → 工具 → Agent」这条链路拆得更细。这也是为什么原 LangChain 模块第 7 章会专门比较两者的分工。
+> LlamaIndex 和 LangChain 更像分工互补：前者把「数据 → 索引 → 检索」这条链路拆得更细，后者把「模型 → 工具 → Agent」这条链路拆得更细。这也是为什么 LangChain 模块第 7 章会专门比较两者的分工。
 
 ```mermaid
 flowchart TB
@@ -40,9 +40,9 @@ pipeline = IngestionPipeline(
 nodes = pipeline.run(documents=[Document(text=raw_text, metadata={"source": "handbook.pdf"})])
 ```
 
-> **这条流水线的价值不在于「能切分文本」，而在于把切分策略、元数据抽取和 Embedding 生成固化成可复用、可缓存的组件序列**——同一份原始数据换一种切分策略，只需要替换 `transformations` 里的一步，不需要重写整个摄取脚本。
+`IngestionPipeline` 的作用不只是切分文本，更重要的是把切分策略、元数据抽取和 Embedding 生成固化成可复用、可缓存的组件序列。同一份原始数据如果要更换切分策略，通常只需要替换 `transformations` 里的一步，不必重写整个摄取脚本。
 
-对照 [LangChain 生态](../01-langchain/README.md) 的对应抽象：LangChain 的 `Document Loader` 也产出 `Document` 对象，但通常直接喂给 `RecursiveCharacterTextSplitter` 后就交给向量库，**没有强制要求维护 Node 之间的关系图**；LlamaIndex 把「相邻块」「父子块」这些结构性关系当成一等公民，这也是后面 14.3 节多种索引类型能够存在的基础。
+对照 [LangChain 生态](../01-langchain/README.md) 的对应抽象：LangChain 的 `Document Loader` 也产出 `Document` 对象，但通常直接喂给 `RecursiveCharacterTextSplitter` 后就交给向量库，不强制维护 Node 之间的关系图；LlamaIndex 会显式保留「相邻块」「父子块」这些结构关系，这也是后面 14.3 节多种索引类型能够存在的基础。
 
 ## 14.3 索引抽象：从向量索引到属性图索引
 
@@ -68,7 +68,7 @@ flowchart TB
     P --> Q
 ```
 
-> **索引类型的选择本质是「检索假设」的选择，不是「换个数据库」那么简单。** 把「总结全文」这类问题塞进 `VectorStoreIndex`，只会召回几个语义相似的片段，永远得不到全局摘要——这正是 14.5 节的常见错误之一。
+索引类型对应的是不同的检索假设，而不只是更换数据库后端。把「总结全文」这类问题交给 `VectorStoreIndex`，通常只会召回少量语义相似片段，无法得到覆盖全局的摘要；这正是 14.5 节的常见错误之一。
 
 ## 14.4 索引背后的存储解耦：`StorageContext` 与向量库无关性
 
@@ -87,7 +87,7 @@ storage_context = StorageContext.from_defaults(vector_store=vector_store)
 index = VectorStoreIndex(nodes, storage_context=storage_context)
 ```
 
-**这一层解耦决定了 LlamaIndex 不会把你锁死在某个向量库上**——换向量库只需要换 `vector_store` 实现，`Node`、`IngestionPipeline` 和上层 Query Engine 代码都不需要改动。这是 14.6 节讨论「数据层 lock-in」时的关键判断依据，也会在 [框架选型与可移植架构](../06-selection-portability/README.md) 中作为可移植性的正面案例出现。
+这层解耦意味着 LlamaIndex 不会把上层代码直接绑定在某个向量库上。更换后端时，通常只需要替换 `vector_store` 实现，`Node`、`IngestionPipeline` 和上层 Query Engine 代码都可以保持不变。这是 14.6 节讨论「数据层 lock-in」时的关键判断依据，也会在 [框架选型与可移植架构](../06-selection-portability/README.md) 中作为可移植性的正面案例出现。
 
 ## 14.5 常见错误
 
@@ -97,7 +97,7 @@ index = VectorStoreIndex(nodes, storage_context=storage_context)
 
 ### 14.5.2 用向量检索回答「全局摘要」类问题
 
-**症状**：让系统「总结这份 200 页的报告」，得到的答案只覆盖了随机几段。**原因**：向量检索本质是「找相似」，不是「找全部」，`VectorStoreIndex` 无法保证覆盖率。应该改用 `SummaryIndex` 或先做层级摘要（`TreeIndex`）。
+如果让系统「总结这份 200 页的报告」，得到的答案只覆盖了随机几段，通常是因为向量检索擅长「找相似」而不是「找全部」，`VectorStoreIndex` 无法保证覆盖率。此时应改用 `SummaryIndex`，或先做层级摘要（`TreeIndex`）。
 
 ### 14.5.3 忽视 `Node` 之间的关系，只存文本
 
@@ -113,13 +113,13 @@ index = VectorStoreIndex(nodes, storage_context=storage_context)
 
 ## 14.6 本章总结
 
-1. **LlamaIndex 的第一性问题是「数据怎么变成高质量上下文」**，与 LangChain「模型和工具怎么统一调度」形成互补，而非替代；
+1. **LlamaIndex 先解决的是「数据怎么变成高质量上下文」**，与 LangChain「模型和工具怎么统一调度」形成互补，而非替代；
 2. **`Document` 是原始数据容器，`Node` 是可检索最小单元**，`IngestionPipeline` 把加载、切分、抽取、Embedding 固化成可复用流水线；
 3. **不同 Index 类型对应不同的检索假设**：`VectorStoreIndex` 做语义相似度，`SummaryIndex` 做全量遍历，`TreeIndex` 做层级摘要，`PropertyGraphIndex` 做关系推理，选错类型会直接导致答不对问题；
 4. **`StorageContext` 把存储后端与索引结构解耦**，是 LlamaIndex 数据层可移植性的关键设计，换向量库不需要重写摄取和查询代码；
 5. **同一份数据可以并存多种索引**，索引选型不是一次性、互斥的决定。
 
-> **一句话概括：LlamaIndex 把「数据进入系统」当作和「模型调用工具」同等重要的工程问题，用 Document/Node/Index/StorageContext 四层抽象，把数据加工链路做成可组合、可替换的流水线，而不是一次性脚本。**
+可以把 LlamaIndex 理解为一组围绕数据接入和检索构建的抽象：`Document`、`Node`、`Index` 与 `StorageContext` 分别承担原始数据、可检索单元、检索组织方式和存储解耦职责，组合后形成可替换的数据加工流水线。
 
 ## 参考资料
 

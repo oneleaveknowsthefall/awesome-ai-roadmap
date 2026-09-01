@@ -98,8 +98,6 @@ indexed_at: 2026-08-25T02:00:00Z
 4. **数据版本化是评测可比性的前提**,没有它无法区分分数变化的真正原因;
 5. **三者版本信息应汇总到统一注册表**,支撑排查和发布决策。
 
-> **一句话概括:LLMOps 的版本管理管的不是一份权重文件,而是 Prompt、模型快照、数据这三者的组合快照——任何一项漂移都要能被追溯到,任何一次变更都要能被回滚。**
-
 ## 参考资料
 
 - [OpenAI: Model version and lifecycle](https://platform.openai.com/docs/models#model-version)

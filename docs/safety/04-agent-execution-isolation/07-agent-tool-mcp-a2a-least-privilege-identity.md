@@ -2,7 +2,7 @@
 
 ## 7.1 本章的定位：从单个协议到组织级身份治理
 
-[Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md) 已经讲清楚了 MCP/A2A 协议层面的具体控制——OAuth 2.1、PKCE、audience 校验、禁止 token passthrough。这些是**单次调用、单个协议**的正确姿势。但当一个组织同时运行几十上百个 Agent、数百个工具/MCP Server，并且这些 Agent 彼此调用、共享凭据池时，会出现协议层控制无法单独解决的问题：**谁能代表谁行动？权限是怎么在一条委托链上传递和衰减的？整个 Agent 舰队的工具权限该由谁审批、怎么审计？** 这是本章要回答的问题——**跨系统的身份联邦、通用化的 confused deputy 模式，以及舰队级的权限治理**，而不是重复某一个协议的实现细节。
+[Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md) 已经讲清楚了 MCP/A2A 协议层面的具体控制——OAuth 2.1、PKCE、audience 校验、禁止 token passthrough。这些是**单次调用、单个协议**的正确姿势。但当一个组织同时运行几十上百个 Agent、数百个工具/MCP Server，并且这些 Agent 彼此调用、共享凭据池时，会出现协议层控制无法单独解决的问题：**谁能代表谁行动？权限是怎么在一条委托链上传递和衰减的？整个 Agent 舰队的工具权限该由谁审批、怎么审计？** 规模一上来，问题就变成**跨系统的身份联邦、通用化的 confused deputy 模式，以及舰队级的权限治理**，而不是重复某一个协议的实现细节。
 
 ```mermaid
 flowchart TB
@@ -68,7 +68,7 @@ A2A 等跨 Agent 协议让不同团队、甚至不同组织运营的 Agent 可�
 | 跨组织 Agent 协作 | 对端组织的安全成熟度未知，其 Agent 可能本身已被攻陷 | 对外部 Agent 的调用按最低信任度设计，输出当作不可信内容（呼应第二、三章） |
 | Agent 市场/第三方 Agent 接入 | 第三方 Agent 的实现细节不可见，"黑盒调用黑盒" | 引入前审查其声明的权限范围、数据处理方式，签署明确的数据处理协议 |
 
-多 Agent 系统的协作模式、路由和混淆代理问题的架构设计见 [Agent 安全 15.12](../../agent/05-production/15-agent-security.md) 和[多 Agent 协作与路由](../../agent/04-multi-agent/13-multi-agent-coordination.md)；本章补充的是身份和权限治理视角，两者应结合阅读。
+多 Agent 系统的协作模式、路由和混淆代理问题的架构设计见 [Agent 安全 15.12](../../agent/05-production/15-agent-security.md) 和[多 Agent 协作与路由](../../agent/04-multi-agent/13-multi-agent-coordination.md)；这里直接从身份和权限治理看这件事，两边要结合着读。
 
 ## 7.5 舰队级的工具权限治理
 
@@ -123,8 +123,6 @@ flowchart TB
 3. Confused Deputy 是贯穿多层的通用模式，token passthrough 只是其中一种表现，委托链中的有效权限应该是各跳权限的交集而非最大值；
 4. 多 Agent、跨组织协作场景需要额外的信任边界设计，内部团队之间也不能假设默认可信；
 5. 组织规模化后需要工具注册中心、策略即代码、集中审计和定期权限复核这套舰队级治理机制，而不能依赖逐个人工审批。
-
-> **一句话概括：单次协议调用的安全是必要条件，但不是充分条件——真正决定 Agent 系统安全上限的，是委托链上权限是否只收紧不放大，以及整个 Agent 舰队的工具授权是否被当作一套可审计、可复核的治理体系来运营。**
 
 ## 参考资料
 

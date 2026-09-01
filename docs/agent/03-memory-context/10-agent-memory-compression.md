@@ -21,11 +21,11 @@ Agent 在长任务中会持续产生：
 - 模型更难找到当前目标；
 - 旧错误和无关信息持续影响后续决策。
 
-记忆压缩的目标不是简单地“让文本变短”，而是：
+记忆压缩不是单纯把文本变短，更重要的是：
 
 > **在有限 Token Budget 内，尽可能保留完成当前任务所需的信息。**
 
-可以将其抽象为：
+写成一个简单目标函数，就是：
 
 $$
 J(C)=U(C)-\lambda L(C)
@@ -461,7 +461,7 @@ Agent：明白，后续直接提交到 main。
 
 ## 10.7 四种方法如何组合
 
-推荐顺序不是简单四选一：
+工程上通常把这几种方法串起来用：
 
 ```mermaid
 flowchart TB
@@ -682,7 +682,7 @@ $$
 
 ## 10.14 Prompt Caching 是什么
 
-> 本节说明跨请求的计算复用；RAG 上下文增强中如何使用它控制索引成本，见[RAG：语义被切断怎么办](../../rag/02-ingestion-indexing/05-semantic-truncation.md)。
+> Prompt Caching 处理的是跨请求的前缀计算复用；RAG 上下文增强中如何用它控制索引成本，见[RAG：语义被切断怎么办](../../rag/02-ingestion-indexing/05-semantic-truncation.md)。
 
 Prompt Caching 缓存重复 Prompt 前缀的中间计算结果，使后续请求可以复用。
 
@@ -719,7 +719,7 @@ sequenceDiagram
 | 是否降低重复 Prefill 成本 | 间接 | 是 |
 | 是否解决噪音问题 | 是 | 否 |
 
-最关键的一点是：
+这里最容易被误解的是：
 
 > **Prompt Caching 通常不会让 Context Window 变大，缓存 Token 仍属于模型输入上下文。**
 
@@ -735,7 +735,7 @@ flowchart LR
     CACHE --> MODEL[Model]
 ```
 
-推荐顺序：
+实践里通常先做两步：
 
 1. 先决定哪些信息真正需要进入 Context；
 2. 再对其中稳定、重复的前缀使用 Prompt Caching。
@@ -937,7 +937,7 @@ flowchart TB
     OBS --> INPUT
 ```
 
-推荐默认策略：
+默认配置通常会从这套压缩组合起步：
 
 1. 永久 Pin 系统、安全、目标和成功标准；
 2. 将任务状态抽取为结构化数据；
@@ -988,7 +988,7 @@ Prompt Caching 与这些方法位于不同层次：
 
 两者互补，但 Prompt Caching 不会释放 Context Window，也不能替代摘要、过滤和结构化抽取。
 
-最终原则是：
+落到实现上，通常会这样组合：
 
 > **关键约束结构化并固定保留，大型信息外部化，旧历史分层摘要，近期细节使用窗口，长期知识按需检索，稳定前缀再使用缓存。**
 
