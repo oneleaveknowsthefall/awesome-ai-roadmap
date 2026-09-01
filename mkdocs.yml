@@ -350,3 +350,8 @@ nav:
           - 模块导览: safety/05-assurance-governance/README.md
           - 安全评测、红队与持续保障: safety/05-assurance-governance/09-security-evaluation-red-teaming-continuous-assurance.md
           - 风险分级、审计与内容出处: safety/05-assurance-governance/10-ai-governance-risk-classification-audit-provenance.md
+  - FDE:
+      - 主题导览: fde/README.md
+      - 基础与交付方法:
+          - 模块导览: fde/01-foundations/README.md
+          - 从业务问题到可复用生产系统: fde/01-foundations/01-forward-deployed-engineering.md

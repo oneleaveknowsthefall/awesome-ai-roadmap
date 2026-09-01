@@ -8,7 +8,7 @@
 
 ## 总体策略图
 
-八个主题按“模型能力 → 协议接口 → 应用架构 → 框架实现 → 生产治理”组织，共 138 章。
+九个主题按“模型能力 → 协议接口 → 应用架构 → 框架实现 → 生产治理 → 现场交付”组织，共 139 章。
 
 ```mermaid
 flowchart TB
@@ -35,6 +35,10 @@ flowchart TB
         SAFE["AI 安全与治理 · 10 章<br/>威胁 / 隔离 / 红队 / 审计"]
     end
 
+    subgraph L6["第六层 · 现场交付"]
+        FDE["FDE · 1 章<br/>发现 / 验收 / 集成 / 交付 / 复用"]
+    end
+
     LLM --> MM
     LLM --> TOOLS
     TOOLS --> AGENT
@@ -45,6 +49,9 @@ flowchart TB
     RAG --> FW
     FW --> ENG
     ENG --> SAFE
+    ENG --> FDE
+    SAFE --> FDE
+    FDE -.现场反馈.-> FW
     AGENT -.风险输入.-> SAFE
     RAG -.风险输入.-> SAFE
     RAG -.知识增强.-> AGENT
@@ -62,6 +69,7 @@ flowchart TB
 | 框架实现 | AI 框架与编排 | [`docs/frameworks/`](docs/frameworks/README.md) | 23 章 |
 | 生产工程 | AI Engineering / LLMOps | [`docs/engineering/`](docs/engineering/README.md) | 13 章 |
 | 安全治理 | AI 安全与治理 | [`docs/safety/`](docs/safety/README.md) | 10 章 |
+| 现场交付 | FDE | [`docs/fde/`](docs/fde/README.md) | 1 章 |
 
 完整目录、跨主题归属约定与推荐阅读路径见 [`docs/README.md`](docs/README.md)。每个主题 README 维护子模块入口与模块关系，每个子模块 README 维护具体章节顺序。
 

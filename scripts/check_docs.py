@@ -94,6 +94,7 @@ topic_names = {
     "frameworks": "框架与编排",
     "engineering": "AI Engineering",
     "safety": "AI 安全与治理",
+    "fde": "FDE",
 }
 for topic, display_name in topic_names.items():
     count = len(glob.glob(

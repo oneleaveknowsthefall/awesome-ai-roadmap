@@ -1,6 +1,6 @@
 # 文档主题索引
 
-本仓库按「抽象层次」而非「产品清单」组织知识。八个主题覆盖模型原理、多模态能力、协议接口、应用架构、框架实现、生产工程与安全治理。
+本仓库按「抽象层次」而非「产品清单」组织知识。九个主题覆盖模型原理、多模态能力、协议接口、应用架构、框架实现、生产工程、安全治理与现场交付。
 
 目录采用三级结构：**主题 → 子模块 → 章节**。主题 README 负责展示模块关系，子模块 README 负责维护具体章节顺序，章节之间通过相对链接形成跨主题知识图谱。
 
@@ -31,6 +31,10 @@ flowchart TB
         SAFE["AI 安全与治理<br/>威胁 / 隔离 / 红队 / 审计"]
     end
 
+    subgraph L6["第六层 · 现场交付"]
+        FDE["FDE<br/>发现 / 验收 / 集成 / 交付 / 复用"]
+    end
+
     LLM --> MM
     LLM --> TOOLS
     TOOLS --> AGENT
@@ -41,6 +45,9 @@ flowchart TB
     RAG --> FW
     FW --> ENG
     ENG --> SAFE
+    ENG --> FDE
+    SAFE --> FDE
+    FDE -.现场反馈.-> FW
     AGENT -.风险输入.-> SAFE
     RAG -.风险输入.-> SAFE
     RAG -.知识增强.-> AGENT
@@ -58,6 +65,7 @@ flowchart TB
 | 框架实现 | 框架与编排 | LangChain、LangGraph、LlamaIndex、DSPy、Semantic Kernel、轻量 Agent 框架与迁移 | 23 | [进入框架与编排](frameworks/README.md) |
 | 生产工程 | AI Engineering | LLMOps、网关与回退、评测、可观测性、CI/CD、SLO、成本与数据飞轮 | 13 | [进入 AI Engineering](engineering/README.md) |
 | 安全治理 | AI 安全与治理 | 威胁建模、Prompt 攻击、供应链、隐私、执行隔离、红队、治理与审计 | 10 | [进入 AI 安全与治理](safety/README.md) |
+| 现场交付 | FDE | 岗位边界、需求发现、Eval 验收、方案选型、系统集成、生产交付与产品化复用 | 1 | [进入 FDE](fde/README.md) |
 
 ## 主题之间的关系
 
@@ -75,6 +83,7 @@ flowchart TB
 | 向量检索 | RAG | 框架与编排 | RAG 讲索引与召回原理，框架主题讲组件封装 |
 | 可观测性与发布 | AI Engineering | 各应用主题 | 工程层讲跨应用生产闭环，应用主题定义领域信号 |
 | 跨层安全治理 | AI 安全与治理 | LLM、Tools、Agent、RAG | 各层讲局部控制，治理主题统一威胁模型、红队和审计 |
+| 客户现场交付 | FDE | 全部技术主题 | 技术主题讲能力，FDE 讲如何组合能力并交付可衡量结果 |
 
 ## 阅读建议
 
@@ -84,3 +93,4 @@ flowchart TB
 - **多模态应用**：多模态 AI → Agent 第 16–23 章或 RAG 第 21 章 → AI Engineering；
 - **生产平台与 SRE**：AI Engineering → LLM 推理部署 → Tools 网关 → AI 安全与治理；
 - **安全与治理**：AI 安全与治理 → Agent、Tools、RAG 各自的安全章节。
+- **客户交付与解决方案**：FDE → AI Engineering → 按项目需要回查 Agent、RAG、Harness 与安全治理。
