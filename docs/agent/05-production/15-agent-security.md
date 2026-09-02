@@ -1,3 +1,7 @@
+---
+description: 分析 Agent 面临的 Prompt Injection、工具滥用、权限提升和数据外泄风险，并给出分层防护与最小权限策略。
+---
+
 # 第十五章：Agent 安全与 Prompt Injection
 
 ## 15.1 Agent 安全为什么是新问题

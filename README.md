@@ -4,6 +4,8 @@
 
 **在线 Wiki：** <https://zongyangbigpolo.github.io/awesome-ai-roadmap/>
 
+**作者：** [Polo Li](https://github.com/zongyangbigpolo) · **许可：** [CC BY 4.0](LICENSE)
+
 > **内容基线：2026-08-31。** 高时效性章节应结合文中链接的官方文档和实际版本再次核验。
 
 ## 总体策略图
@@ -75,4 +77,4 @@ flowchart TB
 
 ## 文档质量
 
-仓库提供 `scripts/check_docs.py` 与 `scripts/check_mermaid.mjs`，用于检查章节编号、标题、代码与数学围栏、禁用 LaTeX 宏、内部链接、导航计数和 Mermaid 语法。写作与贡献约定见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+仓库提供 `scripts/check_docs.py` 与 `scripts/check_mermaid.mjs`，用于检查章节编号、标题、代码与数学围栏、禁用 LaTeX 宏、内部链接、导航计数和 Mermaid 语法。写作与贡献约定见 [`CONTRIBUTING.md`](CONTRIBUTING.md)，来源选择、引用和纠错方式见[编辑规范](docs/editorial-policy.md)。

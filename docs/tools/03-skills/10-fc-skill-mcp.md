@@ -1,3 +1,7 @@
+---
+description: 从模型输出、任务知识和外部能力连接三个层次比较 Function Calling、Skill 与 MCP，并说明三者如何组合。
+---
+
 # 第十章：Function Calling、MCP、Skill 三者关系
 
 ## 10.1 为什么会有三个概念

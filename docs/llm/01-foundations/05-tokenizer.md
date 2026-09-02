@@ -1,3 +1,7 @@
+---
+description: 解释 Tokenizer 如何把文本转换为模型可处理的 Token，并比较 BPE、WordPiece、SentencePiece 与中文分词的工程取舍。
+---
+
 # 第五章：Tokenizer 分词器
 
 ## 5.1 为什么需要 Tokenizer

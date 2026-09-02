@@ -1,3 +1,7 @@
+---
+description: 比较 Single-Agent 与 Multi-Agent 系统在上下文隔离、专业化、协调成本、可靠性和可观测性方面的差异。
+---
+
 # 第九章：Single-Agent 与 Multi-Agent 系统
 
 ## 9.1 什么是 Single-Agent

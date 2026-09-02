@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - "docs/**"
+      - "overrides/**"
+      - "scripts/mkdocs_hooks.py"
       - "mkdocs.yml"
       - "requirements-docs.txt"
       - ".github/workflows/docs.yml"

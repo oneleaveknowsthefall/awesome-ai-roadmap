@@ -1,3 +1,7 @@
+---
+description: 比较 ReAct、Plan-and-Execute、Router、Evaluator-Optimizer 等 Agent 设计范式，以及不同任务约束下的选型方法。
+---
+
 # 第四章：Agent 设计范式
 
 ## 4.1 什么是 Agent 设计范式

@@ -1,3 +1,7 @@
+---
+description: 解释 Agent Skill 的文件结构、触发条件、渐进披露和执行方式，并说明它与普通 Prompt 和工具调用的区别。
+---
+
 # 第八章：Skill 是什么
 
 ## 8.1 从「重复贴 Prompt」的痛点说起

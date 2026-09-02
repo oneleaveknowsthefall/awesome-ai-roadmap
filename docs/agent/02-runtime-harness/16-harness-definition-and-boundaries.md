@@ -1,3 +1,7 @@
+---
+description: 准确定义 Agent Harness 与 Runtime，比较 Model、Agent、Workflow、Framework 和 Control Plane，并拆解生产级运行时子系统。
+---
+
 # 第十六章：Agent Harness 的定义、边界与分层
 
 ## 16.1 问题背景：模型变强之后，短板在哪里

@@ -1,3 +1,7 @@
+---
+description: 从协议层级、部署位置、工具发现、权限和复用成本比较 MCP 与 Function Calling，并给出组合使用和选型建议。
+---
+
 # 第六章：MCP 与 Function Calling 的区别与选型
 
 ## 6.1 这个问题容易问偏

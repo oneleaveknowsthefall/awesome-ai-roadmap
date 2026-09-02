@@ -1,3 +1,7 @@
+---
+description: 说明如何评估 Agent 的任务成功率、轨迹质量、工具使用、成本和安全性，并比较离线 Benchmark 与线上评测。
+---
+
 # 第十四章：Agent 评估与 Benchmark
 
 ## 14.1 为什么 Agent 评估是独立问题

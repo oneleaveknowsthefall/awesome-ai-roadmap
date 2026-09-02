@@ -1,3 +1,7 @@
+---
+description: 从 Encoder、Decoder、自注意力和残差连接出发解释 Transformer 架构，并说明训练与推理阶段的数据流。
+---
+
 # 第二章：Transformer 架构原理
 
 ## 2.1 Transformer 之前：RNN 的两个致命缺陷

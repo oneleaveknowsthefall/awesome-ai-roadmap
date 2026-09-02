@@ -17,6 +17,14 @@
 - Check braces, math delimiters, and fenced code blocks before publishing.
 - Review the rendered GitHub page after adding or changing formulas.
 
+## Page metadata and discoverability
+
+- Add a specific front matter `description` to important chapters and topic indexes.
+- Keep descriptions factual and readable; do not repeat keyword variants.
+- Add FAQ sections only for recurring reader questions, and keep every marked-up answer visible on the page.
+- Use `scripts/mkdocs_hooks.py` and `overrides/main.html` for site-wide metadata and structured data instead of copying HTML into chapters.
+- Attribute original documentation and diagrams to Polo Li under CC BY 4.0.
+
 ## Publishing
 
 - Update the module `README.md`, topic `README.md`, root indexes, and `mkdocs.yml` navigation when adding, moving, or removing a chapter.

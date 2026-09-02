@@ -1,3 +1,7 @@
+---
+description: 解释 MCP 模型上下文协议解决的问题、Host-Client-Server 架构，以及它与 Function Calling 的职责边界。
+---
+
 # 第四章：MCP 模型上下文协议的核心内容
 
 ## 4.1 MCP 解决的不是 Function Calling 解决的问题

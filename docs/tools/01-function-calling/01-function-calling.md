@@ -1,3 +1,7 @@
+---
+description: 解释 Function Calling 的工作流程、工具 Schema、模型决策和执行闭环，并给出参数约束与错误处理的工程要点。
+---
+
 # 第一章：Function Calling 是什么，原理是什么
 
 ## 1.1 一句话定位

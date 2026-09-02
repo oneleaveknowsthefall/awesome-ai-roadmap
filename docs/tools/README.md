@@ -1,3 +1,7 @@
+---
+description: 解释 Function Calling、MCP、Agent Skill、A2A 和传输网关如何把模型输出连接到外部能力与其他 Agent。
+---
+
 # Tools 相关知识点
 
 本主题位于协议与接口层，解释模型如何调用工具、MCP 如何标准化能力接入、Skill 如何组织知识、Agent 如何跨系统通信，以及传输与网关如何落地。
@@ -29,5 +33,15 @@ flowchart TB
 - **Agent 能力封装**：Function Calling → Skills → MCP；
 - **跨系统协作**：MCP → Agent 通信；
 - **生产治理**：MCP → 传输与网关。
+
+## 常见问题
+
+### MCP 会取代 Function Calling 吗？
+
+不会。Function Calling 解决模型如何表达工具调用意图，MCP 解决应用如何发现并连接外部能力。一个应用可以用 Function Calling 接收模型决策，再通过 MCP Client 调用对应 Server。
+
+### Skill、MCP 和 A2A 分别解决什么问题？
+
+Skill 组织完成任务所需的知识和步骤，MCP 连接工具、资源与提示模板，A2A 用于不同 Agent 系统之间的任务协作。三者处于不同层次，可以组合使用。
 
 返回[文档主题索引](../README.md)。

@@ -1,3 +1,7 @@
+---
+description: 解释 A2A 协议中的 Agent Card、任务生命周期、消息与制品，并比较 A2A、MCP 和应用内部多 Agent 编排。
+---
+
 # 第十一章：A2A 协议
 
 ## 11.1 单个 Agent 的三个天花板

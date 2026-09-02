@@ -1,3 +1,7 @@
+---
+description: 拆解 MCP 的 Host、Client、Server 三层角色，以及 Resources、Prompts、Tools 等原语在连接生命周期中的协作方式。
+---
+
 # 第五章：MCP 的三层组成
 
 ## 5.1 用三层把概念理清
