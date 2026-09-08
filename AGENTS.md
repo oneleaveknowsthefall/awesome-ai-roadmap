@@ -1,5 +1,13 @@
 # Repository Instructions
 
+## Audience and interview preparation
+
+- This knowledge base is primarily for AI engineering interview preparation. Explain mechanisms, assumptions, tradeoffs, failure cases, and how to evaluate a proposed solution.
+- Write natural Chinese that a candidate can explain aloud. Keep technical depth available for follow-up questions; do not replace explanations with memorization slogans.
+- Avoid generic AI narration, exaggerated claims, "high-scoring answer" language, and identical answer templates across chapters. Add concrete questions only when they clarify a real distinction.
+- Preserve useful foundational material even when newer approaches exist. Verify time-sensitive claims against primary sources and distinguish stable specifications, drafts, historical APIs, and vendor-specific behavior.
+- Clearly label hypothetical demos and simulated metrics. Never present fictional projects as the author's experience or suggest that readers claim them as real work.
+
 ## Documentation format
 
 - Group chapters by topic and module under lowercase English directory names, using `docs/<topic>/<NN-module>/NN-chapter.md`.

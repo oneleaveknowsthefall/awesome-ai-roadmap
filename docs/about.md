@@ -1,6 +1,6 @@
 ---
 title: 关于作者与 Awesome AI Roadmap
-description: 介绍 Awesome AI Roadmap 的作者、内容范围、维护方式，以及这份中文 AI 工程知识图谱适合哪些读者。
+description: 介绍 Polo Li 维护的 Awesome AI Roadmap，以及这份面向 AI 工程面试准备的中文知识图谱的内容范围和使用方式。
 ---
 
 # 关于作者与项目
@@ -11,15 +11,17 @@ description: 介绍 Awesome AI Roadmap 的作者、内容范围、维护方式�
 
 ## 项目定位
 
-Awesome AI Roadmap 是一份面向开发者和技术研究者的中文 AI 工程知识图谱。内容从 LLM 原理出发，延伸到多模态、Tools、Agent、RAG、框架与编排、AI Engineering、安全治理和 FDE，重点解释概念之间的边界、工程取舍和生产约束。
+Awesome AI Roadmap 是一份面向 AI 工程面试准备的中文知识图谱。内容从 LLM 原理出发，延伸到多模态、Tools、Agent、RAG、框架与编排、AI Engineering、安全治理和 FDE，重点解释概念之间的边界、工程取舍和生产约束。
 
 它不是厂商产品目录，也不追求罗列所有论文。每个概念尽量放在唯一的“详解归属地”，其他章节通过链接补充不同工程层次的视角。
+
+读者可以用它练习基础概念、方案选型和项目追问，但需要结合自己的经历回答项目题。文中明确标注的虚构 Demo 用于设计推演，不代表作者实际交付过对应项目。
 
 ## 内容如何维护
 
 - 优先引用规范、官方文档、原始论文和可复现的工程报告；
 - 涉及版本、性能和商业案例时，保留时间、环境与来源限制；
-- 章节更新通过 Git 提交记录保留，页面显示首次发布和最后修改日期；
+- 章节更新通过 Git 提交记录保留；页面日期来自当前文件路径的历史，目录迁移可能影响创建日期；
 - 发现事实错误、失效链接或表达歧义时，可以在 [GitHub Issues](https://github.com/zongyangbigpolo/awesome-ai-roadmap/issues) 提交说明。
 
 具体规则见[编辑、引用与纠错规范](editorial-policy.md)。
