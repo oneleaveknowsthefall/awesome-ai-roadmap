@@ -21,21 +21,25 @@ Host/调用方应是策略执行点：验证身份和来源、限制工具与数
 
 ## 15.2 OAuth 2.1、PKCE 与 audience
 
-远程 MCP Server 是 OAuth 2.1 的 Resource Server；Client 是 OAuth Client。A2A 的 Agent Card 也可以声明 OAuth 2.0 security scheme。两者都应由受信任的授权服务器签发并验证访问令牌。
+MCP 授权能力在协议中是 **OPTIONAL**；采用该授权规范的受保护 HTTP Server 是 OAuth Resource Server，Client 是 OAuth Client。stdio 不套用这套 HTTP 授权发现流程，而由环境或受控配置提供凭据。A2A 可声明 OAuth，也支持其他 security scheme，不能一概要求 OAuth。
+
+2026-07-28 MCP 规范引用的是 **OAuth 2.1 IETF draft-13**，不是已发布 RFC；Client ID Metadata Documents 同样引用草案。RFC 9728（受保护资源元数据）、RFC 8707（资源指示符）等则是已发布 RFC。这里陈述的是 MCP 引用版本，不声称这些草案是 IETF 截至今日的最新修订。
 
 | 控制项 | 要求 |
 |---|---|
 | **Authorization Code + PKCE** | 公共客户端使用 Authorization Code 流程与 PKCE（S256）；不要用隐式流程或把 client secret 放进桌面/浏览器应用。 |
-| **精确 redirect URI** | 授权服务器只接受预注册的完整回调 URI，不能按前缀或通配符匹配。 |
-| **audience/resource** | 请求令牌时绑定目标 Resource Server（RFC 8707 `resource`）；资源服务器验证 `aud`、issuer、签名、到期时间与 scope。 |
+| **精确 redirect URI** | 按规范精确匹配登记的回调 URI；原生应用 loopback 端口有 RFC 8252 定义的例外，不能扩展成任意通配符。 |
+| **audience/resource** | 授权请求和 token 请求都指定 RFC 8707 `resource`；资源服务器验证令牌目标、issuer、有效期、scope 和对象权限。JWT 验签，opaque token 按相应 introspection/服务端机制验证。 |
 | **最小 scope** | 令牌只授予当前用户、当前 Server 和当前操作所需权限；读写、项目和租户要分开。 |
 | **刷新与撤销** | 短生命周期 access token；保护 refresh token，并支持撤销、轮换和异常会话失效。 |
 
 `audience` 检查防止“拿给 A 的 token 调 B”。仅验证签名或 `scope` 不够：令牌必须是**为当前资源服务器签发**的。
 
+授权发现从受保护资源元数据找到授权服务器，再读取其 OAuth/OIDC 元数据。发现出来的 URL 仍要做 SSRF 和来源校验。当前 MCP 推荐支持 Client ID Metadata Documents，动态客户端注册 DCR 已弃用但保留兼容；凭据按 issuer 隔离，issuer 变化时不能复用旧 client secret。授权响应带 `iss` 时必须和预先记录的 issuer 比较；对端声明会提供却缺失时应拒绝。
+
 ### 15.2.1 禁止 token passthrough
 
-MCP Client 不应把获得的 access token 原样转发给下游 Server 或其他工具。下游若需要身份，应通过自己的 OAuth 授权、token exchange 或受控的后端凭据获取**面向该 audience 的短期令牌**。
+Client 将**为目标 MCP Server 签发**的 access token 发给该 Server 是正常用法。被禁止的 token passthrough 是：MCP Server 接受并使用本来发给其他服务的 token，或把收到的 token 不加校验地转交下游 API。Server 访问下游需建立独立授权关系，使用面向下游的凭据；token exchange 只有相关系统明确支持时才可采用。
 
 Token passthrough 会混淆 Client 与 Resource Server 的责任，并扩大 token 的 audience、日志和泄露面；这也是 MCP 授权规范明确要求防范的 confused-deputy 风险。
 
@@ -46,7 +50,7 @@ Token passthrough 会混淆 Client 与 Resource Server 的责任，并扩大 tok
 URL、回调地址、文件 URI 和 A2A/MCP endpoint 都是潜在 SSRF 输入。执行网络工具前应：
 
 1. 只允许 `https` 等明确 scheme，并用 allowlist 限制域名、端口、路径与重定向次数；
-2. DNS 解析后拒绝 loopback、link-local、私网、metadata IP 和 IPv6 等价地址；每次重定向重新检查；
+2. 面向公网抓取的工具默认拒绝 loopback、link-local、私网、metadata IP 和 IPv6 等价地址；内部工具通过独立策略精确放行。DNS 校验须与实际连接目标绑定，每次重定向重新检查；
 3. 使用隔离的 egress proxy、短超时、响应大小上限和无凭据网络段；
 4. 对本地 Streamable HTTP MCP Server 校验 `Origin`，默认仅绑定 loopback，以防 DNS rebinding。
 
@@ -64,6 +68,8 @@ Tool 的名称、description、Agent Card、Resource 内容和工具返回值都
 - 服务端重新校验参数、租户、对象归属与授权，不能相信模型生成的 JSON；
 - 限制 Resource URI、工具输出长度和可执行内容，防止上下文投毒与数据外带。
 
+工具 annotations（如 `readOnlyHint`、`destructiveHint`、`idempotentHint`）是不可信提示，不是沙箱、授权或幂等实现。描述/Schema 更新后应重新审阅；MCP 2026-07-28 的 Schema 可包含 `$ref` 和组合结构，解析时还要限制远程解析、递归、资源消耗与缓存作用域，避免把验证器变成新的网络入口。
+
 ## 15.4 最小权限、审批与审计
 
 安全不是每次都弹确认框。确认应与风险绑定，且必须向用户显示**将对哪个对象执行什么动作、使用什么身份、影响范围是什么**。
@@ -79,7 +85,7 @@ Tool 的名称、description、Agent Card、Resource 内容和工具返回值都
 
 ### 15.4.1 A2A 的额外注意点
 
-Agent Card 是能力声明，不是信任证明。调用 A2A Agent 前，应验证 Card 的来源与 TLS 身份，按 Card 的 security scheme 完成授权，并把 push-notification webhook 当作外部输入：签名验证、重放防护、允许的目标域和任务关联缺一不可。
+Agent Card 是能力声明，不是信任证明。按 A2A 1.0 的 `securitySchemes` 与 `securityRequirements` 完成所需认证，能力条目也可声明自己的要求。Webhook 应按约定验证 bearer token、签名或其他认证，并处理重放、重复通知与任务关联；并非所有 A2A webhook 都强制使用同一种签名方案。
 
 任务、artifact 和 file URI 也需要对象级授权与内容扫描；“Agent 自己说已经完成”不能替代对结果、来源和写入动作的验证。
 
@@ -87,7 +93,7 @@ Agent Card 是能力声明，不是信任证明。调用 A2A Agent 前，应验�
 
 - [ ] MCP/A2A endpoint、redirect URI、issuer 和 audience 均为 allowlist；
 - [ ] 公共 OAuth Client 使用 Authorization Code + PKCE S256；
-- [ ] 每个资源服务器验证签名、issuer、`aud`、过期时间、scope 和租户；
+- [ ] 每个资源服务器按令牌类型验证有效性、issuer、目标资源、有效期、scope 和租户；
 - [ ] 未将 access token 转发给未声明的下游；
 - [ ] Tool、Card、Resource 与返回值均按不可信输入处理；
 - [ ] URL 工具具备 DNS、重定向、私网和 metadata 防护；
@@ -104,9 +110,9 @@ Agent Card 是能力声明，不是信任证明。调用 A2A Agent 前，应验�
 
 签名有效不代表令牌是发给当前资源服务器的。还要检查 issuer、`aud`、到期时间、scope 与租户。
 
-### 15.6.3 让 MCP Client 透传上游 access token
+### 15.6.3 混淆正常携带令牌与 token passthrough
 
-这会扩大令牌适用范围并制造 confused deputy。下游应获得面向自身 audience 的短期令牌。
+Client 向令牌指定的 MCP Server 携带令牌是正常流程；MCP Server 不能拿这份令牌访问其他 audience，或接受发给其他 API 的令牌来冒充自身授权。
 
 ### 15.6.4 用确认弹窗替代最小权限
 
@@ -114,7 +120,7 @@ Agent Card 是能力声明，不是信任证明。调用 A2A Agent 前，应验�
 
 ## 15.7 本章总结
 
-1. 协议互操作不建立信任，Host 才是策略执行点；
+1. 协议互操作不建立信任，Host 与 Server 分别执行授权；
 2. OAuth 流程要落实 PKCE、精确回调、audience、最小 scope、轮换与撤销；
 3. 工具元数据、Card、Resource 和返回值都是不可信输入；
 4. URL、回调和远端 endpoint 必须经过 SSRF 与网络出口控制；
@@ -126,7 +132,9 @@ Agent Card 是能力声明，不是信任证明。调用 A2A Agent 前，应验�
 - [MCP 2026-07-28 Authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
 - [MCP 2026-07-28 Security Best Practices](https://modelcontextprotocol.io/specification/2026-07-28/basic/security_best_practices)
 - [MCP 2026-07-28 Transports](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
-- [A2A v1.0.0: Security Schemes](https://a2a-protocol.org/v1.0.0/specification)
+- [A2A v1.0.1 发布规范](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)
+- [RFC 9728: OAuth 2.0 Protected Resource Metadata](https://www.rfc-editor.org/rfc/rfc9728)
+- [RFC 8252: 原生应用 OAuth 与 loopback 回调](https://www.rfc-editor.org/rfc/rfc8252)
 - [RFC 9700: OAuth 2.0 Security Best Current Practice](https://www.rfc-editor.org/rfc/rfc9700)
 - [RFC 7636: PKCE](https://www.rfc-editor.org/rfc/rfc7636)
 - [RFC 8707: Resource Indicators for OAuth 2.0](https://www.rfc-editor.org/rfc/rfc8707)

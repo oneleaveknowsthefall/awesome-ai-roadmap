@@ -4,15 +4,17 @@ description: 解释 A2A 协议中的 Agent Card、任务生命周期、消息与
 
 # 第十一章：A2A 协议
 
+**版本基准（2026-09-08 核查）**：官网 `latest` 仍标 v1.0.0，但官方仓库最新 Release 是 [v1.0.1](https://github.com/a2aproject/A2A/releases/tag/v1.0.1)。本章按该发布标签的[规范正文](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)和 [`specification/a2a.proto`](https://github.com/a2aproject/A2A/blob/v1.0.1/specification/a2a.proto)核对；线上 `A2A-Version` 为 `1.0`，不含补丁号。协议规范、SDK 版本、Agent 软件版本三者不同。
+
 ## 11.1 单个 Agent 的三个天花板
 
 一个 Agent 可以近似看成 **一个 LLM + 一组工具 + 一段上下文窗口**。这三个维度各有上限：
 
 | 维度 | 上限表现 |
 |---|---|
-| **工具数量** | 装 100 个工具，模型选择准确率显著下降，且工具定义每轮全量重传（见 [第三章](../01-function-calling/03-tool-schema-design.md)） |
+| **工具数量** | 相近工具可能增加选择混淆；全量注入会增加成本，但可检索或延迟加载（见[第三章](../01-function-calling/03-tool-schema-design.md)） |
 | **上下文窗口** | 复杂任务的中间产物（搜索结果、草稿、反思记录）会迅速填满窗口 |
-| **专业能力** | 同一个 Agent 既做代码审查又做市场分析，不如各自专精的 Agent |
+| **专业能力** | 不同任务需要不同知识与工具配置，是否拆分应评测协调成本和最终质量 |
 
 举个具体任务：**「做一份 AI 编程工具的竞品分析报告，要有行业趋势、技术对比、商业模式分析和 SWOT」**。
 
@@ -31,13 +33,13 @@ flowchart LR
     end
 
     subgraph MULTI["多 Agent"]
-        O["调度 Agent<br/>上下文里只有<br/>三份几百字摘要"]
+        O["调度 Agent<br/>接收摘要与证据引用<br/>必要时追溯原始材料"]
         A1["市场 Agent<br/>几十个网页在<br/>它自己的上下文里"]
         A2["技术 Agent<br/>工具文档在<br/>它自己的上下文里"]
         O --> A1
         O --> A2
-        A1 -.只回传结论.-> O
-        A2 -.只回传结论.-> O
+        A1 -.回传结论与证据.-> O
+        A2 -.回传结论与证据.-> O
     end
 
     style S1 fill:#fce8e6
@@ -47,6 +49,8 @@ flowchart LR
 市场 Agent 自己去搜几十个网页、写草稿、反复迭代，这些**中间过程全在它自己的上下文里**。任务完成后只把一份几百字的结论回传。
 
 调度 Agent 的上下文里只多了一份摘要，而不是几十个网页原文。**这就是多 Agent 协作在上下文层面的核心收益：把调研过程的上下文压力隔离在专业 Agent 内部。**
+
+这是多 Agent 架构可能带来的收益，不是 A2A 协议保证。总 token 可能增加，摘要也可能丢失证据；应回传来源、假设和可取回的原始制品，而不只是一句结论。
 
 ## 11.2 基础问题：Agent 之间怎么互相认识
 
@@ -64,8 +68,16 @@ Agent Card 是 JSON 能力声明。部署可通过配置、目录或 `/.well-kno
 {
   "name": "Market Research Agent",
   "description": "面向科技行业的市场趋势与竞品调研",
-  "url": "https://agents.example.com/market",
+  "supportedInterfaces": [
+    {
+      "url": "https://agents.example.com/market",
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "1.0"
+    }
+  ],
   "version": "1.2.0",
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["text/plain"],
   "capabilities": {
     "streaming": true,
     "pushNotifications": true
@@ -75,12 +87,14 @@ Agent Card 是 JSON 能力声明。部署可通过配置、目录或 `/.well-kno
       "id": "competitor-analysis",
       "name": "竞品分析",
       "description": "针对指定产品品类，输出竞品清单、定位对比与差异化分析",
+      "tags": ["market", "research"],
       "examples": ["分析国内 AI 编程助手的竞争格局"]
     },
     {
       "id": "trend-analysis",
       "name": "行业趋势分析",
-      "description": "基于公开数据与新闻，输出指定行业未来 12 个月的趋势判断"
+      "description": "基于公开资料整理行业趋势，并标注来源、时间与不确定性",
+      "tags": ["trends"]
     }
   ]
 }
@@ -88,7 +102,9 @@ Agent Card 是 JSON 能力声明。部署可通过配置、目录或 `/.well-kno
 
 名片里最关键的是 **skills 列表**。调度 Agent 靠这些描述做路由决策——「这个任务和哪个 Agent 的哪个 skill 最匹配」。
 
-这和 [工具的 description](../01-function-calling/03-tool-schema-design.md) 起的作用完全一致：**都是在被选择的那一刻，对方唯一能看到的信息**。写得含糊，这个 Agent 就很难被正确路由到任务。
+示例是公开能力卡，未配置受保护操作。`version: "1.2.0"` 是这个 Agent 软件的示例版本，不是 A2A 版本；1.0 用 `supportedInterfaces` 声明接口，而不是旧版顶层 `url`。生产卡还应按需声明 `securitySchemes`、`securityRequirements`，并确认所需流式/推送能力确实启用。
+
+描述可辅助路由，但还要结合输入输出模式、认证要求、可信来源和任务约束。Card 内容不是授权证明，也不是能力正确性的测评报告。
 
 > 注意这里的 `skills` 和 [第八章](../03-skills/08-what-is-skill.md) 讲的 Agent Skill **不是一回事**。A2A 的 skill 是「对外声明的能力条目」，Agent Skill 是「Agent 内部的流程知识模块」。名字撞车，层次完全不同。
 
@@ -100,34 +116,51 @@ Agent Card 是 JSON 能力声明。部署可通过配置、目录或 `/.well-kno
 
 ## 11.3 Task 是 A2A 的一等公民
 
-A2A 里任务协作的基本单位是 **Task**：调度 Agent 委托任务 = 创建一个 Task；接收方执行；完成后把产出（**artifacts**，可以是文本、文件等）返回。
+A2A 的 **Task** 是有状态的工作单元。Client 发 Message 后，Server 可以直接返回 Message，也可以创建并返回 Task；不是每条消息都创建任务。任务产出用 **Artifact**，消息用于交互、澄清和状态沟通。
+
+`taskId` 由 Server 创建，`contextId` 关联同一会话中的多个任务与消息，`messageId` 标识消息；它们不是用户身份，也不会自动提供业务幂等性。`Part` 可携带文本、原始/引用文件或结构化数据。
 
 ```mermaid
 stateDiagram-v2
-    [*] --> submitted: 调度 Agent 提交
+state "TASK_STATE_SUBMITTED" as submitted
+state "TASK_STATE_WORKING" as working
+state "TASK_STATE_INPUT_REQUIRED" as input_required
+state "TASK_STATE_AUTH_REQUIRED" as auth_required
+state "TASK_STATE_COMPLETED" as completed
+state "TASK_STATE_FAILED" as failed
+state "TASK_STATE_CANCELED" as canceled
+state "TASK_STATE_REJECTED" as rejected
+[*] --> submitted: 调度 Agent 提交
     submitted --> working: 接收方开始执行
     working --> input_required: 需要补充信息
     input_required --> working: 调用方补充后继续
+    working --> auth_required: 需要追加认证
+    auth_required --> working: 完成认证后继续
     working --> completed: 执行成功
     working --> failed: 执行失败
-    working --> canceled: 调用方取消
+    working --> canceled: 取消获准
+    submitted --> rejected: 接收方拒绝
+    working --> rejected: 无法继续受理
     completed --> [*]
     failed --> [*]
     canceled --> [*]
+    rejected --> [*]
 ```
+
+这是典型路径，不要求每个任务走过全部状态。1.0 的 ProtoJSON 使用图中的 `TASK_STATE_*` 枚举名；旧文章中的小写或连字符值不能直接用于 1.0 报文。`TASK_STATE_UNSPECIFIED` 不应作为正常业务状态；完成、失败、取消、拒绝是终态，补充输入和追加认证是中断态。
 
 ### 11.3.1 为什么需要这么完整的状态机
 
 因为 **A2A 是专门为长时间任务设计的**。
 
-一个「竞品分析」任务可能要跑几分钟：先搜索、再整理、再写报告。不可能让调度 Agent 同步阻塞等着。
+竞品分析可能跨多个工具或人工环节；支持后台处理可以让调用方不必一直阻塞，但同步等待仍是一种合法实现选择。
 
-所以调度 Agent 提交任务后可以去处理别的事，通过两种方式得知完成：
+调用方可通过三种机制跟踪任务：
 
 | 方式 | 说明 | 适用 |
 |---|---|---|
 | **轮询** | 定期查 Task 状态 | 实现简单，任务不多时够用 |
-| **Push Notification** | 接收方完成时主动回调调用方 | 任务多、耗时长，避免空轮询 |
+| **Push Notification** | 接收方在任务更新时回调注册端点，不仅限于完成 | 需能力支持、可达 webhook 和认证 |
 | **流式** | HTTP/JSON-RPC binding 通常用 SSE，gRPC binding 用 server streaming | 需要给用户展示进度 |
 
 ### 11.3.2 黑盒是解耦的意义
@@ -135,6 +168,8 @@ stateDiagram-v2
 调度 Agent 的视角非常干净：**提交 Task → 查状态 → 取 artifacts**。
 
 它完全不需要知道接收方内部用了什么工具、调了几次 LLM、是不是又委托给了别的 Agent。每个专业 Agent 的实现对外不可见——这正是解耦的价值。
+
+连接中断不等于任务取消。重连可 `GetTask` 或 `SubscribeToTask` 获取状态；后者首条事件为当前 Task，但不保证补齐全部历史增量。`CancelTask` 是取消请求，可能因已完成或不可取消而失败；已发邮件、已付款等副作用更不会自动回滚。处理 Artifact 增量要依据 `artifactId`、`append`、`lastChunk`，不能把每个流事件都当独立完整文件。
 
 ## 11.4 架构本质：Agent 的微服务化
 
@@ -144,8 +179,8 @@ stateDiagram-v2
 |---|---|
 | 独立部署的服务（HTTP、gRPC 等） | 独立部署的 Agent |
 | API 文档 / OpenAPI | Agent Card |
-| 服务注册中心的一条记录 | `/.well-known/agent-card.json` |
-| 异步消息队列 | Task 状态机 + Push Notification |
+| 能力元数据入口 | `/.well-known/agent-card.json`，不是全局注册中心 |
+| 异步工作抽象 | Task 与更新机制；不提供消息队列的持久化交付保证 |
 | 服务间多种 RPC/HTTP 调用 | Agent 间 A2A 调用 |
 
 一个 A2A Agent 可通过 JSON-RPC、HTTP/REST、gRPC 或协商的 custom binding 暴露服务。兼容调用方可在完成发现、认证和策略检查后提交任务并接收结果；A2A 不绑定特定 AI 框架或编程语言。
@@ -156,16 +191,18 @@ A2A 由 Google 在 2025 年 4 月提出，同年 6 月捐给 Linux 基金会独�
 
 ## 11.5 A2A 的多种 protocol binding
 
-A2A 把**数据模型与操作**和网络 binding 分开。v1.0.0 定义 JSON-RPC、gRPC、HTTP/REST binding，并允许自定义 binding；同一 Task、Message、Part、Artifact 语义不应因 binding 改变。
+A2A 1.0 把**数据模型与操作**和网络 binding 分开，定义 JSON-RPC、gRPC、HTTP/REST binding，并允许自定义 binding。v1.0.1 为补丁发布，修正文档和 HTTP 媒体类型等，不改变 `Major.Minor` 协商标识。
 
 | binding | 常见用途 | 流式更新 |
 |---|---|---|
-| **JSON-RPC** | 复用 RPC 方法与错误模型 | `message/stream` 使用 SSE |
+| **JSON-RPC** | 复用 RPC 方法与错误模型 | `SendStreamingMessage` 使用 SSE |
 | **HTTP/REST** | Web 网关与资源式 HTTP 集成 | SSE 传递 Task/Artifact 更新 |
 | **gRPC** | 强类型服务间调用 | server streaming RPC |
 | **Custom binding** | 双方已协商的特定环境 | 由扩展定义 |
 
 WebSocket **不是 A2A 核心 binding**；需要它的双方可定义 custom binding 或用它承载自己的会话层，但不能据此宣称通用 A2A 互操作。WebRTC 同样不是 A2A binding：A2A 可通过 file URI 或文件 Part 交换音频/视频等内容，实时媒体协商与传输需由应用另行设计。
+
+1.0 JSON-RPC 方法是 `SendMessage`、`GetTask`、`CancelTask`、`SubscribeToTask` 等；HTTP 路径对应 `POST /message:send`、`GET /tasks/{id}`、`POST /tasks/{id}:cancel`。不要把旧版 `message/send`、`tasks/get` 混进新协议。HTTP 客户端显式发送 `A2A-Version: 1.0`；省略版本按兼容规则解释为 `0.3`，不是自动使用最新。v1.0.1 HTTP 绑定优先使用 `application/a2a+json`，SSE 响应仍是 `text/event-stream`。
 
 ## 11.6 A2A 与 MCP：一纵一横
 
@@ -195,7 +232,7 @@ flowchart TB
 | **MCP** | 向下（纵向） | 工具、数据源 | Agent 怎么获得外部能力 |
 | **A2A** | 向外（横向） | 其他 Agent | Agent 之间怎么分工协作 |
 
-类比：**MCP 是每个员工的工具箱**，决定这个人能用什么工具干活；**A2A 是公司的协作流程**，决定不同岗位的人怎么分工交接。工具箱和协作流程是两回事，缺哪个都不行。
+“纵向/横向”是常见用法的示意，不是强制拓扑。MCP 可以暴露 Agent 能力，A2A 后端也可以是确定性程序；核心区别是对外契约，而非对端是否真的使用模型。
 
 复杂系统里两者同时在用：MCP 管纵向连接，A2A 管横向协作。
 
@@ -205,7 +242,7 @@ flowchart TB
 
 技术上可以，而且社区里确实有这种做法。但两者的语义不同：
 
-- **包成 MCP 工具**：调用方把它当成一次同步的函数调用，期待快速返回。适合能力边界窄、执行快的 Agent；
+- **包成 MCP 工具**：对外提供工具契约，也可通过 MRTR、显式 handle 或可选 Tasks 扩展处理长任务，不能说 MCP 只能同步；
 - **走 A2A**：有完整的任务生命周期、异步、可取消、可补充输入、可流式。适合长时间、多轮、需要澄清的复杂委托。
 
 判断依据是：**这个委托更像「调一次接口」还是「派一个活」**。
@@ -230,7 +267,7 @@ A2A 定义的是跨实现共享的数据模型、任务生命周期、发现和�
 
 ### 11.7.5 认为有了 A2A 就必须用 A2A
 
-绝大多数多 Agent 系统跑在**单进程内**（比如 LangGraph 的多节点图），Agent 之间直接传共享状态就行，根本不需要跨进程协议。A2A 的价值出现在**Agent 由不同团队开发、独立部署、跨组织协作**的时候。为一个单进程系统引入 A2A 是过度设计。
+同进程多节点可直接调用函数或传状态，未必需要跨系统协议。A2A 更适合不同实现、独立部署或跨组织协作；也应评估已有内部 RPC 是否已经满足需求，不根据“多 Agent”这个名称自动引入协议。
 
 ### 11.7.6 忽略 Agent Card 的描述质量
 
@@ -238,21 +275,20 @@ A2A 定义的是跨实现共享的数据模型、任务生命周期、发现和�
 
 ## 11.8 本章总结
 
-1. **A2A 解决的是单 Agent 的三个天花板**：工具数量、上下文窗口、专业能力；
-2. **多 Agent 在上下文层面的真正收益是中间过程隔离**，调度 Agent 只收结论不收原始素材；
+1. **A2A 解决跨实现协作接口**，不自动提升专业能力或降低总上下文成本；
+2. **多 Agent 可隔离中间过程**，但摘要会丢信息；调度者仍应能追溯证据，而非只能接收结论；
 3. **Agent Card 实现能力声明与发现**；可通过已知 URL、配置或 well-known 约定取得，skills 描述可辅助路由；
 4. **Task 是一等公民**，完整状态机是为异步长任务设计的，支持轮询、回调、流式三种感知方式；
-5. **架构本质是 Agent 的微服务化**：Agent Card 对应 API 文档，Task 状态机对应异步消息队列；
+5. **黑盒委托利于解耦**，但 Task 状态机不等于持久化消息队列或 exactly-once 执行；
 6. **多 binding 保持同一语义**：JSON-RPC、HTTP/REST、gRPC 是核心 binding；SSE 用于相应 binding 的流式更新，WebSocket/WebRTC 不属于核心 binding；
 7. **与 MCP 是一纵一横**：MCP 向下连工具，A2A 向外连 Agent，互补不竞争；
 8. **不是所有多 Agent 系统都需要 A2A**，单进程内协作用共享状态更简单，A2A 面向跨团队跨部署的场景。
 
-> **可以把它理解成：MCP 负责给 Agent 接工具，A2A 负责让 Agent 之间交接任务；一个管纵向能力，一个管横向协作。**
-
 ## 参考资料
 
 - [A2A 协议官网](https://a2a-protocol.org/)
-- [A2A v1.0.0 规范](https://a2a-protocol.org/v1.0.0/specification)
+- [A2A v1.0.1 发布规范](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)
+- [A2A v1.0.1 规范数据定义](https://github.com/a2aproject/A2A/blob/v1.0.1/specification/a2a.proto)
 - [Google: Announcing the Agent2Agent Protocol](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/)
 - [Linux Foundation: A2A Project](https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents)
 - [Model Context Protocol 官方文档](https://modelcontextprotocol.io/docs/getting-started/intro)

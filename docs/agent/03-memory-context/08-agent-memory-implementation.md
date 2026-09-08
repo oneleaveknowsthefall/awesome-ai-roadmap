@@ -1,4 +1,10 @@
+---
+description: 说明 Agent 记忆的持久化作用域、写入一致性、混合检索、权限隔离、删除传播与端到端评测。
+---
+
 # 第八章：Agent 长短期记忆系统的工程实现
+
+本章 JSON 和接口均为教学示意，不是可直接部署的框架 API；业务数值、日期和执行结果不代表真实生产经历。
 
 ## 8.1 工程问题范围
 
@@ -48,9 +54,7 @@ Embedding 和向量数据库非常重要，但它们不是所有长期记忆的�
 
 向量检索擅长语义相似，关键词检索擅长精确字符串，结构化查询擅长事实、条件和权限。
 
-因此，生产系统通常采用：
-
-> **Vector + Keyword + Metadata + SQL/Graph 的混合检索。**
+这些方式可以组合，但不是必选套餐。只有少量偏好的助手可先用关系表；精确错误码检索可先用全文索引；只有检索失败样本证明需要语义或关系查询时，再加入相应组件。
 
 ### 8.2.2 误区二：记忆粒度固定为“一次完整交互”
 
@@ -85,6 +89,8 @@ Working Memory 的活跃部分通常在任务结束后从模型 Context 中移�
 
 > **短期记忆服务当前任务；任务结束后退出活跃上下文，并按策略清理、归档或沉淀。**
 
+这里按任务描述生命周期；具体框架还可能按 thread 定义短期记忆，一个 thread 可以跨多次运行。[LangGraph](https://docs.langchain.com/oss/python/langgraph/persistence) 用 checkpointer 持久化 thread state，用 Store 保存跨 thread 数据。磁盘上保存了历史，不表示下轮模型会自动看到历史；应用仍需读取、筛选和组装 Context。`InMemorySaver` / `InMemoryStore` 的示例也不具备进程重启后的持久性。
+
 ## 8.3 长短期记忆如何协作
 
 ```mermaid
@@ -118,7 +124,7 @@ sequenceDiagram
 | Working Memory | Long-term Memory |
 |---|---|
 | 服务当前任务 | 服务未来任务 |
-| 高频读写 | 相对低频、受策略控制地写入 |
+| 常随步骤更新 | 按业务事件或整理策略写入，未必低频 |
 | 保存当前目标和状态 | 保存事实、经验和偏好 |
 | 主要按任务 ID 访问 | 按实体、语义、时间和条件检索 |
 | 强调低延迟和一致性 | 强调可发现性、可信度和生命周期 |
@@ -149,6 +155,8 @@ flowchart TB
 - 消息重要性过滤；
 - 只保留最近 Tool 交互。
 
+裁剪要遵守所用 API 的消息协议：保留工具调用 ID 与对应结果关系，多工具并行调用不能遗漏仍必需的结果。不要简单对 Messages 做任意切片后直接提交。
+
 ### 8.4.2 Structured Task State
 
 保存需要精确更新的状态：
@@ -174,6 +182,10 @@ flowchart TB
 
 这类状态适合 KV、关系数据库或 Workflow State Store，不适合只放入 Vector DB。
 
+状态恢复还需要明确提交边界。假设工具已完成付款，但 Runtime 在记录成功前崩溃，恢复 checkpoint 后直接重试可能重复付款。应记录 `operation_id`、幂等键、工具结果引用以及 `pending / succeeded / failed / unknown` 等状态；对未知结果先向业务系统核对，再决定重试。Checkpoint 不会回滚外部世界，也不能单独保证 exactly-once。
+
+并发更新使用版本比较或数据库事务，防止两个 Agent 分别读旧计划后互相覆盖。恢复时还应记录图、工具与状态 Schema 版本；代码升级后的旧 checkpoint 不一定能无迁移地继续。
+
 ### 8.4.3 Scratchpad
 
 Scratchpad 保存暂时计算、候选方案和中间分析。
@@ -185,6 +197,8 @@ Scratchpad 保存暂时计算、候选方案和中间分析。
 - 不默认写入长期记忆；
 - 任务结束后清理或摘要；
 - 避免保存敏感隐藏推理。
+
+应记录可审计的计算输入、结果、决策依据和待验证假设，而不是假定能读取或需要保存模型内部的完整思维链。
 
 ### 8.4.4 Artifact References
 
@@ -242,6 +256,8 @@ flowchart LR
 - 已完成与待完成状态是否准确；
 - 来源和错误信息是否可追溯。
 
+“发出了命令”不等于“命令完成”，退出码为零也不一定满足业务验收。压缩应保留完成状态和验证证据，不能仅凭模型文字将计划步骤改为已完成。
+
 ## 8.6 Long-term Memory 的存储架构
 
 ```mermaid
@@ -261,7 +277,7 @@ flowchart TB
 
 - 用户偏好；
 - 实体属性；
-- 权限；
+- 权限服务引用或带版本的缓存（执行前仍需校验）；
 - 状态；
 - 时间有效性；
 - 版本和来源。
@@ -337,9 +353,11 @@ flowchart LR
 
 语义相近的文本通常在向量空间中距离更近。
 
+这取决于训练目标和输入分布。Query 与文档应使用兼容的模型版本、维度、预处理及 query/document 编码方式；不同模型生成的同维向量也不能直接混搜。迁移时可建立新索引、回填并双读比对，再切换，避免新旧向量混用。
+
 ### 8.7.1 Cosine Similarity
 
-查询向量为 `q`，记忆向量为 `m`，余弦相似度可表示为：
+查询向量为 `q`，记忆向量为 `m`，两者均非零时，余弦相似度可表示为：
 
 $$
 S_{cos}(q,m)=\frac{q\cdot m}{\|q\|_2\|m\|_2}
@@ -359,9 +377,11 @@ $$
 
 - HNSW；
 - IVF；
-- Product Quantization。
+- 常与 IVF 等索引配合的 Product Quantization（向量量化压缩，不是与 HNSW 同类的图索引）。
 
 它们在召回率、延迟、内存和构建成本之间做权衡。
+
+小数据集可直接精确扫描，未必需要 ANN。评估 ANN Recall 时，应与同一授权过滤条件下的精确近邻结果对比；过滤导致候选不足时，扩大搜索预算或选择支持预过滤的方案，而不是绕开权限。
 
 ### 8.7.3 Embedding 的局限
 
@@ -377,7 +397,7 @@ $$
 
 记忆粒度由未来的使用方式决定。
 
-> **最优粒度不是最细，而是能够独立理解、独立检索并直接支持后续决策的最小完整语义单元。**
+粒度可以从“可独立理解和更新”出发，但需要用召回与任务效果验证。例如“退款期限 30 天”不是完整事实，还缺产品、地区、起算点及政策版本；拆掉这些条件后，即使命中检索也可能误用。
 
 ## 8.9 多粒度记忆模型
 
@@ -422,12 +442,19 @@ flowchart TB
     "分析慢查询",
     "增加索引"
   ],
-  "outcome": "P95 延迟恢复正常",
-  "lesson": "先检查慢查询，再考虑扩大实例"
+  "outcome": "示例监控窗口内 P95 延迟下降",
+  "verification": {
+    "status": "observed",
+    "evidence_ref": "artifact://example-metrics",
+    "causality_confirmed": false
+  },
+  "lesson_candidate": "出现同类慢查询信号时，先验证索引与执行计划"
 }
 ```
 
 适合相似案例检索和 Reflexion。
+
+这里没有证明新增索引导致恢复；负载变化也可能解释观测。复用时需核对数据库版本、数据规模和查询模式，不能把一次成功轨迹当作通用 Runbook。
 
 ### 8.9.4 Atomic Fact
 
@@ -469,14 +496,14 @@ flowchart TB
 ### 8.10.2 太粗
 
 - 一个 Chunk 包含多个主题；
-- Embedding 表示被平均；
+- 多主题可能稀释 Embedding 对目标片段的区分能力（不一定是字面上的向量平均）；
 - 无关内容进入 Context；
 - 单个事实难以更新；
 - 权限和生命周期难以细分。
 
 ### 8.10.3 推荐策略
 
-同时保存：
+有审计、追溯或多粒度检索需求时，可以同时保存：
 
 1. 原始事件，用于审计；
 2. Episode，用于经历检索；
@@ -485,6 +512,8 @@ flowchart TB
 5. Artifact，用于大体积结果。
 
 检索时根据任务类型选择粒度。
+
+并非每个任务都要生成全部表示；多份衍生数据意味着写放大、索引成本和删除传播成本。原文保留期限也应遵循授权，而不是为了可追溯而永久保存。
 
 ## 8.11 自适应粒度
 
@@ -525,6 +554,8 @@ Task Summary
 ```
 
 检索时先命中 Summary，再按需展开原始 Event。
+
+需要保留直接搜索原始事件的回退路径：若摘要漏掉关键错误码，系统可能连“应该展开哪个父节点”都无法判断。展开原文还需重新检查子记录权限，不能沿摘要链接跨越 ACL。
 
 ## 8.12 Memory Write Pipeline
 
@@ -570,6 +601,8 @@ flowchart LR
 - 同一事件的多个摘要；
 - 已存在的实体事实。
 
+同义去重不能只看向量距离，还需比较主体、谓词、数值、否定、有效时间及来源事件。重试写入可用 `(tenant_id, source_event_id, extractor_version)` 等幂等标识约束；同一事件生成的多个合法事实还需各自稳定 ID。
+
 ### 8.12.4 Conflict Check
 
 新事实与旧事实冲突时：
@@ -607,6 +640,8 @@ $$
 
 分数只是辅助，用户授权和安全策略具有更高优先级。
 
+敏感信息不应仅作为可被其他分数抵消的扣分项。先应用准入规则，拒绝无授权或超出用途的信息，再对允许写入的候选排序；模型给出的重要性、未来相关性及可信度不是可直接相加的校准概率。
+
 ## 8.13 什么时候写入
 
 长期记忆不只在任务结束后写入。
@@ -616,7 +651,7 @@ $$
 适合：
 
 - 用户明确要求记住；
-- 权限或偏好发生变化；
+- 用户偏好变化，或权威权限变更事件（不是模型推断出的权限）；
 - 关键业务事件；
 - 任务可能随时中断；
 - 需要审计的操作。
@@ -649,21 +684,26 @@ $$
 - 不会跨租户串数据；
 - 最终一致性可接受。
 
+典型做法是主库事务同时写记忆版本和 outbox 事件，后台消费者幂等更新向量、全文索引；索引不是事实的唯一主副本。查询命中后按主库版本和状态复核，过滤旧索引中的失效或删除记录。若索引落后，要么走主库直读或临时覆盖层，要么明确返回“尚未索引”，不能声称写入后立即可被语义召回。
+
+删除采用 tombstone 或删除代次：后台任务提交前再次确认记录及所属用户没有更新的删除标记，防止“先删后异步重建”。请求“记住这个偏好”若要求本轮确认成功，应等待主记录可靠提交，而不是只把任务放入进程内队列。
+
 ## 8.14 Memory Retrieval Pipeline
 
 ```mermaid
 flowchart LR
     TASK[Current Task] --> INTENT[Retrieval Intent]
     INTENT --> Q[Query Generation]
-    Q --> V[Vector Search]
-    Q --> K[Keyword Search]
-    Q --> SQL[SQL / Metadata]
-    Q --> G[Graph Query]
+    Q --> SCOPE[服务端身份与强制过滤条件]
+    SCOPE --> V[Authorized Vector Search]
+    SCOPE --> K[Authorized Keyword Search]
+    SCOPE --> SQL[Authorized SQL / Metadata]
+    SCOPE --> G[Authorized Graph Query]
     V --> F[Fusion]
     K --> F
     SQL --> F
     G --> F
-    F --> ACL[Permission Filter]
+    F --> ACL[版本与权限复核]
     ACL --> RR[Rerank]
     RR --> DD[Deduplicate]
     DD --> CP[Context Packing]
@@ -699,6 +739,8 @@ flowchart LR
 
 ### 8.14.3 Hybrid Search
 
+上面的查询仅示意业务条件；租户与权限过滤必须由服务端另行注入，模型不能放宽。`outcome: success` 适用于找成功案例，但故障诊断也要召回失败与反例，避免成功样本偏差。
+
 Hybrid Search 同时利用：
 
 - Vector Similarity；
@@ -723,6 +765,8 @@ Score=
 \epsilon S_{trust}
 $$
 
+BM25、余弦相似度及新鲜度的尺度不同，不能未经校准直接求和。可以验证归一化加权，也可以用按名次融合的 RRF 作为基线，再做重排；权限、有效时间等硬条件不要塞进可抵消的 `S_metadata`。无论选哪种方法，都需要去除同一 Episode 的重复片段，并保留证据冲突。
+
 ### 8.14.4 Reranking
 
 初次检索应追求 Recall，Reranker 再提高 Precision。
@@ -744,7 +788,7 @@ Reranker 可以考虑：
 
 - 用户 Profile；
 - 项目偏好；
-- 权限；
+- 从权威服务读取的当前权限；
 - 长期目标；
 - 高价值相似经验。
 
@@ -800,13 +844,13 @@ flowchart LR
 
 ```text
 Relevant user preferences:
-- Prefer GitHub-Flavored Markdown.
+- Prefer GitHub-Flavored Markdown. [source: event-42; scope: current repo; user-stated]
 
 Relevant project facts:
-- Default branch: main.
+- Default branch: main. [source: repository API; observed_at: example timestamp]
 
 Relevant prior experience:
-- GitHub math does not accept selected macros.
+- Some macros previously failed to render. [source: artifact-9; recheck current renderer]
 
 Unresolved conflicts:
 - None.
@@ -822,9 +866,9 @@ Unresolved conflicts:
 flowchart LR
     OLD[Existing Memory] --> NEW[New Evidence]
     NEW --> C{一致?}
-    C -->|是| MERGE[合并并更新时间]
-    C -->|否| AUTH{新来源更可信或更新?}
-    AUTH -->|是| SUPERSEDE[新版本替代旧版本]
+    C -->|是| MERGE[去重并保留来源时间]
+    C -->|否| AUTH{同作用域且有证据确认替代?}
+    AUTH -->|是| SUPERSEDE[同作用域有效新版本替代旧版本]
     AUTH -->|否| CONFLICT[保留冲突]
 ```
 
@@ -848,6 +892,8 @@ flowchart LR
 - Backup 和保留策略；
 - 下游复制数据。
 
+备份清理通常受保留周期约束，应记录删除完成范围与剩余期限；恢复备份时先应用删除账本再提供查询。仅设置 `deleted_at` 不能保证不可检索，必须让所有读取路径执行过滤。用户偏好“更新”与“删除个人数据”也不是同一操作。
+
 ## 8.18 记忆衰减
 
 基础时间衰减：
@@ -866,7 +912,7 @@ $$
 | 用户明确偏好 | 版本化，直到用户修改 |
 | 产品价格 | 明确有效时间并定期刷新 |
 | 合规记录 | 按政策保留，不自动衰减删除 |
-| 相似案例 | 时间衰减 + 成功结果加权 |
+| 相似案例 | 时间与环境匹配；同时保留失败经验，避免只奖成功 |
 | 安全策略 | 权威版本控制 |
 
 ## 8.19 缓存不是长期记忆
@@ -898,6 +944,8 @@ Memory 的目标是保存未来任务所需的信息。
 ## 8.20 多租户与权限隔离
 
 记忆检索必须先保证访问控制，再考虑相似度。
+
+`tenant_id`、`user_id` 和 `thread_id` 是标识符，不是授权凭证；知道别人的 ID 不能获得读取权。权限至少在查询入口、候选进入重排/模型前、Artifact 读取及工具执行前检查。缓存键还需包含作用域、权限版本和记忆版本，权限撤销时必须失效或重新鉴权。
 
 ```mermaid
 flowchart LR
@@ -943,11 +991,15 @@ flowchart LR
 - 跨任务系统指令；
 - 高敏感用户属性。
 
+安全标签只描述来源，不能证明内容安全。自由文本即使放在 JSON 字段中仍可承载注入；Schema 约束需要配合字段校验、最小权限和工具端授权。由摘要生成的规则要继承来源链，不能因为生成者是内部 Agent 就变成可信政策。
+
 ## 8.22 端到端实现示例
 
 用户说：
 
 > 以后所有知识图谱章节都直接提交到 main，不要创建 PR。
+
+这是偏好保存示例，不是本章授权执行 Git 操作。当前用户是否有权限、仓库是否要求 PR、本次是否只要求审阅，都要独立检查。
 
 ### 8.22.1 Working Memory
 
@@ -965,7 +1017,7 @@ flowchart LR
 系统识别出这是：
 
 - 明确用户偏好；
-- 跨任务有效；
+- 跨任务偏好候选，仍需确认适用范围；
 - 与当前仓库相关；
 - 高可信来源。
 
@@ -975,26 +1027,32 @@ flowchart LR
 
 ```json
 {
-  "subject": "repo:zongyangbigpolo/awesome-ai-roadmap",
+  "tenant_id": "tenant-example",
+  "subject": "repo:example/knowledge-base",
   "predicate": "publishing_strategy",
   "object": {
     "branch": "main",
     "create_pull_request": false
   },
   "source": "explicit_user_instruction",
+  "source_event_id": "event-example",
+  "verification_status": "user_stated",
+  "version": 1,
   "status": "active"
 }
 ```
 
-这里关系数据库比只使用 Vector DB 更合适，因为系统需要精确执行，而不是只找到语义相似内容。
+这里关系数据库便于精确读取和版本更新，但存储类型不保证内容正确，也不替代执行授权。
 
 ### 8.22.4 Next-task Retrieval
 
 下次修改该仓库时，按仓库 ID 精确查询发布策略，在执行 Git 操作前加载。
 
+同时核对所属租户、当前任务要求和仓库保护规则；若本次要求“不要提交”，不执行发布，也不把临时要求误写成永久偏好。
+
 ### 8.22.5 Update
 
-如果用户以后要求必须走 PR，则创建新版本，使旧策略失效。
+如果用户以后明确永久改为必须走 PR，则创建新版本，使同一作用域旧偏好失效；只针对本次任务的要求不自动改写长期记录。
 
 ## 8.23 推荐的实现接口
 
@@ -1033,6 +1091,8 @@ build_context(
 
 接口应将写入、检索和 Context 构建分开，便于独立测试。
 
+这些是职责接口而非完整签名。实际调用需要携带服务端认证作用域、幂等键、预期版本及审计信息；`upsert_fact` 还要支持有效时间与冲突结果，不能把任何模型生成的值无条件覆盖到主记录。
+
 ## 8.24 如何评估实现质量
 
 ### 8.24.1 写入质量
@@ -1063,6 +1123,14 @@ build_context(
 - 是否阻止不可信指令持久化？
 - 是否保留审计来源？
 
+### 8.24.5 可复现的失败定位
+
+选取完整用户历史，按时间喂入写入管道，然后在固定提问时点运行读取与回答。对比无记忆、精确事实直读、原始片段检索及摘要检索；固定模型、数据版本和输入预算，同时报告写入/索引成本、查询延迟分位数以及答案正确率。用人工标注的证据直接供给模型，可检查瓶颈究竟在记忆管道还是下游阅读。
+
+至少注入以下故障：主库成功但索引更新失败、重复消费写入事件、删除与 Consolidation 并发、权限撤销后缓存命中、两个 Agent 更新同一事实，以及工具成功后 checkpoint 尚未提交。对这些测试断言存储版本、可见范围及外部副作用，不要只让 LLM 评价回复“看起来正确”。
+
+可用 [LongMemEval](https://github.com/xiaowu0162/LongMemEval) 的知识更新与弃答问题检验检索，用 [LongMemEval-V2](https://github.com/xiaowu0162/LongMemEval-V2) 检验从轨迹提取环境经验；二者均不能代替上述一致性与权限测试，成绩也不能跨数据版本直接比较。
+
 ## 8.25 常见反模式
 
 ### 8.25.1 所有内容都 Embedding
@@ -1071,7 +1139,7 @@ build_context(
 
 ### 8.25.2 只做关键词搜索
 
-无法召回措辞不同但语义相近的经验。
+可能漏召回措辞不同的经验；但在 ID、错误码为主的任务中，它可以是成本较低且足够有效的基线。
 
 ### 8.25.3 固定字符数切分对话
 
@@ -1101,7 +1169,7 @@ build_context(
 
 可能形成错误记忆、隐私问题和 Persistent Prompt Injection。
 
-## 8.26 推荐默认架构
+## 8.26 可按需裁剪的架构
 
 ```mermaid
 flowchart TB
@@ -1117,14 +1185,14 @@ flowchart TB
     POLICY --> EVENT[Event Store]
     POLICY --> ART[Artifact Store]
 
-    RUNTIME --> RET[Retrieval Router]
+    RUNTIME --> RET[授权范围内 Retrieval Router]
     RET --> PROFILE
     RET --> VECTOR
     RET --> TEXT
     RET --> EVENT
     RET --> ART
 
-    PROFILE --> FUSION[Filter + Fusion + Rerank]
+    PROFILE --> FUSION[权限与版本复核 + Fusion + Rerank]
     VECTOR --> FUSION
     TEXT --> FUSION
     EVENT --> FUSION
@@ -1136,7 +1204,7 @@ flowchart TB
     MODEL --> RUNTIME
 ```
 
-默认配置通常会从这套组合起步：
+图中是可选能力的全景，不是每个项目的默认部署清单。按需求逐项选择：
 
 1. Working Memory 使用结构化 State + Recent Messages + Artifact References；
 2. 长期事实使用关系数据库；
@@ -1163,13 +1231,13 @@ flowchart TB
 
 - 跨任务持久化；
 - 不等于 Vector DB；
-- 使用关系、向量、全文、图、事件和 Artifact 等混合存储；
-- 通过精确、语义和条件检索共同取回。
+- 按需求选择关系、向量、全文、图、事件和 Artifact 等存储或索引；
+- 在授权范围内通过精确、语义或条件检索取回，不要求每种方式都部署。
 
 ### 8.27.3 Granularity
 
 - 不存在统一最佳 Chunk；
-- 同时保留 Event、Interaction、Episode、Fact 和 Summary；
+- 按检索与审计需求选择 Event、Interaction、Episode、Fact 和 Summary；
 - 以独立理解、独立更新和未来使用方式决定粒度。
 
 ### 8.27.4 Usage
@@ -1179,9 +1247,7 @@ flowchart TB
 - 任务过程中保存关键状态；
 - 任务结束后筛选、合并和沉淀长期记忆。
 
-如果要压缩成一条实现原则，可以表述为：
-
-> **用结构化存储保证事实精确，用向量检索发现语义关联，用全文搜索命中精确词，用生命周期和权限策略保证记忆长期可信。**
+结构化存储保证的是约束、查询和更新能力，不保证写入事实为真。工程验收要同时检查来源、版本、索引可见性、授权和模型实际使用结果。
 
 ## 参考资料
 
@@ -1189,3 +1255,10 @@ flowchart TB
 - [MemGPT: Towards LLMs as Operating Systems](https://arxiv.org/abs/2310.08560)
 - [Generative Agents: Interactive Simulacra of Human Behavior](https://arxiv.org/abs/2304.03442)
 - [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366)
+- [LangGraph: Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)
+- [LangGraph: Checkpointers](https://docs.langchain.com/oss/python/langgraph/checkpointers)
+- [LangGraph: Memory overview](https://docs.langchain.com/oss/python/concepts/memory)
+- [LongMemEval 官方实现](https://github.com/xiaowu0162/LongMemEval)
+- [LongMemEval-V2 官方实现](https://github.com/xiaowu0162/LongMemEval-V2)
+
+审校口径：截至 2026-09-08；一致性、幂等和删除方案是设计建议，并非框架自动保证。原创文字与图示：Polo Li，CC BY 4.0。

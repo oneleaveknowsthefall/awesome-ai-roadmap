@@ -1,6 +1,12 @@
-# Tools · MCP
+---
+description: 按 MCP 2026-07-28 核查角色、能力、逐请求协商、传输及授权，并区分旧版本兼容路径。
+---
+
+# Tools · 模型上下文协议
 
 覆盖 MCP 架构、能力、传输、选型以及协议身份与安全边界。
+
+以 [2026-07-28 Current 规范](https://modelcontextprotocol.io/specification/versioning)为基准：无初始化握手的核心语义，不可与 2025-11-25 及以前的会话模型混用。Sampling、Roots、Logging 已弃用但尚未移除；Tasks 已迁到可选扩展。SDK 版本号不等于协议版本。
 
 ## 章节
 

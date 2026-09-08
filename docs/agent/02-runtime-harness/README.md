@@ -1,6 +1,10 @@
+---
+description: 按循环、上下文、工具、权限、恢复、审批和观测七类职责拆解 Agent Harness，区分框架抽象与具体运行时实现。
+---
+
 # Agent · Runtime 与 Harness
 
-拆开 Agent Loop 的运行时内核：定义 Harness 边界，展开状态机、上下文装配、工具执行、权限沙箱、持久化恢复、人在环与可观测性六大子系统。
+拆开 Agent Loop 的运行时内核：定义 Harness 边界，展开状态机、上下文装配、工具执行、权限沙箱、持久化恢复、人在环与可观测性七类子系统。
 
 ## 章节
 
@@ -14,3 +18,5 @@
 8. [第二十三章：Tracing、评测、成本控制与 Coding Agent Harness 案例](23-tracing-evaluation-cost-and-coding-agent-case-study.md)
 
 返回 [Agent 相关知识点](../README.md)。
+
+原创文档与图示：Polo Li，CC BY 4.0；引用资料的权利归原作者。

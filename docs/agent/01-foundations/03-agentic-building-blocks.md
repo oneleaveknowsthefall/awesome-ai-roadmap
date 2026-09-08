@@ -1,3 +1,7 @@
+---
+description: 区分工具、Agent Skills 开放格式、Agent 控制循环、工作流与仓库指令，说明它们如何组合及各自的权限边界。
+---
+
 # 第三章：Tools、Skills、Agents、Workflows 与 AGENTS.md
 
 ## 3.1 先建立整体认识
@@ -32,7 +36,7 @@ flowchart TB
 | 概念 | 回答的问题 | 是否执行动作 | 是否自主决策 | 典型载体 |
 |---|---|---:|---:|---|
 | Tool | “我能调用什么能力？” | 是 | 否 | 函数、API、命令、MCP Tool |
-| Skill | “这类任务应该怎样完成？” | 可通过 Tool 或脚本执行 | 有限，由 Agent 决定是否采用 | `SKILL.md`、脚本、参考资料 |
+| Skill | “这类任务应该怎样完成？” | 可包含需宿主执行的脚本 | 格式本身没有自主决策权 | `SKILL.md`、脚本、参考资料 |
 | Agent | “为了目标，下一步应该做什么？” | 通过 Tool 执行 | 是 | Agent Runtime + Model + State |
 | Workflow | “允许按什么结构和路径执行？” | 通过节点执行 | 由代码、规则或受限模型节点共同决定 | DAG、状态机、工作流代码 |
 | AGENTS.md | “在这个代码仓库里应遵守什么约定？” | 否 | 否 | 仓库中的 `AGENTS.md` 文件 |
@@ -61,6 +65,8 @@ Tool 本身不负责判断：
 - 整个任务何时结束。
 
 这些决策由 Agent、Workflow 或上层业务代码负责。
+
+这里描述的是调用接口的职责，不限制工具内部实现。一个 Tool 可以封装整套工作流甚至另一个 Agent；“最小可执行能力”是相对调用者而言，不代表内部必须只有一步。
 
 ### 3.3.2 Tool 不只是“普通函数加说明书”
 
@@ -212,7 +218,7 @@ Tool 告诉 Agent“可以做什么”，Skill 告诉 Agent“这类事情应该
 
 ### 3.5.2 Agent Skills 标准结构
 
-Agent Skills 是一种开放格式。一个 Skill 至少是一个包含 `SKILL.md` 的目录：
+Agent Skills 是一种开放的文件格式，不是远程调用或消息传输协议。本节以 2026-09-08 查阅的[官方规范](https://agentskills.io/specification)为准，不从日期推定版本号。一个 Skill 至少是一个包含 `SKILL.md` 的目录：
 
 ```text
 code-review/
@@ -247,7 +253,9 @@ description: Review code changes for correctness and security. Use when inspecti
 | `license` | 否 | 许可证信息 |
 | `compatibility` | 否 | 环境和依赖要求 |
 | `metadata` | 否 | 扩展元数据 |
-| `allowed-tools` | 否 | 可预授权的工具，仍属于实验能力 |
+| `allowed-tools` | 否 | 空格分隔的预批准工具声明；实验字段，支持方式取决于宿主 |
+
+`name` 必须与目录名一致；`description` 同时描述做什么和何时使用。`metadata.version` 即便存在，也是包作者的元数据，不是 Agent Skills 协议版本。加载 Skill 不能提升用户权限，脚本和外部引用仍须经过来源审查、权限检查与执行隔离。
 
 ### 3.5.3 渐进式披露
 
@@ -283,7 +291,7 @@ Skill 本身不一定拥有独立决策权。它更像一个可复用的“操�
 
 ## 3.6 AGENTS.md：写给编码 Agent 的仓库说明
 
-用户提到的 `agent.md`，当前开放格式使用的是全大写、复数形式：
+这个开放格式使用全大写、复数形式的文件名：
 
 > **`AGENTS.md`**
 
@@ -500,7 +508,7 @@ Agent 和 Workflow 不是互斥关系。一个 Workflow 节点可以运行 Agent
 
 ## 3.11 Agentic Workflow：生产系统的常见选择
 
-生产系统通常采用 Agentic Workflow：
+当业务主流程明确、局部路径需要探索时，可以采用 Agentic Workflow：
 
 > **用 Workflow 固定主流程、权限和验收边界，在确实需要灵活判断的位置嵌入 Agent。**
 
@@ -515,7 +523,9 @@ flowchart LR
     GEN --> EVAL[质量与安全评估]
     EVAL -->|通过| OUT[返回结果]
     EVAL -->|不通过| FIX[受限优化]
-    FIX --> EVAL
+    FIX --> LIMIT{仍有预算且有进展?}
+    LIMIT -->|是| EVAL
+    LIMIT -->|否| STOP[报告未完成或转人工]
 ```
 
 这种架构的优势是：

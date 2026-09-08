@@ -1,6 +1,12 @@
-# Tools · Function Calling
+---
+description: 从工具调用训练、JSON Schema 与 strict 约束到推理状态回传，理解模型提议与应用执行的边界。
+---
+
+# Tools · 函数与工具调用
 
 从工具调用协议、模型学习到 Schema 工程和推理模型适配。
+
+先读调用闭环和 Schema，再看训练与推理模型。示例中的 Chat Completions 字段不是通用标准；Responses、Claude 等接口须分别适配。重点区分格式正确、业务正确和执行获准。
 
 ## 章节
 

@@ -10,13 +10,13 @@ description: 说明如何评估 Agent 的任务成功率、轨迹质量、工具
 
 评估 LLM 时，输入是一段 Prompt，输出是一段文本，可以直接和参考答案比较。评估 Agent 时，输入是一个目标，输出是**一整条执行轨迹**：调用了哪些 Tool、传了什么参数、读到了什么结果、中途改了几次方向、最后改动了哪些外部状态。
 
-这带来四个普通 LLM 评估不存在的困难。
+这让单轮文本评估中的一些困难更突出，并增加外部状态与副作用的验收问题。
 
 **第一，没有唯一正确路径。** 同一个任务可以先搜索再读文件，也可以先读文件再搜索，两条路径都对。因此不能用「轨迹是否匹配参考轨迹」来打分。
 
 **第二，结果不只是文本。** Agent 可能改了数据库、提交了代码、发了邮件。正确性必须在**环境状态**上验证，而不是在输出文本上验证。
 
-**第三，行为不确定。** 同一个任务跑两次可能走不同路径、得到不同结果。单次运行的分数没有统计意义。
+**第三，行为不确定。** 同一个任务跑两次可能走不同路径、得到不同结果。单次运行可以发现失败，但无法估计同一任务的重复可靠性；重复试验与任务覆盖是两个不同维度。
 
 **第四，失败有多种形态。** 任务失败、工具调用格式错误、无限循环、超预算、越权操作，这些是不同的失败，不能合并成一个「错误率」。
 
@@ -67,21 +67,22 @@ flowchart TB
     WEB --> WA[WebArena / BrowseComp]
     GUI --> OS[OSWorld]
     TOOL --> TAU[tau-bench / tau2-bench]
-    GEN --> GA[GAIA / AgentBench / HLE]
+    GEN --> GA[GAIA / AgentBench]
+    B -.补充知识评测.-> HLE[HLE：非 Agent 专用]
 ```
 
 ### 14.3.1 代码工程类
 
-**SWE-bench** 是影响力最大的 Agent 基准。它从真实 GitHub 仓库中抽取 Issue 与对应的修复 Commit，要求 Agent 在完整仓库中定位问题、修改代码，最后用**仓库自带的测试用例**判定是否修复成功。
+**SWE-bench** 从真实 GitHub 仓库抽取 Issue 与修复，要求在指定基线仓库中提交补丁。评测使用测试补丁和既有测试，检查应从失败转成功的测试（FAIL_TO_PASS）及应保持通过的测试（PASS_TO_PASS），不是只运行 Agent 修改后恰好已有的测试。
 
 它的设计有两个关键点值得借鉴：
 
-1. **用可执行测试而非文本相似度做判定**，彻底避免了主观打分；
+1. **用可执行测试而非文本相似度做判定**，减少主观评分，但测试仍可能遗漏需求、脆弱或被投机满足；
 2. **提供完整仓库而非孤立文件**，迫使 Agent 具备检索与导航能力。
 
 由于原始数据集中存在部分描述不充分或测试不可靠的样例，后续出现了人工筛选过的 **SWE-bench Verified** 子集（500 题），目前是更常被引用的口径。**引用分数时必须说明是哪个子集**，Full、Lite、Verified 的分数不可直接比较。
 
-**SWE-Lancer** 把任务换成真实自由职业市场上的付费软件任务，用「能赚到多少美元」作为聚合指标，更接近经济价值口径。
+**SWE-Lancer** 使用真实自由职业市场的软件任务，包含独立贡献者任务与管理者选择方案任务。按任务历史报酬聚合的金额是该基准下的价值代理，不是 Agent 实际收入，也不能直接推算生产 ROI。
 
 **Terminal-Bench** 关注纯终端环境中的任务完成能力，覆盖编译、调试、系统配置等场景。
 
@@ -93,7 +94,7 @@ flowchart TB
 
 ### 14.3.3 操作系统与 GUI 类
 
-**OSWorld** 在真实操作系统中评测多模态 Agent，任务涉及跨应用操作（在浏览器里查资料再填进表格），判定同样基于最终的文件与系统状态。这类基准的难度显著高于纯文本环境，也最能暴露长程执行的稳定性问题。
+**OSWorld** 在真实操作系统中评测多模态 Agent，任务涉及跨应用操作，判定基于最终文件与系统状态。它增加了视觉定位、动作执行和异步界面的困难，但不能跨不同模型与任务集断言一定比所有纯文本基准难。
 
 ### 14.3.4 工具与对话类
 
@@ -117,7 +118,7 @@ flowchart TB
 | SWE-Lancer | 软件任务 | 测试 + 经济价值 | 端到端交付能力 |
 | Terminal-Bench | 终端操作 | 状态断言 | 命令行与系统能力 |
 | WebArena | 网页操作 | 状态断言 | 多步网页交互 |
-| BrowseComp | 深度检索 | 精确答案匹配 | 多跳搜索与交叉验证 |
+| BrowseComp | 深度检索 | 依据参考短答案判分，官方实现使用模型裁判 | 难检索信息定位与证据核实 |
 | OSWorld | 桌面 GUI | 文件/系统状态 | 跨应用长程操作 |
 | tau-bench | 客服对话 | 数据库状态 + 政策 | 工具 + 澄清 + 合规拒绝 |
 | tau²-bench | 双向对话 | 状态断言 | 指导用户执行动作 |
@@ -145,7 +146,7 @@ $$
 \mathrm{SuccessRate} = \frac{1}{N}\sum_{i=1}^{N} s_i
 $$
 
-关键在于 $s_i$ 必须由**可执行的断言**给出，而不是人工主观判断或让另一个 LLM 随口评价。
+关键是预先定义可复现的判分标准。数据库状态和代码任务优先用可执行断言；报告质量等开放任务可用经校准的模型或人工 Rubric。程序断言覆盖不全时，也不能把“测试通过”直接等同于用户目标完成。
 
 ### 14.4.2 pass@k：至少一次做对的机会
 
@@ -182,7 +183,9 @@ flowchart LR
     U2 --> S2[适用: 无人值守自动化]
 ```
 
-**工程审查要点**：为什么 Agent 的 $\mathrm{pass}^{k}$ 衰减比普通 LLM 更严重？因为 Agent 是多步执行，每一步的随机性都会累积。设每步正确率为 $p$，$m$ 步任务的成功率约为 $p^m$，$p = 0.95$ 且 $m = 20$ 时成功率仅约 $0.36$。**降低单步方差比提升单步能力更能改善端到端稳定性。**
+长链路为何脆弱？在“每步独立、正确率相同、任一步失败都不可恢复”的教学假设下，$m$ 步成功率为 $p^m$；$p = 0.95$、$m = 20$ 时约为 $0.36$。真实 Agent 存在相关错误、重试和验证，不能直接套用此式，更不能由它推出“降低方差一定比提高能力重要”。此外，即便只有单步任务，$p_i^k$ 也会随重复次数衰减。
+
+报告 pass@k 时还要说明怎样从候选中选出成功结果；若生产没有可靠验收器，离线“至少有一个成功”不代表实际能交付它。比较 pass^k 时应重置环境、固定预算，并区分重复同一任务与连续执行不同任务的可靠性。
 
 ### 14.4.4 轨迹层指标
 
@@ -223,7 +226,7 @@ $$
 \mathrm{CostPerSuccess} = \frac{\mathrm{CostPerTask}}{\mathrm{SuccessRate}}
 $$
 
-即把总成本摊到成功任务上。一个成功率 90% 但单任务成本 0.5 美元的方案，实际优于成功率 95% 但单任务成本 2 美元的方案。同理，延迟应报告 P50 与 P95 而非平均值，因为 Agent 的延迟分布通常是长尾的。
+即把总成本摊到成功任务上，成功率为零时该比值没有有限定义。教学示例中，90%/0.5 美元方案约为每成功任务 0.56 美元，95%/2 美元方案约为 2.11 美元；前者只在此成本口径上更低，若失败损失或 SLA 不同，不能直接宣布更优。完整成本还要计入失败尝试、工具、计算与人工处理。延迟至少同时报告 P50、P95 和超时率。
 
 ## 14.5 判定方式：如何决定一次运行算不算成功
 
@@ -235,9 +238,9 @@ flowchart TB
     J --> L[LLM-as-Judge]
     J --> H[人工评估]
 
-    E --> E1[最可靠 成本最低]
+    E --> E1[可重复 依赖断言覆盖]
     L --> L1[覆盖主观任务 需校准]
-    H --> H1[质量最高 无法规模化]
+    H --> H1[领域判断 需一致性校准]
 ```
 
 ### 14.5.1 程序化断言（首选）
@@ -255,7 +258,7 @@ flowchart TB
 
 ### 14.5.2 LLM-as-Judge（次选）
 
-对于报告质量、回答有用性这类无法程序化判定的任务，只能用模型评分。工程上必须处理它的四个已知偏差：
+对于报告质量、回答有用性等任务，可以结合人工与模型评分。模型裁判需处理以下偏差，换成另一家模型也不保证偏差消失：
 
 | 偏差 | 表现 | 缓解手段 |
 |---|---|---|
@@ -264,7 +267,7 @@ flowchart TB
 | 自我偏好 | 偏好同族模型的输出 | 用与被测模型不同的裁判模型 |
 | 尺度漂移 | 不同批次分数不可比 | 用固定锚点样例校准 |
 
-**必须做的一步是校准**：先人工标注 100 条左右的样本，计算裁判模型与人工标注的一致率（如 Cohen's Kappa）。一致率过低时，Judge 的分数没有参考价值，应先优化 Rubric 而不是直接使用。
+先在覆盖主要类别与边界的样本上校准，样本量由误差容忍度、类别稀疏程度和标注预算决定，没有通用的“100 条足够”。除总体一致率与适用时的 Cohen's Kappa，还要检查各类误判、裁判间分歧和标签基率。固定 Rubric、模型版本与锚点样例，防止优化成讨好裁判。
 
 另外，**尽量让 Judge 做二元判定或少档位判定，而不是打 1–10 分**。模型在「是否满足这条具体标准」上远比在连续打分上可靠。
 
@@ -276,7 +279,7 @@ flowchart TB
 
 ### 14.6.1 分层设计
 
-评测集应该分层，不同层次有不同的运行频率：
+评测集可以分层。下面数量与频率是教学示例，不是行业标准；实际按风险覆盖、统计精度与运行成本调整：
 
 ```mermaid
 flowchart LR
@@ -311,10 +314,15 @@ flowchart LR
 {
   "id": "refund-001",
   "goal": "为订单 A123 办理退款并通知用户",
-  "initial_state": { "orders": [ { "id": "A123", "status": "shipped" } ] },
+  "initial_state": {
+    "orders": [ { "id": "A123", "status": "shipped", "return_confirmed": true } ]
+  },
   "assertions": [
     { "type": "db", "check": "orders.A123.status == 'refunded'" },
-    { "type": "tool_called", "name": "send_email" },
+    { "type": "event_count", "event": "refund_committed", "order_id": "A123", "equals": 1 },
+    { "type": "event_order", "before": "return_confirmed", "after": "refund_committed" },
+    { "type": "event_order", "before": "refund_committed", "after": "email_sent" },
+    { "type": "email", "order_id": "A123", "recipient": "order_owner", "delivered": true },
     { "type": "tool_not_called", "name": "delete_order" }
   ],
   "policy": ["已发货订单退款需先确认用户已退货"],
@@ -323,7 +331,7 @@ flowchart LR
 }
 ```
 
-关键字段是 `initial_state`（保证可复现）、`assertions`（含正向与负向）、`budget`（超预算即失败）。
+这是示意用例格式，断言需由评测器实现。关键字段是初始状态、正负向断言及预算；`return_confirmed` 事件须由环境夹具提供，而不能凭 Agent 声明。若未确认退货，应另设“先澄清、不得退款”的用例，不能同时要求无条件退款成功。
 
 ### 14.6.4 环境隔离与可复现
 
@@ -363,7 +371,7 @@ Agent 的改动（换模型、改 Prompt、加工具）应通过灰度发布验�
 
 ### 14.7.4 追踪标准
 
-OpenTelemetry 已经定义了 GenAI 语义约定，覆盖模型调用与工具调用的属性命名。**优先采用标准字段名而不是自定义**，这样 LangSmith、Langfuse、Phoenix 等平台可以直接消费你的 Trace，避免锁定在单一厂商。
+OpenTelemetry 的 GenAI 语义约定覆盖模型、Agent 和工具属性，但截至 2026-09-08 官方仍标记 **Development**。采用时固定约定与 SDK 版本，验证后端字段映射，并对内容脱敏；不能假定所有平台无需适配即可完整消费。
 
 ## 14.8 评估驱动开发
 
@@ -382,13 +390,13 @@ flowchart LR
     H --> A
 ```
 
-这个闭环的关键是第 3 步：**先确认新用例在当前版本下确实失败**。如果一条新用例一开始就通过，它就没有区分度，不应加入回归集。
+对于修复用例，先确认它能复现目标失败，再比较修复前后；随机失败可能需要多次试验。已经通过的用例仍可保护现有能力和安全不变量，不能因为“初始通过”就拒绝加入回归集。
 
 ## 14.9 常见错误
 
 ### 14.9.1 只报单次运行结果
 
-Agent 行为不确定，单次运行的分数是噪声。**至少跑 3–5 次并报告均值与方差。**
+单次运行能发现具体失败，但不足以估计重复可靠性。运行次数应由目标误差和成本决定；3–5 次可作初筛，不能当作统计充分的固定门槛。版本比较尽量对同一批任务做配对分析，报告任务数、每题尝试数、置信区间及失败分布；重复同一题不能替代新增业务覆盖。
 
 ### 14.9.2 只看端到端成功率
 
@@ -440,4 +448,7 @@ Agent 评估与 LLM 评估的根本区别在于：前者看的不是一段文本
 - [AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents](https://arxiv.org/abs/2406.13352)
 - [OpenTelemetry: Generative AI Semantic Conventions](https://github.com/open-telemetry/semantic-conventions-genai)
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
+- [Anthropic: Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
+- [SWE-bench: Evaluation harness](https://www.swebench.com/SWE-bench/guides/evaluation/)
+- [OpenAI: BrowseComp reference implementation](https://github.com/openai/simple-evals/blob/main/browsecomp_eval.py)
 - [Anthropic: How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system)

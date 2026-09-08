@@ -21,7 +21,7 @@ MCP 解决的是完全不同的一组问题：
 
 > **Function Calling 是一种常见的模型—应用接口；MCP 是 Host/Client—Server 的开放协议。二者可在同一应用中配合，但 MCP 本身不规定、更不必然依赖某家模型的 Function Calling。**
 
-## 4.2 没有 MCP 之前：M×N 的对接地狱
+## 4.2 重复适配的 M×N 成本模型
 
 假设你要把 GitHub 接进一个 AI 应用。你得自己写 GitHub API 的调用代码、处理 OAuth 认证、把各种返回格式转成模型能理解的 Schema、写错误处理。好不容易接完了，接下来会发生三件事：
 
@@ -31,7 +31,7 @@ MCP 解决的是完全不同的一组问题：
 
 ```mermaid
 flowchart LR
-    subgraph BEFORE["没有 MCP：M 个应用 × N 个工具 = M×N 套对接代码"]
+    subgraph BEFORE["分别适配的简化模型：M×N 条对接关系"]
         A1[Claude Desktop] --- T1[GitHub]
         A1 --- T2[Slack]
         A1 --- T3[Postgres]
@@ -44,7 +44,7 @@ flowchart LR
     end
 ```
 
-M 个应用、N 个工具，需要 M×N 套对接代码。这就是 2024 年之前 AI 工具生态的真实状态：碎片化、难复用、强绑定。
+如果每个应用都独立适配每个工具，接口组合数为 M×N。这是说明重复劳动的简化模型，不是历史统计；共享 SDK、内部 API 和适配层本来也能减少重复实现。
 
 ## 4.3 MCP 的核心思路：把 M×N 变成 M+N
 
@@ -54,7 +54,7 @@ MCP 为「AI 接工具」定了同一种标准：
 
 ```mermaid
 flowchart LR
-    subgraph AFTER["有了 MCP：M 个应用 + N 个 Server"]
+    subgraph AFTER["共享协议的简化模型：M 个 Client + N 个 Server"]
         A1[Claude Desktop] --> P((MCP 协议))
         A2[Cursor] --> P
         A3[自研 Agent] --> P
@@ -64,9 +64,9 @@ flowchart LR
     end
 ```
 
-工具提供方按规范实现一次 Server，任何支持 MCP 的应用都能连上、**自动发现**里面的工具并使用，接入方零对接代码。
+工具方实现 Server 后，支持相同版本、传输和能力的应用可复用接入。认证、数据映射、权限和部署仍要配置，不能承诺“任意客户端零代码接入”。
 
-「自动发现」这四个字是关键。传统方式下，应用必须在代码里硬编码工具的 Schema；MCP 下，应用连上 Server 后调一次 `tools/list` 就拿到了完整的工具清单。**工具方新增一个工具，接入方什么都不用改**。
+`tools/list` 用于发现**已知 Server** 的工具，不负责在互联网寻找 Server。结果可能分页；工具更新后还需刷新缓存、审阅描述及权限、重新测试模型路由，而不是自动信任新增工具。
 
 ## 4.4 Host、Client、Server 三个角色
 
@@ -106,7 +106,7 @@ flowchart TB
 
 Host 通常为每个 Server 维护独立 Client/连接，便于生命周期和错误隔离；但这不是协议自动提供的安全沙箱。Server 能看到什么仍取决于 Host 传入的参数、进程与网络权限，隔离必须由 Host、操作系统和网络策略共同实现。
 
-**Host 才是权限的把关者**。用户授权、敏感操作确认、把哪些工具暴露给模型，这些决策都在 Host 层做，Server 无权决定。
+**Host 与 Server 都要授权**。Host 决定工具可见性、用户确认和数据分享；Server 仍必须校验令牌、租户和对象级权限，不能相信 Client 已经检查过。
 
 ## 4.5 三类核心能力：Tools、Resources、Prompts
 
@@ -122,13 +122,13 @@ MCP Server 可以暴露三类能力。规范强调的是**默认发起方/控制
 
 Tools 是可由模型或工作流选择的可执行能力：可以是只读搜索，也可以是创建文件、提交代码、发消息等写操作。是否有副作用**不能**从 `tools/call` 这一类型本身推断。
 
-对转账、删除、发布等高风险 Tool，Host 应在执行前按策略要求确认、授权或审批；低风险只读 Tool 也应遵循最小权限。这是 Host 的职责，不能交给模型或 Server 自行判断。
+对转账、删除、发布等高风险 Tool，Host 应在执行前要求明确授权或审批；Server 执行前再次验证实际参数与权限。低风险读取也要遵循最小权限。
 
 ### 4.5.2 Resources：应用控制
 
 Resources 是 Server 暴露给 Client 的、由 URI 标识的上下文数据。它们通常用于读取文档、日志或记录；“Resource”不是对底层实现绝无副作用的安全保证，Host 不应仅凭类别跳过信任与访问控制。
 
-一个常被搞混的点：**Resources 不是模型自己去读的**。是宿主应用决定把哪些资源加载进上下文——比如用户在 IDE 里打开了某个文件，应用把它作为 Resource 提供给模型。这个控制权的差异，是 Tools 和 Resources 的分界线，而不只是「读」和「写」。
+Resource 的协议读取由 Client 执行，内容是否进入上下文由 Host 决定。Host 可以接受模型建议去读资源；“应用控制”是默认交互模型，不是禁止模型参与选择。
 
 ### 4.5.3 Prompts：用户控制
 
@@ -140,7 +140,9 @@ Prompts 通常以「斜杠命令」或菜单项的形式暴露给用户，由**�
 
 MCP 的消息格式是 JSON-RPC 2.0——一种用 JSON 表达「远程函数调用」的轻量协议。
 
-```json
+以下仅展示方法与数据关系，省略当前版本必需的 `_meta`、`resultType` 及列表缓存字段，不是完整报文；完整请求见[第十二章](12-mcp-transport.md)。
+
+```jsonc
 // 请求：客户端列出所有工具
 {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
 
@@ -158,7 +160,9 @@ MCP 的消息格式是 JSON-RPC 2.0——一种用 JSON 表达「远程函数调
 
 ## 4.7 生命周期与版本兼容
 
-不要把某个 SDK 的实现策略当成 MCP 的强制语义。**截至 2026-07-28 规范，MCP 已改为无状态、请求自包含的模型**：每个请求都携带协议版本与 Client capabilities；Server 可通过 `server/discover` 提前声明版本和能力。旧版基于 `initialize` 的连接级会话仍有兼容路径，但不再是当前核心语义。
+本次于 **2026-09-08** 核查[官方版本页](https://modelcontextprotocol.io/specification/versioning)，其将 **2026-07-28** 标为 Current，而非仅依据日期猜测最新。此版改为无状态、请求自包含：每个请求携带协议版本与 Client capabilities；Server 必须实现 `server/discover`，Client 可选调用。旧版 `initialize` 属于兼容路径，不是当前核心握手。
+
+官方将 Current 定义为“ready for use”，仍可接收向后兼容修改；Draft 是尚未可供使用的修订，Final 则指不再修改的历史版本。因此这里的 Current 既不是草案，也不意味着规范已冻结。
 
 ### 4.7.1 版本时间线
 
@@ -167,7 +171,7 @@ MCP 的消息格式是 JSON-RPC 2.0——一种用 JSON 表达「远程函数调
 | 2024-11-05 | 初版。HTTP + SSE 双端点传输 |
 | 2025-03-26 | Streamable HTTP 取代 HTTP+SSE 双端点 |
 | 2025-06-18 | 授权规范完善，结构化工具输出 |
-| 2025-11-25 | 授权、任务与元数据等能力持续演进；以发布规范及 changelog 为准 |
+| 2025-11-25 | 引入实验性 Tasks 等能力，仍采用初始化和会话模型 |
 | 2026-07-28 | 改为无状态、每请求携带版本与能力；引入 `server/discover` 和订阅流，旧初始化模型进入兼容路径 |
 
 ### 4.7.2 每请求协商与旧版兼容
@@ -176,15 +180,17 @@ MCP 的消息格式是 JSON-RPC 2.0——一种用 JSON 表达「远程函数调
 
 与旧版 Server 互操作时，SDK 可按兼容矩阵回退到 `initialize`、`notifications/initialized` 和连接级 session。应用必须区分“当前协议语义”和“兼容旧端点”，不能把旧握手继续写成所有 MCP 调用的必经步骤。
 
+2026-07-28 所有结果还要求 `resultType`；读取与列表结果有 `ttlMs`、`cacheScope`。Sampling、Roots、Logging 已 **Deprecated**，仍保留兼容但新实现不应再采用；Tasks 已移到 `io.modelcontextprotocol/tasks` 官方可选扩展。扩展、草案 SEP 和核心协议不是同一发布层级，详见[变更记录](https://modelcontextprotocol.io/specification/2026-07-28/changelog)。
+
 ### 4.7.3 工程上要注意什么
 
 **多版本共存是常态**。涉及 transports、authorization、sampling 或任务等特性时，应核对 Client、Server 与目标发布版本的兼容性，不能凭教程假定其存在或不存在。
 
 ## 4.8 MCP 生态为什么起得这么快
 
-MCP 是 Anthropic 在 2024 年 11 月开源的，两年内成为事实标准。两个原因：
+MCP 由 Anthropic 在 2024 年 11 月发布。SDK 与可复用 Server 降低了适配门槛，但生态采用度不能替代版本和安全核查。
 
-**第一，实现门槛极低**。官方开源了规范和多语言 SDK，写一个最小可用的 MCP Server 不到 30 行：
+**SDK 简化协议代码**。下面保留 FastMCP 风格的教学示例；运行时应固定 SDK 发布版并核对它支持的协议版本，函数可运行不代表已实现完整授权和治理：
 
 ```python
 from mcp.server.fastmcp import FastMCP
@@ -202,21 +208,20 @@ if __name__ == "__main__":
 
 函数签名和 docstring 会被自动转成 JSON Schema。一个新技术如果上手成本高，设计再好也推不开。
 
-**第二，头部工具第一时间跟进**。GitHub、Slack、PostgreSQL、Puppeteer、Google Maps 等高频工具很快有了官方或社区 Server。对使用者来说，接一个新工具从「写一堆对接代码」降到了「改几行配置」：
+**工具接入可复用**。要区分官方维护、社区实现和归档示例。旧 `@modelcontextprotocol/server-github` 已归档，GitHub 官方实现是 [github/github-mcp-server](https://github.com/github/github-mcp-server)。下面用本地自有 Server 示意宿主配置，而不是安装归档包：
 
 ```json
 {
   "mcpServers": {
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {"GITHUB_TOKEN": "..."}
+    "demo": {
+      "command": "/absolute/path/to/venv/bin/python",
+      "args": ["/absolute/path/to/demo_server.py"]
     }
   }
 }
 ```
 
-可用工具足够多 → 更多应用支持 MCP → 更多工具方愿意实现 Server，正向循环就转起来了。2025 年之后 OpenAI、Google 等也相继宣布支持，MCP 从「Anthropic 的协议」变成了行业标准。
+`mcpServers` 是一些宿主使用的配置约定，不是 MCP 线上报文。安装目录、热加载、密钥注入和模型端桥接方式均须查宿主文档。
 
 ## 4.9 常见错误
 
@@ -226,9 +231,9 @@ if __name__ == "__main__":
 
 ### 4.9.2 把 Host 和 Client 混为一谈
 
-Client 是 Host 内的协议连接器，通常对应一个 Server。这个映射便于管理，但不是安全沙箱；Host 才是管权限、生命周期和策略的角色。这个区分在讨论 MCP 安全模型时至关重要——**授权决策必须在 Host**。
+Client 是 Host 内的协议连接器，不是安全沙箱。Host 控制用户同意与数据共享；Server 验证调用者和资源访问权限，二者不可相互替代。
 
-### 4.9.3 用 Tools 实现只读查询
+### 4.9.3 认为只读查询不能是 Tool
 
 只读数据常适合用 Resources 提供，而需要模型选择并执行的查询也可以是 Tool。不要从类别推导「无副作用」或「无需授权」：按数据敏感度、调用者身份与实际动作做最小授权和审批。
 
@@ -242,18 +247,18 @@ Client 是 Host 内的协议连接器，通常对应一个 Server。这个映射
 
 ### 4.9.6 忽视 MCP Server 的信任边界
 
-装一个第三方 MCP Server 等于在你的 AI 应用里运行第三方代码，而且它能看到传给它的所有参数。工具描述本身也可能是恶意的（工具投毒）。这部分风险见 [Agent 安全章节](../../agent/05-production/15-agent-security.md)。
+启动本地 Server 会运行第三方代码；连接远程 Server 则会向对端传递数据，两者风险不同。工具描述可能被投毒，详见[工具协议安全](15-tool-protocol-security.md)。
 
 ## 4.10 本章总结
 
 1. **MCP 与 Function Calling 可以配合但并非依赖关系**：前者定义 Host/Client 与 Server 的互操作，后者是常见的模型调用接口；
-2. **核心价值是把 M×N 变成 M+N**，工具实现一次，所有支持 MCP 的应用都能用；
-3. **「自动发现」是关键能力**，工具方新增工具，接入方零改动；
-4. **三个角色**：Host 管权限与生命周期，Client 连接 Server，Server 提供能力；安全隔离要由 Host 与运行环境落实；
+2. **M×N 到 M+N 是适配成本模型**，不消除认证、业务映射与互操作测试；
+3. **工具发现面向已知 Server**，要处理分页、缓存更新和新增工具审查；
+4. **三个角色**：Host 管策略与生命周期，Client 连接 Server，Server 提供能力并复核调用权限；独立连接不替代运行时隔离；
 5. **三类能力按默认控制路径区分**：Tools 可由模型/工作流选择，Resources 由 Client 加载，Prompts 由用户/Host 取得；副作用须逐项声明和治理；
-6. **底层是 JSON-RPC 2.0**，选它是为了降低生态实现门槛；
+6. **消息格式是 JSON-RPC 2.0**，标准传输为 stdio 与 Streamable HTTP；
 7. **版本语义发生过结构性变化**：当前版本按请求携带版本与能力，旧初始化/会话模型只在兼容路径出现；
-8. **生态起飞靠两点**：SDK 让实现成本降到 30 行，头部工具第一时间提供官方 Server。
+8. **核查规范、SDK 和宿主三个层面**，不要用归档示例代替维护中的实现。
 
 
 ## 参考资料

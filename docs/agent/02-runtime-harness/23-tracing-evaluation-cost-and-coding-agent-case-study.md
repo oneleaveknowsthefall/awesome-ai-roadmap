@@ -1,3 +1,7 @@
+---
+description: 用 Trace 关联模型、工具、审批与恢复，区分开发中的 GenAI 语义约定、实际成本口径和 Coding Agent 产品实现。
+---
+
 # 第二十三章：Tracing、评测、成本控制与 Coding Agent Harness 案例
 
 ## 23.1 本章边界：运行时可观测性，不是任务评测指标本身
@@ -25,7 +29,9 @@ flowchart TB
 
 ## 23.3 OpenTelemetry GenAI 语义约定
 
-第十四章 14.7.4 节已经提到 OpenTelemetry 的 GenAI 语义约定作为追踪标准；本章补充这套约定与 harness 实现的对应关系。OpenTelemetry 把 GenAI 相关的 span、metric、event 语义约定统一维护在 [semantic-conventions-genai 仓库](https://github.com/open-telemetry/semantic-conventions-genai)，覆盖"GenAI 客户端、MCP（Model Context Protocol）以及特定厂商约定（OpenAI 等）"。对 harness 实现而言，这意味着 23.2 节的 Span 结构不需要从零设计字段——模型调用 Span 应记录模型名、输入/输出 token 数、延迟；工具执行 Span 应记录工具名、参数摘要、执行时长、成功/失败；权限判定 Span 应记录命中了哪条规则（第 20 章 20.2 节判定链的哪一步）。统一使用标准语义约定的价值在于：不同 harness 产生的 trace 可以被同一套下游可观测性平台（如 Grafana、Datadog、Langfuse 等）解析和对比。
+截至 2026-09-08，[OpenTelemetry GenAI 语义约定](https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/README.md)仍标记为 **Development**，不能笼统宣称字段已稳定。可复用其模型、Agent、工具与 MCP 字段，但应固定语义约定及 instrumentation 版本，并验证后端映射；自定义审批规则字段另设命名空间。
+
+模型 Span 记录模型版本、Token 和延迟；工具 Span 记录工具身份、执行状态与耗时；审批 Span 关联规则及审批记录。内容采集应默认最小化，参数、结果、用户信息与密钥需要脱敏和访问控制；不要为“完整 Trace”记录隐藏思维链。跨进程恢复和长审批可通过 trace links、任务 ID 与操作 ID 关联，不一定把几天任务塞进一个永不结束的 Span。
 
 ## 23.4 成本核算：计费单元与归属
 
@@ -35,15 +41,15 @@ $$
 C_{session} = \sum_{turn} \left( c_{input} \cdot n_{input} + c_{output} \cdot n_{output} \right) + \sum_{tool} c_{tool} + c_{compute}
 $$
 
-其中模型调用成本按输入/输出 token 数和对应单价计算（第十章 10.14 节讨论的 Prompt Caching 会显著降低命中缓存部分的 $c_{input}$），工具调用成本对应外部 API 调用费用或计算资源消耗，$c_{compute}$ 对应第 20 章讨论的沙箱执行环境本身的计算开销。成本归属需要能下钻到 Turn 甚至单次工具调用级别——这是第 17 章 17.6 节讨论的"子 Agent 消耗计入父状态机预算、Handoff 之后消耗计入新状态机"这条归属规则真正被需要的地方：没有精细的成本归属，就无法验证这条设计规则是否被正确实现。
+这是简化核算式。实际应按缓存未命中输入、缓存读取/写入、输出及提供商收费项分别累计，并避免工具计算费与沙箱费重复计入。Subagent、Handoff、重试和失败尝试都计入根任务总成本，再按 Agent 或工具分摊；角色切换不会开启一份新的免费预算。
 
 ## 23.5 成本控制机制
 
 Trace 和成本核算是"事后可见"，成本控制则要在运行时主动生效：
 
-- **预算作为一等状态**：第 17 章 17.2 节把 `budget` 列为状态机的核心字段之一，成本控制的本质就是让这个字段在运行时被持续检查，一旦逼近上限就触发降级（第 18 章 18.8 节的上下文压缩降级）或直接终止会话。
+- **预算作为一等状态**：调用前预留预计上限，完成后按实际用量结算。多个并发任务不能只各自读取同一个余额；需原子扣减或预算分配，并给在途请求留出余量，否则事后检查仍会超支。
 - **模型分级路由**：并非每一步都需要用最强的模型——简单的分类、格式化任务可以路由给更便宜的模型，只有需要复杂推理的步骤才调用旗舰模型，这与第十三章讨论的多 Agent 路由（13.18–13.24 节）在机制上是同一件事，只是路由目标从"能力"换成了"成本"。
-- **工具调用去重与缓存**：对幂等的只读工具调用（第 21 章 21.6 节讨论的幂等概念的另一种应用）可以在 Turn 内或跨 Turn 缓存结果，避免重复调用产生重复费用。
+- **工具调用去重与缓存**：只读不代表结果不变。只有时效允许时才缓存，并在键中包含租户、授权范围、规范化参数及数据版本；失效策略和敏感结果隔离不能省略。
 - **提前终止低价值的探索路径**：结合第十二章的反思机制，当 Critic 判定某个方向大概率不会成功时提前止损，而不是耗尽预算后才发现路径错误。
 
 ## 23.6 与第十四章评测体系的衔接
@@ -56,15 +62,17 @@ Trace 和成本核算是"事后可见"，成本控制则要在运行时主动生
 
 ### 23.7.1 Claude Code / Claude Agent SDK
 
-Claude Code 把"Agent Loop、工具、上下文管理"封装为可编程的 Agent SDK，核心循环是"接收 prompt → 模型评估并可能请求工具 → 执行工具 → 重复"([Claude Agent SDK: How the agent loop works](https://code.claude.com/docs/en/agent-sdk/agent-loop))。权限层是本模块讨论过的最完整的分级规则引擎实现（第 20 章 20.2 节的判定链）；Hooks 机制允许在生命周期关键点（工具调用前后）插入自定义逻辑，可以用来实现自定义的审计、审批或成本控制；Subagents 对应第 17 章 17.6 节的嵌套状态机；Sessions 支持恢复与分叉，对应第 21 章的持久化能力。
+Claude Agent SDK 暴露 Claude Code 使用的循环、工具和上下文管理（[Agent loop](https://code.claude.com/docs/en/agent-sdk/agent-loop)）。Hooks 可插入审计与规则检查，Subagents 提供委派，Sessions 支持恢复与分叉。权限模式、审批回调和 Hook 的覆盖范围不同，不能把所有检查都只放进 `canUseTool`；会话恢复也不等于外部副作用自动幂等。
 
 ### 23.7.2 OpenAI Codex CLI / Agents SDK
 
-OpenAI 的 Agents SDK 用 `Runner` 驱动同样结构的循环——调用模型、判断是否为最终输出、处理 handoff 或工具调用、达到 `max_turns` 时抛出显式异常（[OpenAI Agents SDK: Running agents](https://openai.github.io/openai-agents-python/running_agents/)）。它引入的 Guardrails 机制（第 19 章 19.5 节提到）把输入/输出/工具级别的规则检查作为独立于权限系统的另一层校验，体现"用便宜模型先做快速判断，避免昂贵模型无谓启动"的成本控制思路（[OpenAI Agents SDK: Guardrails](https://openai.github.io/openai-agents-python/guardrails/)），这与 23.5 节的模型分级路由是同一策略在不同粒度上的应用。Codex CLI 作为终端里的 coding agent 产品，是这套 Agents SDK 循环面向"直接在开发者终端执行命令"这一场景的具体化，同样需要面对第 20 章讨论的"YOLO 模式"风险与效率权衡([Simon Willison: Designing agentic loops](https://simonwillison.net/2025/Sep/30/designing-agentic-loops/))。
+OpenAI Agents SDK 用 `Runner` 调度模型、工具和 Handoff（[Running agents](https://openai.github.io/openai-agents-python/running_agents/)）。输入 Guardrail 默认与 Agent **并行**运行，触发拦截前模型可能已消耗 Token 或执行工具；只有配置阻塞模式才保证检查完成后再启动。输入 Guardrail 仅作用于链首，输出 Guardrail 作用于最终输出；逐工具调用的检查需要相应工具级机制（[Guardrails](https://openai.github.io/openai-agents-python/guardrails/)）。
+
+[Codex CLI](https://github.com/openai/codex)是独立的编码 Agent 产品与代码库，不能因为都由 OpenAI 提供就断言它以 Agents SDK 为内核。二者可以集成、共享循环设计思路，但沙箱、审批、会话和工具行为需要分别核实。
 
 ### 23.7.3 GitHub Copilot Coding Agent
 
-与前两者"作为本地/进程内库运行"的形态不同，GitHub Copilot Coding Agent 把整个 harness 运行在云端的一次性 GitHub Actions 环境里，任务与具体的 Issue/PR 绑定，而不是与一个长期存活的本地进程绑定（第 20 章 20.8 节已详细讨论其沙箱与防火墙设计）。这个形态天然获得了 21 章讨论的"环境隔离即天然的多租户隔离"，也意味着它的 checkpoint/持久化机制必须与 GitHub 的 Issue/PR/commit 这些平台原语对齐——一次任务的"状态"很大程度上就体现为提交历史和 PR 上的评论,而不是一个独立的私有存储。
+GitHub Copilot cloud agent（原 Coding Agent）的官方文档描述了 GitHub Actions 支持的临时开发环境，以及 Issue/PR、提交和会话日志等用户可见产物（见第 20 章）。这足以讨论部署与审计接口，但不足以推断其私有 checkpoint 存储或崩溃恢复算法。一次性环境也不自动证明缓存、凭据和外部资源都实现了租户隔离。
 
 ### 23.7.4 三者的共性与差异
 
@@ -80,7 +88,7 @@ OpenAI 的 Agents SDK 用 `Runner` 驱动同样结构的循环——调用模型
 
 ## 23.9 本章总结
 
-Harness 的可观测性以 Session-Turn-Span 的层级结构组织，天然映射到第 17 章的状态机转移；OpenTelemetry 的 GenAI 语义约定为这套结构提供了跨系统可比的标准字段。成本核算需要覆盖模型调用、工具调用、计算资源三个维度，并能下钻到子 Agent/Handoff 级别；成本控制则要把预算作为运行时一等状态，结合模型分级路由、调用去重、提前终止等机制主动生效。Trace 数据是第十四章评测体系的原始来源，两者共享数据但回答不同问题。Claude Agent SDK、OpenAI Agents SDK/Codex CLI、GitHub Copilot Coding Agent 三个真实案例在循环内核上高度收敛，差异主要来自部署形态和默认审批姿态的产品选择，而不是底层工程原则的不同。
+Trace 需要关联运行、工具、审批和恢复，但内容采集不能越过隐私边界。GenAI 语义约定仍在开发中，版本与后端映射要一起管理。成本包括失败、重试和所有委派，硬预算需要并发预留而非仅事后统计。比较产品时应区分公开接口与实现推断，不能把 SDK、CLI 和云端服务视为同一个内核。
 
 ## 参考资料
 
@@ -88,6 +96,7 @@ Harness 的可观测性以 Session-Turn-Span 的层级结构组织，天然映�
 - [Claude Agent SDK: How the agent loop works](https://code.claude.com/docs/en/agent-sdk/agent-loop)
 - [OpenAI Agents SDK: Running agents](https://openai.github.io/openai-agents-python/running_agents/)
 - [OpenAI Agents SDK: Guardrails](https://openai.github.io/openai-agents-python/guardrails/)
+- [OpenAI Codex repository](https://github.com/openai/codex)
 - [GitHub Docs: Configure the development environment for Copilot cloud agent](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/customize-the-agent-environment)
 - [Simon Willison: Designing agentic loops](https://simonwillison.net/2025/Sep/30/designing-agentic-loops/)
 - [Anthropic: How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system)

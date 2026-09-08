@@ -15,6 +15,8 @@ description: 区分 Agent 的工作记忆、情景记忆、语义记忆和程序
 
 工程上通常会从三条轴理解 Agent Memory：
 
+这里采用的是设计视角，不是统一的生物学分类或行业标准。CoALA 用工作记忆及情景、语义、程序性长期记忆组织认知架构；LangGraph 则首先按 thread 内与跨 thread 的作用域区分短期、长期记忆。需要先声明所用定义，不能把名称相同当成实现相同。
+
 ```mermaid
 flowchart TB
     M[Agent Memory] --> T[时间与生命周期]
@@ -66,14 +68,18 @@ flowchart LR
 
 工程上容易混淆的点有四个：
 
-- Context Window 是模型本次调用的输入空间，不等于全部记忆；
+- Context 是本次调用实际使用的信息；Context Window 是容量约束，输入、输出及推理预算如何计入取决于模型 API；
 - Messages 只是 Working Memory 的一种载体；
 - State 需要精确、结构化和可恢复，不应完全依赖自然语言对话；
-- 长期记忆只有被检索并加入 Context 后，模型才能使用。
+- 外部长期记忆需要被读取，并以文本、工具结果或其他支持的表示进入 Context，才能影响本轮模型生成；程序性记忆也可能由 Runtime 直接执行而不全文送入模型。
+
+持久化与长期记忆不是同义词。保存到数据库的 thread checkpoint 仍可属于短期记忆，重启后恢复它也不代表其他 thread 自动能用它。反过来，内存中的跨 thread Store 虽有长期记忆接口，进程退出后仍可能丢数据。[LangGraph 的官方区分](https://docs.langchain.com/oss/python/concepts/memory)强调的是作用域，而不是 RAM 与磁盘的区别。
+
+本章主要讨论可显式读写的外部记忆。模型权重中的参数化知识、推理时 KV Cache 和对话服务保存的历史属于不同机制：一次“记住了”的回复不意味着更新了权重，也不证明应用已经完成持久化。
 
 ## 7.3 Observation Buffer：短暂观察缓冲区
 
-用户提到的“感知记忆”更适合在工程上称为 Observation Buffer 或 Perception Buffer。
+在这里，“感知记忆”用 Observation Buffer 或 Perception Buffer 表示，更接近输入缓冲的工程作用。
 
 它保存刚刚进入系统的原始信息，例如：
 
@@ -171,7 +177,7 @@ Long-term Memory 保存跨会话、跨任务仍有价值的信息。
 
 ### 7.6.1 Semantic Memory
 
-Semantic Memory 保存事实、概念和规则，例如：
+Semantic Memory 保存事实、概念和规则。这里的 Semantic 是内容类型，不是“必须用语义搜索”的意思。以下限流、期限等数值仅为示例，真实记录必须绑定具体服务、政策版本和生效时间：
 
 - 用户主要使用 Java；
 - 某 API 每分钟最多调用 60 次；
@@ -224,6 +230,8 @@ Procedural Memory 保存“如何完成一类任务”的方法，例如：
 
 因此，程序性记忆不一定存放在向量数据库中。
 
+保存一段“经验教训”不会自动修改模型参数。Reflexion 的经典做法是把文本反馈保存在情景记忆中，供后续尝试参考；反馈若来自错误评价器，后续尝试也可能重复错误。将经验升级为可执行规则还要验证前置条件和失败路径。
+
 ### 7.6.4 Entity Memory
 
 Entity Memory 保存围绕实体组织的结构化事实和关系，例如：
@@ -257,16 +265,16 @@ Entity Memory 信息密度通常较高，也便于更新和精确查询。从建
 
 ## 7.7 一个信息可以同时属于多个分类
 
-例如：
+假设某项目发生以下交互：
 
 > 2026 年 8 月 28 日，用户在 Agent 知识图谱项目中明确要求所有文档直接推送到 main。
 
 落到系统表示时，往往会拆成几类记忆：
 
 - Episodic Memory：记录一次具体交互；
-- Entity Memory：更新用户或项目偏好；
-- Semantic Memory：形成稳定规则；
-- Procedural Memory：影响后续发布流程。
+- Entity Memory：保存带项目作用域的偏好候选；
+- Semantic Memory：保存“用户在该项目表达了此偏好”，不推断其适用于所有仓库；
+- Procedural Memory：审核后作为发布流程的可选配置，不能绕过分支保护或本次授权。
 
 因此，分类不是互斥目录，而是帮助系统选择不同表示、索引和生命周期策略。
 
@@ -349,11 +357,12 @@ flowchart TB
 
 ## 7.10 如何存：按访问模式选择存储
 
-主流方案不是“全部向量化”，而是 Hybrid Memory。
+按访问模式混合存储通常比“全部向量化”更合适，但不必一次部署所有组件。少量用户偏好可能只需要一张关系表；只有语义召回或关系遍历确有收益时才增加索引。
 
 | 数据类型 | 推荐存储 | 主要查询方式 |
 |---|---|---|
-| 用户 ID、偏好、权限 | 关系数据库 / KV | 精确查询 |
+| 用户 ID、偏好 | 关系数据库 / KV | 精确查询 |
+| 权限与安全策略 | 权威身份 / 策略服务 | 运行时鉴权，不靠记忆推断 |
 | 实体和关系 | 关系数据库 / 图数据库 | 条件与关系查询 |
 | 非结构化文档 | 向量数据库 + Object Store | 语义检索 |
 | 完整交互轨迹 | Event Store / 日志系统 | 时间与事件查询 |
@@ -383,11 +392,13 @@ flowchart TB
 
 不擅长：
 
-- 精确数值和权限；
+- 仅凭向量相似度判断精确数值和权限；
 - 复杂时间条件；
 - 强一致更新；
 - 唯一性约束；
 - 多跳实体关系。
+
+这些是相似度检索的局限，不代表所有向量数据库都缺少事务或 Metadata Filter。应检查具体产品的过滤时机、一致性和索引更新语义，而不是从“向量库”名称推断保证。
 
 ### 7.10.2 Relational Store
 
@@ -438,6 +449,8 @@ flowchart TB
 ```json
 {
   "memory_id": "mem-123",
+  "tenant_id": "tenant-example",
+  "scope": "repo:example/knowledge-base",
   "subject": "user-42",
   "type": "preference",
   "content": "文档直接推送到 main，不创建 PR",
@@ -445,7 +458,8 @@ flowchart TB
     "type": "user_message",
     "reference": "conversation-event-987"
   },
-  "confidence": 1.0,
+  "verification_status": "user_stated",
+  "recorded_at": "2026-08-28T16:03:24+08:00",
   "valid_from": "2026-08-28T16:03:24+08:00",
   "valid_until": null,
   "version": 1,
@@ -455,6 +469,8 @@ flowchart TB
 ```
 
 来源和版本非常重要。否则系统无法区分用户明确声明、Tool 返回事实和模型自己推测的内容。
+
+这是记录形状示例，省略了实际 ACL 和写入事务。`user_stated` 只证明用户这样说过，不证明其有管理员权限，也不代表发布操作已获授权。模型自报的 `confidence` 若未校准，不应写成事实为真的概率；记录时间与事实生效时间也要分开。
 
 ## 7.12 什么时候取：Retrieval Trigger
 
@@ -467,7 +483,7 @@ flowchart TB
 - 用户偏好；
 - 项目上下文；
 - 长期目标；
-- 权限和安全规则；
+- 从权威服务读取的当前权限和安全规则；
 - 与当前任务相似的历史经验。
 
 ### 7.12.2 执行过程中
@@ -517,8 +533,9 @@ flowchart LR
 ```mermaid
 flowchart LR
     Q[Task / Query] --> QR[Query Rewrite]
-    QR --> MR[Multi-source Retrieval]
-    MR --> ACL[Permission Filter]
+    QR --> SCOPE[服务端身份与授权范围]
+    SCOPE --> MR[授权范围内多源检索]
+    MR --> ACL[返回前复核权限]
     ACL --> TF[Time / Metadata Filter]
     TF --> DD[Deduplicate]
     DD --> RR[Rerank]
@@ -526,6 +543,8 @@ flowchart LR
 ```
 
 ### 7.13.1 Query Rewrite
+
+租户、用户身份和强制 ACL 由 Runtime 从已认证身份生成，不能信任模型改写出的这些字段。禁止将越权候选先发给模型或外部重排服务，再要求它们过滤。
 
 将当前任务改写为适合不同存储的查询：
 
@@ -575,6 +594,8 @@ $$
 - `S_task`：与当前任务的匹配度；
 - `S_trust`：来源可信度。
 
+此式只是启发式排序示意，不是已验证的通用算法。分量要校准到可比较尺度，权重要在任务数据上验证；访问权限、删除状态、适用范围和有效期先作为硬过滤。高相似度不能抵消权限不足，高新鲜度也不能把未验证传闻变成事实。
+
 不同场景需要不同权重：
 
 - 客服更重视最近交互和当前订单；
@@ -607,7 +628,7 @@ flowchart TB
     C5 --> CTX[Model Context]
 ```
 
-> **记忆系统的目标不是让模型看到最多信息，而是让它看到当前决策所需的最小充分信息。**
+“充分”需要按任务检验。例如比较两个历史政策版本时，旧版本虽然不是当前有效规则，仍可能是必需证据；只留下最新摘要反而无法回答问题。
 
 ## 7.16 更新与冲突处理
 
@@ -637,21 +658,20 @@ flowchart TB
     NEW[新记忆] --> MATCH{存在同主题记忆?}
     MATCH -->|否| ADD[新增]
     MATCH -->|是| SAME{内容一致?}
-    SAME -->|是| MERGE[提高置信度或更新时间]
+    SAME -->|是| MERGE[去重并合并来源记录]
     SAME -->|否| AUTH{来源优先级明确?}
     AUTH -->|是| VERSION[版本化并标记旧值失效]
     AUTH -->|否| CONFLICT[保留冲突并请求验证]
 ```
 
-来源优先级通常是：
+不要用同一条优先级列表同时解决“听谁的指令”和“事实是什么”：
 
-1. 用户当前明确指令；
-2. 权威系统真实状态；
-3. 已验证文档；
-4. 历史用户表达；
-5. 模型推断。
+- 偏好：当前用户的明确修改可以替代该用户在同一作用域内的旧偏好，但临时例外不一定是永久修改。
+- 业务事实：用户说“订单已经支付”只是声明；执行发货前应查询订单系统。相反，订单系统也不是用户写作偏好的权威来源。
+- 权限与安全策略：由身份、策略服务及审批决定，当前用户消息不能自行提升权限。
+- 证据冲突：检查事实的生效时间、适用范围和来源版本；无法裁定时保留冲突，重新查询或请求确认。
 
-具体顺序仍需根据业务定义。
+重复内容不等于独立证据。原文、它的摘要以及另一个 Agent 对摘要的复述，应沿同一来源链去重，不能因为出现三次就提高可信度。
 
 ## 7.17 遗忘、衰减与有效期
 
@@ -666,6 +686,8 @@ $$
 - `Δt` 是记忆距当前时间；
 - `λ` 是衰减速度；
 - `D` 是时间权重。
+
+`Δt` 取非负时间间隔，`λ` 应非负且与时间单位匹配。这只是排序启发式；事件发生时间、事实生效时间、最后读取时间是不同字段，不能因为频繁召回旧事实就将其当成新证据。
 
 但并非所有记忆都应该自然衰减：
 
@@ -685,6 +707,8 @@ $$
 - 隐私保留期限；
 - 低价值记忆压缩或归档。
 
+排序衰减不等于删除：低分内容仍可能通过 ID 读取，且还在索引、摘要或备份中。删除请求需要覆盖原记录、派生记忆、缓存和索引，并防止后台整理任务再次写回。对受保留政策约束的备份，应明确不可用状态、清理期限及恢复时重放删除记录的办法，不能承诺请求后所有物理副本立即消失。
+
 ## 7.18 Memory Consolidation：从经历提炼知识
 
 Consolidation 将大量低层 Episode 转化为更稳定的 Semantic 或 Procedural Memory。
@@ -698,7 +722,7 @@ flowchart LR
     C --> P[Procedural Skill]
 ```
 
-例如，多次任务都表明某 API 在并发超过 5 时容易限流，可以形成候选经验：
+例如，教学场景中观测到某 API 在并发超过 5 时频繁限流，可以形成候选经验（5 不是通用阈值）：
 
 > 调用该 API 时默认并发不超过 5。
 
@@ -709,6 +733,8 @@ flowchart LR
 - 回归测试；
 - 适用范围标注；
 - 版本管理。
+
+还要排除请求速率、单次请求 Token 数、账户配额或共享租户负载等混杂因素。并发数与限流同时出现，不足以推出“并发就是原因”；可先保留带环境条件的 Episode，再用限流响应头、服务文档和受控测试决定规则。
 
 ## 7.19 记忆与 Skill 的关系
 
@@ -726,10 +752,12 @@ flowchart LR
 
 | Memory | Skill |
 |---|---|
-| 记录知道什么、发生过什么 | 描述怎样完成一类任务 |
+| 此处指事实与经历记录 | 描述怎样完成一类任务 |
 | 可以不完整或带上下文 | 应具有稳定步骤和适用条件 |
 | 主要通过检索使用 | 由 Agent 按任务加载并执行 |
 | 可能持续变化 | 应版本化和测试 |
+
+这是实现职责的比较，不是互斥分类：按 7.6 的内容维度，Skill 本身可以是程序性记忆；事实记忆同样需要版本化和测试。
 
 ## 7.20 多 Agent 记忆
 
@@ -781,6 +809,8 @@ flowchart TB
 - 保存来源和信任等级；
 - 写入前进行安全过滤；
 - 高权限记忆必须人工审核。
+
+这些措施降低风险，但文本标签和注入检测器都不是安全边界。读写权限、可调用工具和出站数据范围必须由模型之外的代码限制；摘要和 Consolidation 还必须保留原始信任等级，不能把网页中的命令“洗成”系统规则。
 
 ### 7.21.2 Memory Poisoning
 
@@ -847,7 +877,7 @@ Documentation preference:
 
 ### 7.22.5 更新
 
-如果用户之后明确要求改用纯 LaTeX，应新增版本并使旧偏好失效，而不是同时召回两个冲突偏好。
+如果用户明确要求永久改用纯 LaTeX，应在同一作用域新增版本；若仅说“这次改用纯 LaTeX”，只覆盖当前任务，不能改写长期偏好。无论哪种情况，都仍受项目实际渲染能力与更高优先级要求约束。
 
 ## 7.23 如何评估记忆系统
 
@@ -872,6 +902,18 @@ Documentation preference:
 - 更低上下文成本；
 - 不牺牲隐私和安全。
 
+测量时要固定模型版本、任务、工具权限及预算，对比无记忆、最近窗口、完整历史（能装下时）和待测记忆方案。按用户或任务序列划分数据，按时间只允许读取当时已产生的记录；不能在写入阶段偷看未来测试问题及答案。
+
+把失败拆成“没写入、写错、没召回、召回后被挤出 Context、模型没正确使用”。可用人工标注的证据做 oracle retrieval 对照，区分检索与阅读失败；写入价值和召回率的分母也应来自明确的标注规范。记录端到端成功率及记忆导致的退化，不只报告有收益的样本。
+
+可参考的一手评测：
+
+- [LongMemEval](https://github.com/xiaowu0162/LongMemEval)：信息抽取、跨会话推理、知识更新、时间推理与证据不足时的弃答；需注明原始版或清洗版，不能混报成绩。
+- [LoCoMo](https://github.com/snap-research/locomo)：长对话问答与事件摘要；官方当前发布集为十段对话，包含生成数据，不能据此推断真实用户总体表现。
+- [LongMemEval-V2](https://github.com/xiaowu0162/LongMemEval-V2)：面向 Web Agent 轨迹的状态、流程和环境经验，评估证据问答与查询延迟；这仍不等于实际执行任务的成功率。
+
+业务回归集还应覆盖删除后再检索、权限撤销、同名跨租户实体、错误摘要、过期事实及污染写入；这些不能由普通问答分数替代。
+
 ## 7.24 生产级 Memory Architecture
 
 ```mermaid
@@ -882,19 +924,19 @@ flowchart TB
 
     POLICY -->|Temporary| WORK[Working Memory]
     POLICY -->|Structured| REL[Relational / KV]
-    POLICY -->|Semantic| VEC[Vector Store]
+    POLICY -->|需相似度检索| VEC[Vector Store]
     POLICY -->|Entity Relation| GRAPH[Knowledge Graph]
     POLICY -->|Event| EVENT[Event Store]
     POLICY -->|Large Result| ART[Artifact Store]
 
-    TASK[Current Task] --> QUERY[Retrieval Router]
+    TASK[Current Task] --> QUERY[授权范围内 Retrieval Router]
     QUERY --> REL
     QUERY --> VEC
     QUERY --> GRAPH
     QUERY --> EVENT
     QUERY --> ART
 
-    REL --> RERANK[Filter / Rerank]
+    REL --> RERANK[权限与版本复核 / Rerank]
     VEC --> RERANK
     GRAPH --> RERANK
     EVENT --> RERANK
@@ -927,7 +969,7 @@ flowchart TB
 ### 7.25.3 存储
 
 - 精确事实是否使用结构化存储？
-- 语义内容是否使用向量检索？
+- 需要相似度匹配的内容是否适合向量检索，而不是把 Semantic Memory 等同于向量存储？
 - 大型结果是否外部化为 Artifact？
 - 是否需要 Knowledge Graph 或 Event Store？
 
@@ -967,7 +1009,7 @@ Agent 记忆不能只用“四层记忆 + 向量数据库”概括。更完整�
 - Semantic Memory；
 - Episodic Memory；
 - Procedural Memory；
-- Entity Memory。
+- Entity Memory（通常是结构化 Semantic Memory，分类并非互斥）。
 
 ### 7.26.3 存储实现
 
@@ -982,9 +1024,7 @@ Agent 记忆不能只用“四层记忆 + 向量数据库”概括。更完整�
 
 > **存什么、如何表示、何时检索、怎样排序、如何更新遗忘，以及如何保证安全与隐私。**
 
-系统上线后，更有价值的状态不是“记住一切”，而是：
-
-> **在正确时间，以正确权限，为当前任务提供最小充分且可信的记忆。**
+复盘一次记忆错误时，沿来源、写入、索引、召回、上下文组装和执行逐步定位，比笼统归因于“模型忘了”更有用。
 
 ## 参考资料
 
@@ -992,3 +1032,10 @@ Agent 记忆不能只用“四层记忆 + 向量数据库”概括。更完整�
 - [MemGPT: Towards LLMs as Operating Systems](https://arxiv.org/abs/2310.08560)
 - [Generative Agents: Interactive Simulacra of Human Behavior](https://arxiv.org/abs/2304.03442)
 - [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366)
+- [LangGraph: Memory overview](https://docs.langchain.com/oss/python/concepts/memory)
+- [OpenAI: Safety in building agents](https://developers.openai.com/api/docs/guides/agent-builder-safety)（引用信任边界原则，不依赖其中的产品默认模型建议）
+- [LongMemEval 论文](https://arxiv.org/abs/2410.10813)与[官方实现](https://github.com/xiaowu0162/LongMemEval)
+- [LoCoMo 论文](https://arxiv.org/abs/2402.17753)与[官方数据](https://github.com/snap-research/locomo)
+- [LongMemEval-V2 官方实现](https://github.com/xiaowu0162/LongMemEval-V2)
+
+审校口径：截至 2026-09-08；框架文档为滚动更新，本文不承诺具体版本的默认配置。原创文字与图示：Polo Li，CC BY 4.0。

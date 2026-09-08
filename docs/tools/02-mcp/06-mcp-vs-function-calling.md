@@ -16,23 +16,23 @@ description: 从协议层级、部署位置、工具发现、权限和复用成�
 |---|---|---|
 | 解决的问题 | 模型**怎么表达**调用意图 | 工具**怎么被提供和发现** |
 | 协议双方 | 模型 ↔ 应用 | 应用 ↔ 工具提供方 |
-| 工具的存在形式 | **内嵌**在应用代码里 | **独立**进程 / 服务 |
+| 工具实现位置 | 不规定：可本地函数，也可远程 API | Server 暴露能力，可为本地进程或远程服务 |
 | 层次 | 模型输出格式约定 | 工具生态标准 |
 
-「内嵌 vs 独立」这个直觉，能推导出后面所有的选型结论。
+区别是接口边界，不是部署位置。Function Calling 本来就能触发远程服务；MCP 提供统一的发现、消息与能力协商。
 
 ## 6.2 Function Calling 的真实痛点
 
 复制一份 Schema 看起来不算什么工作量，但把账算到团队规模就不一样了。
 
-假设团队有 **5 个应用**，每个接 **8 个工具**——这就是 **40 份工具对接代码**在同时维护。
+若 **5 个应用**分别独立适配 **8 个工具**，就有 **40 个适配组合**；共享 SDK 或内部服务可减少重复代码，MCP 是标准化这类适配的一种方式。
 
 ```mermaid
 flowchart TB
-    subgraph PAIN["三类必然发生的事"]
-        P1["GitHub API 改了一个字段"] --> R1["5 个地方同步改<br/>漏改一处，凌晨报警"]
-        P2["从 Claude 迁到 GPT"] --> R2["40 份代码的 FC 格式<br/>全部重新适配"]
-        P3["新同事的 Cursor 也要用"] --> R3["再写第 6 份对接代码"]
+    subgraph PAIN["缺少共享适配时的维护风险"]
+        P1["上游 API 字段变化"] --> R1["各应用分别适配"]
+        P2["迁移模型 API"] --> R2["检查 Schema 与回填格式"]
+        P3["新应用也需访问"] --> R3["重复实现发现与授权"]
     end
 
     style R1 fill:#fce8e6
@@ -60,10 +60,10 @@ sequenceDiagram
     Note over M,H: 运行时
     H->>M: messages + tools（普通 FC 格式）
     M-->>H: tool_calls（普通 FC 输出）
-    Note over M: 模型完全不知道<br/>背后有 MCP 存在
+    Note over M: 此桥接不要求模型<br/>理解 MCP 传输
     H->>S: tools/call（路由到对应 Server）
     S-->>H: 执行结果
-    H->>M: role=tool 消息
+    H->>M: 按模型 API 回填工具结果
     M-->>H: 最终答案
 ```
 
@@ -73,6 +73,8 @@ sequenceDiagram
 
 1. **模型不支持某厂商的 Function Calling 时，只有这条桥接路径不可用**。Host 仍可通过结构化输出、确定性工作流或人工界面调用 MCP Tool；
 2. **若由模型选择 Tool，工具 schema 工程仍然适用**。MCP 规定互操作格式，不保证模型会正确选择或填写参数。
+
+桥接不一定是逐字段复制。MCP 2026-07-28 使用 JSON Schema 2020-12，允许的关键词范围可能超出模型 strict 子集；Host 应拒绝不支持的定义，或做明确记录、可测试的转换，而不是静默删约束。工具结果的 `content`、`structuredContent`、`outputSchema` 也需按模型可接收的内容类型映射，不能一律当字符串而丢失图片、资源引用或错误标志。
 
 ## 6.4 选型：什么时候用哪个
 
@@ -84,11 +86,11 @@ sequenceDiagram
 
 **需要对执行逻辑做精细控制**。权限校验、参数二次处理、特殊错误处理、调用链路追踪，直接嵌在调用代码里最方便。MCP Server 是独立进程，这类定制要额外约定。
 
-**部署环境受限**。某些云环境或 Serverless 平台不允许启动子进程，stdio 模式的 MCP Server 就没法用。这时退回 Function Calling 是最稳妥的。
+**部署环境受限**。不能启动子进程时无法使用本地 stdio Server，但仍可连接远程 Streamable HTTP Server。比较现有 API 与 MCP 的运维成本，而不是因此断言 MCP 不可用。
 
 ### 6.4.2 MCP 更合适的场景
 
-**社区已有现成 Server**。GitHub、Slack、PostgreSQL、Puppeteer 这类高频工具都有经过测试、文档完整的官方或社区实现。这种情况下手写对接代码就是重复造轮子。
+**已有维护中的 Server**。先核查发布者、许可证、更新状态、协议版本及权限范围。旧官方示例可能已归档，社区存在实现不等于已经安全测试或适合当前业务。
 
 **工具需要跨项目或跨团队复用**。这是 MCP 的核心价值。维护责任收敛到 Server 一侧，所有客户端自动受益。
 
@@ -109,12 +111,12 @@ sequenceDiagram
 ```mermaid
 flowchart TB
     START{要接一个工具} --> Q1{社区有现成<br/>MCP Server 吗?}
-    Q1 -->|有| USE_MCP["直接用<br/>不要重复造轮子"]
+    Q1 -->|有| USE_MCP["先核查维护状态、权限<br/>及版本兼容后复用"]
     Q1 -->|没有| Q2{需要跨项目 /<br/>跨团队复用吗?}
     Q2 -->|需要| BUILD_MCP["实现 MCP Server"]
-    Q2 -->|不需要| Q3{部署环境允许<br/>独立进程吗?}
-    Q3 -->|不允许| USE_FC["用 Function Calling"]
-    Q3 -->|允许| Q4{工具复杂 或<br/>变更频繁 或<br/>多人维护?}
+    Q2 -->|不需要| Q3{已有本地函数或 API<br/>能满足需求吗?}
+    Q3 -->|能| USE_FC["保留现有集成<br/>可用 Function Calling 驱动"]
+    Q3 -->|不能| Q4{工具复杂 或<br/>变更频繁 或<br/>多人维护?}
     Q4 -->|是| BUILD_MCP
     Q4 -->|否| USE_FC
 
@@ -137,31 +139,28 @@ local_tools = [check_user_quota_schema, internal_billing_schema]
 tools = mcp_tools + local_tools
 ```
 
-判断依据很简单：**这个能力是通用的还是业务专属的**。通用能力社区大概率已经做好了，业务专属能力反正只有你自己用，内嵌更方便。
+示例中的函数为应用伪代码。业务专属能力也可以供多个应用共享 MCP Server；真正的依据是复用边界、权限、部署和维护责任，而非“通用/专属”的二分。
 
 ## 6.5 实际跑一遍 MCP
 
-面试里问「有没有实际跑过 MCP」，说得出配置细节和踩过的坑，可信度立刻不一样。
+可在本地只读目录做一次实验，记录版本、配置、发现结果和故障现象。没有实际运行过，不应把教程中的问题写成自己的生产经验。
 
 ### 6.5.1 最简接入
 
 ```json
 {
   "mcpServers": {
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..."}
-    },
     "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/me/projects"]
+      "command": "/absolute/path/to/reviewed-filesystem-server",
+      "args": ["/Users/me/projects"]
     }
   }
 }
 ```
 
-改完重启客户端，工具就自动出现了，一行代码都不用写。注意 `filesystem` 那个路径参数——它限定了 Server 能操作的目录范围，这是 Roots 机制的体现。
+这是示意配置，需替换成已安装、已审阅并固定版本的实际启动入口；宿主是否要重启由产品决定。目录参数是 filesystem Server 的实现配置，**不是 Roots 协议本身**。Roots 只是上下文提示而非强制沙箱，且在 2026-07-28 已弃用；文件访问还要靠服务端路径校验和 OS 隔离。
+
+旧 `@modelcontextprotocol/server-github` 已归档；GitHub 官方实现见 [github/github-mcp-server](https://github.com/github/github-mcp-server)。令牌应由凭据管理器或受控环境注入，不应提交到配置仓库。
 
 ### 6.5.2 自己写一个 Server
 
@@ -186,17 +185,19 @@ if __name__ == "__main__":
 
 函数签名和 docstring 会被自动转成 JSON Schema。docstring 就是模型看到的 `description`——[第三章](../01-function-calling/03-tool-schema-design.md) 那套写法在这里同样适用。
 
+这里的 `db` 和 `format_orders` 需应用实现，并加入认证与对象级过滤。SDK 示例不声明支持所有协议版本，需固定依赖后按目标版本验证。
+
 ### 6.5.3 实际会踩的坑
 
 | 坑 | 现象 | 原因 |
 |---|---|---|
 | **stdout 污染** | Server 连不上，报 JSON 解析错误 | stdio 模式下 `print` 调试信息混进了协议流。日志必须走 stderr |
-| **环境变量丢失** | 本地能跑，客户端启动就报认证失败 | 子进程不继承 shell 的环境变量，必须在配置的 `env` 里显式声明 |
+| **环境变量丢失** | shell 能跑，GUI 客户端启动失败 | 子进程通常继承父进程环境，但 GUI 宿主未必加载 shell 配置，宿主也可能过滤变量 |
 | **工具名冲突** | 模型调错 Server 的工具 | 多个 Server 有同名工具，需要加前缀区分 |
 | **上下文膨胀** | 响应变慢、成本飙升 | 接了太多 Server，几十个工具定义每轮全量传 |
 | **版本不匹配** | 部分功能不可用 | Server 实现的是旧规范版本，新特性用不了 |
 
-最后两个在生产环境影响最大。上下文膨胀的解法是 [第三章](../01-function-calling/03-tool-schema-design.md) 讲的动态工具筛选——不要把所有 Server 的工具无脑全量注入。
+如果 Host 全量注入工具，就会产生上下文开销；可用[第三章](../01-function-calling/03-tool-schema-design.md)的筛选方法。版本不兼容则应按协议矩阵解决，不能靠减少工具数量掩盖。
 
 ## 6.6 常见错误
 
@@ -208,7 +209,7 @@ if __name__ == "__main__":
 
 这个回答太空。要能具体说出解决的是什么：**工具的跨应用复用**、**自动发现免去硬编码**、**维护责任从 N 个接入方收敛到 1 个提供方**。
 
-### 6.6.3 无脑上 MCP
+### 6.6.3 不比较维护成本就引入 MCP
 
 一个只有自己用、逻辑十行的内部工具，包成独立进程只是增加了部署和运维负担。选型要看复用需求，不是看技术新旧。
 
@@ -218,22 +219,22 @@ if __name__ == "__main__":
 
 ### 6.6.5 忽略 MCP 的上下文成本
 
-每接一个 Server，它的全部工具定义都会进上下文，而且每轮都传。接五个 Server 可能就是上万 token 的固定开销。
+MCP 工具发现不强制模型全量注入。Host 可先分页发现、缓存，再按权限检索相关工具；评估实际注入 token 与工具召回率，不能按 Server 数直接算固定成本。
 
 ### 6.6.6 忽略第三方 Server 的信任问题
 
-装一个第三方 MCP Server 等于在应用里跑第三方代码，它能看到所有传给它的参数。工具描述本身也可能被投毒。见 [Agent 安全章节](../../agent/05-production/15-agent-security.md)。
+本地 Server 涉及代码执行，远程 Server 涉及数据外传，两者都需信任审查。工具描述本身也可能被投毒，见[工具协议安全](15-tool-protocol-security.md)。
 
 ## 6.7 本章总结
 
 1. **MCP 与 Function Calling 可以配合，但不存在强制依赖**；
-2. **本质区别是「内嵌 vs 独立」**，这个直觉能推导出所有选型结论；
-3. **FC 的痛点是工具管理与复用**，M 个应用 × N 个工具的维护成本会线性爆炸；
+2. **本质区别是接口双方和职责**，不是本地与远程；
+3. **MCP 减少重复适配**，但共享 SDK 等方案也能复用，仍须比较维护成本；
 4. **在 Function Calling 桥接中，模型无需感知 MCP**；模型不支持 FC 时，Host 可选择其他 MCP 调用路径；
 5. **FC 适合轻量、专属、需精细控制、部署受限的场景**；
 6. **MCP 适合有现成实现、需跨项目复用、工具规模大、构建 Agent 系统的场景**；
 7. **判断顺序**：先看社区有没有现成的 → 再看要不要复用 → 再看环境和维护成本；
-8. **混用是常态**：通用能力走 MCP，业务专属能力走 FC。
+8. **可以混用**：MCP、现有 API 和本地函数都可由同一 Host 路由。
 
 
 ## 参考资料
@@ -241,5 +242,7 @@ if __name__ == "__main__":
 - [Model Context Protocol 官方文档](https://modelcontextprotocol.io/docs/getting-started/intro)
 - [MCP 服务端开发快速上手](https://modelcontextprotocol.io/docs/develop/build-server)
 - [MCP Servers 官方示例仓库](https://github.com/modelcontextprotocol/servers)
+- [已归档 MCP 示例](https://github.com/modelcontextprotocol/servers-archived)
+- [MCP Roots：弃用状态与非安全边界](https://modelcontextprotocol.io/specification/2026-07-28/client/roots)
 - [OpenAI: Function Calling 指南](https://platform.openai.com/docs/guides/function-calling)
 - [Anthropic: Introducing the Model Context Protocol](https://www.anthropic.com/news/model-context-protocol)

@@ -1,3 +1,7 @@
+---
+description: 区分模型规划训练与系统规划，讨论动作语义、计划验证、搜索、滚动重规划及外部求解器的适用条件。
+---
+
 # 第十一章：如何赋予 LLM 与 Agent 规划能力
 
 ## 11.1 规划不等于 CoT
@@ -86,15 +90,17 @@ LLM 可以直接生成答案或动作，但复杂任务容易出现：
 - 识别依赖；
 - 根据反馈修订。
 
-这些能力可以通过以下方式增强：
+增强这些能力的方法分属训练与推理两个阶段：
 
 - 预训练和后训练；
-- 高质量规划示例；
+- 高质量规划示例（放入上下文不更新参数，用于训练则更新参数）；
 - Instruction Tuning；
 - Tool-use Training；
 - Reinforcement Learning；
-- Verifiable Rewards；
-- 推理时搜索和验证。
+- 以可验证结果作为奖励的 RL（训练时更新参数）；
+- 推理时搜索和验证（通常保持参数不变，改变候选、状态和选择）。
+
+数学或代码奖励上的进步不自动迁移为长程工具规划能力。动作前提、权限、环境变化和失败恢复需要单独评估，不能用一个推理基准分数替代。
 
 ### 11.4.2 System-level Planning
 
@@ -119,9 +125,11 @@ flowchart TB
     V -->|通过| SCH[Scheduler]
     SCH --> E[Executor]
     E --> O[Observation]
-    O --> CHECK{目标或假设变化?}
-    CHECK -->|否| SCH
-    CHECK -->|是| RP[Replanner]
+    O --> CHECK{验收与计划状态}
+    CHECK -->|步骤通过且仍有任务| SCH
+    CHECK -->|计划失效| RP[Replanner]
+    CHECK -->|目标完成| DONE[完成]
+    CHECK -->|预算耗尽或需审批| STOP[停止或转人工]
     RP --> S
 ```
 
@@ -134,6 +142,7 @@ flowchart TB
 - `G`：目标；
 - `S₀`：初始状态；
 - `A`：可用动作集合；
+- `F`：状态转移模型，描述动作在什么条件下产生哪些结果；
 - `C`：约束；
 - `B`：预算；
 - `T`：终止条件。
@@ -169,6 +178,8 @@ flowchart TB
 
 如果 Agent 不知道动作前置条件和效果，就很难真正进行可靠规划。
 
+经典确定性规划通常假设状态可观测、动作效果已知；网页、机器人或业务 API 往往不满足这些条件。此时应维护已知事实与不确定假设，必要时先执行信息收集动作，或生成依观察分支的策略，而不是把固定行动列表当作必然可达的路径。JSON 中的 `human_approval_received` 只是字段，Runtime 必须核验真实审批及其绑定的对象、版本和有效期。
+
 ## 11.6 CoT：单路径推理，不是完整规划器
 
 > CoT 的机制、适用任务与解释性局限已在[第五章](05-agent-reasoning-methods.md)详述；这里仅说明它为何不能替代有状态、可验证的规划器。
@@ -190,7 +201,7 @@ flowchart LR
 - 减少直接跳到答案；
 - 生成初步行动列表。
 
-但 CoT 缺少：
+单独使用 CoT 提示不提供以下系统机制：
 
 - 多路径探索；
 - 回溯；
@@ -202,7 +213,7 @@ flowchart LR
 
 ### 11.6.1 工程边界
 
-CoT 会消耗推理预算并占用上下文，但不提供多路径搜索、环境反馈、状态持久化、计划验证或权限调度。规划系统应输出可验证的结构化步骤、依赖、成功标准、工具和风险，而不要求公开隐藏 Thought。其成本与可审计轨迹的记录原则分别见[第五章](05-agent-reasoning-methods.md)和[第十四章](../05-production/14-agent-evaluation.md)。
+CoT 文本可以出现“重新考虑”或初步验证，但这不等于控制器真的保存分支、回滚环境或执行了验证器。规划系统应输出可验证的步骤、依赖、成功标准、工具和风险，而不要求公开隐藏 Thought。其成本与可审计轨迹的记录原则分别见[第五章](05-agent-reasoning-methods.md)和[第十四章](../05-production/14-agent-evaluation.md)。
 
 ## 11.7 Task Decomposition：从目标生成子任务
 
@@ -280,7 +291,9 @@ ToT 给系统提供的是一套探索、选择和回溯候选路径的框架：
 
 如果候选质量差或 Evaluator 判断错误，ToT 仍可能选择错误路径。
 
-## 11.10 ToT 的成本不能写成固定 3 到 5 倍
+原论文的节点是任务相关的部分解，评价与 BFS／DFS 由搜索程序组织；不是模型输出一个“树状思路”就完成了搜索。它展示的是 24 点、创意写作和填字等任务上的结果，不保证任意业务计划正确。涉及真实行动时，分支还需要可复制或可重置的环境；不能对支付等不可逆动作做试探式回溯。
+
+## 11.10 ToT 的搜索成本
 
 ToT 成本取决于：
 
@@ -300,13 +313,13 @@ $$
 
 当分支数大于 1 时，节点数可能随深度快速增长。
 
-若使用 Beam Search，每层只保留 `k` 个候选，计算量可以粗略近似为：
+若使用 Beam Search，每层最多保留 `k` 个状态，每个状态扩展 `b` 个候选，深度为 `d`，候选扩展数的量级为：
 
 $$
-N\approx kbd
+N_{expand}=O(kbd)
 $$
 
-因此，ToT 可能是 CoT 的数倍，也可能高出一个数量级以上。只有在固定具体分支数、深度、剪枝和模型调用策略后，才能给出倍数。
+这不是模型调用数或 Token 成本公式：一次调用可能批量生成多个候选，而每个候选可能触发额外评价；路径增长还会增加输入长度。只有固定分支数、深度、剪枝、上下文复用和模型调用策略后，才能与 CoT 比较成本。
 
 ### 11.10.1 控制 ToT 成本
 
@@ -316,8 +329,8 @@ $$
 - 使用小模型初筛；
 - 使用规则或程序验证；
 - 低分节点提前剪枝；
-- 达到置信阈值后停止；
-- 只对高风险或高难问题启用。
+- 通过任务验收或达到预算上限后停止；
+- 只对有可用评价信号且收益可测的问题启用；高风险首先需要审批与硬约束。
 
 ## 11.11 GoT：合并和复用中间结果
 
@@ -352,7 +365,7 @@ flowchart LR
 
 #### Graph of Thoughts 研究范式
 
-将“Thought”作为图节点，由模型生成、聚合和转换。它仍缺少统一的生产标准和通用实现。
+将“Thought”作为图节点，由模型生成、聚合和转换。原论文已有代码实现，但不能仅凭使用了图状编排就把系统归类为该论文的 GoT。
 
 #### Graph-based Agent Orchestration
 
@@ -366,11 +379,9 @@ flowchart LR
 - Dependency；
 - Transition。
 
-而不是不可验证的自由文本 Thought。
+而不是仅靠自由文本 Thought。文本部分解也可以通过程序验证，结构化 Task 也可能语义错误；区别在节点含义和验证机制，不是“文本不可靠、图必然可靠”。
 
-> **GoT 研究标签尚未成为统一生产标准，但图结构规划本身已经是成熟工程方法。**
-
-## 11.12 从 Thought Graph 升级为 Task Graph
+## 11.12 用 Task Graph 表示执行计划
 
 生产系统更适合把图节点定义为可执行 Task：
 
@@ -398,7 +409,7 @@ flowchart LR
 
 ## 11.13 Planner-Executor-Replanner
 
-赋予 Agent 规划能力最常见的系统架构是：
+一种可采用的系统架构是：
 
 ```mermaid
 flowchart TB
@@ -480,6 +491,8 @@ $$
 - 记录 Plan Diff；
 - 重大假设变化才整体重规划。
 
+“保留”指保留历史记录，不等于永远复用旧结果。输入、授权或目标变化时，应标记受影响 Artifact 失效；新旧计划要有版本号，并处理运行中任务取消及迟到返回，避免旧执行结果覆盖新计划状态。
+
 ## 11.15 Hierarchical Planning
 
 分层规划先确定高层里程碑，再按需展开当前阶段：
@@ -532,7 +545,7 @@ flowchart LR
 
 ## 11.17 ReAct 在规划中的作用
 
-ReAct 不是完整全局规划器，但适合执行计划中的局部开放任务：
+ReAct 可以在推理中制定和更新计划，但本身不要求提供全局 DAG、调度器或形式化验证。它也可以用来执行显式计划中的局部开放任务：
 
 ```mermaid
 flowchart TB
@@ -591,6 +604,8 @@ Reflection 应优先使用真实工具反馈、规则、测试和人工审核，
 ## 11.19 Verifier-guided Planning
 
 一个计划只有通过以下检查后才执行：
+
+这里的“通过”是允许尝试执行，不是目标必然可达。静态校验应覆盖可提前判断的条件；实时权限、资源版本及动作前置条件还要在执行前再次检查，不能把计划生成时的许可长期复用。
 
 ### 11.19.1 Schema Validation
 
@@ -669,11 +684,11 @@ LLM 负责：
 - 生成 Solver 输入；
 - 解释结果。
 
-Solver 负责：
+Solver 在给定形式化模型内负责：
 
 - 精确搜索；
 - 约束满足；
-- 最优性判断。
+- 在算法、目标函数和预算支持时给出最优性或不可行性证明。
 
 ```mermaid
 sequenceDiagram
@@ -691,6 +706,10 @@ sequenceDiagram
 ```
 
 > **这类问题更适合让语言模型负责建模和解释，把搜索或求解交给确定性算法。**
+
+要分开检查“求解器求对了模型”和“模型正确表达了用户需求”。遗漏预算、误译单位或错误动作效果时，求解器仍可能给出形式上有效、现实中不可用的计划。以 [OR-Tools CP-SAT](https://developers.google.com/optimization/cp/cp_solver) 为例，`FEASIBLE` 不等于 `OPTIMAL`，超时后的 `UNKNOWN` 也不等于已证明无解。
+
+[LLM-Modulo](https://arxiv.org/abs/2402.01817)提出更紧密的候选生成—外部验证循环：LLM 不只做格式转换，也可以提出计划或补充模型，Verifier 返回具体违反的约束供修订。该论文对 LLM 规划能力的强判断是其研究立场，不宜当作对所有后续模型的永久结论；可采用的是让生成与独立检查互相反馈的机制。
 
 ## 11.21 计划的表示方式
 
@@ -714,6 +733,12 @@ sequenceDiagram
       "success_criteria": ["all tests pass"]
     },
     {
+      "id": "approval",
+      "depends_on": ["test"],
+      "executor": "human-approval-gate",
+      "success_criteria": ["approval bound to the tested release artifact"]
+    },
+    {
       "id": "deploy",
       "depends_on": ["test", "approval"],
       "executor": "deployment-agent",
@@ -722,6 +747,8 @@ sequenceDiagram
   ]
 }
 ```
+
+示例只展示依赖结构，不是可直接执行的部署配置。测试、审批和部署必须绑定同一不可变发布产物；部署前还需复核授权、幂等键和回滚策略，不能用模型生成的审批字符串代替审批记录。
 
 ### 11.21.3 DAG
 
@@ -802,7 +829,9 @@ LLM 可以隐式预测：
 - 规则引擎；
 - 真实只读查询。
 
-World Model 越准确，计划越可靠。
+World Model 的误差会随预测深度累积，尤其是在陌生状态或工具分布变化后。API Schema 描述参数形状，不是完整的环境转移模型；模拟器、只读查询和真实执行反馈也各有覆盖范围。
+
+[SayCan](https://arxiv.org/abs/2204.01691)提供了一个具体例子：用语言模型估计技能对目标的适合程度，用技能价值函数估计在当前环境中能否成功，再组合选择。它依赖已有技能库及相应可行性估计，不能由“语言模型能描述动作”推断机器人就具备该动作能力。
 
 ## 11.25 规划中的不确定性
 
@@ -816,13 +845,13 @@ World Model 越准确，计划越可靠。
 ```json
 {
   "assumption": "竞品 A 仍提供免费版本",
-  "confidence": 0.6,
+  "confidence_label": "unverified",
   "verification_task": "check-current-pricing",
   "on_failure": "revise-comparison-plan"
 }
 ```
 
-低置信假设应尽早验证，避免后续大量步骤建立在错误基础上。
+优先验证影响后续大量步骤且验证成本可接受的假设。模型自报 `0.6` 一类数字未经校准时，不应解释为实际成功概率；应记录来源、时间和未确定原因。
 
 ## 11.26 风险感知规划
 
@@ -863,7 +892,7 @@ $$
 
 - 简单任务只生成一个计划；
 - 中等任务生成计划并做一次 Critique；
-- 高风险任务生成多个候选并使用 Verifier；
+- 高风险任务先落实权限、审批和验证，可比较多个候选，但不能用更多搜索替代准入控制；
 - 预算耗尽时返回部分计划和未解决风险。
 
 ## 11.28 Adaptive Planning
@@ -883,11 +912,11 @@ flowchart TB
 
 对所有任务一律启用昂贵搜索，通常得不偿失。
 
-## 11.29 规划能力的训练方式
+## 11.29 规划能力的适配与训练
 
 ### 11.29.1 In-context Examples
 
-提供高质量计划示例，包括依赖、成功标准和失败处理。
+提供高质量计划示例，包括依赖、成功标准和失败处理。这是推理时条件化，不是训练，不改变模型参数。
 
 ### 11.29.2 Supervised Fine-tuning
 
@@ -903,13 +932,15 @@ flowchart TB
 
 ### 11.29.5 Verifiable Rewards
 
-使用测试、模拟器、规则和环境结果提供可验证反馈。
+使用测试、模拟器、规则和环境结果提供可验证反馈。这是奖励来源，不是独立训练算法；只有经过优化器更新参数才属于参数学习。如果只是据此重试或筛选计划，则是推理时控制。
 
 ### 11.29.6 Curriculum
 
 从短计划逐步训练到长任务和动态环境。
 
 训练可以增强模型能力，但系统仍需要 Runtime、State、Verifier 和 Guardrails。
+
+应区分离线轨迹训练、在线 RL 与当前任务的上下文适应。训练或评测时还需防止奖励泄漏、无效测试和“完成目标但违反约束”的奖励投机；数学可验证奖励上的提升，不等于对业务工具长轨迹的提升。
 
 ## 11.30 规划质量如何评估
 
@@ -933,6 +964,8 @@ flowchart TB
 - 固定 Workflow；
 - Plan-and-Execute；
 - Search-based Planner。
+
+对照应固定模型版本、工具权限、任务输入和成功标准，同时报告预算、延迟、样本量及不确定性。增加搜索后的提升可能来自更多尝试而非计划结构；可以再比较等预算的 ReAct 重试或多候选基线。
 
 只有当规划提高任务成功率或降低总体成本时，增加复杂度才合理。
 
@@ -994,15 +1027,18 @@ flowchart TB
     VALIDATE -->|不通过| PLANNER
     VALIDATE -->|通过| SCHED[Scheduler]
 
-    SCHED --> EXEC[Executor / ReAct]
+    SCHED --> GATE{执行前权限与审批有效?}
+    GATE -->|是| EXEC[Executor / ReAct]
+    GATE -->|否| HUMAN[Human Approval / 拒绝]
+    HUMAN -->|获批后重新校验| GATE
     EXEC --> OBS[Observation + Artifact]
     OBS --> VERIFY[Verifier]
 
     VERIFY -->|步骤通过| SCHED
-    VERIFY -->|局部失败| EXEC
+    VERIFY -->|局部失败重试| GATE
     VERIFY -->|计划失效| REPLAN[Replanner]
     REPLAN --> PLAN
-    VERIFY -->|高风险| HUMAN[Human Approval]
+    VERIFY -->|需人工判断| HUMAN
     VERIFY -->|目标完成| DONE[Final Result]
 
     PLAN --> STATE[Planning State Store]
@@ -1081,7 +1117,7 @@ flowchart TB
 - 用 Scheduler 与 Executor 执行；
 - 用 Observation 更新真实状态；
 - 用 Replanner 动态修改计划；
-- 用 Verifier 和 Guardrails 保证质量与安全。
+- 用 Verifier 和 Guardrails 检查质量与安全条件，保留未覆盖风险和人工处理出口。
 
 > **落到工程实现，规划应表现为受预算约束的行动结构，能够执行、验证、更新。**
 
@@ -1093,3 +1129,7 @@ flowchart TB
 - [Plan-and-Solve Prompting](https://arxiv.org/abs/2305.04091)
 - [LLMCompiler: An LLM Compiler for Parallel Function Calling](https://arxiv.org/abs/2312.04511)
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
+- [LLMs Can't Plan, But Can Help Planning in LLM-Modulo Frameworks](https://arxiv.org/abs/2402.01817)
+- [Do As I Can, Not As I Say: Grounding Language in Robotic Affordances](https://arxiv.org/abs/2204.01691)
+- [OR-Tools: CP-SAT Solver](https://developers.google.com/optimization/cp/cp_solver)
+- [DeepSeek-R1](https://arxiv.org/abs/2501.12948)

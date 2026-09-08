@@ -1,3 +1,7 @@
+---
+description: 将 Agent 循环拆成可恢复状态机，解释停止与成功的区别、审批恢复、流式调用、Handoff 和根任务预算。
+---
+
 # 第十七章：Agent Loop 与运行时状态机
 
 ## 17.1 本章边界：从"控制循环"到"状态机实现"
@@ -17,7 +21,7 @@
 | `stop_reason` | 循环为什么会结束（正常完成/达到上限/被中断/出错） | Harness，在循环退出时写入 |
 | `budget` | 剩余的轮数/时间/token/成本预算 | Harness，每轮消耗后递减 |
 
-这张表里没有"任务计划""反思结果"这类内容——那些属于 Agent 的推理产物，会作为 `messages` 的一部分被状态机搬运，但状态机本身不理解其语义，只负责搬运和计数。这正是 16.4 节"是否需要在没有模型参与的情况下也能运行"这条边界规则的体现。
+这是教学用的最小集合，不是所有框架统一的字段规范。生产系统还可能保存结构化计划、验收状态、身份、审批和操作幂等键；运行时应校验依赖、不变量与完成条件，而非只搬运消息和计数。
 
 ## 17.3 一次 Turn 内部的状态转移
 
@@ -33,12 +37,14 @@ stateDiagram-v2
     Deciding --> HandoffSwitch: 请求切换 Agent
     ToolExecution --> PermissionCheck: 每个 Tool Call（20 章）
     PermissionCheck --> ToolRunning: 通过
-    PermissionCheck --> Blocked: 拒绝/需人工
+    PermissionCheck --> Blocked: 拒绝
+    PermissionCheck --> Interrupted: 需人工
     ToolRunning --> ModelCall: 结果写回上下文
     HandoffSwitch --> ModelCall: 更新当前 Agent/Input
-    Blocked --> Interrupted: 等待审批（22 章）
-    Interrupted --> ModelCall: 审批通过
-    Interrupted --> FinalOutput: 审批拒绝/超时
+    Blocked --> ModelCall: 回写拒绝结果（或按策略终止）
+    Interrupted --> PermissionCheck: 审批返回，重新校验绑定操作
+    Interrupted --> Stopped: 拒绝/过期且不再继续
+    Stopped --> [*]
     FinalOutput --> [*]
 ```
 
@@ -48,10 +54,10 @@ stateDiagram-v2
 
 状态机必须有明确、可枚举的退出路径，否则"Agent 卡住不停"和"Agent 明明该停却继续跑"都会成为线上事故。至少需要四类终止条件：
 
-- **正常完成**：模型输出不含工具调用的最终答案（"final output" 的判定标准是"产生了期望类型的文本输出，且没有工具调用"，参见 [OpenAI Agents SDK: Running agents](https://openai.github.io/openai-agents-python/running_agents/)）。
+- **模型回合结束**：Runner 可把符合输出类型且无工具调用的输出作为 final output；业务是否成功还要由状态断言或验收器判断。拒绝回答、缺少信息的说明也可能结束回合，不能自动记为成功。
 - **轮数上限**：超过 `max_turns` 直接抛出可捕获的异常（如 `MaxTurnsExceeded`），而不是无限循环或静默截断。
 - **预算耗尽**：token/时间/金额预算耗尽，state 中的 `budget` 字段归零即触发终止。
-- **外部中断**：用户取消、上游超时、系统关闭——这类终止必须能触发 checkpoint 写入（21 章），保证下次可以恢复而不是从零开始。
+- **外部中断**：用户取消、上游超时、系统关闭。可协作关闭时保存状态，但进程被强制终止时未必能执行清理代码，所以恢复必须依赖此前已持久化的 checkpoint，不能只靠退出钩子。
 
 第十二章 12.16 节讨论过反思循环的 Stop Controller，第十三章 13.34 节讨论过多 Agent 场景下的取消传播——这两处都是本节"终止条件"在特定场景下的具体化，遵守同一个原则：**终止条件必须是状态机的一等公民，不能是"跑着跑着发现异常就退出"的兜底逻辑**。
 
@@ -69,17 +75,17 @@ stateDiagram-v2
 
 第十三章讨论的多 Agent 协作，从状态机角度看有两种形态：
 
-- **Handoff（切换）**：当前状态机把控制权完全转移给另一个 Agent 配置，状态（`messages` 的相关子集）随之传递，原状态机的循环终止，新循环开始（对应 17.3 图中 `HandoffSwitch`）。
+- **Handoff（切换）**：由另一个 Agent 配置接管后续决策。OpenAI Agents SDK 在同一个 Runner 循环中更新 current agent 和输入，并不必然结束旧进程或新建状态机（对应 17.3 图中 `HandoffSwitch`）。
 - **Subagent（嵌套）**：当前状态机在自己的一步之内，启动一个全新的、独立的子状态机（有自己的 `turn_index`、`budget`、`messages`），等子状态机跑完拿到结果后，把结果作为一次"工具调用结果"塞回父状态机继续跑。Claude Agent SDK 把这种模式称为 Subagents："Spawn specialized agents for focused subtasks"（[Claude Agent SDK: Overview](https://code.claude.com/docs/en/agent-sdk/overview) 能力表）。
 
-两者的关键区别在于**父状态机是否继续存在并等待结果**：Handoff 之后父状态机不再参与；Subagent 场景父状态机始终存在，只是把子任务的执行过程"折叠"成一次工具调用。这个区分决定了预算如何分摊——Subagent 消耗的轮数/token 通常要计入父状态机的总预算，而 Handoff 之后的消耗计入新状态机自己的预算。
+关键区别是调用关系：Subagent 通常向调用者返回结果，由调用者继续决策；Handoff 则把后续对话交给接手者。二者都应计入同一根任务的总预算，再按 Agent 分摊成本；切换角色不能重置总步数、费用或权限边界。
 
 ## 17.7 三种实现的状态机对比
 
 | 维度 | Claude Agent SDK | OpenAI Agents SDK | LangGraph（对比参考） |
 |---|---|---|---|
 | 循环驱动方式 | 内置 agent loop，SDK 内部驱动 | `Runner.run` 内部驱动，暴露三种调用方式（同步/异步/流式） | 显式的图执行引擎，节点与边由开发者定义 |
-| 终止判定 | 无工具调用即视为完成一轮，可通过 hooks 干预 | 无工具调用且类型匹配即为 final output；`max_turns` 触发异常 | 图走到终止节点，或显式 `interrupt()` |
+| 终止判定 | 无工具调用可结束回合，hooks 可干预 | final output 或配置的工具停止行为；`max_turns` 触发异常 | `END` 表示图结束；`interrupt()` 是暂停，不等于成功终止 |
 | 嵌套/切换 | Subagents（嵌套） | Handoffs（切换 current agent） | 子图（Subgraphs），见 [LangGraph: Subgraphs](https://docs.langchain.com/oss/python/langgraph/use-subgraphs) |
 | 状态可见性 | 通过流式消息（`SystemMessage`/`AssistantMessage`）暴露 | 通过 `RunResult`/`RunResultStreaming` 暴露 | 状态是图上的显式字段，见[第十三章 13.15 节](../04-multi-agent/13-multi-agent-coordination.md) |
 
@@ -87,7 +93,7 @@ stateDiagram-v2
 
 ## 17.8 常见错误
 
-- **把工具执行结果直接当作循环终止信号。** 工具报错不代表任务失败，也不代表循环应该终止——报错本身应该作为一条消息喂回模型，让模型决定下一步（重试、换工具、放弃），这是 Agent 层的决策，不是 Harness 层该替模型做的判断。
+- **把所有工具错误都交给模型决定。** 可恢复的业务错误可以回写供模型修正；权限违规、预算耗尽、状态损坏等应由 Runtime 按策略停止，不能让模型决定是否忽略硬约束。
 - **轮数上限设置为"经验值"却不告知调用方触发了上限。** 静默截断会让上游误以为任务正常完成；`MaxTurnsExceeded` 这类显式异常应该是标准实践。
 - **流式场景下提前解析尚未完整的工具调用参数。** 会导致 JSON 解析失败或用不完整的参数执行工具，必须等待参数流被完整拼接。
 - **混淆 Handoff 与 Subagent 的预算归属。** 会导致预算统计口径不一致，第 23 章的成本核算依赖于这里的归属规则先被定义清楚。
@@ -95,7 +101,7 @@ stateDiagram-v2
 
 ## 17.9 本章总结
 
-Harness 把"模型动态决定下一步"的控制循环，落地成一个维护 `messages`、`turn_index`、`pending_tool_calls`、`phase`、`stop_reason`、`budget` 六类状态的运行时状态机。一次 Turn 内部经历"模型调用→决策分支（最终输出/工具调用/Handoff）→执行→结果写回"的转移；终止条件必须显式枚举（正常完成、轮数上限、预算耗尽、外部中断）而不是隐式兜底；并发与流式给状态机引入了异步事件,需要区分"流式接收中"与"可执行"两种状态,并处理好取消传播;子 Agent 与 Handoff 是两种不同的嵌套方式,预算归属规则不同。这一层是第 18–23 章各个子系统共同依赖的执行骨架。
+状态机需要区分模型回合结束、业务成功、暂停、失败和取消。审批恢复应继续绑定的具体操作，而不是让模型重新猜；流式参数完整后才能执行。Subagent 返回结果，Handoff 转交后续决策，但二者都不能绕过根任务预算、授权和审计。
 
 ## 参考资料
 

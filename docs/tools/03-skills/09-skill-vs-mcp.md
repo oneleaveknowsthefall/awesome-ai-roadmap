@@ -1,3 +1,7 @@
+---
+description: 比较 MCP 通信协议与 Agent Skills 文件格式，纠正全量加载和必然依赖误区，并讨论脚本及权限边界。
+---
+
 # 第九章：Skill 与 MCP 的区别
 
 ## 9.1 它们不是同类概念
@@ -25,10 +29,11 @@ flowchart TB
 
     AGENT -->|"自动发现并加载"| SKILL["code-review Skill<br/>知道：先看什么、按哪四个维度查、<br/>用什么格式输出"]
 
-    SKILL -->|"流程第一步：拿到 diff"| M1["GitHub MCP Server<br/>get_pull_request_diff"]
-    SKILL -->|"流程第二步：跑静态扫描"| SC["Skill 自带脚本<br/>scripts/check_security.py"]
-    SKILL -->|"流程第三步：查历史缺陷"| M2["内部知识库 MCP Server<br/>search_past_incidents"]
-    SKILL -->|"流程第四步：按模板输出"| TPL["Skill 自带模板<br/>assets/report_template.md"]
+    SKILL --> H["Host 按指令编排<br/>校验权限与执行结果"]
+    H -->|"流程第一步：拿到 diff"| M1["GitHub MCP Server<br/>get_pull_request_diff"]
+    H -->|"流程第二步：跑静态扫描"| SC["Skill 自带脚本<br/>scripts/check_security.py"]
+    H -->|"流程第三步：查历史缺陷"| M2["内部知识库 MCP Server<br/>search_past_incidents"]
+    H -->|"流程第四步：按模板输出"| TPL["Skill 自带模板<br/>assets/report_template.md"]
 
     TPL --> OUT[结构化审查报告]
 
@@ -39,59 +44,59 @@ flowchart TB
 
 拆开看：
 
-- **没有 MCP**：Agent 知道该怎么审查，但拿不到 PR 的 diff，也查不了内部知识库。有方法没能力；
-- **没有 Skill**：Agent 能调 GitHub 拿到 diff，但不知道该按什么标准审、查哪几个维度、输出成什么样。每次审查的结果都不一样。有能力没方法。
+- **没有 MCP**：仍可用 GitHub API、CLI 或内嵌工具读取 diff；缺的是统一协议接入，不是全部外部能力；
+- **没有 Skill**：仍可用系统指令、用户说明或代码工作流规定审查步骤；缺的是该格式的可复用知识包。
 
-两者缺一不可，而且**是 Skill 在编排 MCP**，不是反过来。
+两者可以组合，但缺一也能工作。真正编排执行的是 Host/Agent，Skill 提供流程指令，MCP 提供能力接口；协议并不规定固定上下层依赖。
 
 ## 9.3 六个维度的对比
 
 | 维度 | MCP | Skill |
 |---|---|---|
 | **本质** | 通信协议 | 内容规范 |
-| **运行形态** | 独立进程 / 远程服务 | 静态文件，无运行时 |
-| **加载方式** | 启动时连接，`tools/list` 全量拉取 | **渐进式**：元数据 → 指令 → 资源 |
-| **谁来触发** | 模型判断调用某个工具 | Agent 判断任务匹配某个 Skill |
-| **变更成本** | 改 Server 代码，可能要重新部署 | 改一个 Markdown 文件 |
+| **运行形态** | Client 与 Server 通信 | 文件包；脚本执行仍需运行时 |
+| **加载方式** | 可分页发现、缓存；注入多少工具由 Host 决定 | 元数据 → 指令 → 按需资源 |
+| **谁来触发** | Host 可接受模型、规则或用户触发 | 自动匹配或显式加载，依宿主 |
+| **变更成本** | 可能改代码、Schema 或数据，需兼容测试 | 可能改指令或脚本，也需回归与权限审查 |
 | **跨平台** | 需要客户端实现 MCP 协议 | 需要平台支持 Skill 规范 |
 
-### 9.3.1 最实质的差异：有没有运行时
+### 9.3.1 服务接口与文件分发
 
-这是两者最根本的区别。
+两者的交付对象不同。
 
-**MCP Server 是活的**——它是一个进程，要启动、要维护连接、要处理认证、可能会挂。接一个 MCP Server 意味着引入一个新的运行时依赖。
+MCP Server 是服务端实现，需要部署、认证和错误处理。本地 stdio 通常由 Host 启动，远程服务可供多个 Client 共享。
 
-**Skill 是死的**——它就是几个文件。没有进程，不会挂，不需要认证，复制到另一个项目里直接就能用。
+Skill 文件本身不是服务，但脚本可能失败、依赖缺失，也可能访问需要凭据的 API。复制文件能保留内容，不保证另一宿主具有相同工具与权限。
 
-这个差异决定了两者的分发方式：MCP Server 通过包管理器安装并配置启动命令，Skill 直接拷贝目录或用 git 管理。
+本地 MCP Server 可以包管理器安装；远程 Server 可以只配置 URL。Skill 可用目录或 Git 分发，也可以由宿主集成分发；两者都需要版本固定和供应链审查。
 
 ### 9.3.2 另一个经常被忽略的差异：加载方式
 
-MCP 的工具定义是**全量加载**的：连上 Server 就把所有工具的 Schema 拉进上下文，而且每轮都传。接五个 Server 可能就是上万 token 的固定开销。
+MCP 的 `tools/list` 结果不等于模型上下文。Host 可分页拉取、按权限缓存，再检索少量相关定义或延迟加载；全量注入只是某些实现的策略。
 
-Skill 是**渐进式加载**的：启动时只有几十 token 的元数据，匹配上才加载正文。
+Skill 推荐渐进加载，但元数据也随安装数量增长。一个冗长的 Skill 加载后仍可能占据大量上下文。
 
 ```mermaid
 flowchart LR
     subgraph MCP_L["MCP 的加载"]
-        M1[连接 Server] --> M2[tools/list 全量拉取]
-        M2 --> M3["所有工具 Schema<br/>常驻上下文，每轮重传"]
+        M1[已知 Server] --> M2[tools/list 分页与缓存]
+        M2 --> M3["Host 按权限与任务筛选<br/>再注入工具定义"]
     end
 
     subgraph SKILL_L["Skill 的加载"]
         S1[扫描 Skill 目录] --> S2["只读 name + description"]
         S2 --> S3{任务匹配?}
         S3 -->|是| S4[加载正文]
-        S3 -->|否| S5[不占用上下文]
+        S3 -->|否| S5[仅保留发现元数据]
     end
 
     style M3 fill:#fce8e6
     style S5 fill:#e6f4ea
 ```
 
-这不是说 MCP 设计得差——工具必须让模型随时可见才能被选中，这是它的功能要求。但它确实意味着**MCP 的上下文成本随接入数量线性增长，而 Skill 基本不增长**。
+两者都涉及发现成本和运行时注入成本。工具搜索可以延迟暴露完整 Schema，Skill 也要维护可发现目录；比较时应统计实际模型输入，而不是只比较 Server 和文件夹数量。
 
-实践推论：接很多 MCP Server 时要做 [动态工具筛选](../01-function-calling/03-tool-schema-design.md)；而 Skill 可以放心地准备几十个。
+工具与 Skill 都要测试路由召回、误触发、上下文预算和权限。相关方法见[动态工具筛选](../01-function-calling/03-tool-schema-design.md)。
 
 ## 9.4 什么时候用哪个
 
@@ -102,7 +107,7 @@ flowchart TB
     Q{"你要给 Agent 加的<br/>是什么?"}
     Q -->|"访问外部系统的能力<br/>（数据库、API、文件）"| MCP["实现 / 接入 MCP Server"]
     Q -->|"完成某类任务的方法<br/>（步骤、标准、格式）"| SKILL["写一个 Skill"]
-    Q -->|"两者都要"| BOTH["Skill 编排 MCP 工具"]
+    Q -->|"两者都要"| BOTH["Host 按 Skill 指令<br/>编排 MCP 工具"]
 
     style BOTH fill:#e6f4ea
 ```
@@ -117,7 +122,7 @@ flowchart TB
 | 统一团队的 PR 审查标准 | Skill |
 | 让 Agent 能跑 SQL 并按固定流程做数据分析 | 两者：MCP 提供 SQL 能力，Skill 定义分析流程 |
 
-一个实用的反向检验：**如果这个东西需要联网、需要认证、需要访问外部系统，那它是 MCP；如果它只是「怎么做」的知识，那它是 Skill。**
+判断重点是要交付统一的远程能力接口，还是可加载的流程知识包。联网与认证不是二分标准：Skill 脚本也可通过受控工具访问 API，MCP 也能返回静态文档和提示模板。
 
 ## 9.5 两者怎么配合
 
@@ -135,9 +140,10 @@ flowchart TB
         T3[文件系统 Server]
     end
 
-    SK --> T1
-    SK --> T2
-    SK --> T3
+    SK --> H["Host 编排与权限检查"]
+    H --> T1
+    H --> T2
+    H --> T3
 ```
 
 在 `SKILL.md` 里直接引用 MCP 工具是很自然的写法：
@@ -145,14 +151,15 @@ flowchart TB
 ```markdown
 ## 第一步：获取数据
 使用 GitHub MCP 的 `get_pull_request_diff` 拿到本次变更内容。
-如果 diff 超过 2000 行，只处理 src/ 目录下的改动。
+若 diff 超过当前上下文预算，按模块分批审查并记录覆盖范围；
+不要默默跳过配置、依赖或其他目录。
 
 ## 第二步：查历史
 使用知识库 MCP 的 `search_past_incidents` 检索这几个文件
 过去半年是否引发过线上问题。
 ```
 
-像第一步末尾那句「如果超过 2000 行……」，就该写在 Skill 里。MCP 只提供「能拿到 diff」这个能力，**遇到大 diff 该怎么办属于流程知识**。
+如何分批阅读、记录遗漏和汇总结果属于流程知识。示例工具名仅为示意，必须映射到当前 Server 实际提供的名称。
 
 ### 9.5.1 一个边界问题：逻辑该写在哪
 
@@ -163,7 +170,7 @@ flowchart TB
 - **所有使用者都需要** → 写进 MCP Server，作为工具的默认行为；
 - **只有你的团队这么做** → 写进 Skill，保持 Server 的通用性。
 
-把团队特有的业务规则塞进 MCP Server，会让这个 Server 失去复用价值——而复用正是 MCP 存在的理由。
+审查顺序和输出偏好适合 Skill；租户隔离、交易限额、权限和强制业务不变量必须在服务端落实，即使它们是团队特有规则。自然语言步骤不能替代强制执行。
 
 ## 9.6 常见错误
 
@@ -177,36 +184,35 @@ Skill 包含可执行脚本、参考文档、输出模板，而且有渐进式�
 
 ### 9.6.3 用 MCP 实现流程知识
 
-见过有人把「代码审查流程」做成一个 MCP Server 的工具，返回一段流程说明文字。这纯属绕远路——流程知识是静态内容，用 Skill 一个 Markdown 就够了，包成进程只是增加了部署和运维负担。
+静态流程可直接用 Skill，不一定要单独部署服务；但 MCP Prompts/Resources 分发受权限控制、动态更新的流程也合理。选择依据是分发、访问控制和动态性，不是“知识绝不能走 MCP”。
 
 ### 9.6.4 用 Skill 实现外部访问
 
-反过来也有：在 Skill 里写「请调用 https://api.example.com/xxx」，指望模型自己去访问。模型没有网络能力，这必须由工具来做。
+在 Skill 写 URL 不会自动获得网络能力，但可通过已授权的 HTTP 工具或脚本访问，并不一定需要 MCP。需明确调用工具、凭据来源、网络范围和失败处理。
 
 ### 9.6.5 忽略两者上下文成本的差异
 
-MCP 工具定义常驻上下文且每轮重传，Skill 基本不占。接 MCP Server 要克制并做筛选，准备 Skill 可以放开。
+MCP 不强制全量注入，Skill 元数据也非零成本。两者都应按实际注入和任务表现评测。
 
 ### 9.6.6 把团队特有规则写进 MCP Server
 
-会让 Server 失去通用性，也就失去了用 MCP 的理由。通用行为进 Server，团队规则进 Skill。
+应区分可变的流程偏好与不可绕过的业务规则。后者必须由服务端执行，不能只写在 Skill 中。
 
 ## 9.7 本章总结
 
 1. **不是同类概念**：MCP 管「怎么获得能力」，Skill 管「拿到能力后怎么用」；
-2. **最实质的差异是有没有运行时**：MCP Server 是活的进程，Skill 是静态文件；
-3. **加载方式差异同样关键**：MCP 全量常驻且每轮重传，Skill 渐进式按需加载；
-4. **上下文成本的推论**：MCP 要克制并做动态筛选，Skill 可以放心准备几十个；
-5. **配合方式是分层**：Skill 在流程层编排 MCP 提供的能力；
-6. **判断用哪个**：需要联网、认证、访问外部系统的是 MCP，纯「怎么做」的知识是 Skill；
-7. **逻辑归属看通用性**：所有人都需要的行为进 Server，团队特有规则进 Skill。
-
-> **可以把它理解成：MCP 让 Agent 有能力伸手拿工具，Skill 决定这双手该按什么顺序做事。**
+2. **MCP 是通信协议，Skill 是文件格式**，执行脚本仍需宿主运行时；
+3. **发现不等于全量注入**，MCP 工具和 Skill 都可按需加载；
+4. **元数据也有成本**，用实际 token 和路由效果评估；
+5. **Host 执行编排**，Skill 指导步骤，MCP 提供一种能力接入方式；
+6. **联网不是二分标准**，Skill 脚本也可访问 API；
+7. **强制权限与业务不变量在服务端**，不要只写进自然语言流程。
 
 ## 参考资料
 
 - [Anthropic: Introducing Agent Skills](https://www.anthropic.com/news/skills)
 - [Agent Skills 规范](https://agentskills.io/specification)
 - [Model Context Protocol 官方文档](https://modelcontextprotocol.io/docs/getting-started/intro)
+- [MCP 2026-07-28 工具发现与 Schema](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
 - [Anthropic: Equipping Agents for the Real World with Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
 - [Anthropic: Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)

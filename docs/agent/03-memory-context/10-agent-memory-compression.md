@@ -1,4 +1,10 @@
+---
+description: 比较窗口裁剪、摘要、结构化抽取与外部化，说明压缩失真、恢复边界、Token 预算和缓存的区别及评测方法。
+---
+
 # 第十章：Agent 记忆与上下文压缩
+
+本章讨论应用层上下文管理；JSON、时间、数量与预算均为教学示例，不是生产配置或实测结果。
 
 ## 10.1 为什么需要记忆压缩
 
@@ -25,6 +31,8 @@ Agent 在长任务中会持续产生：
 
 > **在有限 Token Budget 内，尽可能保留完成当前任务所需的信息。**
 
+长窗口能容纳更多内容，但不能保证每项证据都被正确使用；反过来，短上下文也不天然更准确。删除必要的原文、多跳证据或反例会降低质量，应以具体模型和任务的对照实验选择压缩强度，而不是假设“越短越好”。
+
 写成一个简单目标函数，就是：
 
 $$
@@ -45,6 +53,8 @@ $$
 - `B` 是可用 Token Budget；
 - `λ` 表示长度成本权重。
 
+这是设计目标的示意，不是可以直接计算出最优摘要的算法。`U(C)` 通常只能由下游任务表现近似评估，授权范围、必需证据及消息协议应先作为硬约束；高效用不能抵消违规。
+
 ## 10.2 四类基础方法
 
 四种常见方法解决的是不同问题：
@@ -54,7 +64,7 @@ $$
 | Sliding Window | 历史太长，保留哪一段 | 删除最早内容 | 是 |
 | Summarization | 历史太长，如何提炼 | 用摘要替换原文 | 是 |
 | Importance Filtering | 信息价值不同，保留什么 | 按任务价值选择 | 通常是 |
-| Structured Extraction | 对话文本是否是最佳表示 | 转换为结构化状态 | 取决于 Schema |
+| Structured Extraction | 对话文本是否是最佳表示 | 转换为结构化状态 | 一般有损；仅对完整可逆表示例外 |
 
 ```mermaid
 flowchart TB
@@ -71,9 +81,11 @@ flowchart TB
 
 这四种方法通常组合使用，而不是互相替代。
 
+外部化是把内容搬出活跃 Context，不一定减少总存储；从窗口移除也不等于从记忆库删除。应用层摘要、服务端 compaction、KV Cache 量化/淘汰分别改变文本表示、服务托管上下文或推理状态，不应统称为同一种“记忆压缩”。
+
 ## 10.3 Sliding Window：按时间截断
 
-Sliding Window 只保留最近若干轮或若干 Token，删除更早的内容。
+Sliding Window 只在活跃 Context 保留最近若干轮或若干 Token，移除更早内容；是否删除持久化原记录由另一套保留策略决定。
 
 ```mermaid
 flowchart LR
@@ -140,6 +152,8 @@ flowchart LR
 - 未解决问题；
 - 高风险操作约束。
 
+Pin 的是当前仍有效的受信内容，不是永久固定历史文本。用户改了目标或权限已撤销，应更新或撤销相应项；权限判断始终由运行时执行，不能只依靠上下文中的一句规则。若必需项本身超过预算，应拆分任务或停止请求，而不是静默截断。
+
 ```mermaid
 flowchart TB
     PIN[Pinned Context] --> CTX[Current Context]
@@ -150,6 +164,8 @@ flowchart TB
 ### 10.3.3 不要切断 Tool 交互
 
 Tool Call 和对应 Tool Result 应视为一个逻辑单元。只保留调用、不保留结果，或只保留结果、不保留调用，都可能破坏上下文。
+
+还可能直接违反 API 的消息格式要求。并行调用要核对各个 call ID 与结果；未完成调用不能伪造为成功结果。某些 API 还要求保留特定 continuation/reasoning item，应遵循其协议。需要裁剪时，可整体移除已完成交互并保存摘要/引用，而不是留下悬空的 tool result。
 
 同样需要避免切断：
 
@@ -190,7 +206,7 @@ new_summary = summarize(old_summary + newly_evicted_messages)
 优点：
 
 - 实现简单；
-- 摘要长度稳定；
+- 可通过输出预算约束摘要长度；
 - 适合连续对话。
 
 风险：
@@ -198,6 +214,8 @@ new_summary = summarize(old_summary + newly_evicted_messages)
 - 多次重写会产生 Summary Drift；
 - 早期细节可能逐渐丢失；
 - 模型生成的错误可能进入后续摘要。
+
+例如原文是“测试超时，支付结果未知，不要重试”，摘要变成“支付失败，可以重试”，既丢了不确定性，也反转了操作约束。后续再摘要不会自动恢复这些信息，必须回到原始事件或权威业务状态核对。
 
 ### 10.4.2 Hierarchical Summary
 
@@ -232,6 +250,8 @@ flowchart TB
 - 未解决冲突。
 
 不再保留每一次搜索尝试的详细过程。
+
+但应保留已排除路径及排除理由的简记，避免下一阶段重复失败搜索。任务切换后重新评估摘要，不能把针对旧问题生成的摘要当作通用知识索引。
 
 ### 10.4.4 Event Summary
 
@@ -274,6 +294,10 @@ flowchart LR
 - 周期性从原始数据重新生成摘要；
 - 对目标、权限和数字使用结构化状态；
 - 使用 Verifier 检查遗漏和矛盾。
+
+Verifier 也可能漏判，尤其当它与摘要器只读取同一份有缺陷的摘要时。需要把摘要和原始证据对照，精确核验 ID、数字、否定、时间范围及状态；对丢失项重新取回原文。引用还应带来源事件、版本或内容哈希，只有 URL 而网页已变化时，不能恢复当时证据。
+
+摘要是派生数据，权限通常不能宽于其所含来源的共同可读范围；若需要扩大读者范围，应经过独立脱敏与发布审核。来源被撤回、删除或替代后，要失效或重建依赖它的摘要，而不是只删向量记录。
 
 ## 10.5 Importance Filtering：按价值选择
 
@@ -326,6 +350,8 @@ $$
 - `Nᵢ`：Novelty；
 - `Cᵢ`：Token Cost。
 
+这些分量需要在任务样本上校准，公式并不意味着有现成准确的“重要性分数”。同一信息在不同问题下价值不同：摘要中的结论可用于概览，财务核对却可能必须读取整行账目和单位。
+
 ### 10.5.2 Hard Rules 与 Model Scoring
 
 不应让模型独自决定所有信息的重要性。
@@ -356,7 +382,7 @@ $$
 - 重要性评分受当前 Prompt 偏置；
 - 恶意内容可能伪装成高优先级指令。
 
-因此，被过滤内容最好外部化保存，而不是立即永久删除。
+因此，仍有合法用途的原文可按保留政策外部化，支持后续取回；敏感或未授权内容不能借“以后可能有用”永久保存。
 
 ## 10.6 Structured Extraction：改变信息表示
 
@@ -364,7 +390,7 @@ $$
 
 ```mermaid
 flowchart LR
-    CHAT[Conversation] --> EX[Extractor]
+    CHAT[Conversation] --> EX[Extractor + Evidence Validation]
     EX --> FACTS[Facts]
     EX --> STATE[Task State]
     EX --> TODO[Todo]
@@ -386,22 +412,27 @@ Agent：明白，后续直接提交到 main。
 
 ```json
 {
-  "repository": "zongyangbigpolo/awesome-ai-roadmap",
-  "publishing_policy": {
+  "repository": "example/knowledge-base",
+  "publishing_preference": {
     "target_branch": "main",
     "create_pull_request": false
   },
-  "source": "explicit_user_instruction"
+  "source": "explicit_user_instruction",
+  "source_event_id": "event-example",
+  "verification_status": "user_stated",
+  "scope": "current_repository"
 }
 ```
 
 结构化表示：
 
-- Token 更少；
+- 对冗长重复对话可能减少 Token，短句转 JSON 反而可能更长；
 - 更容易精确更新；
 - 更适合规则执行；
 - 更容易检测冲突；
-- 不依赖语义猜测。
+- 验证后可以按字段查询，不必每次重新解释整段对话。
+
+抽取本身仍可能误读。“用户偏好直接提交”不能变成绕过分支保护的权限。这里只有数据表示变化，没有发生发布，也没有证明用户拥有发布权限。
 
 ### 10.6.2 适合抽取的内容
 
@@ -459,6 +490,8 @@ Agent：明白，后续直接提交到 main。
 
 因此，应保留来源引用，并允许在需要时返回原文。
 
+Schema 合法只证明字段形状正确，不证明内容真实。运行状态应由执行器及工具确认结果更新；模型可提出补丁，但不能仅从“我准备执行”抽取出 `completed`。含糊的声明应保留 `unknown`、适用范围和原话，不能强行填成确定事实。
+
 ## 10.7 四种方法如何组合
 
 工程上通常把这几种方法串起来用：
@@ -468,9 +501,11 @@ flowchart TB
     H[Full History] --> PIN[Pin Hard Constraints]
     PIN --> EXT[Externalize Large Artifacts]
     EXT --> STR[Structured Extraction]
-    STR --> IMP[Importance Filtering]
+    STR --> SPLIT[划分近期交互与较早历史]
+    SPLIT --> IMP[较早历史 Importance Filtering]
     IMP --> SUM[Summarize Older History]
-    SUM --> WIN[Keep Recent Sliding Window]
+    SPLIT --> WIN[Keep Recent Sliding Window]
+    SUM --> PACK[Context Packing]
     WIN --> PACK[Context Packing]
 ```
 
@@ -484,8 +519,9 @@ flowchart TB
 5. Summary of earlier stages
 6. Recent message window
 7. Current Tool results
-8. Output token reserve
 ```
+
+输出预算是请求配置和容量预留，不是要在 Prompt 中写入的一段文字。上述序号是组织示例，不是模型指令优先级；历史摘要与召回数据不能因放在前面就获得系统指令权限。
 
 各方法分工如下：
 
@@ -526,6 +562,8 @@ flowchart LR
 - 数字不同的近似句子；
 - 正向与否定表达。
 
+同一错误发生多次还可能说明故障持续，不能去重后丢掉发生次数和时间跨度。多个来源相同结论若都转载自同一原文，只能保留一条来源链，不能当作独立佐证。
+
 ## 10.9 额外方法：Externalization
 
 Externalization 将大内容移出 Context，只保留摘要和引用。
@@ -554,6 +592,8 @@ Externalization 将大内容移出 Context，只保留摘要和引用。
 
 这种方法不是删除信息，而是将“始终在 Context 中”改为“按需加载”。
 
+前提是引用可解析、有版本、未过期，且 Agent 有可用的读取工具。URI 和哈希不包含原文；对象已删、权限撤销、链接过期或检索失败时，恢复就不成立。按片段读取应返回位置、范围及是否截断，并在工具端鉴权；摘要泄露敏感结论也属于泄露，不能只保护原始对象。
+
 ## 10.10 额外方法：Hierarchical Memory
 
 分层记忆同时保留不同粒度：
@@ -570,7 +610,7 @@ flowchart TB
 
 Agent 先读取 Task Summary；只有需要细节时，才展开 Stage Summary 或 Raw Event。
 
-这是一种 Progressive Disclosure，可以显著降低无关上下文。
+这是一种 Progressive Disclosure，可能减少无关上下文，但会增加检索轮次和遗漏风险。概要若没提到关键细节，Agent 可能不会展开正确分支，因此要保留直接检索原文的路径，并测量端到端延迟。
 
 ## 10.11 额外方法：Delta 与 State Compaction
 
@@ -602,6 +642,8 @@ flowchart LR
 
 这种方法主要减少状态存储和传输，不等同于自然语言摘要。
 
+恢复要有确定的事件顺序、稳定事件 ID、状态版本和幂等应用规则，且 Snapshot 与已纳入的日志位点一致。不能只凭时间戳推断所有并发事件的先后。事件回放也不应重新执行付款、发信等副作用；已发生的外部效果需要独立的执行记录与核对。
+
 ## 10.12 压缩触发时机
 
 ### 10.12.1 Token 阈值
@@ -630,7 +672,7 @@ flowchart LR
 
 ### 10.12.4 Checkpoint
 
-任务暂停、转交 Agent 或持久化之前进行压缩和状态保存。
+任务暂停或转交 Agent 时可生成压缩交接信息，但保存 checkpoint 不应以 LLM 摘要成功为前提。先可靠保存精确状态、事件位点和工具结果，再异步生成可替换的摘要，避免压缩失败时连恢复点一起丢失。
 
 ### 10.12.5 Context 质量下降
 
@@ -642,6 +684,8 @@ flowchart LR
 - Tool 选择变差；
 
 也应重新构建 Context。
+
+这些只是诊断信号，也可能来自错误工具或不准确计划，不能一律归咎于上下文太长。重构失败时应保留旧状态与失败原因，回退到原文选择或分阶段执行，而不是继续基于不完整摘要行动。
 
 ## 10.13 Token Budget 分配
 
@@ -674,6 +718,10 @@ $$
 - `B_tool`：当前 Tool 结果；
 - `B_output`：模型输出预留。
 
+上式是预算分账示意：先确定该模型 API 的容量口径，再分配输入、输出与安全余量。某些推理模型还将推理 Token 计入输出额度或共享窗口；工具 Schema、图片/音频表示、消息封装也会消耗容量。应以实际 tokenizer 或服务端计数为准，不能按字符数估计后当作硬保证。
+
+设压缩触发阈值时，应预留最大可接受工具结果和下一轮输出，而不采用通用的“使用到某个百分比再压缩”。工具结果无上限时，应先限制、分页或外部化，避免一条响应挤爆窗口。
+
 预算应随任务阶段动态调整。例如：
 
 - 搜索阶段给 Tool Result 更多空间；
@@ -682,7 +730,7 @@ $$
 
 ## 10.14 Prompt Caching 是什么
 
-> Prompt Caching 处理的是跨请求的前缀计算复用；RAG 上下文增强中如何用它控制索引成本，见[RAG：语义被切断怎么办](../../rag/02-ingestion-indexing/05-semantic-truncation.md)。
+> Prompt Caching 处理的是跨请求的前缀计算复用，不直接缓存 Embedding 或向量索引；与 RAG 入库时上下文增强的关系，见[RAG：语义被切断怎么办](../../rag/02-ingestion-indexing/05-semantic-truncation.md)。
 
 Prompt Caching 缓存重复 Prompt 前缀的中间计算结果，使后续请求可以复用。
 
@@ -717,7 +765,7 @@ sequenceDiagram
 | 是否改变信息内容 | 可能改变或删除 | 不改变 |
 | 是否释放 Context Window | 是 | 否 |
 | 是否降低重复 Prefill 成本 | 间接 | 是 |
-| 是否解决噪音问题 | 是 | 否 |
+| 是否解决噪音问题 | 可能减少噪音，也可能误删证据 | 否 |
 
 这里最容易被误解的是：
 
@@ -749,7 +797,7 @@ flowchart LR
 
 ## 10.17 Prompt Caching 的限制
 
-- 通常要求前缀完全或高度一致；
+- 对这里讨论的前缀缓存，要求可复用前缀精确匹配，而不是语义相似或“高度一致”；
 - 缓存有生命周期；
 - 不同模型或配置可能不能共享；
 - 动态内容放在前缀中会降低命中率；
@@ -759,6 +807,10 @@ flowchart LR
 - 具体费用和缓存规则由模型服务商决定。
 
 Prompt 设计时通常将稳定内容放在前面，动态内容放在后面，以提高缓存复用。
+
+[OpenAI 官方文档](https://developers.openai.com/api/docs/guides/prompt-caching)说明，需匹配实际渲染的前缀；模型、工具 Schema、顺序及相关设置变化都可能改变可复用部分。缓存最低长度、断点方式、写入费用和保留时间依模型与服务版本而异，不能把某个型号的数字推广为统一规则。
+
+频繁改写前面的摘要可能使后续缓存失效，压缩调用自身也有成本。对照总账单和首 Token 延迟，分别测量冷缓存、热缓存及压缩后的请求；不要为了缓存命中继续发送失效权限或过期敏感数据。
 
 ## 10.18 KV Cache 与 Prompt Caching
 
@@ -774,6 +826,14 @@ Prompt Caching 是模型服务对应用暴露的跨请求复用能力，底层�
 
 两者都属于计算优化，不属于语义记忆压缩。
 
+但 KV Cache 的量化、淘汰、卸载又是另一组推理系统技术，它们可能改变精度、显存与延迟，并不等价于生成可审计摘要。应用若只使用托管 API，不应假定能操作这些底层状态。
+
+### 10.18.1 服务端 Compaction 也不等于 Prompt Cache
+
+截至本章审校时，[OpenAI Responses 的 Compaction](https://developers.openai.com/api/docs/guides/compaction)支持返回不透明的加密 compaction item，供后续请求继续使用。这是缩减后续 Context 的服务能力，不是仅复用前缀计算，也不能假定其内部就是可读的自然语言摘要。
+
+应用应按 API 协议传递该 item，不解析或手工改写其内容；模型支持范围及服务端状态保留选项需查当前文档。它不能替代应用自己的任务状态、事实来源、权限及删除管理，也不能当成跨供应商可移植的审计记录。
+
 ## 10.19 压缩质量怎么评估
 
 ### 10.19.1 Compression Ratio
@@ -781,6 +841,8 @@ Prompt Caching 是模型服务对应用暴露的跨请求复用能力，底层�
 $$
 CR=1-\frac{L_{after}}{L_{before}}
 $$
+
+这里将 `CR` 定义为 Token 减少率，其他资料可能将压缩比定义为 `L_before / L_after`，报告时必须注明口径。应使用同一 tokenizer、相同内容边界；外部化后只统计 URI 的 Token，却遗漏再读取的费用，会夸大节省。
 
 压缩比例高不代表质量高。如果关键约束被删除，再短也没有价值。
 
@@ -831,13 +893,19 @@ Agent 能否从压缩后的 Context 和外部 State：
 
 在长历史中放入关键约束，检查压缩后是否保留并正确使用。
 
+单个 needle 测试不足以证明长程推理能力，还要覆盖多个相关证据、干扰项、时间更新、否定和没有答案的情况。
+
 ### 10.20.2 Replay Test
 
 从 Checkpoint 和压缩 Context 恢复 Agent，观察能否继续任务。
 
+分别在“工具执行前”“执行后但状态落盘前”“摘要生成中”中断；断言不会重复副作用、不会把未知结果改为成功、不会读取已撤销权限的 Artifact。恢复正确性应检查实际状态，不只检查回答文本。
+
 ### 10.20.3 Differential Test
 
 使用完整历史和压缩历史分别执行相同任务，比较结果差异。
+
+完整历史必须能装入模型，并说明是否发生服务端裁剪；它是基线，不是正确答案。再加入无记忆、近期窗口、直接提供人工标注证据的对照，固定模型版本及任务分布，多次运行并报告波动。除了最终正确率，还统计约束保留、证据可追溯性和压缩造成的退化。
 
 ### 10.20.4 Adversarial Test
 
@@ -858,6 +926,10 @@ Agent 能否从压缩后的 Context 和外部 State：
 - 状态错乱；
 - 重复动作；
 - Artifact 丢失。
+
+测试步数来自业务轨迹分布，不是可靠性的统一门槛。要记录累计压缩次数，检查远期信息是否逐轮丢失；总成本应包含摘要生成、写入索引、额外检索和恢复调用。
+
+公开数据可以参考 [LoCoMo](https://github.com/snap-research/locomo) 的事件摘要与问答、[LongMemEval](https://github.com/xiaowu0162/LongMemEval) 的知识更新与弃答，以及 [LongMemEval-V2](https://github.com/xiaowu0162/LongMemEval-V2) 的轨迹经验检索。它们不直接验证你自己的 checkpoint、ACL 或副作用恢复；固定数据版本，按会话/轨迹分组统计，避免把相关问题当作独立用户样本。
 
 ## 10.21 常见反模式
 
@@ -891,13 +963,13 @@ Agent 能否从压缩后的 Context 和外部 State：
 
 ### 10.21.8 摘要把「未验证的结论」写成「已确认的事实」
 
-这是长周期 Agent 中危害最大、也最隐蔽的一种压缩失效。
+这种失效容易在多轮任务中传播，尤其会影响下一步操作判断。
 
-典型场景：某个命令因超时或被中断而只输出了部分结果，摘要却把它记录为「已执行成功，结果为 X」。这条虚假的确定性会随摘要一路传播到后续所有轮次，而且因为它以「事实」形式出现，**后续不会有任何环节去重新验证它**。
+典型场景：某个命令因超时或被中断而只输出了部分结果，摘要却把它记录为「已执行成功，结果为 X」。如果后续没有独立验证，这条虚假的确定性就可能传播到后面的计划和操作。
 
 缓解方式有三条：
 
-1. 摘要中显式保留状态标记（`verified` / `unverified` / `failed`），而不是只记结论；
+1. 分开保留执行状态（`pending` / `succeeded` / `failed` / `unknown`）与结论验证状态（`verified` / `unverified`），而不是只记结论；
 2. 保留工具调用的退出码与截断标记，不要在摘要阶段丢弃；
 3. 对关键结论保留原始引用（日志位置、文件路径），使其可被重新核对。
 
@@ -905,7 +977,7 @@ Agent 能否从压缩后的 Context 和外部 State：
 
 多轮压缩会累积信息损耗，早期的关键决策与约束在若干轮压缩后可能彻底消失，形成难以追溯的「历史债」。
 
-正确做法是把重要决策**同时写入外部文件或结构化状态**（即 10.9 节的 Externalization），让它不依赖摘要链的存续。压缩链负责「最近发生了什么」，外部文件负责「已经定下来的事」。
+可将重要决策同时写入外部文件或结构化状态（即 10.9 节的 Externalization），并保存来源、版本和适用范围。外部保存不代表模型自动能读到它，还需有稳定加载入口和读回校验；决策变化时同步失效旧记录，不能让旧文件一直充当有效约束。
 
 ## 10.22 推荐的生产级压缩管道
 
@@ -913,22 +985,24 @@ Agent 能否从压缩后的 Context 和外部 State：
 flowchart TB
     INPUT[Messages + Tool Results + State] --> CLASS[Classify]
 
-    CLASS --> PIN[Pinned Constraints]
-    CLASS --> STATE[Structured State]
+    CLASS --> PIN[当前有效的 Pinned Constraints]
+    CLASS --> STATE[经执行证据核对的 Structured State]
     CLASS --> LARGE[Large Artifacts]
     CLASS --> HISTORY[Historical Messages]
 
     LARGE --> EXT[Externalize + Reference]
-    HISTORY --> DEDUP[Deduplicate]
+    HISTORY --> SPLIT[按完整交互与阶段分组]
+    SPLIT --> RECENT[近期完整交互]
+    SPLIT --> DEDUP[较早历史去重]
     DEDUP --> IMP[Importance Filter]
     IMP --> SUM[Hierarchical Summary]
-    SUM --> WIN[Recent Sliding Window]
 
     PIN --> PACK[Context Packer]
     STATE --> PACK
     EXT --> PACK
-    WIN --> PACK
-    RET[Retrieved Long-term Memory] --> PACK
+    SUM --> PACK
+    RECENT --> PACK
+    RET[经权限与版本复核的 Long-term Memory] --> PACK
 
     PACK --> CACHE[Prompt Cache Stable Prefix]
     CACHE --> MODEL[Model]
@@ -937,10 +1011,10 @@ flowchart TB
     OBS --> INPUT
 ```
 
-默认配置通常会从这套压缩组合起步：
+可按任务需要选择以下组合；短任务不一定需要摘要和分层存储：
 
-1. 永久 Pin 系统、安全、目标和成功标准；
-2. 将任务状态抽取为结构化数据；
+1. 保留当前有效的系统、安全、目标和成功标准，并随权限和目标变化更新；
+2. 将任务状态抽取为结构化数据，并用执行证据核对；
 3. 大型 Tool Result 立即外部化；
 4. 对历史做去重和重要性过滤；
 5. 已完成阶段使用分层摘要；
@@ -948,7 +1022,7 @@ flowchart TB
 7. 长期记忆按当前任务检索；
 8. 按 Token Budget 组装 Context；
 9. 对稳定前缀使用 Prompt Caching；
-10. 保留原始来源以支持恢复和审计。
+10. 在授权与保留期限内保留原始来源，验证引用可读和恢复路径可用。
 
 ## 10.23 方法选择表
 
@@ -971,7 +1045,7 @@ flowchart TB
 1. **Sliding Window**：按时间截断历史；
 2. **Summarization**：在截断前提炼语义；
 3. **Importance Filtering**：打破时间顺序，按价值选择；
-4. **Structured Extraction**：将对话转换为高密度状态。
+4. **Structured Extraction**：提取候选状态并核对证据；Schema 合法不保证事实正确，也不保证 Token 更少。
 
 现代系统通常还会结合：
 
@@ -988,9 +1062,7 @@ Prompt Caching 与这些方法位于不同层次：
 
 两者互补，但 Prompt Caching 不会释放 Context Window，也不能替代摘要、过滤和结构化抽取。
 
-落到实现上，通常会这样组合：
-
-> **关键约束结构化并固定保留，大型信息外部化，旧历史分层摘要，近期细节使用窗口，长期知识按需检索，稳定前缀再使用缓存。**
+压缩后至少核对一次目标、未决状态、关键证据和引用可读性。若这些无法恢复，应回到原始记录或明确报告信息不足，而不是把流畅的摘要当作完整历史。
 
 ## 参考资料
 
@@ -999,5 +1071,11 @@ Prompt Caching 与这些方法位于不同层次：
 - [Chroma Research: Context Rot](https://research.trychroma.com/context-rot)
 - [LangChain: Context Engineering for Agents](https://blog.langchain.com/context-engineering-for-agents/)
 - [Anthropic Prompt Caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching)
-- [OpenAI Prompt Caching](https://platform.openai.com/docs/guides/prompt-caching)
+- [OpenAI Prompt Caching](https://developers.openai.com/api/docs/guides/prompt-caching)
+- [OpenAI Compaction](https://developers.openai.com/api/docs/guides/compaction)
 - [LangGraph Memory](https://docs.langchain.com/oss/python/langgraph/add-memory)
+- [LoCoMo 官方数据与评测](https://github.com/snap-research/locomo)
+- [LongMemEval 官方实现](https://github.com/xiaowu0162/LongMemEval)
+- [LongMemEval-V2 官方实现](https://github.com/xiaowu0162/LongMemEval-V2)
+
+审校口径：截至 2026-09-08。API 文档滚动更新；本文不固定缓存价格、阈值或保留时间。Anthropic 缓存文档本次访问受地域限制，未据此新增具体参数结论。原创文字与图示：Polo Li，CC BY 4.0。

@@ -1,8 +1,10 @@
 ---
-description: 解释 Multi-Agent 的协作拓扑、路由、交接、共享状态和动态切换，并分析通信开销与失败传播问题。
+description: 解释 Multi-Agent 的协作、路由、交接与共享状态，分析并行调度、预算和失败恢复，并区分语义协作与存储共识。
 ---
 
 # 第十三章：Multi-Agent 协作、路由与动态切换
+
+本章资料核验截至 2026-09-08。除明确标注框架或协议的部分外，JSON 均为应用层契约示例，字段名、数量和日期不是标准要求。讨论协作时需同时说明：模型提议什么、Runtime 强制什么、存储系统承诺什么。
 
 ## 13.1 问题的本质
 
@@ -120,7 +122,7 @@ flowchart TB
 - 大 Context 聚集点；
 - 全局错误来源。
 
-大型系统常采用分层 Orchestrator，而不是一个 Agent 管理所有 Worker。
+顶层上下文或调度成为瓶颈时，可以采用分层 Orchestrator；但多一层也多一次交接和信息压缩，不能仅凭系统规模决定。逻辑上的单一调度权可以由可恢复的服务实现，不等于依赖一个不可恢复的模型会话。
 
 ## 13.5 Shared Workspace / Blackboard
 
@@ -194,17 +196,17 @@ flowchart LR
 | Request / Response | 调用方等待结果 | 短任务、强依赖 |
 | Queue | Worker 从队列领取任务 | 异步任务、削峰 |
 | Pub/Sub | 发布者不指定具体订阅者 | 事件广播、解耦 |
-| Event Stream | 保存有序事件 | 状态重建、审计 |
+| Event Stream | 在约定的分区或键范围保存有序事件 | 状态重建、审计 |
 | Shared State | 多节点读写状态 | 图工作流、紧密协作 |
 | Artifact Store | 通过 URI 交换大结果 | 文档、代码、数据集 |
 
 生产系统常同时使用：
 
-> **消息触发执行 + State 保存事实 + Artifact 传递大结果。**
+> **消息触发执行 + State 保存任务状态及带来源的事实候选 + Artifact 传递大结果。**
 
 ## 13.8 Request / Response
 
-调用 Agent 明确知道目标 Agent，并同步等待结果。
+调用方明确知道目标服务，并关联请求与响应；等待可以用同步阻塞，也可以用异步 I/O。不能把 Request/Response 等同于阻塞线程。
 
 ```mermaid
 sequenceDiagram
@@ -223,10 +225,10 @@ sequenceDiagram
 
 限制：
 
-- 调用方被阻塞；
+- 若要使用返回值，后续依赖仍需等待；
 - 长任务容易超时；
 - 强耦合；
-- 不适合断线恢复。
+- 断线恢复需要持久化 Task ID、查询接口和重试语义，单个 RPC 本身不够。
 
 ## 13.9 Queue
 
@@ -259,6 +261,8 @@ flowchart LR
 
 分布式系统中很难依赖“绝对只执行一次”，更常见做法是至少一次投递配合幂等执行。
 
+例如 [SQS Standard Queue](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html)明确允许重复投递。ACK、消息去重与外部副作用是不同层次：Worker 退款成功后在 ACK 前崩溃，重投仍可能再次退款。应以稳定的业务操作 ID 调用支持幂等的退款 API，记录回执，并在超时后先查询结果。队列即使在自身边界内提供 exactly-once 处理，也不能自动覆盖外部系统的副作用。
+
 ## 13.10 Pub/Sub
 
 Publisher 将事件发送到 Topic，不需要知道具体订阅者：
@@ -288,7 +292,7 @@ flowchart LR
 
 ## 13.11 Event Stream
 
-Event Stream 保存任务发生的有序事件：
+Event Stream 在定义好的顺序范围内保存事件；多分区不自动形成全局总序，生产者时间戳也不代表提交顺序：
 
 ```json
 {
@@ -316,6 +320,8 @@ Event Stream 保存任务发生的有序事件：
 - 幂等消费；
 - 保留策略；
 - 版本兼容。
+
+状态重建应折叠已经记录的事件，而不是重发邮件、付款或重新调用模型。消费者保存处理位置，并让状态更新与去重记录处于同一事务边界；保留窗口之外的事件需要快照或归档补足。缺失事件或不可重放的外部读取，会让“可回放”失去意义。
 
 ## 13.12 Artifact Store
 
@@ -347,6 +353,8 @@ Agent 不应通过消息传递大型完整内容。
 - 多次序列化；
 - 内容版本不一致。
 
+URI 必须指向可定位的不可变版本；`latest` 指针会让 Worker 读取到不同内容。Hash 只能验证字节未变，不能证明来源可信或结论正确；读取时还要检查租户、授权、Schema 和输入版本，不能因为发来一个 URI 就信任其中的指令。
+
 ## 13.13 共享状态如何分层
 
 ```mermaid
@@ -360,7 +368,7 @@ flowchart TB
 
 ### 13.13.1 Global State
 
-所有相关 Agent 可以读取：
+按任务相关性和权限暴露，而不是无条件向所有 Agent 开放：
 
 - 用户原始目标；
 - 全局约束；
@@ -425,7 +433,7 @@ Append-only 适合：
 | Current Status | 受版本控制地覆盖 |
 | Messages | Reducer 追加、替换或删除 |
 | Set / Tags | Union Reducer |
-| Counter | Atomic Increment |
+| Counter | 原子增量；重复事件另行去重 |
 | Artifact | 新版本 + 不可变引用 |
 | Task Owner | Compare-and-Swap / Lease |
 
@@ -441,7 +449,7 @@ LangGraph 以 Graph、Node、Edge 和 State 构建工作流：
 
 LangGraph 并不是所有字段都“只追加”：
 
-- 没有自定义 Reducer 时，默认更新通常覆盖旧值；
+- 没有自定义 Reducer 时，单次更新默认覆盖旧值；
 - 列表可以使用 Append Reducer；
 - 可以定义自定义 Reducer；
 - 某些场景可以显式 Overwrite。
@@ -454,6 +462,10 @@ flowchart LR
 ```
 
 因此，必须为每个字段明确设计合并语义。
+
+同一 super-step 的多个节点并行写入没有合并语义的同一字段，会触发 [`INVALID_CONCURRENT_GRAPH_UPDATE`](https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE)，不是“最后完成的节点覆盖其他节点”。`operator.add` 合并列表能处理并发追加，却不会自动去重；`add_messages` 则按消息 ID 支持新增和替换，并有删除机制，不能把它当作普通列表追加。
+
+Reducer 是图运行时的状态合并函数，不是跨进程数据库事务或分布式锁。Checkpointer 的线程内恢复也不自动解决多个运行竞争业务资源的问题；内存 Checkpointer 在进程退出后不能恢复。所谓 Private State 是数据组织方式，不是访问控制或日志脱敏承诺，应单独审查流式输出、Trace 和存储权限。
 
 ## 13.16 并发写入
 
@@ -476,7 +488,7 @@ review_status    -> Review Agent
 global_status    -> Orchestrator
 ```
 
-这是最简单的冲突预防方式。
+这是较简单的冲突预防方式，但 Owner 的约束要由存储层执行。一个角色有多个副本，或旧 Worker 在超时后继续运行时，仍可能存在多个实际写入者。
 
 ### 13.16.2 Optimistic Concurrency
 
@@ -492,17 +504,22 @@ global_status    -> Orchestrator
 }
 ```
 
-版本不匹配则拒绝，并要求重新读取状态。
+提交时核对当前版本与预期版本、再写入更新，必须由存储系统原子执行，不能先在客户端比较再另发写入。版本不匹配后重新读取并重新判断业务前提，而不是仅把 `expected_version` 改成新值后盲目重试。
+
+例如两个 Worker 同时把任务从 `running` 改为 `completed`，服务端要同时验证当前 `attempt_id`、Owner、计划版本、租约以及状态转换是否合法。已取消或已重新分配的任务不能被迟到的成功消息改回完成。
 
 ### 13.16.3 Reducer
 
-对于可合并数据，定义确定性 Reducer：
+对于可合并数据，先说明事件是否可能乱序、重复，再选择规则：
 
-- List Append；
-- Set Union；
-- Max Timestamp；
-- Highest-confidence Value；
-- Domain-specific Merge。
+| 规则 | 能解决什么 | 边界 |
+|---|---|---|
+| List Append | 保存多个结果 | 顺序影响输出，重复投递会重复追加 |
+| Set Union / 按稳定 ID 合并 | 可交换地收集结果、去重 | 同 ID 不同内容应报冲突，不宜静默覆盖 |
+| Last Write Wins | 按明确定义的版本和决胜规则保留一个值 | 可能丢失业务信息；本机时间戳受时钟偏差影响 |
+| Domain-specific Merge | 例如保留不同来源的事实候选 | 事实是否兼容仍需领域验证 |
+
+跨副本、任意顺序合并时，常需结合律、交换律；要容忍重复还需幂等性，或在合并前去重。确定性函数本身不等于 CRDT，也不保证这些性质。选择“模型自报置信度最高”的值不可靠：不同模型的分数未必校准，更不能拿它解决权限或资金冲突。
 
 ### 13.16.4 Lease
 
@@ -511,11 +528,30 @@ global_status    -> Orchestrator
 ```json
 {
   "owner": "agent-a",
+  "attempt_id": "attempt-3",
+  "fencing_token": 19,
   "lease_expires_at": "2026-08-28T09:05:00Z"
 }
 ```
 
 Agent 失联后 Lease 过期，任务可以重新分配。
+
+Lease 过期不代表旧进程已经停止。暂停的 Worker 恢复后仍可能写入；每次领取应生成单调递增的 fencing token，由接受写入的存储或副作用网关原子地拒绝旧 token。只在 Prompt 中传入 token 没有约束力；外部 API 不支持 fencing 时，需要由可控网关串行化或使用业务幂等与对账，不能声称排除了全部晚到副作用。
+
+仅记住“见过的最大 token”的接收端，要先见到新 token 才能拒绝旧持有者；这不等于租约一过期就即时禁止写入。若要求后者，需要让提交原子地验证当前租约/Owner，例如 [etcd Lock 的事务保护方式](https://etcd.io/docs/v3.6/dev-guide/api_concurrency_reference_v3/)。跨系统副作用仍不在该事务保证内。
+
+### 13.16.5 强一致需要到哪一层
+
+| 状态 | 需要的保证 |
+|---|---|
+| 任务领取、预算预留、唯一最终提交 | 在权威账本中原子检查并更新；跨字段不变量需要事务 |
+| 已提交 Artifact | 不可变版本；读取结果时核对输入与计划版本 |
+| 搜索候选、工作笔记、进度投影 | 可容忍一定陈旧度，但必须标注版本和来源 |
+| 互相矛盾的业务结论 | 留存证据，由规则或 Owner 裁决；数据库一致不等于事实正确 |
+
+“三个 Agent 一致认为应该退款”只是应用层意见，不是 Raft/Paxos 共识。Raft 让副本对日志顺序达成一致，并不判断退款是否合规；要抵抗不可信 Agent，也不能直接套用 Raft 的崩溃故障假设。强共识、线性一致性和事务隔离是相关但不同的概念，应按底层 API 的实际保证设计。
+
+例如 [etcd 的 API 保证](https://etcd.io/docs/v3.6/learning/api_guarantees/)区分 KV 的默认线性一致性与可能延迟的 Watch；收到某条 Watch 事件不等于此刻读取到了全局最新状态。预算扣减不能依赖可能过期的进度看板。丢失多数派时，依赖共识的提交可能无法推进；此时可继续只读探索，但不要绕过账本继续提交不可逆操作。
 
 ## 13.17 错误必须成为一等状态
 
@@ -641,6 +677,8 @@ $$
 
 评分可以由规则、统计模型或 LLM 辅助生成。
 
+这只是候选排序的示意函数，不是优化正确性的保证。权限、数据驻留、协议版本和可用预算先做硬过滤，不能让“质量分高”抵消越权。剩余指标需统一量纲、按任务类别估计，并考虑数据量与置信区间；历史成功率会受路由选择偏差影响，不能把只接简单任务的 Agent 直接排在前面。
+
 ## 13.22 LLM-based Dynamic Routing
 
 LLM 根据：
@@ -680,11 +718,13 @@ LLM 根据：
 - 可能选择越权 Agent；
 - 候选过多时判断质量下降。
 
+示例中的 `confidence: 0.91` 是模型自报值，不表示已校准的 91% 成功概率。阈值应在独立标注的路由评测集上校准；没有校准时，把它视为辅助信号，依据可执行校验和拒绝策略决定是否派发。
+
 ### 13.22.3 不一定额外增加一次模型调用
 
 如果 Orchestrator 当前模型调用本来就需要决定下一动作，可以让它同时返回 Route。
 
-只有把路由做成独立 LLM 节点时，才一定新增调用。
+路由若作为每次必经的独立 LLM 节点，通常会新增调用；命中规则、缓存或批处理的设计则需另算。即使合并在已有调用里，候选描述、结构化输出和后续重试仍有成本。
 
 ## 13.23 Dynamic Routing 必须受约束
 
@@ -720,7 +760,7 @@ flowchart TB
     H -->|否| RULE{Rule Match?}
     RULE -->|是| STATIC
     RULE -->|否| LLM[LLM Router within Allowlist]
-    LLM --> CONF{Confidence and Validation Pass?}
+    LLM --> CONF{Policy and Validation Pass?}
     CONF -->|是| TARGET[Target Agent]
     CONF -->|否| SAFE[Safe Stop / Human / Orchestrator]
 ```
@@ -786,6 +826,8 @@ sequenceDiagram
 
 ### 13.25.3 对比
 
+这里按“谁在调用结束后决定下一步”作工程区分；SDK 文档可能广义地把 Handoff 也称为 delegation，应以控制流为准。进程内 Handoff 是 Runner 的执行转移；跨服务交接还需持久化接收确认和 Owner 变更，不能把一次网络发送当作控制权已成功转移。
+
 | Delegation | Handoff |
 |---|---|
 | 调用方保留控制权 | 控制权转移 |
@@ -814,6 +856,8 @@ transfer_to_refund_agent
 ```
 
 模型选择该 Tool 后，Runtime 将控制权转给对应 Agent。
+
+框架提供这些能力不意味着默认完成所有授权和恢复。按 [Handoffs 文档](https://openai.github.io/openai-agents-python/handoffs/)，`input_type` 定义模型生成的交接参数，并不替换接收方的整段输入，也不是身份凭据；需要按参数授权时，在产生副作用前检查。`Agent.as_tool()` 更适合返回结果给原调用方，Handoff 则让接收 Agent 接管后续执行。具体参数与 Guardrail 覆盖范围应按部署时锁定的 SDK 版本确认。
 
 ## 13.27 Handoff Contract
 
@@ -852,9 +896,11 @@ transfer_to_refund_agent
 - Deadline；
 - 返回或终止策略。
 
+其中“用户已完成身份验证”是自然语言摘要，不能作为可信身份。接收方应从受信 Runtime 取得用户身份、租户、授权范围、验证有效期及审批回执，并重新检查订单归属。`return_policy` 等字段是应用约定，SDK 不会因 JSON 中出现它们就自动执行。
+
 ## 13.28 Handoff Context Filtering
 
-接收 Agent 不应默认看到全部历史。
+安全设计上应只传必需历史；但 OpenAI Agents SDK 的 Handoff 默认会让接收方看到此前会话，需显式配置 `input_filter` 等机制。这是推荐策略与框架默认行为的区别。
 
 可以传递：
 
@@ -913,6 +959,8 @@ flowchart LR
 - 有新的 Artifact；
 - 有明确返回原因；
 - 不超过预算。
+
+检测状态时忽略时间戳、Token 计数等无关变化，否则每轮 Hash 都不同会掩盖循环；也不能只凭出现新文件就认定进展。进展应绑定尚未满足的验收项，并由 Runtime 设置最大修订、深度和总调用预算。
 
 ## 13.30 Routing Fallback
 
@@ -975,6 +1023,8 @@ A2A 为独立 Agent 系统提供：
 
 它允许 Agent 在不了解彼此内部 Memory、Tools 和实现细节的情况下协作。
 
+本轮按 [v1.0.1 发布标签的规范](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)对照，GitHub [Release 发布时间为 2026-05-28](https://github.com/a2aproject/A2A/releases/tag/v1.0.1)；官网 latest 仍标 v1.0.0，不能据此否认后续发布。线上协议版本为 `1.0`，与规范补丁号、SDK 和 Agent 软件版本分开。对接时固定 binding，不能混用旧字段或 RPC 名。Streaming、Push Notification 等还要检查能力声明；发送 Message 可以返回 Task 或直接返回 Message，不是每次调用都创建任务。
+
 ```mermaid
 sequenceDiagram
     participant C as A2A Client
@@ -1028,9 +1078,11 @@ A2A 的 binding、Agent Card 与 Task 状态机详见 [Tools：A2A 协议](../..
 - `task_id`：归属任务；
 - `correlation_id`：关联一次完整运行；
 - `causation_id`：追踪因果链；
-- `idempotency_key`：防重复副作用；
-- `deadline`：防止过期任务继续执行；
+- `idempotency_key`：由接收端按业务操作保存、核验并去重，字段本身不会防重复；
+- `deadline`：由 Runtime 在派发、重试和提交前检查，不能自动终止远程副作用；
 - `trace_id`：可观测性。
+
+重投同一业务操作时保持幂等键稳定，不能每次重试都生成新键；新一轮执行使用独立 `attempt_id`，并附输入版本。相同幂等键却携带不同参数应拒绝。去重范围至少应区分租户和操作类型，保留时长要覆盖消息可能重放的窗口。
 
 ## 13.34 取消传播
 
@@ -1051,7 +1103,9 @@ flowchart TB
     O --> T[Cancel Tool Calls]
 ```
 
-Agent 和 Tool 必须支持 Cancellation Token 或任务状态检查。
+对可控 Agent 和 Tool 应实现 Cancellation Token 或任务状态检查；外部服务未必支持取消，即使支持也可能来不及阻止已发生的副作用。先在权威账本持久化取消意图，再停止新增派发并向执行者传播；队列消息即使无法删除，领取时也应检查任务状态。迟到结果只留审计、不再推进下游。
+
+取消不是回滚。已发送邮件无法“撤销执行”，已支付资金可能需要独立退款流程；补偿操作也要授权、幂等和记录失败。应分别记录“请求取消”“已确认停止”“副作用待对账”，不要用一个 `cancelled` 状态掩盖未知结果。
 
 ## 13.35 超时与重试
 
@@ -1064,6 +1118,8 @@ Agent 和 Tool 必须支持 Cancellation Token 或任务状态检查。
 - Task Timeout；
 - 全局 Run Timeout。
 
+子任务 Deadline 不应晚于父任务的剩余期限，并预留汇总或安全退出时间。客户端超时只说明未及时收到结果，不证明服务端没有完成操作。
+
 ### 13.35.2 Retry
 
 只对可重试错误执行，并采用：
@@ -1072,6 +1128,8 @@ Agent 和 Tool 必须支持 Cancellation Token 或任务状态检查。
 - Jitter；
 - 最大次数；
 - 幂等键。
+
+由一层负责统筹重试，避免 SDK、Worker、Orchestrator 同时重试造成放大；重试也占预算和并发槽。429 或临时服务错误可以按服务提示延迟，Schema 错误、权限拒绝、确定性测试失败应修正原因或重规划，而不是原样反复调用。
 
 ### 13.35.3 Fallback
 
@@ -1116,6 +1174,8 @@ flowchart LR
 - Route Decision；
 - Error Code。
 
+保留输入版本、模型及工具版本、关键调度决定、验证回执和预算预留记录，才能区分计划错误、执行错误和验收错误。Trace 应脱敏并限制访问；不要求记录隐藏推理。重放已记录的工具结果有助于定位调度问题，重新调用模型或外部 API 则可能得到不同结果，不能据此承诺字节级复现。
+
 ## 13.37 安全
 
 动态切换会扩大权限边界。
@@ -1155,7 +1215,7 @@ flowchart TB
 
     L --> C{Validated Route}
     C -->|通过| TARGET[Allowed Agent]
-    C -->|低置信度| H[Human Support]
+    C -->|未通过或无法确认| H[Human Support]
 
     F --> APPROVE{Refund Approval}
     APPROVE -->|批准| TOOL[Refund Tool]
@@ -1192,11 +1252,13 @@ flowchart TB
 
 - Explore Agent 只读；
 - Coding Agent 可修改工作区；
-- Review Agent 只读 Diff；
+- Review Agent 只读 Diff 及相关上下文、测试和依赖；
 - Orchestrator 保留最终控制；
 - Patch 和报告使用 Artifact；
 - Review Finding 使用结构化 Schema；
 - 最大修订次数由 Runtime 控制。
+
+若扩展为并行 Coding Worker，先固定接口和基准提交，为各自提供独立工作区；用 Patch 及基准 SHA 交付，由一个合并者在集成分支执行测试。没有文本冲突不等于语义兼容，例如两个模块各自通过测试却使用不同的单位或错误约定；反复发生这种问题说明任务拆分边界需要调整。
 
 ## 13.40 选型表
 
@@ -1212,7 +1274,7 @@ flowchart TB
 | Worker 完成子任务后返回 | Delegation |
 | 高风险或稳定主流程 | Static Routing |
 | 模糊、开放式低风险分流 | Constrained LLM Routing |
-| 大量 Agent | Hierarchical Orchestrator |
+| 顶层调度或上下文成为瓶颈 | 评估分层 Orchestrator |
 
 ## 13.41 推荐生产架构
 
@@ -1239,13 +1301,13 @@ flowchart TB
     AN --> EVENTS
 
     EVENTS --> STATE[Materialized State]
-    STATE --> ROUTER
+    STATE -.Progress hints.-> ROUTER
     ART --> VERIFY[Verifier]
     VERIFY --> JOIN[Result Aggregator]
     JOIN --> WF
 
     ROUTER -->|Handoff| SPECIAL[Specialist Agent]
-    ROUTER -->|Low Confidence| HUMAN[Human Review]
+    ROUTER -->|Unresolved or Invalid Route| HUMAN[Human Review]
 
     WF -.Trace.-> OBS[Observability]
     ROUTER -.Route Decisions.-> OBS
@@ -1264,7 +1326,43 @@ flowchart TB
 6. Event Stream 保留审计和状态变化；
 7. Verifier 检查输出；
 8. Handoff 只用于真正需要转移控制权的场景；
-9. 低置信度和高风险请求安全停止或转人工。
+9. 无法可靠路由或未通过风险校验的请求安全停止或转人工。
+
+这是功能分解示意，不要求每项都部署成独立服务。尤其不要把异步 `Materialized State` 当作领取、预算或提交的授权依据；这些检查应回到权威 Task Ledger。若选用账本作为真相源，可用同一事务写入状态变化与待发送事件（[Transactional Outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)），再异步投递；否则“状态已提交但通知未发送”的崩溃窗口会造成任务遗漏。事件溯源则是另一种真相源选择，不能同时把两份可独立修改的数据都当权威。
+
+### 13.41.1 并行调度与 Join
+
+模型提出 DAG 后，调度器检查依赖存在、无环、输出契约兼容；只有必需前置任务已验收通过，节点才进入 Ready 集合。随后原子领取租约、预留预算，再投递。不要先让模型调用发生，再事后发现没有额度。
+
+并发上限需同时覆盖 Run、租户、模型端点和外部 Tool；限制 Worker 数不代表限制住 Worker 内部的并行调用。就绪任务较多时，兼顾关键路径优先级和公平性，避免一个大任务长期占满资源。队列用于背压，但排队耗时也计入端到端延迟。
+
+Join 的语义必须在执行前确定：
+
+- **All-required**：等待全部必需结果，逐项验收；可选任务失败可返回带缺口说明的部分结果。
+- **First-valid**：适合可互相替代的候选，采用第一个通过独立验证的结果，而非第一个返回文本的结果；剩余工作要取消并核算费用。
+- **K-of-N**：适合明确允许冗余的任务。达到数量阈值不等于事实正确，相同模型或相同来源的结果可能高度相关；更不等于存储系统的法定多数派提交。
+
+Worker 报告 `completed` 后应先进入待验证状态。只有当前计划版本下所有必需验收项有证据、没有会影响结论的未决副作用，并且最终提交成功，Run 才算成功。任一分支永远等待、循环新增任务或静默遗漏依赖，都不能靠“队列暂时为空”判断完成。
+
+### 13.41.2 预算预留与故障恢复
+
+共享余额不能由每个 Worker 各自读一份后判断“还有钱”。在账本中维持已结算成本、在途预留和上限，例如：
+
+$$
+C_{spent}+C_{reserved}\le B_{run}
+$$
+
+这是一条调度不变量，不是对未知外部账单的数学保证。预留量应覆盖调用可控的最大 Token、工具次数和供应商计费约束；若无法给出硬上界，就不能承诺绝不超支，需要保守余量、供应商限额和超支处置。
+
+派发时原子增加预留，收到可信用量后原子结算并释放差额；不确定是否已经产生费用时保留预留，查询或对账后再释放。父任务为汇总和必要验证保留额度，子 Agent 无权自行扩大子树预算。限制总调用次数、递归深度、重试次数和截止时间，才能防止“每个 Agent 都没超局部预算、全局却超支”。
+
+恢复时按持久化的 Run ID、Task ID、attempt 和输入版本识别已完成工作；先核对租约、回执与预算，再重派失联任务。不要把恢复写成重跑整个模型计划，否则已执行副作用可能重复。
+
+### 13.41.3 评测协作而不只是评测回答
+
+除了[第九章 §9.31：评估 Multi-Agent 是否值得](09-single-vs-multi-agent.md)，还要测路由误派与拒绝是否合理、Handoff 约束保留率、必需依赖覆盖、陈旧结果拒收、重试放大、重复副作用和预算超限。质量、费用、端到端延迟及其尾部应一起报告，不能只展示成功样本的平均用时。
+
+用固定故障时序验证不变量：领取后宕机、外部操作成功但回执丢失、旧 Worker 在重新分配后回包、取消与完成同时发生、账本提交后通知投递失败。记录系统是否安全终止、保留部分成果或正确重试，并把“无法确认副作用”单列，不能计作已恢复成功。
 
 ## 13.42 设计检查表
 
@@ -1369,16 +1467,24 @@ Router 和 Orchestrator 无法根据失败状态决策。
 
 Multi-Agent 协作要把通信、状态、路由、控制权转移、可靠性、安全和可观测性一起设计清楚，少掉任何一项，系统一放大就容易出问题。
 
-单团队生产环境里，更常见的组合是：
+对需要异步多 Agent 协作的单团队系统，可以从以下组合中选取必要部分：
 
-> **Workflow 控制高层边界，Orchestrator 管理任务，Hybrid Router 选择 Worker，消息触发执行，State 记录事实，Artifact 传递结果，Verifier 检查质量。**
+> **Workflow 控制高层边界，Orchestrator 管理任务，Hybrid Router 选择 Worker，消息触发执行，State 记录任务状态，Artifact 传递结果，Verifier 检查质量。**
 
-Handoff 适合让专业 Agent 直接接住后续交互；Delegation 更像把一段子任务外包出去，结果再交回原调用方。动态路由也别放得太开，候选集、权限、预算和退出条件都要先收紧；真正拿不准或已经碰到高风险时，直接安全停止或转人工更稳妥。
+Handoff 适合让专业 Agent 接管后续交互；Delegation 则把子任务结果交回原调用方。动态路由需要候选集、权限、预算和退出条件约束，模型自报置信度不能替代授权或验收。账本共识决定状态如何提交，证据验证决定业务结论是否可信；异步进度投影和多数 Agent 的意见都不能替代这两层保证。
 
 ## 参考资料
 
 - [LangGraph Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api)
+- [LangGraph：并行状态更新错误](https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE)
+- [LangGraph Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)
 - [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/)
+- [OpenAI Swarm：迁移至 Agents SDK 的官方说明](https://github.com/openai/swarm)
 - [OpenAI Agents SDK: Handoffs](https://openai.github.io/openai-agents-python/handoffs/)
-- [A2A Protocol Specification](https://a2a-protocol.org/latest/specification/)
+- [A2A v1.0.1 Protocol Specification](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)
+- [Amazon SQS：至少一次投递](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html)
+- [etcd v3.6：API 一致性与租约保证](https://etcd.io/docs/v3.6/learning/api_guarantees/)
+- [etcd v3.6：Lock 与事务保护](https://etcd.io/docs/v3.6/dev-guide/api_concurrency_reference_v3/)
+- [AWS：Transactional Outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)
+- [Raft：作者维护的算法与论文入口](https://raft.github.io/)
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)

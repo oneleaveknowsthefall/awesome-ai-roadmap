@@ -50,7 +50,7 @@ flowchart TB
 
 ### Agent Framework 和 Agent Harness 是一回事吗？
 
-不是。Framework 提供开发时的 API、组件和编排抽象，Harness 是真正驱动循环、装配上下文、执行工具、保存状态并处理失败的运行时。框架可以提供 Harness 能力，但这些能力仍需配置和部署。
+不是同一个视角。Framework 描述开发 API、组件和编排抽象，Harness 描述驱动循环、装配上下文、执行工具、保存状态并处理失败的运行时职责。一个框架产品可以同时提供完整 Harness；具体能力仍需配置和部署，“框架只管开发、不含运行时”也不准确。
 
 ### 什么时候需要 Multi-Agent？
 

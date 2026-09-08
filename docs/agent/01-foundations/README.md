@@ -1,3 +1,7 @@
+---
+description: 从最小 LLM Agent 循环到系统架构，区分模型、工具、记忆、Skills、工作流及仓库指令的职责。
+---
+
 # Agent · 基础与架构
 
 定义 Agent，并建立现代运行时架构和构建单元的整体视图。
@@ -9,3 +13,5 @@
 3. [第三章：Tools、Skills、Agents、Workflows 与 AGENTS.md](03-agentic-building-blocks.md)
 
 返回 [Agent 相关知识点](../README.md)。
+
+原创文档与图示：Polo Li，CC BY 4.0；引用资料的权利归原作者。

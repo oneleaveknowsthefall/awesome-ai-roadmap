@@ -6,19 +6,19 @@ description: 解释 Function Calling 的工作流程、工具 Schema、模型决
 
 ## 1.1 一句话定位
 
-Function Calling 是**让模型用结构化 JSON 表达「我想调用哪个工具、参数是什么」的一种输出约定**。
+Function Calling 是**让模型通过结构化调用项表达「我想调用哪个函数、参数是什么」的一种接口约定**。本章以 JSON 参数的函数工具为例；tool calling 范围更大，也包括自定义文本工具及平台托管工具。
 
 这句话里有三个关键限定，缺一个就会掉进最常见的误区：
 
-- **表达，不是执行**。模型输出的是一个调用意图，不是调用结果。真正跑函数、发 HTTP 请求、连数据库的，永远是宿主程序；
+- **表达，不是执行**。模型输出调用意图，应用或平台工具运行时执行函数、发 HTTP 请求、连数据库；使用托管工具时不一定由你的应用亲自执行；
 - **结构化 JSON，不是自然语言**。这是 Function Calling 相对于「土办法」的核心改进；
 - **一种输出约定**。它是模型层的接口协议，不涉及工具怎么被发现、怎么被分发、怎么跨进程通信——那是 [MCP](../02-mcp/04-what-is-mcp.md) 的事。
 
-> **模型只负责决策，代码负责执行。** 这一条职责边界是整章的地基，后面所有的设计取舍都从它推导出来。
+应用应把模型提议、权限批准和实际执行分别记录，不能把其中任一步当成其他步骤已经发生。
 
 ## 1.2 没有 Function Calling 的时代
 
-在 2023 年 6 月 OpenAI 正式推出 Function Calling 之前，想让模型触发外部动作，只有两条路，两条都不好走。
+OpenAI 在 2023 年 6 月发布了其 Function Calling API；工具增强模型此前已有研究。本节回顾两类常见文本集成方法，不是完整的技术史。
 
 ### 1.2.1 路线一：正则与关键词匹配
 
@@ -32,7 +32,7 @@ if "天气" in reply and ("查" in reply or "看" in reply):
         call_weather_api(city.group(1))
 ```
 
-这套东西的脆弱程度超乎想象。模型今天说「我需要查一下北京的天气」，明天说「让我看看北京现在什么情况」，正则立刻失配。更糟的是它**静默失败**：匹配不上不会报错，只会当作普通回复直接返回给用户，你连问题发生了都不知道。
+自然语言改写可能导致正则失配。若没有明确的解析失败处理，应用还可能把未识别的调用意图当普通回复返回，形成静默失败。
 
 ### 1.2.2 路线二：Prompt 里约定输出格式
 
@@ -44,7 +44,7 @@ if "天气" in reply and ("查" in reply or "看" in reply):
 | 混合输出 | 一段回复里既有自然语言又有指令，需要额外切分 |
 | 无法区分意图 | 模型「提到」某个工具名和「决定调用」它，在文本层面长得一样 |
 
-第三条最要命。用户问「你能查天气吗」，模型回答「我可以调用 get_weather 来查」——这是在**介绍能力**，不是在**发起调用**，但解析器分不出来。
+例如用户问“你能查天气吗”，模型可能只是介绍 `get_weather`，不应仅因出现工具名就执行。显式动作语法也能区分两者，但解析器和停止条件需要专门设计。
 
 ### 1.2.3 Function Calling 解决了什么
 
@@ -60,12 +60,12 @@ flowchart LR
     end
 
     subgraph NEW["Function Calling"]
-        N1[模型输出 tool_calls 结构] --> N2[按协议字段直接取值]
+        N1[模型输出 tool_calls 结构] --> N2[解析字段并校验参数与权限]
         N2 --> N3[调用工具]
     end
 ```
 
-差别在于：模型输出 `tool_calls` 时，响应里有一个明确的 `finish_reason: "tool_calls"` 信号。这是一个**带外信号**，不依赖对文本内容的理解，宿主程序拿到它就知道「模型现在要的是工具结果，而不是在跟用户说话」。介绍能力和发起调用，在协议层面被彻底分开了。
+在 OpenAI **Chat Completions** 中，`tool_calls` 与 `finish_reason: "tool_calls"` 明确标记调用，而不是让应用从普通文本猜意图。Responses 则使用 `output` 中的 `function_call` 项，并以 `function_call_output.call_id` 回传；不能套用 `finish_reason`。这些字段是 API 设计，不代表模型内部直接生成了整个响应对象。
 
 ## 1.3 三个角色与职责边界
 
@@ -78,7 +78,7 @@ flowchart TB
 
     MODEL["模型<br/>只做决策"] -->|输出 tool_calls| HOST
 
-    HOST["宿主程序<br/>只做执行"] -->|真正调用| EXT["外部系统<br/>API / DB / 文件"]
+    HOST["宿主程序<br/>校验、批准并执行"] -->|真正调用| EXT["外部系统<br/>API / DB / 文件"]
     EXT -->|返回结果| HOST
     HOST -->|role: tool 消息| MODEL
     MODEL -->|最终自然语言答案| USER
@@ -91,9 +91,9 @@ flowchart TB
 |---|---|---|
 | 开发者 | 定义工具的名称、描述、参数 Schema | 不预判模型会怎么选 |
 | 模型 | 判断要不要调、调哪个、参数填什么 | **不执行任何代码，不访问网络** |
-| 宿主程序 | 解析 `tool_calls`、执行函数、回填结果 | 不替模型做「该不该调」的判断 |
+| 宿主程序 | 校验调用、执行或拒绝、回填结果 | 不把模型提议当成授权 |
 
-面试里最高频的失分点，就是把模型说成「自己去查了天气」。模型没有网络栈，没有执行环境，它产出的自始至终只是一段文本——只不过这段文本恰好是合法 JSON。
+模型推理与工具运行时是不同组件。宿主必须检查工具白名单、参数、用户权限和审批；模型说“查到了”不是执行证据，应以工具结果及其来源为准。
 
 ## 1.4 工具定义：Schema 的每个字段都在给模型提示
 
@@ -125,9 +125,9 @@ tools = [{
 }]
 ```
 
-### 1.4.1 description 是模型唯一的判断依据
+### 1.4.1 description 是重要的接口信息
 
-模型看不到你的函数实现，看不到你的数据库，看不到任何注释。它决定「要不要调这个工具」时，能读的只有这段 `description`。
+没有显式提供时，模型看不到函数实现。它依据工具名、description、参数 Schema、系统指令和对话历史共同选择工具；description 不是唯一依据，也不能强制阻止误用。
 
 对比一下两种写法造成的行为差异：
 
@@ -136,13 +136,13 @@ tools = [{
 | `"获取天气"` | 用户问「北京下周会下雨吗」也照调，拿回实时数据后**编造**一个未来预报 |
 | `"查询中国大陆城市的实时天气……不支持未来预报和历史查询"` | 模型识别出能力边界，直接回复「我只能查当前天气」 |
 
-关键技巧是**把「不能做什么」写进去**。人写文档习惯只写能力，但对模型来说，负向边界的信息量往往比正向描述更大——它决定了模型什么时候该**放弃**调用。
+描述应同时给出能力和边界。表格只是预期行为，是否真的减少误用，要用未来天气、历史天气和地域外查询等反例检验。
 
 ### 1.4.2 参数描述决定填参质量
 
 `city` 的描述里那句「不要带省份或『市』后缀」不是废话。没有它，模型面对「浙江省杭州市今天天气如何」会老老实实填 `"浙江省杭州市"`，而你的 API 只认 `"杭州"`。
 
-参数描述里值得写的三类信息：**格式约定**（日期用 `YYYY-MM-DD`）、**取值示例**、**取值范围**（能用 `enum` 就别用自由文本）。
+参数描述值得包含格式、示例和范围；接口若只接受规范城市名，还应在服务端做别名归一化及歧义校验。
 
 ### 1.4.3 用 enum 把选择题变成判断题
 
@@ -150,11 +150,11 @@ tools = [{
 # 差：模型可能填 "高"、"HIGH"、"P0"、"urgent"
 "priority": {"type": "string", "description": "优先级"}
 
-# 好：只有三个合法值，模型不可能填错
+# 好：限定合法取值；仍需校验业务含义
 "priority": {"type": "string", "enum": ["low", "medium", "high"]}
 ```
 
-`enum` 的价值不只是校验。主流推理框架（vLLM、SGLang 等）会把 Schema 编译成约束解码的语法，在**采样阶段**就屏蔽掉非法 token。这意味着违规值不是「生成后被拒绝」，而是根本生成不出来。
+`enum` 既可用于服务端校验，也可被支持约束解码的运行时用于屏蔽非法 token。只有实际启用并支持该 Schema 的 strict/structured-output 路径才有此约束；仅注册 Schema 不能保证值合法，更不能保证优先级选得合理。上面的 Chat Completions 示例未开启 strict，严格模式见[第三章](03-tool-schema-design.md)。
 
 ## 1.5 完整调用流程：两轮对话加中间执行
 
@@ -175,6 +175,8 @@ sequenceDiagram
     M-->>H: 北京今天晴，气温 15°C……
     H->>U: 最终答案
 ```
+
+下面是单次查询的教学片段；`registry` 及参数、授权校验由应用实现。示例使用兼容 Chat Completions 的模型，不代表所有新模型支持该接口。
 
 ```python
 import json
@@ -205,9 +207,9 @@ if choice.finish_reason == "tool_calls":
             "content": json.dumps(result, ensure_ascii=False),
         })
 
-    # 第二轮：模型基于工具结果生成答案
+    # 这个示例只允许单批查询，第二轮明确收尾
     final = client.chat.completions.create(
-        model="gpt-4o", messages=messages, tools=tools
+        model="gpt-4o", messages=messages, tools=tools, tool_choice="none"
     )
     print(final.choices[0].message.content)
 ```
@@ -218,7 +220,7 @@ if choice.finish_reason == "tool_calls":
 
 **`tool_call_id` 必须一一对应**。并行调用时如果 id 错配，模型会把杭州的天气当成北京的用，而且不会报任何错。
 
-### 1.5.2 tool_choice 的三种取值
+### 1.5.2 Chat Completions 的常见 tool_choice 取值
 
 | 取值 | 行为 | 用途 |
 |---|---|---|
@@ -237,7 +239,7 @@ if choice.finish_reason == "tool_calls":
 
 ```mermaid
 flowchart LR
-    subgraph SER["串行：3 轮模型调用"]
+    subgraph SER["串行：4 轮模型调用，含最终总结"]
         S1[模型] --> S2[查北京] --> S3[模型] --> S4[查上海] --> S5[模型] --> S6[查广州] --> S7[模型]
     end
 
@@ -247,7 +249,7 @@ flowchart LR
     end
 ```
 
-省下的不只是模型推理次数。三个 HTTP 请求可以用 `asyncio.gather` 并发跑，墙钟时间从 `3×(推理+IO)` 压到 `2×推理 + max(IO)`。
+在三个查询彼此独立、每轮推理耗时均近似为 `T`、不计排队和调度开销的教学模型下：逐次查询加总结约为 `4T + IO₁ + IO₂ + IO₃`，一批并发加总结约为 `2T + max(IO₁, IO₂, IO₃)`。实际收益取决于生成长度、并发限制和 API 延迟。
 
 ```python
 import asyncio
@@ -263,7 +265,7 @@ async def run_all(tool_calls):
 
 ### 1.6.1 并行的前提是无依赖
 
-「先查订单号，再用订单号查物流」这种链式依赖没法并行——模型也知道，它会正确地分两轮输出。但有一个例外要小心：**模型偶尔会「猜」出中间结果并强行并行**。比如它假想一个订单号直接去查物流。防御手段是在工具描述里写清前置条件，并在宿主侧校验参数合法性。
+「先查订单号，再用订单号查物流」有数据依赖，不能并行。模型可能猜测中间结果；宿主应验证前置步骤已完成及对象归属。多个写操作即便参数独立，也可能竞争同一业务资源，不能只看 JSON 结构决定并发。
 
 ### 1.6.2 部分失败怎么处理
 
@@ -274,7 +276,7 @@ async def run_all(tool_calls):
  "content": '{"error": "city_not_found", "message": "未找到城市「广洲」，请确认拼写"}'}
 ```
 
-模型看到这条会自己纠正城市名重试。如果你直接抛异常中断整个流程，就浪费了模型的自我修复能力。这一点在 [Agent 的反思机制](../../agent/02-reasoning-planning/12-agent-reflection.md) 里会展开。
+模型可能据此修正参数，但应设置最大轮数、总 deadline 和重复错误检测。鉴权失败、策略拒绝不应让模型绕过；写操作超时意味着结果未知，先查询业务状态或用持久化幂等键去重，不能盲目重试。`tool_call_id` 只是消息关联 ID，不自动提供幂等保证。
 
 ## 1.7 从 Function Calling 到工具调用生态
 
@@ -294,15 +296,15 @@ Function Calling 只解决了「模型怎么表达调用意图」。它没有解
 
 ### 1.8.1 认为模型自己执行了工具
 
-最典型的失分点。模型没有执行环境，`tool_calls` 只是一段 JSON 文本，所有副作用都发生在你的代码里。这个边界也直接决定了安全模型：**权限校验必须做在宿主侧**，因为模型输出的参数完全可能被用户的输入操纵。
+调用项不是执行凭证。应用和工具服务端都应独立检查授权；平台托管工具也有自己的执行边界。模型参数可能被用户或工具返回内容操纵。
 
 ### 1.8.2 把 description 当注释写
 
-`"description": "获取天气"` 这种写法等于没写。模型的选择准确率、参数填充质量、能力边界判断，全部依赖这段文本。它是 Prompt 的一部分，应该按 Prompt 的标准来打磨和迭代。
+`"description": "获取天气"` 没有说明地域、时间和返回值范围。工具定义是模型输入的一部分，应连同系统指令和回归样例一起维护。
 
 ### 1.8.3 注册几十个工具指望模型选对
 
-工具数量上去之后，模型的选择准确率会明显下降，尤其是功能相近的工具（`search_docs` 和 `search_wiki`）。工具很多时的解法是**按场景动态筛选**：先用一次轻量分类或向量检索，从工具库里挑出 5–10 个相关的再传给模型。
+工具增多可能增加混淆和上下文成本，尤其是功能相近的工具。可按权限和场景动态筛选，或使用接口支持的延迟加载。候选数量用召回率、调用准确率和端到端成本评测，不设通用门槛。
 
 ### 1.8.4 忘记回填模型的 tool_calls 消息
 
@@ -319,17 +321,18 @@ Function Calling 只解决了「模型怎么表达调用意图」。它没有解
 ## 1.9 本章总结
 
 1. **Function Calling 是模型层的输出约定**，把工具调用从文本解析问题变成协议问题；
-2. **`finish_reason: "tool_calls"` 是带外信号**，让「介绍能力」和「发起调用」在协议层被区分开；
-3. **模型只做决策，宿主程序只做执行**，这条边界同时是架构原则和安全边界；
-4. **`description` 是模型唯一的判断依据**，写清能力边界比写清能力本身更重要；
-5. **运行时是「两轮对话 + 中间执行」**，必须回填模型消息并保持 `tool_call_id` 对应；
-6. **并行调用把 N 轮压缩成 2 轮**，前提是工具之间无依赖，且要正确处理部分失败；
+2. **调用标记依赖具体 API**，Chat Completions 与 Responses 的回填结构不同；
+3. **模型提议、宿主批准、工具执行**，服务端还需复核权限；
+4. **工具名、描述、Schema 与上下文共同影响选择**，strict 约束格式而非业务正确性；
+5. **两轮只是最小示例**，完整 Agent 需循环处理调用并设置退出条件；
+6. **无依赖查询可以并发**，写操作还要检查冲突、幂等性和部分失败；
 7. **它只解决了表达问题**，工具发现、跨进程、生态标准化由 MCP 等上层协议补齐。
 
 
 ## 参考资料
 
-- [OpenAI: Function Calling 指南](https://platform.openai.com/docs/guides/function-calling)
+- [OpenAI: Function Calling 指南（2026-09-08 核查）](https://developers.openai.com/api/docs/guides/function-calling)
+- [OpenAI: 2023 年 Function Calling 发布](https://openai.com/index/function-calling-and-other-api-updates/)
 - [Anthropic: Tool Use with Claude](https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview)
 - [Anthropic: Writing Effective Tools for Agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
 - [Toolformer: Language Models Can Teach Themselves to Use Tools](https://arxiv.org/abs/2302.04761)

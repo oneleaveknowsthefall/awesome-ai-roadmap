@@ -8,7 +8,7 @@ description: 准确定义 Agent Harness 与 Runtime，比较 Model、Agent、Wor
 
 第一章到第十五章讨论的是"Agent 应该怎么想、怎么记、怎么和别的 Agent 协作、怎么评估、怎么防护"。这些都假设了一个前提：有一个东西持续地把模型的输出接回来、把工具的结果喂回去、决定什么时候停、出错了怎么办、要不要问人。这个东西通常不出现在"Agent 设计模式"的讨论里，但它是所有讨论能够成立的地基——业界把它称为 **runtime** 或 **harness**。
 
-同一个 Claude 或 GPT 模型，配上不同的 harness，就会落成完全不同的产品：命令行里的 Claude Code、IDE 里的 Copilot、云端异步跑的 Coding Agent、Slack 里的客服机器人。模型可能相同，系统提示词也可能高度相似，但可靠性、可恢复性和可审计性往往差别很大。决定这些差别的，主要就是 harness：它如何组织 Agent Loop、装配上下文、调度工具、隔离风险、处理失败、决定是否停下来问人，以及如何记录和计费。第 16–23 章展开的就是这一层，用来补足第一章 2.12 节对 "Runtime 与 Guardrails" 的简要介绍。
+同一个模型配上不同的 harness，可以用于终端编码、云端异步任务或客服。除了模型能力，循环调度、上下文、工具、隔离与恢复也影响可靠性。第 16–23 章展开这一层，补足第二章 2.12 节对 Runtime 与 Guardrails 的介绍。
 
 ## 16.2 六个术语的精确定义
 
@@ -16,7 +16,7 @@ description: 准确定义 Agent Harness 与 Runtime，比较 Model、Agent、Wor
 
 ### 16.2.1 Model
 
-模型是一个无状态的函数：输入一段 token 序列（可能带工具定义），输出下一段 token 序列（文本或结构化的工具调用请求）。模型本身不知道"上一轮说了什么""这是第几步""要不要重试"——这些都是调用方维护的。模型只回答"给定这些输入，下一步最可能的输出是什么"。
+对普通推理调用，可以把模型视为“给定有效上下文，生成输出”的计算组件，输出可包含文本、多模态内容或工具请求。跨请求的消息、步数和业务状态由应用或提供商会话服务维护；KV Cache、服务端会话与参数学习不是一回事。模型能根据传入历史判断是否重试，但不会自动保证重试安全。
 
 ### 16.2.2 Agent
 
@@ -24,19 +24,21 @@ Agent 是"模型 + 工具 + 循环"这三者的组合，其中模型动态决定
 
 ### 16.2.3 Workflow
 
-Workflow 是预定义的控制流：步骤、分支、循环条件都写在代码或流程图里，模型只负责填充某些节点的内容（比如生成一段摘要、做一次分类）。Workflow 可靠、可预测、成本可控，但不能处理设计时没预见到的情况。第三章 3.9–3.12 节已详细讨论 Workflow 的形态与五种模式，此处不再重复。
+Workflow 的控制结构由代码或流程图约束，节点内部可以使用模型、动态分支或 Agent。它通常更便于测试和约束成本，但可靠性仍取决于节点实现、错误处理与覆盖范围；并非天然不能处理新输入。第三章 3.9–3.12 节讨论其形态与五种模式。
 
 ### 16.2.4 Framework
 
-Framework（LangChain/LangGraph、OpenAI Agents SDK、Microsoft Agent Framework 等）是**开发时**的抽象：类、DSL、构建器 API，用来更快地拼出 Agent 或 Workflow。Framework 关心的是"开发者写多少代码、代码长什么样"。同一个 Framework 背后可以用不同的 harness 实现真正的执行；反过来同一个 harness 能力也可能被多个 Framework 包装（例如 LangGraph 既提供 Graph API 也提供 Functional API，二者共享同一套持久化和执行引擎，见 [LangGraph: Graph API](https://docs.langchain.com/oss/python/langgraph/use-graph-api) 与 [LangGraph: Functional API](https://docs.langchain.com/oss/python/langgraph/functional-api)）。
+Framework 从开发者使用的 API、DSL 和组件来组织能力，**不代表只在开发时起作用**。LangGraph 的 Graph API 与 Functional API 共享运行时和持久化能力；OpenAI Agents SDK 内含 Runner；Microsoft Agent Framework 也提供 Harness Agent。框架与 Harness 可以由同一产品提供，区别是观察视角，不是互斥的软件分类（见 [Graph API](https://docs.langchain.com/oss/python/langgraph/use-graph-api)、[Functional API](https://docs.langchain.com/oss/python/langgraph/functional-api)）。
 
 ### 16.2.5 Runtime / Harness
 
-Runtime 或 harness 是**运行时**的执行宿主：真正驱动 Agent Loop 一轮一轮跑下去、管理上下文窗口、调度工具执行、做权限判定、写 checkpoint、处理超时重试、决定要不要暂停等人审批、上报 trace 和成本的那部分代码。"harness" 一词在 Coding Agent 场景里尤其常见——SWE-agent 论文把连接模型与真实计算机之间的这套机制称为 **Agent-Computer Interface（ACI）**，强调"给模型设计一个好用的执行环境，和给模型设计一个好的 prompt 同等重要"（[SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering](https://arxiv.org/abs/2405.15793)）；METR 在评估长时程任务时同样使用 "scaffolding" 指代这层执行骨架，并指出同一个模型换一套 scaffolding 完成任务的时长上限可以差好几倍（[METR: Measuring AI Ability to Complete Long Software Tasks](https://arxiv.org/abs/2503.14499)）。Simon Willison 把这层的本质总结得更直白："An agent is an LLM wrecking its environment in a loop"——harness 就是决定这个循环**在多大范围内、以什么规则**去"折腾环境"的那套机制（[Simon Willison: Designing agentic loops](https://simonwillison.net/2025/Sep/30/designing-agentic-loops/)）。Claude Code、Claude Agent SDK、OpenAI Codex CLI、GitHub Copilot Coding Agent，本质上都是"某个模型 + 某一套 harness"的具体产品化实例。
+Runtime/Harness 指执行宿主的职责：驱动循环、装配上下文、执行工具、管理权限与预算、持久化状态、处理中断并记录轨迹。不同项目对 Harness、Runtime、Scaffolding 的边界并不完全一致，本章把它们作为工程术语，而不是标准化产品类别。
+
+[SWE-agent](https://arxiv.org/abs/2405.15793) 的 **Agent-Computer Interface（ACI）** 重点研究模型如何使用命令、编辑器和反馈，它是 Harness 的重要组成部分，不等同于整个运行时。[METR 的长任务评测](https://arxiv.org/abs/2503.14499)还提醒读者区分人类完成任务的时长与 Agent 自身运行时间；任务时长能力受模型、任务集、成功阈值和 scaffolding 共同影响，不能归结为某个固定倍数。
 
 ### 16.2.6 Control Plane
 
-Control Plane 是**管理和治理**这层：多个 harness 实例之上，负责下发配置（模型选择、权限策略、密钥）、调度资源（并发数、Runner 类型）、汇总跨会话的可观测性数据、执行组织级策略（哪些工具允许、哪些仓库可以跑）。它不参与单次 Agent Loop 内部的每一步决策，而是"决定 harness 以什么姿态启动、以及事后能看到什么"。GitHub Copilot Coding Agent 里，组织管理员配置 Runner 类型、防火墙规则、密钥这一层就是 control plane 的具体体现（参见 20.8 节案例）；LangGraph Platform 的 Agent Server 把持久化基础设施从单个 graph 里剥离出来统一托管，也是 control plane 思路的一种实现（[LangGraph: Persistence](https://docs.langchain.com/oss/python/langgraph/persistence) 中 "Agent Server handles persistence automatically" 一节）。
+Control Plane 负责跨实例的配置、资源调度、策略与治理，Runtime 执行单次任务。两者可以在运行期间交互，例如权限撤销、预算更新和取消任务，并非只有启动前和结束后才能通信。统一托管持久化服务属于平台能力，但仅凭“托管存储”还不足以认定某个服务就是 Control Plane。
 
 ## 16.3 分层视图：从 Model 到 Control Plane
 
@@ -60,19 +62,19 @@ flowchart TB
     H --> C
 ```
 
-Agent 和 Workflow 都跑在 Harness 之上——区别只在于"谁决定下一步"，而不在于"由谁执行下一步"。Framework 是一层横向的开发工具，既可以用来构建 Agent 也可以用来构建 Workflow，它本身不是执行宿主。Control Plane 位于 Harness 之上，管理的是"多个 harness 实例"而不是"一次循环里的一步"。
+Agent 和 Workflow 都需要执行宿主，区别主要在于谁决定下一步。Framework 是横向的开发抽象，也可以附带执行宿主；Control Plane 管理多个运行实例及组织策略。这张图表示职责关系，不是必须分开部署的六层架构。
 
 ## 16.4 Harness 的边界：三条判定规则
 
 面对一个具体功能，判断它属于 Harness 还是属于 Agent/Model 层，可以用三条规则：
 
-1. **是否跨越了"一次模型调用"的边界。** 模型调用内部的推理方式（CoT、ToT，见第五章）属于 Model/Agent 层；决定"这次调用之后该不该再调用一次"属于 Harness。
+1. **区分策略与执行。** CoT 提示是推理策略；经典 ToT 通常由外部程序多次调用模型、评分和搜索，不是一次模型调用内部的能力。选择候选属于策略，调度、预算和保存搜索状态属于运行时，两者会交叉。
 2. **是否需要在没有模型参与的情况下也能运行。** 权限校验、超时熔断、checkpoint 写入即使模型完全不参与也要执行，这是 Harness 职责；任务分解、反思批评需要模型参与，属于 Agent 层。
 3. **是否需要在进程重启后仍然成立。** 会话能否在崩溃后从中断点恢复，是 Harness 的职责边界；模型"记不记得"某个事实、要不要检索记忆，是记忆系统（第七、八、十章）的职责。
 
-## 16.5 Harness 的六大子系统（本模块地图）
+## 16.5 Harness 的七类子系统（本模块地图）
 
-一个生产级 harness 至少要覆盖六类职责，对应本模块剩余七章：
+本模块按七类职责拆解 Harness，对应剩余七章；具体系统可以合并组件：
 
 ```mermaid
 flowchart LR
@@ -91,7 +93,7 @@ flowchart LR
     L --> OBS
 ```
 
-这六个子系统不是严格顺序执行的流水线，而是 Agent Loop 每一轮都会触碰到的横切关注点：装配上下文是为了发起下一次模型调用，工具管线和权限沙箱在模型请求工具时触发，checkpoint 和可观测性贯穿整个生命周期，HITL 是在其中任意一点插入的暂停点。
+这些子系统不是严格顺序执行的流水线：装配上下文服务于模型调用，工具管线和权限沙箱在请求执行时触发，checkpoint 和可观测性贯穿生命周期，HITL 提供可恢复的暂停点。
 
 ## 16.6 案例对照：两种 Harness 的分层落地
 
@@ -104,13 +106,13 @@ flowchart LR
 ## 16.7 常见混淆与误区
 
 - **把 Framework 等同于 Harness。** 用了 LangGraph 不代表自动获得持久化、人在环、可观测性——这些是 LangGraph 提供的**能力**，仍需要显式配置 checkpointer、interrupt、tracer（呼应 [LangGraph 第十章 10.11.1 节](../../frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md)的同类提醒）。
-- **把 Agent 等同于 Harness。** "这个 Agent 支持重试"这句话通常是错的定位——重试是 harness 对某一类工具调用失败的处理策略，Agent 本身（模型 + 提示词）并不知道自己被重试过。
+- **混淆两种重试。** Runtime 可以对可安全重发的请求做传输重试；Agent 也可以看到失败观察后修改参数再试。后者是新决策，可能产生新的操作 ID，必须重新校验权限和副作用。
 - **把 Runtime 和 Control Plane 混为一谈。** Runtime 关心单次会话怎么跑，Control Plane 关心多少个会话在跑、谁能跑、跑在哪。把组织级策略硬编码进单个 Agent 的循环逻辑里，会让权限变更必须改代码而不是改配置。
 - **认为 Harness 只是"胶水代码"，不值得单独设计。** 第 20–22 章会说明，权限判定顺序、checkpoint 写入时机、中断点选择，都是会直接影响安全性和正确性的架构决策，不是可以随意堆砌的样板代码。
 
 ## 16.8 本章总结
 
-Model 是无状态的推理函数，Agent 是"模型动态决定下一步"的控制关系，Workflow 是预定义控制流，Framework 是开发时的编排抽象，Runtime/Harness 是驱动这一切执行的运行时基础设施，Control Plane 是跨会话的治理层。Harness 的边界可以用三条规则判定：是否跨越单次模型调用、是否需要在无模型参与时也能运行、是否需要在进程重启后仍然成立。一个生产级 harness 至少覆盖六个子系统——Agent Loop、上下文装配、工具执行管线、权限与沙箱、持久化与恢复、人在环与中断，外加贯穿始终的可观测性——这也是本模块第 17–23 章的展开顺序。
+Model 提供推理，Agent/Workflow 描述控制方式，Harness 承担执行职责，Control Plane 负责跨实例治理。Framework 可以同时提供开发抽象和运行时，不是与 Harness 互斥的产品类别。讨论具体系统时，沿着循环、上下文、工具、权限、恢复、审批和观测七类职责检查，比按产品名划边界更可靠。
 
 ## 参考资料
 

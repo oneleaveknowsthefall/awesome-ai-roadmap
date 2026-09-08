@@ -1,3 +1,7 @@
+---
+description: 说明 checkpoint 的恢复边界、Temporal 默认重试、分层超时及逻辑操作幂等键，处理工具成功但结果丢失的情况。
+---
+
 # 第二十一章：Checkpoint、持久化、重试、超时、幂等与恢复
 
 ## 21.1 本章边界：为什么"可恢复"比"能重跑"更重要
@@ -17,22 +21,22 @@ Checkpoint 是状态机在某个时间点的完整快照，至少要包含第 17
 | 线程内持久化（checkpoint） | 单次会话/单个任务 | LangGraph 的 Checkpointer——"持久化一个线程的图状态，用于短期的、线程范围内的记忆，包括对话连续性、人在环工作流、时间旅行、容错"([LangGraph: Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)) | 支撑本章讨论的恢复能力 |
 | 跨线程持久化（store） | 跨会话、跨任务 | LangGraph 的 Store——"持久化应用自定义的数据……用于长期的、跨线程的记忆" | 对应第七、八章的长期记忆存储 |
 
-多数生产系统需要同时使用两层：checkpoint 保证单次任务能在中断后恢复，store 保证下一次任务能利用上一次任务积累的知识。二者职责不同，不应该合并成一套存储实现——线程内状态变化频繁、体量大但生命周期短，跨线程存储变化少但需要长期保留和跨会话查询。
+两者应分清数据模型、访问权限与保留策略，但可以共用 PostgreSQL 等物理存储。这里的“线程”是框架的会话标识，不是操作系统线程；短期记忆也可以长期持久化，跨线程 store 也可能频繁更新。
 
 ## 21.4 重试：哪些失败可以重试，哪些不能
 
 不是所有失败都适合自动重试。区分标准是**失败是否是暂时性的、重试是否会产生副作用叠加**：
 
-- **适合自动重试**：网络超时、模型 API 限流（429）、工具执行遇到瞬时性基础设施故障——这些失败通常与请求内容无关，重试大概率成功。
+- **可考虑自动重试**：限流或瞬时基础设施故障，前提是操作可安全重发，遵循 `Retry-After`、退避、尝试次数和总时限。网络超时本身不能证明未执行，有副作用的调用需先查询状态或使用已持久化的幂等键。
 - **不适合自动重试**：工具调用的参数本身有误（重试只会得到同样的错误）、工具调用已经产生了真实副作用但响应因网络问题丢失（此时重试可能造成重复执行，见 21.6 节）、模型判断任务本身不可行——这些失败应该被回写给模型（第 19 章 19.6 节）或者上报人工介入（第 22 章），而不是无脑重试。
 
-Temporal 这类 durable execution 平台把这个判断标准做成了显式配置：Activity（对应工具执行）失败后是否重试、重试多少次、退避策略如何，都由开发者显式声明,而不是引擎默认全部重试或全部不重试([Temporal: Understanding Temporal](https://docs.temporal.io/evaluate/understanding-temporal))。指数退避是最常见的重试间隔策略,第 $n$ 次重试的等待时间通常设计为：
+[Temporal 的默认行为](https://docs.temporal.io/encyclopedia/retry-policies)是 **Activity 自动重试，Workflow Execution 默认不重试**。业务需覆盖重试上限、不可重试错误与超时，不能假设未配置就不会重试；Workflow Task 的重试又是不同层次。自定义工具客户端常用带抖动的指数退避，第 $n$ 次等待可写为：
 
 $$
-t_n = \min\left(t_{max},\ t_0 \cdot 2^{n-1}\right) + \delta_{jitter}
+t_n \sim \mathrm{Uniform}\left(0,\ \min\left(t_{max},\ t_0 \cdot 2^{n-1}\right)\right)
 $$
 
-其中 $t_0$ 是初始等待时间，$t_{max}$ 是退避上限，$\delta_{jitter}$ 是随机抖动，用于避免大量并发请求在同一时刻集中重试。
+其中 $t_0$ 是初始退避基数，$t_{max}$ 是等待上限。这是 full jitter 示例，不是 Temporal 默认策略；总等待还必须受剩余 deadline 约束。
 
 ## 21.5 超时：分层设置超时预算
 
@@ -46,11 +50,13 @@ flowchart TB
     S --> T --> C
 ```
 
-三级超时必须满足 $t_{tool} < t_{turn} < t_{session}$（分别对应工具调用、Turn、会话三级），任意一级超时触发时，都应该产生一条明确的、可被上层处理的信号（错误消息、状态转移到 `Interrupted` 或直接触发 checkpoint 后终止），而不是让底层超时无声地传播导致整个状态机挂起。
+子调用应继承父级剩余 deadline，实际可用时长不超过自身上限与父级剩余预算的较小值；仅把三个静态超时配置成递增仍不够。超时后明确记录状态，并尝试取消远端工作；取消是协作请求，不保证远端副作用已撤销。
 
 ## 21.6 幂等：让重试变得安全
 
-幂等性解决的问题是：**同一个操作被执行两次，效果和执行一次相同**。这是安全重试的前提——没有幂等保证的重试，很可能把"发一封邮件"变成"发两封邮件"。工程上最常见的实现方式是幂等键：调用方为每次操作生成一个唯一键，服务端保存"这个键第一次被处理时的结果"，之后无论这个键被提交多少次，都直接返回保存的结果而不是重新执行。Stripe 的 API 设计是这一模式的经典参考实现："使用 idempotency key 可以安全地重试请求而不必担心意外执行同一个操作两次……幂等层会比较后续请求的参数与最初请求是否一致，如果不一致则报错"([Stripe: Idempotent requests](https://docs.stripe.com/api/idempotent_requests))。把这个模式映射到 Agent Harness：每个工具调用的调用 ID（第 19 章 19.3 节）天然可以充当幂等键的角色——只要工具的执行端（无论是内部服务还是外部 API）支持基于这个 ID 去重，harness 在"不确定上次调用是否真的执行成功"时，就可以放心重发同一个调用 ID，而不用担心副作用被叠加执行。
+幂等性要求同一逻辑操作重放不增加额外效果。常见做法是**执行前持久化操作键与参数摘要**，服务端原子记录该键的状态和结果，重复请求返回同一结果，参数变化则拒绝。还要处理并发重复、记录有效期、处理中状态及业务写入与去重记录的原子性；[Stripe 的幂等请求文档](https://docs.stripe.com/api/idempotent_requests)是具体 API 的参考，不是所有工具共有的保证。
+
+**模型工具调用 ID、JSON-RPC 请求 ID 与业务幂等键不同。** 模型重新规划可能生成新调用 ID；MCP 多轮请求也可能要求新的 JSON-RPC ID。因此应另设稳定的逻辑操作键，并映射多次尝试。若服务不支持幂等或查询，结果未知时可能只能人工核对或执行补偿，不能宣称 checkpoint 带来了 exactly-once 副作用。
 
 ## 21.7 恢复：从 Checkpoint 继续，而不是从头重放
 
@@ -65,16 +71,16 @@ flowchart TB
 - **把"加了 Checkpointer"等同于"不会重复执行"。** 这是[第十章（LangGraph 章）10.11.7 节](../../frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md)专门点出的常见误区，checkpoint 只保证状态能恢复，不自动保证恢复过程不产生重复副作用，幂等仍需要单独设计。
 - **重试策略不区分失败类型，一律重试或一律不重试。** 应按 21.4 节的标准显式分类。
 - **超时只设一层。** 会导致局部卡死拖垮全局，必须按 21.5 节分层设置。
-- **幂等键的生成依赖调用方每次都不同（如时间戳），却期望它能去重。** 幂等键必须在"同一个逻辑操作的多次尝试"之间保持不变，通常直接复用调用 ID。
+- **每次尝试生成新幂等键。** 同一逻辑操作必须复用已持久化的业务键；只有能证明调用 ID 在所有恢复路径中稳定且符合服务约定时，才可复用它。
 
 ## 21.9 本章总结
 
-Checkpoint 在状态转移边界保存 17.2 节定义的核心状态；持久化分线程内（checkpoint，支撑单次任务的恢复）和跨线程（store，支撑长期记忆）两层，二者存储特性不同不应合并。重试需要区分暂时性失败（可重试）与内容性失败（不可重试），并采用指数退避；超时需要按会话、Turn、工具调用三级分层设置；幂等键（通常复用调用 ID）是安全重试和安全恢复的共同前提；恢复的正确语义是重建显式状态后从中断点继续，而不是重放全部历史或恢复到任意程序位置。这四个机制共同构成"可恢复"而不只是"能重跑"的运行时能力。
+Checkpoint 保存执行状态，不自动保存外部世界，也不保证副作用只执行一次。恢复需要稳定的逻辑操作键、明确的未知状态和受 deadline 约束的重试。会话 checkpoint 与跨会话记忆要分清语义，但可共用底层数据库。
 
 ## 参考资料
 
 - [LangGraph: Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)
 - [LangGraph: Fault tolerance](https://docs.langchain.com/oss/python/langgraph/fault-tolerance)
-- [Temporal: Understanding Temporal](https://docs.temporal.io/evaluate/understanding-temporal)
+- [Temporal: Retry Policies](https://docs.temporal.io/encyclopedia/retry-policies)
 - [Stripe: Idempotent requests](https://docs.stripe.com/api/idempotent_requests)
 - [LangGraph 第十章：LangGraph 的核心优势](../../frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md)

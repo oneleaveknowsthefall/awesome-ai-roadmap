@@ -12,11 +12,11 @@ Agent 设计范式描述的是：
 
 它不是某个特定框架，也不只是一个 Prompt 模板，而是一种运行时控制策略。
 
-目前最常见的三类基础范式是：
+本章选取三类便于比较的基础范式，它们不是互斥或穷尽的分类：
 
 1. **ReAct**：一边观察、一边决定下一步；
 2. **Plan-and-Execute**：先建立全局计划，再执行和动态重规划；
-3. **Reflection / Reflexion**：通过评估、反馈和经验总结改进下一次尝试。
+3. **Reflection / Reflexion**：通过评估和反馈修订结果；其中 Reflexion 是带情景记忆的具体研究方法。
 
 这三类范式经常混用，实际系统里更常见的是分层组合：
 
@@ -38,6 +38,8 @@ flowchart TB
 ReAct（Reasoning and Acting）将推理与外部行动结合起来。经典表达是：
 
 > **Thought → Action → Observation → Thought**
+
+这是 [ReAct 原论文](https://arxiv.org/abs/2210.03629)的示意，不要求每次行动前都输出一段 Thought：原文在决策任务中允许稀疏出现推理步骤，也用这些步骤生成、跟踪和更新计划。其主要实验通过上下文示例运行，不在每次工具调用后更新模型权重；论文另有微调实验，不能与提示式 ReAct 混为一谈。
 
 ```mermaid
 flowchart LR
@@ -97,10 +99,10 @@ $$
 a_t \sim \pi_{\theta}(a\mid g,s_t,o_t,c_t)
 $$
 
-Runtime 执行动作后得到新的观察：
+Runtime 执行动作后得到新的观察。用 `eₜ` 表示环境真实状态，区别于 Agent 保存的状态 `sₜ`：
 
 $$
-o_{t+1}=Env(a_t)
+(e_{t+1},o_{t+1})\sim Env(\cdot\mid e_t,a_t)
 $$
 
 Agent 随后更新状态：
@@ -109,20 +111,24 @@ $$
 s_{t+1}=Update(s_t,a_t,o_{t+1})
 $$
 
+观察可能不完整、过期或只表示请求已受理。更新的是 Agent 对环境的记录，不能据此假设它已经掌握全部真实状态。
+
 ### 4.2.4 ReAct 的优势
 
 - 实现简单；
 - 能及时利用最新环境反馈；
 - 适合无法预先获得完整信息的任务；
 - 工具失败后可以立即调整；
-- 对短任务和探索性任务非常有效。
+- 可用于短任务和探索性任务，收益取决于工具返回的信息是否有用。
+
+原论文覆盖 HotpotQA、FEVER、ALFWorld 和 WebShop。检索可补充事实，但错误查询或无关结果也会误导后续决策；这些结果不证明 ReAct 在所有任务上优于 CoT，更不保证工具调用次数越多越准确。
 
 ### 4.2.5 ReAct 的局限
 
 ReAct 常被概括为“走一步看一步”，其主要风险包括：
 
-- 缺少全局任务结构；
-- 每次 Tool Call 通常都需要再次调用模型；
+- 默认不强制维护可调度的全局任务结构，但可以在推理中制定计划；
+- 串行的“调用工具后再决策”需要模型往返，批量调用可减少部分开销；
 - 容易重复搜索或调用相同工具；
 - 长任务中目标和约束可能被上下文噪音稀释；
 - 局部合理的动作未必形成全局最优路径；
@@ -210,7 +216,7 @@ flowchart TB
 
 ### 4.3.2 动态重规划
 
-如果计划只生成一次就不再调整，Plan-and-Execute 很快会失效。每个关键步骤完成后，Replanner 应判断：
+稳定、充分已知的任务可以执行一次性计划；环境或前提会变化时，需要重规划机制。每个关键步骤完成后，Replanner 应判断：
 
 - 执行结果是否达到验收条件；
 - 关键假设是否仍然成立；
@@ -268,19 +274,19 @@ $$
 
 因此，计划粒度应与任务稳定性匹配：环境变化越快，计划越应保持高层和短周期。
 
-## 4.4 更先进的规划执行变体
+## 4.4 减少往返与支持并行的变体
 
 ### 4.4.1 ReWOO
 
-ReWOO（Reasoning Without Observation）让 Planner 预先生成带变量引用的计划，执行器可以将前一步结果绑定到变量，并在后续步骤中复用。
+ReWOO（Reasoning WithOut Observation）将 Planner、Worker 和 Solver 解耦：Planner 在获取工具观察前生成带变量引用的计划，Worker 执行并绑定结果，Solver 结合计划与证据生成答案。“Without Observation”限定规划阶段，不表示最终答案无需工具观察。
 
 ```text
-E1 = Search["本年度决赛队伍"]
-E2 = LLM["从 E1 中提取第一支队伍"]
-E3 = Search["E2 的核心球员数据"]
+#E1 = Search["指定赛事本年度决赛队伍"]
+#E2 = LLM["从 #E1 中提取第一支队伍"]
+#E3 = Search["#E2 的核心球员数据"]
 ```
 
-它的目标之一是减少每个 Tool 执行之间都调用大型规划模型的需要。
+以上是教学伪代码，不是通用工具协议。Worker 必须把 `#E1`、`#E2` 替换为实际输出，检查引用与依赖，而不是把变量名原样送给搜索工具。它减少了规划模型的往返，但无法预知所有条件分支；依赖返回内容才能决定是否添加新步骤时，仍需重规划或退回交互式执行。
 
 ### 4.4.2 DAG Planning
 
@@ -295,7 +301,7 @@ flowchart LR
     E --> F
 ```
 
-没有依赖的步骤可以并行执行，从而降低总延迟。
+数据依赖已满足、没有共享写冲突且资源允许的步骤可以并行执行。DAG 只表达一版计划内的无环依赖；重试和重规划循环应由外层状态机管理。
 
 ### 4.4.3 LLMCompiler
 
@@ -303,7 +309,9 @@ LLMCompiler 类架构通常包含：
 
 - Planner：生成或流式输出任务 DAG；
 - Task Fetching Unit：依赖满足后立即调度任务；
-- Joiner：汇总结果，并决定结束还是重新规划。
+- Executor：实际执行已就绪的工具任务。
+
+这是 [LLMCompiler 论文](https://arxiv.org/abs/2312.04511)列出的三个组件；带重规划的实现还可以加入 Joiner，汇总结果并决定结束或继续。不要把 Joiner 当作执行工具的 Executor。
 
 这类设计关注的不只是规划质量，也关注执行并行度、模型调用次数和总体延迟。
 
@@ -338,7 +346,7 @@ flowchart LR
 5. 独立模型或 LLM-as-a-Judge；
 6. 同一模型的自我评价。
 
-越靠前的信号通常越接近可验证的客观反馈。
+这不是固定的可信度排名。编译通过不等于业务正确，测试可能漏测，API 成功可能只代表受理；应按每项验收条件选择证据。LLM Judge 不得以“总体质量不错”为由覆盖测试失败或权限拒绝。
 
 ### 4.5.2 Reflection 的适用场景
 
@@ -396,7 +404,9 @@ flowchart TB
 
 ### 4.6.2 HumanEval 结果应如何解读
 
-Reflexion 论文报告：在其 2023 年的实验设置中，基于 GPT-4 的 Reflexion 在 HumanEval 上达到 **91% pass@1**，论文引用的 GPT-4 基线为 **80%**。
+Reflexion 论文报告：在其 2023 年的实验设置中，基于 GPT-4 的 Reflexion 在 HumanEval Python 上达到 **91.0% pass@1**，表 1 中 GPT-4 单次生成基线为 **80.1%**（摘要取整为 80%）。
+
+这里的 `pass@1` 指最终提交一个候选接受评测，不表示整个系统只生成一次或只调用一次模型。Reflexion 使用自生成测试、执行反馈和多次修订，再以保留的基准测试评价最终程序；反思循环不能访问用于最终计分的隐藏测试。单次生成基线与这个循环的计算预算不同，因此不能把差值全部归因于“反思提示词”。
 
 这个数字说明反思与执行反馈在特定实验中具有价值，但不能直接推导为：
 
@@ -405,7 +415,7 @@ Reflexion 论文报告：在其 2023 年的实验设置中，基于 GPT-4 的 Re
 - 生产项目中的仓库级任务也有相同效果；
 - 增加反思轮次一定持续提高质量。
 
-模型版本、Prompt、测试生成方式、任务分布和基准污染都会影响结果。生产系统应以自己的评估集和成本指标为准。
+同一论文的 MBPP Python 结果反而从 80.1% 降到 77.1%，说明测试质量和任务分布会改变效果方向。模型版本、Prompt、测试生成方式和基准污染也会影响结果；实际评估应增加等预算重采样、仅测试修复等对照。
 
 ### 4.6.3 记忆污染问题
 
@@ -449,9 +459,13 @@ flowchart TB
 - **Reflection**：检查质量并产生改进反馈；
 - **Workflow**：限制整体路径、权限和预算。
 
+图中的完成出口还需要整体验收：确认当前计划的必要节点已完成、Artifact 版本一致，且跨步骤约束满足。单个子任务通过 Verifier，不代表整个目标完成。
+
 ## 4.8 Agentic Workflow：生产环境里的常见做法
 
 Agentic Workflow 用确定性流程包围概率性决策：
+
+按 Anthropic《Building Effective Agents》的术语，Router、固定并行分支和 Evaluator-Optimizer 都可以是 Workflow：分别负责分流、聚合独立工作、按反馈迭代。循环或多次 LLM 调用本身不构成自主 Agent；关键在于后续路径是预先编码，还是由模型在运行时动态选择。
 
 ```mermaid
 flowchart LR
@@ -470,7 +484,7 @@ flowchart LR
 - 知识检索节点可以使用 ReAct 动态决定查询方式；
 - 复杂问题使用 Plan-and-Execute 拆分；
 - 最终答案使用引用检查或 Reflection；
-- 退款、改价等操作必须经过确定性规则和人工确认。
+- 退款、改价等写操作必须经过权限和业务规则检查；超出预授权范围时再转人工确认。
 
 这种方式将自主性限制在真正需要灵活性的局部范围内。
 
@@ -591,13 +605,14 @@ ReAct、Plan-and-Execute 与 Reflection 分别解决三个不同问题：
 2. **Plan-and-Execute**：如何维持复杂任务的全局结构；
 3. **Reflection / Reflexion**：如何利用验证和失败经验提升质量。
 
-生产级 Agent 通常将它们组合在受控 Workflow 中：
-
-> **Workflow 控制边界，Planner 保持方向，ReAct 处理局部未知，Verifier 提供客观反馈，Reflection 负责有限优化。**
+组合时应明确每个控制环修改什么状态、由谁验收，以及何时停止。短任务不必配置全部角色；增加 Planner 或 Critic 后，仍要检验其收益是否超过往返延迟、状态管理和误判成本。
 
 ## 参考资料
 
 - [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629)
 - [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366)
+- [Reflexion 原文实验设置与表 1–2](https://arxiv.org/html/2303.11366v4)
+- [ReWOO: Decoupling Reasoning from Observations for Efficient Augmented Language Models](https://arxiv.org/abs/2305.18323)
+- [An LLM Compiler for Parallel Function Calling](https://arxiv.org/abs/2312.04511)
 - [LangChain: Planning Agents](https://www.langchain.com/blog/planning-agents)
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)

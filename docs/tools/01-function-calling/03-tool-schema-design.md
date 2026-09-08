@@ -1,8 +1,12 @@
+---
+description: 设计工具描述、strict JSON Schema 和返回值，控制工具发现与上下文成本，并建立业务校验及回归测试。
+---
+
 # 第三章：工具定义与 Schema 工程
 
 ## 3.1 为什么值得单独开一章
 
-[第一章](01-function-calling.md) 说过，`description` 是模型判断的唯一依据。但在实际项目里，工具定义的影响远不止「模型选得准不准」这一件事——它同时决定了：
+[第一章](01-function-calling.md) 说明了工具名、描述、Schema 与上下文共同影响模型选择。工具定义还影响：
 
 - 模型选错工具的概率；
 - 参数填错的概率；
@@ -18,7 +22,7 @@
 
 ### 3.2.1 写清楚能力边界，而不只是能力
 
-人写 API 文档的习惯是描述「能做什么」。但对模型来说，**「不能做什么」的信息量更大**——它决定了模型什么时候该放弃调用。
+描述应同时说明能力、返回内容、输入前提和不支持的范围。下面展示预期的路由差异，不是对模型行为的保证。
 
 | 写法 | 模型行为 |
 |---|---|
@@ -57,17 +61,20 @@ cancel_order
 "description": (
     "执行 SQL 查询并返回结果。只支持 SELECT，不支持写操作。\n"
     "示例：查询昨天订单数 -> "
-    "SELECT COUNT(*) FROM orders WHERE created_at >= CURRENT_DATE - 1"
+    "SELECT COUNT(*) FROM orders WHERE created_at >= CURRENT_DATE - 1 "
+    "AND created_at < CURRENT_DATE"
 )
 ```
 
 它相当于把 few-shot 示例塞进了工具定义里。代价是 token，收益是参数准确率，值不值得取决于这个工具被调用的频率和出错的成本。
 
+上例采用 PostgreSQL 日期语法，以数据库会话时区为准，并假定已限制为当前租户。描述中的“只支持 SELECT”不是安全措施：还需只读凭据、查询限制和对象级权限，不能只靠关键字过滤 SQL。
+
 ## 3.3 参数设计
 
 ### 3.3.1 扁平优于嵌套
 
-模型填深层嵌套结构的错误率明显更高，而且错误往往是「结构对了但层级放错了」这种难排查的类型：
+不必要的深层嵌套会增加填写与验证复杂度。若扁平字段能清楚表达语义，可优先采用；错误率是否更低仍需目标模型评测：
 
 ```python
 # 差：三层嵌套
@@ -89,17 +96,27 @@ cancel_order
 "status": {"type": "string", "enum": ["pending", "paid", "shipped", "completed", "cancelled"]}
 ```
 
-除了减少错误，`enum` 还有个机制上的好处：主流推理框架会把 Schema 编译成约束解码的语法，在**采样阶段**就屏蔽非法 token。非法值不是「生成后被拒」，而是根本生成不出来。
+支持 strict 或结构化输出的运行时可利用 Schema 做约束解码；仅提供 `enum` 不代表该路径已启用。即使格式有效，`cancelled` 与 `completed` 仍可能被选错，业务状态需单独校验。
 
 ### 3.3.3 required 要诚实
 
-把所有参数都标成 `required`，模型遇到信息不全时会**编造**一个值填进去。把该必填的标成可选，模型又会漏填导致查询范围失控。
+一般 JSON Schema 用 `required` 区分必需字段；OpenAI strict 模式则要求所有 `properties` 都列入 `required`，业务可选字段用可空类型表达。信息不足时应先澄清，不能用“格式必填”迫使模型猜测业务值。
 
-正确做法是让 `required` 反映真实约束，并在描述里写清缺省行为：
+非 strict 示例可在描述中说明缺省行为，但实际默认值和范围由服务端实现：
 
 ```python
 "limit": {"type": "integer", "description": "返回条数，默认 20，最大 100"}
 ```
+
+#### strict 的具体约束
+
+以 [OpenAI Function Calling 指南](https://developers.openai.com/api/docs/guides/function-calling)为准（2026-09-08 核查）：
+
+- 显式设 `strict: true`；每层 object 都设置 `additionalProperties: false`，每个属性都在 `required` 中。
+- 可选值可写成 `{"type":["string","null"],"enum":["paid","shipped",null]}`；`enum` 也必须允许 `null`。字段出现但值为空，与字段缺失不是一回事。
+- 只支持 JSON Schema 子集，拒绝、输出截断和 API 错误也必须处理。Schema 校验不能替代授权、日期先后关系、余额或对象归属检查。
+- 省略 `strict` 时，Chat Completions 默认非严格；Responses 尝试归一化为严格模式，不兼容时可能回退为 best effort。依赖稳定行为应显式指定，而不是赌默认值。
+- 流式参数需要按调用 ID 聚合至完成后再解析、校验和执行；收到半段合法 JSON 也不能提前触发写操作。
 
 ### 3.3.4 日期与时间是重灾区
 
@@ -119,14 +136,14 @@ cancel_order
 ```python
 # 差：把 ORM 对象整个序列化，30 个字段模型只用得到 3 个
 {"id": 1, "uuid": "...", "created_at": "...", "updated_at": "...",
- "deleted_at": null, "tenant_id": 7, "shard_key": "...", ...}
+ "deleted_at": None, "tenant_id": 7, "shard_key": "..."}
 
 # 好：只返回模型需要的
 {"order_id": "A1001", "status": "shipped", "total": 299.0,
  "eta": "2026-09-02"}
 ```
 
-工具返回值会**原样进入上下文**，并在后续每一轮里被重复计费。一个返回 5KB 冗余 JSON 的工具，在十轮对话里就吃掉了 50KB 的上下文预算。
+宿主决定哪些返回值进入模型上下文。若持续回传历史，冗余内容会反复作为输入；但单轮上下文长度与多轮累计输入计费不是同一件事，字节数也不是 token 数。可用分页、摘要、资源引用和缓存降低开销，同时保留完整结果的可追溯位置。
 
 ### 3.4.2 大结果要截断并告知
 
@@ -154,13 +171,13 @@ raise ValueError("city not found")
 
 结构化错误让模型有机会自己纠正重试。直接抛异常等于放弃了模型的自我修复能力。`hint` 字段是关键——它把「出错了」变成了「出错了，这样改」。
 
-不过要设**重试上限**。模型有时会陷入「同样的错误参数反复重试」的循环，宿主侧应该记录同一工具的连续失败次数，超过两三次就中断并向上抛。
+设定**重试次数与总时间预算**，检测重复参数错误。鉴权或策略拒绝通常应停止，网络超时需区分未提交、已提交和结果未知；写操作只有具备幂等或可核对状态时才可自动重试。
 
 ## 3.5 工具数量与上下文成本
 
-### 3.5.1 工具定义每次请求都要全量传
+### 3.5.1 工具发现、模型可见性与计费分开算
 
-这里经常被低估的，是工具 Schema 的固定开销。工具 Schema 不会被「记住」，每一轮请求都要完整传一遍：
+在每轮全量传入工具定义的实现里，Schema 会占用上下文并计入输入。下面是假设每个定义平均 150 token 的算术例子，不是实测，也不代表所有 API 必须如此：
 
 | 工具数 | 平均每个 Schema | 每次请求的固定开销 |
 |---|---|---|
@@ -168,7 +185,7 @@ raise ValueError("city not found")
 | 30 | 150 token | 4,500 token |
 | 100 | 150 token | 15,000 token |
 
-一个挂了 100 个工具的 Agent，在还没开始干活时就烧掉了 15K token，而且**每一轮都烧一次**。十轮对话就是 150K。
+此假设下 100 个工具每轮增加 15,000 输入 token，十轮累计 150,000；单轮窗口并未因此变成 150,000。前缀缓存可能降低输入费用或预填充开销，工具搜索/延迟加载则改变实际注入数量。
 
 ### 3.5.2 工具变多，准确率会下降
 
@@ -179,19 +196,19 @@ raise ValueError("city not found")
 ```mermaid
 flowchart LR
     Q[用户请求] --> R["路由层<br/>轻量分类 或 向量检索"]
-    POOL[("工具库<br/>100+ 工具")] --> R
-    R --> SEL["筛出 5-10 个相关工具"]
+    POOL[("工具库")] --> R
+    R --> SEL["按任务筛选<br/>数量由评测确定"]
     SEL --> M[模型]
     M --> CALL[tool_calls]
 ```
 
-路由层可以是向量检索（把工具描述做成 Embedding，用 query 去召回）、规则分类，或者一次廉价小模型调用。相比直接把 100 个工具全塞进去，这一次额外调用几乎总是划算的。
+路由可用规则、检索或模型。图中候选数只是示意；先做权限过滤，再评测召回漏失与额外时延。检索把必要工具漏掉时，再强的主模型也无法调用它。
 
 ### 3.5.3 把工具定义放在 Prompt 最前面
 
 工具 Schema 常是多轮对话中较稳定的部分。将稳定内容放在前面可提高支持前缀缓存的提供方/运行时的命中机会，但是否命中、计费和 TTL 以具体服务为准。
 
-顺序上的通行原则是：**固定内容在前，动态内容在后**。工具定义 → System Prompt → 历史对话 → 当前问题。详见 LLM 主题的 [KV Cache 与 Prompt Caching](../../llm/03-inference-serving/14-kv-cache.md) 章节。
+原则是尽量稳定可缓存前缀；工具与消息的底层序列化顺序由提供方控制，不是手动调整字段顺序即可改变。详见 [KV Cache 与 Prompt Caching](../../llm/03-inference-serving/14-kv-cache.md)。
 
 ## 3.6 工具粒度：粗一点还是细一点
 
@@ -202,8 +219,8 @@ flowchart LR
 | 例子 | `get_user`、`get_orders`、`get_address` 三个工具 | `get_user_profile` 一个工具返回全部 |
 | 灵活性 | 高，模型可自由组合 | 低 |
 | 调用轮次 | 多，延迟高 | 少 |
-| 出错概率 | 高（每一步都可能选错） | 低 |
-| 上下文消耗 | 高（多轮累积） | 低 |
+| 出错风险 | 多步选择与组合可能出错 | 少轮次，但参数、结果或业务事务可能更复杂 |
+| 上下文消耗 | 多轮累积 | 可能少轮次，也可能返回大量无关数据 |
 
 实践中的判断标准是：**看这几个操作是不是几乎总是一起出现**。如果模型每次查用户都要接着查订单和地址，那就该合并成一个工具；如果三者独立使用的场景各占三分之一，就该拆开。
 
@@ -211,11 +228,14 @@ flowchart LR
 
 ## 3.7 一个完整的工具定义模板
 
+下面使用 Chat Completions 的函数包装格式，显式关闭 strict 以演示可省略字段。迁移到 Responses 需调整外层字段；启用 strict 需按 3.3.3 改写可空参数。
+
 ```python
 {
     "type": "function",
     "function": {
         "name": "search_orders",                      # 动词_对象，语义自解释
+        "strict": False,
         "description": (
             "按时间范围和状态搜索订单，返回订单摘要列表。"      # 做什么
             "每条包含订单号、状态、金额、下单时间。"            # 返回什么
@@ -241,10 +261,13 @@ flowchart LR
                 },
                 "limit": {
                     "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
                     "description": "返回条数，默认 20，最大 50"
                 }
             },
-            "required": ["start_date", "end_date"]     # 只标真正必需的
+            "required": ["start_date", "end_date"],
+            "additionalProperties": False
         }
     }
 }
@@ -283,7 +306,7 @@ flowchart LR
 
 ### 3.9.4 大结果只截断不提示
 
-模型会把前 20 条当成全部，得出错误结论。截断必须伴随 `total` 和处理建议。
+模型可能误把前 20 条当全部。返回 `has_more`、分页游标或明确截断说明；只有实际可计算总数时才返回 `total`，不要编造计数。
 
 ### 3.9.5 用异常代替结构化错误
 
@@ -291,7 +314,7 @@ flowchart LR
 
 ### 3.9.6 注册几十个工具不做筛选
 
-既烧 token 又降准确率。超过 15–20 个工具就该考虑动态筛选。
+工具多时评估动态筛选或延迟加载。OpenAI 文档建议初始可用工具少于 20 个，但明确是软建议，不是协议上限或性能拐点。
 
 ### 3.9.7 改了工具描述不回归
 
@@ -300,11 +323,11 @@ flowchart LR
 ## 3.10 本章总结
 
 1. **工具定义是 Prompt 的一部分**，很多「模型不行」的问题实际是工具定义不行；
-2. **描述要写清边界和替代方案**，「不支持什么」比「支持什么」信息量更大；
-3. **参数扁平化、多用 enum、required 要诚实**，日期时间尽量用相对枚举收进代码；
+2. **描述要写清能力、边界和替代方案**，通过正反例检验是否改善选择；
+3. **减少无意义嵌套，有限取值用 enum**；strict 要求属性全部 required，业务可选项用 nullable；
 4. **返回值按模型需求裁剪**，大结果要截断并给出处理建议；
 5. **错误必须结构化并带 hint**，同时设重试上限防死循环；
-6. **工具定义每轮全量传，成本随数量线性增长**，超过 15–20 个应做动态筛选；
+6. **区分工具发现与注入**，按实际 token、缓存和路由召回评估成本；
 7. **工具粒度按「是否总是一起用」判断**，不要照搬内部微服务边界；
 8. **工具定义需要回归测试**，用例集里必须包含「不该调工具」的场景。
 
@@ -313,6 +336,7 @@ flowchart LR
 
 - [Anthropic: Writing Effective Tools for Agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
-- [OpenAI: Function Calling 指南](https://platform.openai.com/docs/guides/function-calling)
+- [OpenAI: Function Calling 指南](https://developers.openai.com/api/docs/guides/function-calling)
+- [OpenAI: Structured Outputs 支持的 Schema](https://developers.openai.com/api/docs/guides/structured-outputs)
 - [JSON Schema 规范](https://json-schema.org/)
 - [Berkeley Function Calling Leaderboard](https://gorilla.cs.berkeley.edu/leaderboard.html)
