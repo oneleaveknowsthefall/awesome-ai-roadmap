@@ -1,305 +1,156 @@
+---
+description: 分开计算训练、prefill 和 decode 的注意力开销，比较 MQA、GQA、MLA 的缓存结构与 FlashAttention 的 IO 优化。
+---
+
 # 第三章：MHA 的局限与 MQA、GQA、Flash Attention
 
-## 3.1 MHA 的瓶颈卡在哪
+## 3.1 先区分三种开销
 
-讲清楚 MHA 的局限，必须**把训练和推理两个阶段分开看**。很多人只笼统说「$O(N^2)$ 慢」，一追问就答不下去，根源就是把这两个阶段混在一起讲。
-
-### 3.1.1 训练阶段
-
-长度为 $N$ 的序列，每层 Attention 都要算一个 $N \times N$ 的注意力分数矩阵，而且**这个矩阵要存在显存里给反向传播用**：
-
-| 序列长度 | $N \times N$ 矩阵元素数 | FP16 显存（单层单头） |
+| 场景 | 全注意力的主要计算 | 主要存储问题 |
 |---|---|---|
-| 4K | 1600 万 | 约 32 MB |
-| 32K | 10 亿 | 约 2 GB |
+| 训练 | 所有位置两两交互并反向传播 | 朴素实现物化注意力矩阵，另有其他激活、梯度和优化器状态 |
+| Prefill | 已知提示词并行处理 | 长提示词的中间激活及待保留的 K/V |
+| Decode | 每个新 Q 读取历史 K/V | 持久 KV Cache 及每步读取权重、缓存的带宽 |
 
-计算复杂度是 $O(N^2)$，**$N$ 翻倍计算量翻 4 倍**。
+单层单头长度为 `N` 的注意力矩阵有 `N²` 个元素。若 `N = 4096`，FP16 矩阵约 32 MiB；若 `N = 32768`，约 2 GiB。这是**物化矩阵的实现开销**，不是数学上必须保存整个矩阵，FlashAttention 正是反例。
 
-好消息是训练时这个矩阵是「一次性算完」的，不需要在多个时间步之间持续保留。
+有缓存时，每步对长度 `N` 的历史做注意力约需 `O(Nd)` 计算，整个增长序列的注意力总量仍可达平方级。没有缓存且每次重算整个前缀时，这部分总量可达立方级；不能把这些量级当成模型全部计算或实际延迟。
 
-### 3.1.2 推理阶段：KV Cache 是救星也是显存大户
+新 token 需要计算自己的 **Q、K 和 V**，新 K/V 要加入缓存，不是只算 Q。小批量 decode 常受带宽限制，长序列 prefill 更可能受计算限制，实际应以 profiler 为准。
 
-LLM 是自回归生成，每生成一个新 token 都要对前面所有 token 算注意力。如果每次从头算，总成本会累加到 $O(N^3)$。
+## 3.2 KV Cache 要用 KV 头数计算
 
-**KV Cache** 的做法是把前面所有 token 的 K 和 V 存下来，新 token 只算自己的 Q，和缓存的 K/V 做注意力。这是推理优化的标配（详见 [第十四章](../03-inference-serving/14-kv-cache.md)）。
-
-但它本身很吃显存：
-
-$$
-\mathrm{KVCache} = 2 \times B \times N \times L \times H \times d_k \times 2\ \mathrm{bytes}
-$$
-
-（前面的 2 是 K 和 V 各一份，后面的 2 是 FP16 每个数 2 字节）
-
-以一个 7B 模型（$L=32$、$H=32$、$d_k=128$）跑 $B=1$、$N=32000$ 为例：
+对所有层头数和维度相同、K/V 维度相等的稠密缓存，字节数为：
 
 $$
-2 \times 1 \times 32000 \times 32 \times 32 \times 128 \times 2 \approx 17\ \mathrm{GB}
+\mathrm{KVBytes}=2BLNH_{\mathrm{KV}}d_hs
 $$
 
-**光 KV Cache 就 17GB，加上模型权重 14GB 一共 31GB——一张 24GB 的 4090 根本放不下。**
+`B` 为批大小，`L` 为层数，`N` 为每个请求已缓存的长度，`H_KV` 为 KV 头数，`d_h` 为每头维度，`s` 为每元素字节数。不同请求长度不同，应该按各请求的有效长度或实际分配长度累加。
 
-### 3.1.3 更隐蔽的痛点：访存受限
+例：`B=1, L=32, N=32000, H_KV=32, d_h=128, s=2`：
 
-显存挤爆只是一面，另一面是**速度也快不起来**。
+$$
+2\times1\times32\times32000\times32\times128\times2
+=16{,}777{,}216{,}000\ \mathrm{bytes}
+$$
 
-GPU 的计算单元算力很猛，但显存带宽跟不上。Attention 计算里大量时间花在「等数据从显存搬到计算单元」，计算单元很多时候在「等米下锅」——这就是 **memory-bound（访存受限）**。
+即约 **16.78 GB / 15.625 GiB**。再加约 14 GB 的 7B FP16 权重，已经超过 24 GB，尚未计运行时工作区。
 
-> 哪怕你的 GPU 算力是另一台的两倍，跑 Attention 时可能只快 20%，因为**瓶颈根本不在算力**。
+这是一个明确的 **32 KV 头 MHA 配置**，不是所有 7B 模型的缓存大小。换成 8 个 KV 头，其他条件不变，缓存约为 4.19 GB；量化权重也不会自动把 KV Cache 一起量化。
 
-### 3.1.4 三个痛点连成一条线
+## 3.3 MQA 与 GQA 改的是模型结构
 
-```mermaid
-flowchart TB
-    P1["痛点一 · O(N²) 复杂度<br/>序列稍长计算量按平方膨胀"]
-    P2["痛点二 · KV Cache 显存<br/>长上下文直接吃光显存"]
-    P3["痛点三 · 访存带宽<br/>GPU 算力发挥不出来"]
+标准 MHA 每个 Q 头都有对应的 K/V 头。MQA 让所有 Q 头共用一组 K/V；GQA 将 Q 头分组，每组共用 K/V：
 
-    P1 --> LONG["长上下文场景<br/>三者互相加剧"]
-    P2 --> LONG
-    P3 --> LONG
-
-    style LONG fill:#fce8e6
-```
-
-**后面所有优化方案，都是在攻击这三个痛点中的一个或多个。**
-
-## 3.2 MQA：暴力共享 K/V
-
-### 3.2.1 思路
-
-**所有 head 共享同一份 K 和 V，只有 Q 每个 head 独立。**
-
-原本 MHA 有 32 个 head，每个都有自己的 $W_Q$、$W_K$、$W_V$，输出 32 套 Q、K、V。MQA 只保留 32 套 Q，K 和 V 全部 32 个 head 共享一套。
+| 结构 | Q 头数 | KV 头数 | 相对 MHA 的缓存比例 |
+|---|---|---|---|
+| MHA | `H` | `H` | 1 |
+| GQA | `H` | `G` | `G/H` |
+| MQA | `H` | 1 | `1/H` |
 
 ```mermaid
 flowchart LR
-    subgraph MHA_D["MHA · H=4"]
-        Q1[Q1]---K1[K1/V1]
-        Q2[Q2]---K2[K2/V2]
-        Q3[Q3]---K3[K3/V3]
-        Q4[Q4]---K4[K4/V4]
-    end
-
-    subgraph MQA_D["MQA · H=4"]
-        MQ1[Q1] --> SKV[共享 K/V]
-        MQ2[Q2] --> SKV
-        MQ3[Q3] --> SKV
-        MQ4[Q4] --> SKV
-    end
-
-    style SKV fill:#e6f4ea
+    Q1["Q1"] --> K1["K1 / V1"]
+    Q2["Q2"] --> K1
+    Q3["Q3"] --> K2["K2 / V2"]
+    Q4["Q4"] --> K2
 ```
 
-### 3.2.2 收益与代价
+图示为 `H=4, G=2` 的 GQA。常见实现要求 Q 头数能被 KV 头数整除；张量并行还可能要求分片整除或复制部分 KV 头，不能忽略这些约束直接按卡数均分显存。
 
-**收益**：KV Cache 直接变成 $1/H$。上面那个 17GB 的例子，用 MQA 只剩 **0.5GB 多一点**。
+共享的是 K/V 投影及表示，**Q 头仍各自计算不同的注意力分布**，因此 MQA 不等于「只剩一个视角」。减少 KV 头降低容量与带宽需求，也可能影响质量；变化取决于模型规模、数据、训练方式和任务，没有通用的「MQA 降 2–5%、GQA 降不到 0.5%」。
 
-而且注意力公式不变——每个 head 还是各算各的分数，只是共用同一份 K，模型结构基本保持，训练流程几乎不用改。
+GQA 原论文研究了从 MHA checkpoint 转换：组内 K/V 头均值池化后继续预训练，并在其设置下用原预训练算力约 5% 做 uptraining。它不是无需训练、删除头就可保证质量的推理开关。
 
-**代价是表达能力下降**。
+公开例子包括 Llama 2 70B 的 `64 Q / 8 KV` 头，以及 Llama 3 文本模型使用 GQA。具体头数要读目标 checkpoint 的配置，不能由模型参数量反推。
 
-直觉理解：原本 32 个 head 各有 32 套不同的「视角」（K 表示「我有什么标签」、V 表示「我的内容」），可以从 32 个角度理解上下文。MQA 让它们共用一套，等于**32 个视角变成「都看同样的标签和内容，只是用不同的 Query 去问」**，多视角能力被压成单视角。
+## 3.4 MLA 压缩的是缓存表示
 
-实测在大模型上效果下降 **2–5%**。简单任务差不多，但**对推理类任务（数学、代码）损失明显**。所以 MQA 在工业界不如它的折中版本受欢迎。
+DeepSeek-V2/V3 的 Multi-head Latent Attention 不只是减少 KV 头数，而是用低维 latent 联合表示 K/V。推理时可通过吸收投影矩阵等计算重写，避免每步显式恢复并长期保存完整的多头 K/V。
 
-## 3.3 GQA：效果与显存的甜蜜点
+关键细节是**解耦 RoPE**：V2 的缓存除压缩 latent 外，还需要位置相关的 key 部分。普通 RoPE 直接作用于完整 key 会影响投影吸收，因此不能把 MLA 简化成「给任意 K/V 做一次低秩压缩即可」。
 
-### 3.3.1 思路
-
-把 $H$ 个 head 分成 $G$ 组，**每组内部共享一份 K/V，组之间各自独立**。
-
-| 方案 | head 数 | K/V 套数 |
+| 比较项 | GQA | MLA |
 |---|---|---|
-| MHA | $H$ | $H$ |
-| **GQA** | $H$ | $G$（$1 \le G \le H$） |
-| MQA | $H$ | 1 |
+| 缓存对象 | 较少组的 K/V | latent 与位置相关 key 等表示 |
+| 主要约束 | 共享组数、头维度、并行分片 | 低秩维度、位置解耦与专用 kernel |
+| 能否直接替换现有模型 | 通常需要转换与训练 | 需要模型架构与训练配合 |
 
-**GQA 是一个连续光谱**：$G=H$ 退化成 MHA，$G=1$ 退化成 MQA，中间任意取值都行。
+DeepSeek-V2 报告的 KV Cache 减少 93.3% 是**相对 DeepSeek 67B 的特定配置**，不意味着 MLA 对所有 GQA 模型都固定省这个比例。部署收益还取决于框架是否真正使用压缩缓存路径。
 
-### 3.3.2 为什么是好折中
+## 3.5 FlashAttention 改的是实现
 
-| 维度 | 效果 |
-|---|---|
-| **显存** | KV Cache 从 $H$ 套压到 $G$ 套，占用比例 $G/H$。$H=32, G=8$ 时压到 **1/4** |
-| **表达力** | 每组有自己的「视角」，组数越多视角越丰富，$G=8$ 通常已足够 |
-| **实测** | GQA 论文中 $G=8$ 配置下效果几乎和 MHA 持平（差距不到 0.5%） |
+朴素注意力先把 `S = QKᵀ` 写到 GPU 显存，再读取计算 `P = softmax(S)`，最后计算 `PV`。中间矩阵的读写会很昂贵。
 
-「**显存大幅下降、效果几乎不损失**」这个甜蜜点，让 GQA 成为现代大模型的标配：
-
-| 模型 | 配置 |
-|---|---|
-| Llama 2 70B | GQA，$H=64$、$G=8$ |
-| Llama 3 全系 | GQA |
-| Qwen 2 / 3 主力模型 | GQA |
-| DeepSeek V2 / V3 | **MLA**（另一条路线，见下） |
-
-### 3.3.3 MLA 不是 GQA 的升级版
-
-DeepSeek V2/V3 用的 **MLA（Multi-head Latent Attention，多头潜在注意力）** 走的是另一条路：
-
-**不共享 K/V，而是把每个 token 的 K/V 通过降维投影压缩到低维 latent 向量存起来**，需要时再配合额外投影参与注意力计算。
-
-存的不是「$H$ 套或 $G$ 套高维 K/V」，而是「低维压缩后的表示」，显存比传统 MHA / GQA 更省。
-
-> 目标相似（都是省 KV Cache），但**实现机制完全不同**。别说成「GQA 的升级版」——GQA 是「少存几套」，MLA 是「换一种更紧凑的表示存」。
-
-## 3.4 Flash Attention：换一条赛道
-
-MQA/GQA 改的是 Attention **结构**（有几套 K/V）。Flash Attention 完全是另一条赛道——**不改数学公式，从底层实现优化**。
-
-### 3.4.1 根源：显存层级的巨大差距
-
-GPU 的存储分两层：
-
-| 层级 | 容量 | 带宽 |
-|---|---|---|
-| **HBM**（高带宽显存，平时说的「显存」） | A100 是 40/80 GB | 约 1.5 TB/s |
-| **SRAM**（片上缓存） | A100 每个 SM 仅 192 KB | 约 19 TB/s（**HBM 的 13 倍**） |
-
-标准 Attention 的实现是这样的：
-
-```python
-S = Q @ K.T              # 算出 N×N 分数矩阵，写回 HBM
-P = softmax(S)           # 从 HBM 读 S，算 softmax，再写回 HBM
-O = P @ V                # 从 HBM 读 P，算最终输出，再写回 HBM
-```
-
-整个过程在 HBM 上**反复读写 $N \times N$ 的大矩阵**，访存时间远超实际计算时间。
-
-这就是为什么 $N=4K$ 的注意力比 $N=2K$ 慢的倍数往往超过理论上的 4 倍——瓶颈在于搬运 $N^2$ 大小的中间结果。
-
-### 3.4.2 核心思路：分块 + 在线 softmax
-
-既然 SRAM 带宽快但容量小，那就**把 Q、K、V 切成小块**（比如 128×128），每次只在 SRAM 里算一小块的注意力，算完直接和最终输出累加，**不把 $N \times N$ 的中间矩阵写回 HBM**。
+FlashAttention 对 Q/K/V 分块，在片上存储中计算局部分数，使用 **online softmax** 合并不同块的统计量，避免在显存中物化完整 `N × N` 矩阵。
 
 ```mermaid
 flowchart TB
-    subgraph STD["标准 Attention"]
-        S1["算 N×N 分数矩阵"] --> S2["写回 HBM"]
-        S2 --> S3["读回算 softmax"] --> S4["写回 HBM"]
-        S4 --> S5["读回乘 V"] --> S6["写回 HBM"]
-    end
-
-    subgraph FA["Flash Attention"]
-        F1["切成 128×128 小块"] --> F2["整块搬进 SRAM"]
-        F2 --> F3["在 SRAM 里算完这一块"]
-        F3 --> F4["在线 softmax 增量更新<br/>直接累加到输出 O"]
-        F4 -->|下一块| F2
-        F4 --> F5["只把最终 O 写回 HBM"]
-    end
-
-    style STD fill:#fce8e6
-    style FA fill:#e6f4ea
+    A["载入一块 Q 和一块 K/V"] --> B["计算局部 logits"]
+    B --> C["更新行最大值、归一化和、加权值和"]
+    C --> D{"还有 K/V 块?"}
+    D -->|有| A
+    D -->|无| E["归一化得到输出"]
+    E --> F["反向时用保存的统计量重算局部概率"]
 ```
 
-**这里有个数学难题**：softmax 要看「整行」才能算，不能局部独立计算。
+为什么不能把每块 softmax 独立归一化后直接相加？因为分母应该覆盖整行。以旧块最大值 `m`、指数和 `l`，新块对应 `m_b, l_b` 为例：
 
-Flash Attention 用**在线 softmax（online softmax）**解决：分块计算的同时维护「当前最大值 + 累积和」的状态，每来一块做增量更新，**最终结果和一次性算 softmax 完全一样**。
+$$
+m'=\max(m,m_b),\qquad
+l'=e^{m-m'}l+e^{m_b-m'}l_b
+$$
 
-### 3.4.3 三个收益
+加权 V 的未归一化累积量也要做相同的重缩放，最后再除以总指数和。这解释了「分块」为什么仍能得到全行 softmax，而不是分块近似注意力。
 
-| 收益 | 说明 |
+| 能解决什么 | 不能据此声称什么 |
 |---|---|
-| **显存 $O(N^2) \to O(N)$** | 不需要把中间矩阵存 HBM，只存最终输出 |
-| **速度快 2–4 倍** | HBM 读写次数从 $O(N^2)$ 降到 $O(N^2/M)$（$M$ 是块大小） |
-| **数学等价** | 算的是同一个公式，**不是稀疏或低秩近似** |
+| 注意力中间存储从平方级降为随序列线性增长的量级 | 整个训练过程只需要保存输出 |
+| 减少显存与片上存储之间的 IO | 全注意力算术量变成 `O(N)` |
+| 计算与标准 attention 数学等价，不做稀疏近似 | 浮点数逐位一致，或任何低精度模式都无误差 |
+| 在合适硬件与工作负载下提速 | 所有模型端到端固定快 2–4 倍 |
 
-关于「等价」要精确一点：实际浮点实现里因为分块顺序和数值精度不同，最后几位可能有微小差异，但**不会像近似注意力那样引入模型精度损失**。
+原论文的 IO 分析以片上容量和头维度为变量，不能把容量简单写成「块大小 M」后宣称任意实现固定减少 M 倍 IO。A100 的显存带宽随型号而异，片上带宽也不是把单个 SM 容量和全芯片带宽拼成一个固定 13 倍结论。
 
-Flash Attention 现已迭代到 v3，针对 H100 等新一代 GPU 做了进一步优化，是 vLLM、SGLang、TGI 等主流推理框架的默认实现。
+**版本范围**：FlashAttention-2 改进并行与工作划分，FlashAttention-3 面向 Hopper；截至 2026-09-08 核实的官方仓库还列有采用 CuTeDSL、面向 Hopper/Blackwell 的 FlashAttention-4。这里不是框架默认后端列表，实际可用性要同时核对 GPU、数据类型、head dimension、mask、库与框架版本。
 
-## 3.5 三类优化是叠加不是替代
+## 3.6 结构与实现可以组合，但不是任意互换
 
-| 方案 | 改的是什么 | 攻击的痛点 | 效果损失 |
-|---|---|---|---|
-| **MQA** | 结构（K/V 压成 1 份） | 显存 | 中等（2–5%） |
-| **GQA** | 结构（K/V 压成 G 份） | 显存 | 几乎无（不到 0.5%） |
-| **Flash Attention** | 实现（分块 + 在线 softmax） | 显存 + 访存 + 速度 | 基本无（数学等价） |
+GQA 决定存几组 K/V，FlashAttention 决定如何高效计算注意力，二者可组合。MLA 同样可以使用针对其结构设计的融合 kernel，但不能把 DeepSeek-V3 写成「GQA + FlashAttention」。
 
-关键在于：
+部署前应依次回答：
 
-```mermaid
-flowchart TB
-    STRUCT["结构层优化<br/>GQA · 决定要存几套 K/V"]
-    IMPL["实现层优化<br/>Flash Attention · 决定怎么算"]
+1. checkpoint 原本使用 MHA、GQA 还是 MLA，支持哪种位置编码？
+2. 缓存按什么精度与布局存储，是否有分片复制、分页碎片或预留空间？
+3. 瓶颈是 prefill 算力、decode 带宽、KV 容量，还是调度和通信？
+4. 所选 kernel 支持哪些输入形状，回退路径是否改变实际收益？
 
-    STRUCT --> COMBO["主流大模型标配<br/>GQA 结构 + Flash Attention 实现"]
-    IMPL --> COMBO
+「7B 能否在 24GB 显卡上跑 32K」要结合权重、缓存、运行时空间、batch 和上下文训练范围回答。省下显存不等于模型具备 32K 有效理解能力。
 
-    COMBO --> R["7B 模型在 4090（24GB）上<br/>跑 32K 长上下文"]
+## 3.7 长上下文的其他路线
 
-    style COMBO fill:#e6f4ea
-```
-
-Llama 3、Qwen 2、DeepSeek V3 都是这个组合：GQA 把 KV Cache 压到 1/4，Flash Attention 让计算快 2–4 倍。
-
-> 面试官如果问「MQA、GQA、Flash Attention 只能选一个，选哪个」，正确回答是**指出这是个伪命题**——它们攻击的是不同维度的瓶颈，真实工程里一定组合用。能说出这句，说明你理解的是整套优化体系的层次结构，不是在背单点优化。
-
-## 3.6 长上下文时代的其他方向
-
-再补几条常见路线：
-
-| 方向 | 思路 | 现状 |
+| 方向 | 机制 | 需要保留的边界 |
 |---|---|---|
-| **MLA** | K/V 压缩到低维潜在空间 | DeepSeek V2/V3 在用，已工程验证 |
-| **Sliding Window Attention** | 每个 token 只关注最近 $N$ 个（如 4096） | Mistral 系列用过，代价是丢失远距离信息，通常和全局注意力混合 |
-| **Linear Attention** | 用核函数近似 softmax，复杂度降到 $O(N)$ | Performer、Linformer 等，效果离 MHA 差一截，未成主流 |
-| **Mamba / SSM** | 完全抛弃 Attention，用状态空间方程 | 理论上可处理无限长上下文，效果仍有争议，研究热点 |
+| Sliding Window Attention | 每层只读局部窗口 | 多层可间接扩大感受野；远距离检索与可淘汰缓存范围依架构而定 |
+| 稀疏注意力 | 选择部分位置计算 | 改变可见连接，需评估遗漏信息的风险 |
+| Linear Attention | 将特征映射或递推状态用于线性复杂度计算 | 不必都是 softmax 的近似；固定状态也有记忆容量限制 |
+| Linformer | 沿序列维做低秩投影 | 不是与 Performer 相同的核方法 |
+| Mamba / SSM 及混合结构 | 用选择性状态更新，或与 attention 交替 | 可持续处理流不等于无损记住无限历史 |
 
-**面试深度建议**：把 MQA、GQA、Flash Attention 三个讲透就足够拿高分，MLA 作为加分项提一句，再深的不用展开。
-
-## 3.7 常见错误
-
-### 3.7.1 只说「$O(N^2)$ 慢」
-
-这只是三个痛点之一，而且是最表面的一个。要能分训练/推理两阶段讲，说出 KV Cache 显存和访存受限这两个更工程化的痛点。
-
-### 3.7.2 说不出 KV Cache 的量级
-
-能现场算出「7B 模型 32K 上下文约 17GB」这个数，比空谈「显存很大」有说服力得多。
-
-### 3.7.3 忽略访存受限
-
-这是最容易被漏掉的一点，也是理解 Flash Attention 的前提。**瓶颈不在算力在带宽**——不知道这一点就理解不了为什么「不改公式只改实现」能快 2–4 倍。
-
-### 3.7.4 认为 Flash Attention 是近似算法
-
-它是**数学等价**的精确实现，不是稀疏近似或低秩近似。这是它能被无条件默认启用的原因。
-
-### 3.7.5 把 MQA 和 GQA 当成两种独立方案
-
-GQA 是一个连续光谱，两端分别退化成 MHA 和 MQA。
-
-### 3.7.6 把 MLA 说成 GQA 的升级版
-
-GQA 是「少存几套」，MLA 是「换一种低秩压缩表示存」，机制不同。
-
-### 3.7.7 把三类优化当成互斥选项
-
-结构层和实现层攻击不同维度，主流模型都是 GQA + Flash Attention 同时用。
-
-## 3.8 本章总结
-
-1. **必须分训练和推理两阶段讲 MHA 的瓶颈**，两者痛点不同；
-2. **三个痛点**：$O(N^2)$ 复杂度、KV Cache 显存、访存受限，长上下文场景下互相加剧；
-3. **KV Cache 的量级要能算**：7B 模型 32K 上下文约 17GB，加权重放不进 24GB 显卡；
-4. **MQA 把 K/V 压成 1 套**，显存降到 $1/H$，但表达力损失 2–5%，推理类任务尤其明显；
-5. **GQA 分 G 组共享**，是连续光谱，$G=8$ 时显存 1/4、效果差距不到 0.5%，现代大模型标配；
-6. **MLA 是另一条路线**：低秩压缩存储，不是 GQA 的升级版；
-7. **Flash Attention 走实现层赛道**：分块 + 在线 softmax，显存 $O(N^2) \to O(N)$，速度 2–4 倍，且数学等价；
-8. **理解 Flash Attention 的前提是知道 HBM 与 SRAM 的 13 倍带宽差距**；
-9. **三类优化是叠加不是替代**，GQA + Flash Attention 是主流组合，让 7B 模型能在消费级显卡上跑 32K。
-
+面试时应把「改连接」「改缓存表示」「改算子实现」区分开，才知道质量损失可能来自哪里、哪些优化能够叠加。
 
 ## 参考资料
 
-- [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
 - [Fast Transformer Decoding: One Write-Head is All You Need（MQA）](https://arxiv.org/abs/1911.02150)
 - [GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints](https://arxiv.org/abs/2305.13245)
-- [FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness](https://arxiv.org/abs/2205.14135)
-- [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning](https://arxiv.org/abs/2307.08691)
-- [DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model（MLA）](https://arxiv.org/abs/2405.04434)
+- [Llama 2](https://arxiv.org/abs/2307.09288)
+- [The Llama 3 Herd of Models](https://arxiv.org/abs/2407.21783)
+- [DeepSeek-V2 论文与官方实现](https://github.com/deepseek-ai/DeepSeek-V2)
+- [FlashAttention](https://arxiv.org/abs/2205.14135)
+- [FlashAttention 官方仓库与版本要求（2026-07-06 README 快照）](https://github.com/Dao-AILab/flash-attention/blob/1f7ce2f7cb503473559f3d44d575ae05b1ed8557/README.md)
 - [Online normalizer calculation for softmax](https://arxiv.org/abs/1805.02867)
-- [Mistral 7B（Sliding Window Attention）](https://arxiv.org/abs/2310.06825)
+- [Mistral 7B](https://arxiv.org/abs/2310.06825)
+- [Linformer](https://arxiv.org/abs/2006.04768)
+- [Rethinking Attention with Performers](https://arxiv.org/abs/2009.14794)
 - [Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752)

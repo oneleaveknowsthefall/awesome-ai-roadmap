@@ -1,220 +1,276 @@
+---
+description: 从 KL 正则化目标推导 DPO 偏好损失，对比 PPO 的在线采样、优势估计和 clipping，并澄清参考策略、资源与泛化差异。
+---
+
 # 第十一章：DPO vs PPO 深度对比
 
-> PPO 和 DPO 经常被放在一起比较，因为它们解决的是同一件事：让模型在 SFT 之后学会区分「能答」与「答得更好」。
+## 11.1 先限定比较对象
 
-## 11.1 一句话抓住区别
+**PPO 是通用的强化学习优化算法**，可以使用环境奖励、规则奖励或奖励模型；并非天生需要先训练“裁判”。**DPO 是从偏好数据直接优化策略的方法**，标准离线形式不需要独立奖励模型与在线 rollout。
 
-| | 类比 |
-|---|---|
-| **PPO** | **先培养裁判，再训练选手**。裁判（奖励模型）学会打分，选手不断上场比赛拿分，教练根据分数调整训练 |
-| **DPO** | **直接拿比赛录像告诉选手哪个动作对**。跳过裁判，直接对照「好动作 / 坏动作」学 |
+本章重点比较“带学习奖励模型的 PPO-RLHF”和“标准离线 DPO”，而不是把所有 PPO 应用都算成四模型 RLHF。
 
-这个类比能快速抓住两者的结构差异，比直接堆术语更清楚。
-
-## 11.2 PPO：先培养裁判，再训练选手
-
-PPO（Proximal Policy Optimization）本身是强化学习的经典算法，最早不是为大模型设计的，OpenAI 在 InstructGPT 里把它用进了 RLHF 流程。
-
-### 11.2.1 第一步：训练奖励模型
-
-标注员拿到「同一问题的多个回答」按质量排名——比如问「解释什么是递归」，得到 A 优于 B、B 优于 C。
-
-用这些排名训练一个专门的奖励模型，让它学会给回答打质量分。**这个奖励模型就是裁判，它代替人类完成后续的自动评分。**
-
-### 11.2.2 第二步：用 PPO 优化主模型
-
-```mermaid
-flowchart LR
-    P["主模型<br/>生成回答"] --> RM["奖励模型<br/>打分"]
-    RM --> PPO["PPO 调参<br/>往高分方向走"]
-    PPO --> P
-    REF["参考模型（冻结）"] -.->|KL 散度约束<br/>不许走太远| PPO
-
-    style REF fill:#fff4e5
-```
-
-### 11.2.3 KL 约束这根绳子
-
-**危险在于**：如果只追求高分，模型可能学会钻空子——生成奖励模型给高分但实际没用的内容，这就是 **reward hacking**。
-
-典型表现包括疯狂堆字数、无脑加免责声明、反复复述问题，因为这些模式在偏好数据里恰好与「好回答」相关。
-
-**防御手段**：维护一个参考模型（SFT 模型的冻结副本），用 KL 散度约束主模型不要偏离太远。
-
-$$
-\mathrm{objective} = \mathbb{E}\big[r(x,y)\big] - \beta \cdot D_{KL}\big(\pi_\theta \,\|\, \pi_{\mathrm{ref}}\big)
-$$
-
-> **KL 散度就像一根绳子**：主模型可以向高分方向移动，但不能走太远。
-
-### 11.2.4 四个模型分别干什么
-
-```python
-# PPO 训练时需要同时维护的四个模型
-policy_model    = load_sft_model()     # 主模型（正在被优化）
-reference_model = load_sft_model()     # 参考模型（冻结副本，用于 KL 约束）
-reward_model    = load_reward_model()  # 奖励模型（裁判，给回答打分）
-value_model     = load_value_model()   # 价值模型（估算未来奖励期望，做优势基线）
-```
-
-**这四个角色分不清，就很难解释 PPO 为什么重、GRPO 又到底省掉了什么**——尤其 value model，不知道它干什么就理解不了 GRPO 的创新点。
-
-4 个模型同时加载进显存，每个都和主模型差不多大，**光显存占用就是 SFT 训练的好几倍**。加上 RL 本身的不稳定性（超参敏感、易 reward hacking、训练曲线震荡），能驾驭 PPO 的团队在业界凤毛麟角。
-
-## 11.3 DPO：绕过裁判，直接看回放
-
-### 11.3.1 核心是一个数学等价转化
-
-研究者发现：**带 KL 约束的 RLHF 优化目标，可以推导改写成一个纯监督学习的损失函数**，不需要显式训练和调用奖励模型。
-
-直觉上，奖励模型的功能被「**主模型相对于参考模型的概率比值**」完全替代了：
-
-$$
-r(x, y) \;\propto\; \beta \log \frac{\pi_\theta(y \mid x)}{\pi_{\mathrm{ref}}(y \mid x)}
-$$
-
-**如果主模型在某个回答上比参考模型提升了更多概率，那这个回答就被认为更受偏好。**
-
-### 11.3.2 损失函数在做什么
-
-```python
-# DPO 损失函数直觉（简化版，不是完整公式）
-loss = -log(sigmoid(
-    beta * (
-        log(policy(chosen)   / ref(chosen))
-      - log(policy(rejected) / ref(rejected))
-    )
-))
-```
-
-同时发生两件事：
-
-1. 模型对**好回答**的概率，相对参考模型**升高**；
-2. 模型对**差回答**的概率，相对参考模型**降低**。
-
-### 11.3.3 只需两个模型
-
-```python
-policy_model    = load_sft_model()   # 主模型（正在被优化）
-reference_model = load_sft_model()   # 参考模型（冻结，用于计算概率比）
-# 相比 PPO 少了 reward_model 和 value_model，资源需求减半
-```
-
-DPO 把对齐训练变成了普通的监督学习问题，**用现成的深度学习框架就能实现**，训练稳定、超参好调。这就是开源社区大量采用它的原因——**不需要复杂的 RL 基础设施**。
-
-## 11.4 完整对比
-
-| 维度 | PPO | DPO |
+| | PPO-RLHF | 标准离线 DPO |
 |---|---|---|
-| **是否需要奖励模型** | 需要（要单独训练） | **不需要** |
-| **同时维护的模型数** | 4 个 | **2 个** |
-| **训练稳定性** | 较差（RL 本身不稳定） | **好（等价于监督学习）** |
-| **实现难度** | 高（需要 RL 基础设施） | 低（标准训练框架即可） |
-| **表达能力** | **强（可探索训练数据之外的空间）** | 稍弱（受偏好数据分布限制） |
-| **对数据质量的敏感度** | 中（RM 可平滑部分噪声） | **高（偏好对有噪声直接学歪）** |
-| **代表模型** | InstructGPT、ChatGPT 早期、Llama 2-Chat | Zephyr、部分 Mistral / Qwen 派生 Instruct 模型 |
+| 数据流 | 学 RM，再采样、评分、更新策略 | 在固定 chosen / rejected 上计算偏好损失 |
+| 新反馈 | 来自训练中策略生成的回答 | 优化阶段不主动生成新数据 |
+| 两者共享的难点 | 反馈偏差、分布外泛化、过优化与独立评估 | 同左 |
 
-### 11.4.1 那个最关键的权衡
+SFT 也能学到质量与安全行为；进一步偏好优化是针对剩余问题，而非跨越一道“只能合格、不能优质”的硬边界。
 
-**DPO 的优化目标是「往偏好数据分布靠拢」**，它永远只能在你给的 chosen/rejected 之间做取舍。
+## 11.2 PPO：奖励建模与在线策略更新
 
-**PPO 是在线采样的**：主模型自己生成回答、拿到分数、再调整。它**能发现偏好数据里根本不存在的更好回答方式**。
+### 11.2.1 偏好如何训练奖励模型
 
-这就是「表达能力」那一行的实质含义——不是 DPO 学得不好，而是**它天然被数据分布圈住了**。
-
-## 11.5 GRPO：站在两者中间的方案
-
-GRPO 是 DeepSeek 在 DeepSeekMath 里提出的 PPO 改进版，**核心创新是砍掉 Value Model**。
-
-在 PPO 里，Value Model 估计「当前状态的预期奖励」作为基线，用来算优势函数。它是独立神经网络、规模和主模型差不多、要单独训练和占显存。
-
-GRPO 的做法是：对一个问题采样 $G$ 个回答（典型 $G=8$），用组内归一化算相对优势：
+设同一 prompt `x` 下，人类更偏好 `yw` 而不是 `yl`。Bradley–Terry 模型写成：
 
 $$
-A_i = \frac{r_i - \mathrm{mean}(r_1 \dots r_G)}{\mathrm{std}(r_1 \dots r_G)}
+P(y_w\succ y_l\mid x)
+=\sigma\bigl(r_\phi(x,y_w)-r_\phi(x,y_l)\bigr)
 $$
 
-**组内平均分充当了 Value Model 的角色**，这个基线天然就有，不用单独训练。
+最小化偏好标签的负对数似然得到奖励模型。这里 `σ` 是 sigmoid，`rφ` 是可学习标量分数。相对比较只能识别奖励差：给同一问题的所有答案加一个相同常数，不改变比较概率。
+
+奖励是标注偏好的代理，不是真实质量的无误测量。学习奖励模型也不会自动消除标注噪声，它可能学习长度、措辞等捷径，并在策略探索到分布外回答时失准。
+
+### 11.2.2 KL 正则化目标
+
+$$
+J(\theta)=
+\mathbb{E}_{x\sim\mathcal D}
+\left[
+\mathbb{E}_{y\sim\pi_\theta(\cdot\mid x)}r_\phi(x,y)
+-\beta D_{\mathrm{KL}}
+\bigl(\pi_\theta(\cdot\mid x)\,\|\,\pi_{\mathrm{ref}}(\cdot\mid x)\bigr)
+\right]
+$$
+
+其中 `β` 为正，参考策略通常是冻结的 SFT checkpoint。KL 惩罚偏离参考分布，限制奖励过优化；它不是硬性的安全边界，也不保证 reward hacking 不发生。
+
+常见实现把 log-ratio 的 KL 估计放入 token 奖励，再在终止位置加入 RM 分数。奖励缩放与 KL 系数共同决定优化强度，因此只报告 `β` 而不报告奖励尺度，比较意义有限。
+
+### 11.2.3 PPO clipping 到底截断什么
+
+对采样旧策略产生的状态 `st`（文本前缀）和动作 `at`（下一个 token），定义：
+
+$$
+\rho_t(\theta)=
+\frac{\pi_\theta(a_t\mid s_t)}
+{\pi_{\mathrm{old}}(a_t\mid s_t)}
+$$
+
+PPO 的 clipped surrogate 要最大化：
+
+$$
+J_{\mathrm{clip}}(\theta)=
+\mathbb{E}_t\left[
+\min\left(
+\rho_t\hat A_t,\,
+\mathrm{clip}(\rho_t,1-\epsilon,1+\epsilon)\hat A_t
+\right)
+\right]
+$$
+
+`Ât` 是估计优势。正优势动作不应因一次更新就获得无限增大的相对概率；负优势动作的更新也在相应方向受到截断。**Clipping 限制的是目标中的激励，不是保证实际概率比永不越界的硬投影。**
+
+两个容易混淆的基准：
+
+| 策略 | 用途 | 更新频率 |
+|---|---|---|
+| `πold` | PPO 重要性概率比的分母，匹配本批 rollout 来源 | 随采样迭代变化 |
+| `πref` | 相对原始行为分布的 KL 正则基准 | 通常整个阶段固定 |
+
+PPO clipping 与 reference KL 解决不同问题，不能说“有 clipping 就不用参考约束”。
+
+### 11.2.4 Value / Critic 做什么
+
+Critic 估计某前缀之后的预期回报。token 级 PPO 常用时序差分残差及 GAE：
+
+$$
+\delta_t=r_t+\gamma V(s_{t+1})-V(s_t),
+\qquad
+\hat A_t=\sum_{l=0}^{T-t-1}(\gamma\lambda)^l\delta_{t+l}
+$$
+
+这里按 `t = 0,…,T−1` 编号，终止状态通常取 `V(sT) = 0`。`γ` 为折扣系数，`λ` 控制优势估计的偏差—方差取舍；截断但未终止的样本如何 bootstrap 需要按实现处理。
+
+所以“优势永远等于最终奖励减 V”只是一步任务的简化直觉，不能代替一般 token 级公式。
 
 ```mermaid
 flowchart LR
-    A["PPO<br/>4 模型<br/>探索能力强<br/>显存大 · 难训"]
-    B["GRPO<br/>3 模型<br/>保留探索能力<br/>显存接近 DPO"]
-    C["DPO<br/>2 模型<br/>无探索能力<br/>最省最稳"]
-    A --- B --- C
-
-    style B fill:#e6f4ea
+    P["采样旧策略"] --> DATA["回答与旧 log probabilities"]
+    DATA --> R["RM 与 KL 奖励"]
+    R --> V["价值估计与优势"]
+    V --> PPO["clipped 策略更新"]
+    PPO --> P
+    REF["冻结参考策略"] -.-> R
 ```
 
-**GRPO 的杀手级特性**：对可验证任务特别友好。数学题、代码题这类「对就是对、错就是错」的场景，$r_i$ 直接用 0/1 判定，**连 Reward Model 都能省**——DeepSeek R1-Zero 就是纯靠这个训出推理能力的。
+策略和价值网络通常训练，参考和奖励网络通常冻结。共享价值头、参考计算缓存、模型大小、rollout 引擎和分片都会改变资源占用，不能用“4 个模型所以显存固定是 4 倍”估计。
 
-实际讨论里，GRPO 的关键就落在这句「**砍掉 Value Model，用组内归一化代替**」。
+## 11.3 DPO：从最优策略关系得到偏好损失
 
-## 11.6 各自适合什么场景
+### 11.3.1 推导中的等价性
 
-| 方案 | 适合谁 |
-|---|---|
-| **PPO** | 对齐效果要求极高、**资源充足、有 RL 工程能力**的团队。ChatGPT 早期的强大效果很大程度来自精心调优的 PPO 流程，但门槛极高 |
-| **DPO** | **快速迭代、GPU 有限、开源社区场景**。不需要 RL 工程能力，偏好数据众包打排名就能收集，训练一次成功率高 |
-| **GRPO** | **可验证任务**（数学、代码），想保留 RL 探索能力但显存吃紧 |
+对固定奖励 `r`、固定参考策略以及正的 `β`，在合适支持集上优化前述 KL 正则化目标，理想最优策略为：
 
-### 11.6.1 一条简单的判断原则
+$$
+\pi^*(y\mid x)=
+\frac{1}{Z(x)}\pi_{\mathrm{ref}}(y\mid x)
+\exp\left(\frac{r(x,y)}{\beta}\right)
+$$
 
-> **想在已有偏好数据的分布上把质量提升一步 → DPO 够用且高效。**
-> **需要模型探索超出现有数据的能力边界，或对齐效果要求接近顶级水平 → 才值得投入 PPO 的工程成本。**
+其中：
 
-## 11.7 常见错误
+$$
+Z(x)=\sum_y\pi_{\mathrm{ref}}(y\mid x)
+\exp\left(\frac{r(x,y)}{\beta}\right)
+$$
 
-### 11.7.1 说不清两者都在解决什么问题
+重排得到：
 
-先铺垫「SFT 让模型学会按指令回答，但不知道哪种回答更受欢迎」，再讲两条路径。跳过这句就显得只在背算法。
+$$
+r(x,y)=
+\beta\log\frac{\pi^*(y\mid x)}{\pi_{\mathrm{ref}}(y\mid x)}
++\beta\log Z(x)
+$$
 
-### 11.7.2 讲不出 PPO 的四个模型各自的职责
+**这是相差一个只依赖 x 的加性项，不是简单的“奖励正比于 log-ratio”。** 同一个 prompt 的两答案做差时，`β log Z(x)` 抵消，因此无需计算昂贵的配分函数。
 
-policy / reference / reward / value。尤其 value model 做优势基线这一点，是理解 GRPO 的前提。
+这个推导要求参考策略在有关回答上有非零概率、归一化可定义，并采用特定偏好概率模型。它描述奖励与最优策略的关系，不能推出有限数据、有限模型和有限训练下 DPO 与 PPO 完全等效。
 
-### 11.7.3 忘记提 KL 约束和 reward hacking
+### 11.3.2 完整损失
 
-这是 PPO 最关键的工程细节。没有 KL 这根绳子，模型会去讨好奖励模型而不是真的变好。
+用 `πθ` 参数化策略，把上述奖励差代入 Bradley–Terry 偏好似然：
 
-### 11.7.4 认为 DPO 全面碾压 PPO
+$$
+\mathcal{L}_{\mathrm{DPO}}(\theta)=
+-\mathbb{E}_{(x,y_w,y_l)\sim\mathcal D}
+\log\sigma\left[
+\beta\left(
+\log\frac{\pi_\theta(y_w\mid x)}{\pi_{\mathrm{ref}}(y_w\mid x)}
+-
+\log\frac{\pi_\theta(y_l\mid x)}{\pi_{\mathrm{ref}}(y_l\mid x)}
+\right)
+\right]
+$$
 
-DPO 省资源、更稳，但**受偏好数据分布限制、没有在线探索能力**。这是明确的权衡不是纯优势。
+这是直接对偏好标签的分类损失，不需要先得到一个显式 RM 再用 PPO 优化它。
 
-### 11.7.5 说不出 DPO 的等价转换是什么
+序列 log probability 应通过回答 token 求和：
 
-奖励模型的功能被「policy 相对 ref 的对数概率比」替代。这是 DPO 的全部精髓。
+$$
+\log\pi_\theta(y\mid x)=
+\sum_{t=1}^{|y|}
+\log\pi_\theta(y_t\mid x,y_1,\ldots,y_{t-1})
+$$
 
-### 11.7.6 忽略 DPO 对数据质量更敏感
+标准形式不能随意改成平均 token log probability 而仍声称目标未变。长度归一化属于改变目标或变体，需要说明理由与评测。
 
-PPO 里的 RM 能平滑一部分标注噪声，DPO 直接在偏好对上学，**噪声会被原样学进去**。
+### 11.3.3 实现中的数值与 masking
 
-### 11.7.7 不提 GRPO
+```python
+import torch.nn.functional as F
 
-它是现在这条线上最热的方案。能说出「砍掉 Value Model 用组内归一化代替」就是加分项。
+# 输入是已按回答 token 掩码求和后的序列 log probabilities
+policy_margin = policy_chosen_logps - policy_rejected_logps
+reference_margin = ref_chosen_logps - ref_rejected_logps
+loss = -F.logsigmoid(beta * (policy_margin - reference_margin)).mean()
+```
+
+直接计算 token 概率的连乘容易下溢，应使用 log-softmax 后 gather 与求和。Prompt、padding 不计入回答得分，EOS 与截断规则必须保持策略和参考一致。
+
+若预计算参考 log probabilities，必须固定参考权重、tokenizer、模板和截断方式，并保证无随机 dropout；改变这些配置后缓存应失效。
+
+### 11.3.4 为什么 chosen 概率也可能下降
+
+DPO 优化的是两答案相对参考策略的 log-ratio **差值**。两者都下降但 rejected 降得更多，也可能让偏好损失改善。因此不仅要看偏好分类准确率，还应观察 chosen 的似然、回答长度、独立任务分数与生成退化。
+
+在理想 KL 奖励目标中，较大的 `β` 表示更强的参考约束；但在实际 DPO 损失中，它也缩放 margin 与梯度，并影响 sigmoid 饱和。不能简单解释成“β 越大每一步更新必然越小”，需要与学习率、数据和训练步数联合验证。
+
+## 11.4 真正的取舍：反馈覆盖与系统成本
+
+| 维度 | PPO-RLHF | 标准离线 DPO |
+|---|---|---|
+| 在线生成 | 通常需要 | 优化阶段不需要 |
+| 奖励来源 | 此处用学习 RM；PPO 本身也可用规则 | 成对偏好标签，隐式奖励参数化 |
+| 价值估计 | 常用 Critic / GAE | 不需要 |
+| 主要工程复杂度 | 采样与训练协调、奖励、优势与策略版本 | 成对数据、log probability、参考一致性 |
+| 分布风险 | RM 对新策略输出的外推误差 | 离线数据覆盖不足 |
+| 稳定性 | 依赖奖励、优势和更新设置 | 流程较简单，但仍可能过拟合、退化 |
+| 质量上限 | 无统一保证 | 无统一保证 |
+
+### 11.4.1 离线不等于不能泛化
+
+DPO 模型仍通过共享参数学习，能生成训练对之外的回答。缺少的是**标准训练循环中的主动采样与新反馈**，不是把输出限制成已知 chosen / rejected 的查表。
+
+反过来，PPO 能探索也不意味着探索一定有效：如果奖励判断错了，探索越多可能越善于钻漏洞。用 AI 或人类重新标注当前策略输出，再继续 DPO，也能形成在线收集、离线更新的迭代系统。
+
+### 11.4.2 如何公平比较
+
+至少控制基座、目标任务分布、评测集与解码预算，并分别报告：
+
+- 偏好标注、RM 训练与在线采样成本；
+- 策略训练 token 数及总硬件时间；
+- RM 分数与独立人类/可验证指标是否一致；
+- 长度、事实性、安全和通用能力退化。
+
+不存在“PPO 的 RM 总能平滑噪声，所以比 DPO 更不怕脏数据”的保证。两者都可能放大监督信号里的系统偏差。
+
+## 11.5 GRPO 与这个比较的关系
+
+GRPO 是 PPO 风格的在线优化路线，主要改变优势估计：同题采样多个回答，用组内奖励均值和标准差计算相对优势，不训练 Critic。
+
+$$
+\hat A_i=
+\frac{r_i-\bar r}{s_r+\varepsilon},
+\qquad
+\bar r=\frac{1}{G}\sum_{j=1}^{G}r_j
+$$
+
+这里的 `ε` 是数值保护。结果监督版本把同一优势赋给回答中的 token，再结合截断概率比与 KL。全组奖励相同则任务优势为零；组内归一化也可能引入难度加权和噪声敏感问题。
+
+```mermaid
+flowchart TB
+    ONLINE["在线采样与奖励优化"] --> PPO["PPO<br/>学习价值基线"]
+    ONLINE --> GRPO["GRPO<br/>组内相对基线"]
+    OFFLINE["固定偏好对"] --> DPO["离线 DPO<br/>直接偏好损失"]
+    DPO -.->|可外接采样与标注循环| OFFLINE
+```
+
+可验证任务可以用规则奖励，省掉学习 RM，但这一点**不是 GRPO 独有**。R1-Zero 的初版报告使用准确性与格式奖励，并复用了预训练基座，不能称为“只用 0/1 从零学会推理”。
+
+省掉 Critic 不意味着总显存接近 DPO：多回答 rollout、上下文长度、参考策略和训练调度都可能占很大比重。
+
+## 11.6 按条件选择，而不是按效果排队
+
+- 已有可信偏好对、在线生成昂贵：DPO 是自然基线。
+- 可以稳定在线打分、需要持续覆盖当前策略的回答：比较 PPO 或 GRPO。
+- 组内奖励几乎总相同：先改善题目难度、采样覆盖或奖励，不要仅更换算法名字。
+- 奖励模型与独立评测不一致：先排查奖励漏洞和评测，而不是增加 RL 步数。
+
+公开报告支持的例子包括 InstructGPT、Llama 2-Chat 的 PPO-RLHF，以及 Llama 3 报告中的 DPO。不能据此断言未公开模型用哪种算法，也不能把同名后续版本的流程自动等同于初版。
+
+## 11.7 常见追问
+
+1. **DPO 为什么不需要 Z(x)？** 同一问题的奖励差抵消了加性归一化项。
+2. **两个 ratio 的分母是不是同一个模型？** PPO clipping 比的是采样旧策略；DPO 隐式奖励和 RLHF KL 用的是参考策略。
+3. **参考策略可以删掉吗？** 预计算可以省常驻显存；改成 reference-free 损失则是另一个目标，不能假装公式未变。
+4. **KL 可以防止所有奖励黑客吗？** 不能，只能约束偏移，奖励错误仍需要修正。
+5. **训练 loss 更低就更对齐吗？** 只说明拟合了训练目标；需要独立的生成评估。
 
 ## 11.8 本章总结
 
-1. **两者目标一致**：都在解决 SFT 之后「知道合格但不知道哪个更好」的问题；
-2. **PPO 是先培养裁判再训练选手**：训 RM → 生成 → 打分 → 调参循环；
-3. **KL 散度是防 reward hacking 的绳子**，允许移动但不许走太远；
-4. **PPO 要同时维护 4 个模型**，显存是 SFT 的好几倍，训练不稳定、超参敏感；
-5. **DPO 的精髓是一个等价转换**：奖励模型被「policy 相对 ref 的对数概率比」替代；
-6. **DPO 只需 2 个模型**，变成普通监督学习，标准框架就能跑；
-7. **最关键的权衡是探索能力**：PPO 在线采样能发现数据外的好回答，DPO 只能在给定偏好对之间取舍；
-8. **DPO 对偏好数据质量更敏感**，因为没有 RM 帮忙平滑噪声；
-9. **GRPO 站在两者中间**：砍掉 Value Model 用组内归一化替代，显存接近 DPO 但保留 RL 探索能力；
-10. **选型原则**：在已有数据分布内提升选 DPO，要突破数据边界才值得投 PPO 的工程成本。
-
-> PPO 和 DPO 的分水岭不在口号式的「谁更强」，而在你是否需要在线探索能力，以及是否愿意为此承担奖励模型和 RL 基础设施的成本。
+PPO-RLHF 用在线奖励、优势估计和截断策略更新；DPO 通过特定偏好模型下的奖励重参数化，直接训练偏好对。二者的关键区别是**新反馈如何获得、参考约束如何进入目标，以及为此承担什么系统成本**，而不是谁拥有固定更高的能力上限。
 
 ## 参考资料
 
-- [Proximal Policy Optimization Algorithms（PPO）](https://arxiv.org/abs/1707.06347)
-- [Training language models to follow instructions with human feedback（InstructGPT）](https://arxiv.org/abs/2203.02155)
-- [Direct Preference Optimization: Your Language Model is Secretly a Reward Model](https://arxiv.org/abs/2305.18290)
-- [DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models（GRPO）](https://arxiv.org/abs/2402.03300)
-- [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948)
-- [Llama 2: Open Foundation and Fine-Tuned Chat Models](https://arxiv.org/abs/2307.09288)
-- [Zephyr: Direct Distillation of LM Alignment](https://arxiv.org/abs/2310.16944)
-- [Hugging Face TRL](https://github.com/huggingface/trl)
+- [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347)
+- [OpenAI Spinning Up：PPO-Clip 公式与约束边界](https://spinningup.openai.com/en/latest/algorithms/ppo.html)
+- [InstructGPT](https://arxiv.org/abs/2203.02155)
+- [DPO：§4 与附录 A 推导](https://arxiv.org/html/2305.18290v3)
+- [DeepSeekMath：GRPO](https://arxiv.org/html/2402.03300v2)
+- [DeepSeek-R1，初版](https://arxiv.org/html/2501.12948v1)
+- [Llama 2](https://arxiv.org/html/2307.09288v2)
+- [The Llama 3 Herd of Models](https://arxiv.org/html/2407.21783v3)
+- [High-Dimensional Continuous Control Using Generalized Advantage Estimation](https://arxiv.org/abs/1506.02438)

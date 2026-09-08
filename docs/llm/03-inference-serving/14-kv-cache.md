@@ -1,319 +1,241 @@
+---
+description: 推导因果注意力的 KV 复用条件、prefill 与 decode 复杂度及 GQA 缓存容量，解释跨请求前缀缓存的命中、计费和淘汰边界。
+---
+
 # 第十四章：KV Cache 与 Prompt Caching
 
-## 14.1 先抓住核心关系
+## 14.1 先区分缓存的对象与复用范围
 
-这两个优化其实是一套机制的两种用法：**同一个底层机制在两个时间尺度上的应用**：
-
-| | 复用范围 | 谁和谁共享 |
+| 概念 | 复用范围 | 缓存什么 |
 |---|---|---|
-| **KV Cache** | 单次推理内 | 同一次生成里，**不同 token 之间** |
-| **Prompt Caching** | 跨请求 | 不同请求之间，**相同前缀** |
+| KV Cache | 一次自回归生成的不同步骤之间 | 各层已处理位置的 key/value 状态 |
+| Prefix / Prompt Caching | 不同请求共享相同前缀时 | 可复用前缀的模型中间状态，常见实现为 KV |
+| 答案缓存 | 请求命中应用缓存时 | 已生成的完整答案 |
 
-底层都是「**缓存 K/V 矩阵避免重复计算**」，完全一样。
+Prompt Caching 不等于答案缓存：新请求仍要处理未命中的后缀并生成输出。厂商 API 暴露的是缓存协议和计费，不能据此断言其内部存储布局与某个开源框架完全一样。
 
-## 14.2 自回归生成里隐藏的低效
+## 14.2 为什么因果模型能够复用历史状态
 
-LLM 每次只产出一个新 token，拼到序列末尾，再对整个新序列重新计算 attention。听起来自然，但隐藏着巨大浪费：
+不使用 KV Cache 的朴素实现会反复把完整前缀送入模型：
 
+```text
+输入 prompt             → 预测 t1
+输入 prompt + t1        → 预测 t2
+输入 prompt + t1 + t2   → 预测 t3
 ```
-第 1 步：输入 [P]                  → 输出 token 1
-第 2 步：输入 [P, t1]              → 输出 token 2
-第 3 步：输入 [P, t1, t2]          → 输出 token 3
-...
-第 10 步：输入 [P, t1, ..., t9]    → 输出 token 10
-```
 
-**每一步都把前面所有 token 重新算一遍 attention，包括 P 这个可能几千 token 的长 Prompt。**
+对**标准因果 Transformer**，某一历史位置不能看未来 token。因此，模型权重、位置编码、掩码及先前输入不变时，这个位置在各层的隐藏状态不因追加后缀而改变，其 K/V 也可复用。
 
-### 14.2.1 朴素实现是 $O(N^3)$
+这依赖因果性和固定计算语义，不只是「embedding 不变」。深层的 K/V 来自各层隐藏状态，而非全都直接来自最初的 token embedding。若前缀被编辑、位置或 RoPE 配置改变、模型/LoRA 权重改变，则相关缓存可能失效；有特殊动态位置规则的模型也需单独检查。
 
-第 $i$ 步要对 $i$ 个 token 做 attention，复杂度 $O(i^2)$，总计算量：
+## 14.3 单次生成：prefill 与 decode
+
+### 14.3.1 一次计算里发生什么
 
 $$
-\sum_{i=1}^{N} i^2 \approx O(N^3)
+\mathrm{Attention}(Q,K,V)=
+\mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
 $$
 
-生成一个 1000 token 的回答，等于做 10 亿次单 token 量级的运算。
+- **Prefill**：并行处理整个 prompt，逐层建立 K/V，用最后位置的 logits 采样第一个输出 token。
+- **Decode**：把上一步采得的 token 送入各层；计算它自己的 Q/K/V，将新 K/V 追加到缓存，Q 读取历史和**当前位置自身**的 K/V，再产生下一 token 的 logits。
+- **为什么不长期缓存 Q？** 旧 Q 通常不会被未来位置的 attention 读取；不是 Q 不能缓存，而是标准自回归解码无需复用它。
 
-### 14.2.2 关键观察
-
-**第 2 步算的 P 的 attention，和第 1 步算的完全一样**（输入和模型参数都没变）。
-
-**每一步重算前缀，是纯粹的浪费。**
-
-## 14.3 KV Cache：单次推理内的优化
-
-**核心思路一句话：把前面所有 token 的 K 和 V 缓存起来，每次新 token 只算自己的部分。**
-
-### 14.3.1 为什么可以这么做
-
-$$
-\mathrm{Attention}(Q, K, V) = \mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
-$$
-
-注意三件事：
-
-1. **新 token 只贡献一个 $Q$**（它在「问」前面所有 token）；
-2. 它做点积的对象 $K^\top$ 和加权求和的对象 $V$ 都来自**前面所有 token**；
-3. **前面所有 token 的 $K$、$V$ 是固定的**——它们从已有 token 的 embedding 算出，新 token 不影响它们。
-
-所以前面所有的 $K$、$V$ 完全可以缓存。
-
-### 14.3.2 代码对比
+下面是抽象接口的伪代码，`model` 内部包含所有层、因果 attention 和输出头：
 
 ```python
-# 朴素实现（无 KV Cache）
-for step in range(max_tokens):
-    K_all, V_all = model.compute_KV(全部已有 token)   # 重复算前面的
-    Q_new = model.compute_Q(全部已有 token)
-    out = softmax(Q_new @ K_all.T / sqrt(d_k)) @ V_all
-    next_token = sample(out[-1])
-
-# 带 KV Cache 的实现
-kv_cache = []
-for step in range(max_tokens):
-    if step == 0:
-        K, V = model.compute_KV(prompt_tokens)      # 首次处理整个 Prompt
-        kv_cache.append((K, V))
-    else:
-        K_new, V_new = model.compute_KV([new_token])  # 只算新 token
-        kv_cache.append((K_new, V_new))
-
-    Q_new = model.compute_Q([current_token])
-    K_all, V_all = concat(kv_cache)                  # 缓存里取出来用
-    out = softmax(Q_new @ K_all.T / sqrt(d_k)) @ V_all
-    next_token = sample(out)
+logits, cache = model.prefill(prompt_tokens)
+for step in range(max_new_tokens):
+    token = sample(logits[-1])
+    emit(token)
+    if token == eos_token_id or step + 1 == max_new_tokens:
+        break
+    logits, cache = model.decode(token, cache)
 ```
 
-**关键变化**：每一步只算 1 个 token 的 K/V（$O(1)$ 工作量），而不是 $N$ 个（$O(N)$）。
+缓存按层维护；真实框架通常采用预分配或分页写入，不应每步 `concat` 复制全部历史 KV。采样针对词表 logits，不是直接对 attention 输出向量采样。
 
-| 实现 | 第 $i$ 步开销 | $N$ 步总开销 |
+### 14.3.2 复杂度必须说明统计口径
+
+令 prompt 长度为 P，生成长度为 G，固定层数、头数和维度，只统计**全注意力的 QK 与 AV 工作量**：
+
+| 实现 | prompt 之后的工作 | 总 attention 工作量 |
 |---|---|---|
-| 朴素（无 KV Cache） | $O(i^2)$ | $O(N^3)$ |
-| **带 KV Cache** | $O(i)$ | $O(N^2)$ |
+| 每步重算完整前缀 | 长度约为 P+i 的全序列 attention | 随各步的 `(P+i)²` 求和 |
+| 使用 KV Cache | 每个新 query 读取约 P+i 个位置 | `O(P² + PG + G²)`，含首次 prefill |
 
-> **KV Cache 不是「锦上添花的优化」，是「让自回归生成可行的基本盘」。** 所有现代推理框架（vLLM、SGLang、TGI、llama.cpp）默认开启，没人会关掉它。
+如果忽略固定短 prompt，只考察 G 增长，前者为 `O(G³)`，后者为 `O(G²)`。**这不是模型全部 FLOPs，也不是具体 GPU 执行次数**；投影、FFN、输出头和通信仍有自己的成本。不能把「1000 token」直接换算成「十亿次单 token 运算」。
 
-## 14.4 KV Cache 的显存代价
+KV Cache 避免重算历史隐藏状态，却没有消除新 Q 对长历史的读取。所以长上下文 decode 仍会受 KV 带宽限制。
 
-速度上去了，代价是显存——**前面所有 token 的 K/V 都要常驻显存**。
+## 14.4 KV Cache 显存：先数 KV 头
 
-$$
-M_{\mathrm{KV}} = 2 \times B \times N \times L \times H \times d_k \times 2\ \mathrm{bytes}
-$$
-
-（首个 2 是 K 和 V 各一份，末尾 2 字节是 FP16）
-
-对一个 7B 模型（$L=32$、$H=32$、$d_k=128$），batch=1、$N=32\mathrm{K}$：
+对普通全注意力、各层 KV 头数相同且无跨请求共享的缓存，若 K/V 的头维相同：
 
 $$
-2 \times 1 \times 32000 \times 32 \times 32 \times 128 \times 2 \approx 17\ \mathrm{GB}
+M_{\mathrm{KV}}=2LBND_{\mathrm{head}}H_{\mathrm{KV}}s
 $$
 
-**光 KV Cache 就 17GB，加上权重 14GB 共 31GB，一张 24GB 的 4090 根本放不下。**
+其中 L 为层数，B 为并发序列数，N 为每条序列当前缓存长度，H_KV 为 KV 头数，D_head 为头维，s 为每个元素的字节数。变长 batch 应把 BN 换成各序列长度之和；分片、复制、尾块、量化元数据和预留池需要另外核算。
 
-这就是为什么大模型部署有一整套围绕 KV Cache 的优化——MQA/GQA 共享 K/V（见 [第三章](../01-foundations/03-attention-variants.md)）、KV Cache 量化、PagedAttention。
+### 14.4.1 相同层数，不同头数，差多少
 
-## 14.5 Prompt Caching：把复用扩展到跨请求
+取一个**容量估算示例**，不代表任意 7B 模型都支持该上下文：L=32、D_head=128、B=1、N=32,768，FP16/BF16 的 s=2。
 
-KV Cache 解决的是单次生成内的重复。但还有一个更隐蔽的浪费：**不同请求之间的重复计算**。
+| KV 设计 | H_KV | 理想 KV 大小 |
+|---|---:|---:|
+| MHA | 32 | 16 GiB，约 17.18 GB |
+| GQA | 8 | 4 GiB |
+| MQA | 1 | 0.5 GiB |
 
-### 14.5.1 一个真实场景
+1 GiB 为 2³⁰ 字节，1 GB 为 10⁹ 字节。若另有 7B 个 FP16 权重，裸权重约 14 GB；还要加入激活、workspace 和框架开销。不能只说「7B 的 32K KV 就是 17GB」，也不能只靠权重大小决定可容纳并发。
 
-你做了一个客服 AI，System Prompt 有 3000 token 的产品知识、对话规则、Few-shot 示例。所有用户请求都用这同一个 System Prompt 开头。
+MLA 可能缓存压缩 latent 与位置相关分量，滑动窗口层只保留窗口内状态；这些不能直接套用上述常规 KV 公式。详见[第三章](../01-foundations/03-attention-variants.md)。
 
-**一天 10 万次对话，就重算了 10 万次这 3000 个 token 的 KV Cache。**
+## 14.5 跨请求：共享的必须是完整计算前缀
 
-### 14.5.2 机制
+假设许多请求都以同一份长系统提示开头。第一次 prefill 产生状态后保留它，后续请求可直接从最长匹配前缀之后继续。
 
 ```mermaid
 flowchart TB
-    R1["请求 1 到达"] --> C1["正常计算 System Prompt 的 KV Cache<br/>额外保留在显存池子里几分钟"]
-    C1 --> POOL[("KV Cache 池<br/>按 Prompt 前缀哈希索引")]
-    R2["请求 2 到达"] --> M{"前缀哈希<br/>命中?"}
+    R1["首次请求"] --> C1["计算并保留可缓存前缀"]
+    C1 --> POOL[("KV 块池与前缀索引")]
+    R2["后续请求"] --> M{"最长可复用前缀存在？"}
     POOL --> M
-    M -->|命中| HIT["直接复用缓存的 KV<br/>只算用户新增部分"]
-    M -->|未命中| MISS["从零计算并写入池子"]
-
-    style HIT fill:#e6f4ea
+    M -->|是| HIT["引用已有块<br/>计算未命中的后缀"]
+    M -->|否| MISS["执行 prefill<br/>按策略写入缓存"]
+    HIT --> D["生成新回答"]
+    MISS --> D
 ```
 
-技术上就是 **KV Cache 在时间维度的延伸**：单次内在 token 之间共享，Prompt Caching 在请求之间共享。
+常见的命中条件包括：
 
-## 14.6 主流 API 的两种实现方式
+- token 前缀一致，且模型、适配器、位置/掩码语义兼容；
+- chat template、工具定义、图片等有效输入一致，而非仅用户可见文字相同；
+- 缓存还在、长度达到可缓存粒度，并且请求路由到可访问该缓存的实例；
+- 租户或信任域允许共享。
 
-### 14.6.1 Claude：显式标记缓存断点
+修改中间一个 token 会使**其后**的缓存不再匹配，但修改之前的完整块仍可能命中。重复的文本出现在不同上下文之后，也不能只凭该文本相同复用，因为其隐藏状态不同。
 
-要用户显式告诉 API「我希望缓存到这里」：
+## 14.6 API 行为：显式和自动不是厂商的永久标签
+
+以下根据 2026-09-08 核对的官方文档与 SDK 描述。产品规则会变化，应把模型、接口和计费版本一起记录。
+
+### 14.6.1 Claude：内容块断点，也有自动断点
+
+官方 cookbook 同时演示：
+
+- 在内容块上设置 `cache_control`，明确缓存边界。
+- 在请求顶层设置 `cache_control`，由服务自动给最后一个可缓存块添加断点。
+
+显式边界适合「固定文档 + 不同问题」。以下结构需替换成真实模型 ID 和足够长的文档；短占位文字不保证达到模型的最小缓存长度。
 
 ```python
 import anthropic
+
 client = anthropic.Anthropic()
+system = [{
+    "type": "text",
+    "text": "[替换为真实的固定文档与说明]",
+    "cache_control": {"type": "ephemeral"},
+}]
 
-SYSTEM_WITH_CACHE = [
-    {
-        "type": "text",
-        "text": "你是一位专业的劳动法顾问。\n\n以下是完整的法律条文：\n\n[数千字内容...]",
-        "cache_control": {"type": "ephemeral"}   # 断点：这份内容会被缓存
-    }
-]
-
-# 第一次请求：建立缓存（写入有少量额外费用）
-resp1 = client.messages.create(
-    model="<your-model-id>", max_tokens=512,
-    system=SYSTEM_WITH_CACHE,
-    messages=[{"role": "user", "content": "员工试用期最长可以是多久？"}]
+response = client.messages.create(
+    model="YOUR_MODEL_ID",
+    max_tokens=512,
+    system=system,
+    messages=[{"role": "user", "content": "请概括文档中的责任划分。"}],
 )
-
-# 第二次请求：system 前缀完全一致，命中缓存
-resp2 = client.messages.create(
-    model="<your-model-id>", max_tokens=512,
-    system=SYSTEM_WITH_CACHE,
-    messages=[{"role": "user", "content": "劳动合同必须包含哪些必备条款？"}]
-)
+print(response.usage.cache_creation_input_tokens)
+print(response.usage.cache_read_input_tokens)
 ```
 
-**好处**：用户清楚控制哪些内容缓存。**代价**：要改代码、加配置。
+再次请求只有满足长度、前缀、路由和存活等条件才会命中。SDK 的 `ephemeral` TTL 支持 `5m`（默认）与 `1h`，不能把所有 Claude 缓存都说成只有五分钟。
 
-### 14.6.2 OpenAI：自动缓存
+### 14.6.2 OpenAI：按模型核对缓存模式
 
-只要 Prompt 前缀超过一定长度（约 1024 token），系统会自动尝试缓存。命中时不需要额外操作，响应里会告诉你有多少 token 命中了。
+官方文档说明支持模型默认启用 prompt caching，但最小可缓存长度、隐式/显式断点、写入计费和保留时间按模型区分。因此不再使用「只要超过约 1024 token，所有模型都自动免费写缓存」这样的统一规则。
 
-**好处**：不改代码就能享受到。**缺点**：控制粒度不如显式标记精细。
+从响应 usage 中检查缓存命中的 token 数，例如 Chat Completions 的 `prompt_tokens_details.cached_tokens`；其他端点字段可能不同。区分请求命中率与 token 命中率：一次请求只命中很短的前缀，不等于省掉大部分 prefill。
 
-### 14.6.3 收益
+### 14.6.3 计费应该算回本条件
 
-| 维度 | 说明 |
+只看同一个可复用前缀，设普通输入成本为 C，写入倍率为 w，读取倍率为 r，写一次后命中 h 次：
+
+$$
+C_{\mathrm{cache}}=C(w+hr),\qquad
+C_{\mathrm{plain}}=C(1+h)
+$$
+
+缓存划算的条件是 h(1−r) 大于 w−1。**不是固定要命中两次以上。** 例如 w=1.25、r=0.1 时，一次写入加一次读取为 1.35C，已低于两次普通输入的 2C。这是条件化算例，不是全行业报价。
+
+还要计算失效后的重写、未缓存后缀及输出费用。缓存主要减少重复 prefill；decode 仍需逐 token 运行，首 token 也仍可能受到排队与路由影响。
+
+## 14.7 组织 Prompt 时如何利用缓存
+
+适合复用的内容包括稳定的工具定义、系统规则、同一长文档和固定示例。把可共用的稳定内容放在前面，动态用户问题放在后面：
+
+```text
+[稳定且有权限共享的说明、文档、示例]
+← 合适的缓存边界
+
+[本次时间、用户条件、问题]
+```
+
+这不是要求为了命中率把敏感用户资料塞进公共系统提示。权限隔离优先，缓存不能替代访问控制。
+
+多轮对话可复用未改变的历史，但摘要压缩、消息重排、工具 schema 更新都会改变前缀。对滚动历史，先评估实际稳定长度，不要直接假设 Agent 的命中率必然高。
+
+## 14.8 工程陷阱：缓存不是越多越好
+
+| 情况 | 影响与处理 |
 |---|---|
-| **成本** | 命中缓存的 token 费用大幅低于正常输入 token（Anthropic 的 ephemeral cache 约为 10%），但**写入那次会有额外费用**（约 1.25 倍）。**要有 2 次以上命中才划算** |
-| **延迟** | 命中时首 token 延迟通常下降，因为 Prompt 部分不用重算 |
+| 冷缓存或请求分散在不同实例 | 命中率低；压测要同时覆盖冷启动、热缓存和多副本路由 |
+| 热点前缀过多 | 占用 KV 池，挤压活动请求；监控淘汰、重算与排队 |
+| 低频前缀反复过期 | 写入附加费可能超过读取节省；按到达间隔和 TTL 计算 |
+| 多租户共享缓存 | 需要隔离信任域，避免越权复用及命中时间侧信道 |
+| 只缓存 KV、不缓存最后位置 logits | 全前缀命中时仍可能重算最后少量 token，以产生首个输出分布 |
 
-> **别把某一家的价格比例说成全行业通用。** 具体能降多少延迟也要看缓存前缀长度、模型、并发和服务端调度，**工程上要用真实链路压测**。
+vLLM 的前缀索引将前一块哈希、本块 token 和额外键结合；额外键可包含 LoRA ID、多模态输入哈希与缓存 salt。只对本块文字做哈希是不够的。
 
-## 14.7 适合的三类场景
+## 14.9 缓存优化的不同层次
 
-Prompt Caching 最适合「**前面固定、后面变化**」的使用模式。
+### 14.9.1 KV 量化：减少每个元素的位宽
 
-| 场景 | 说明 |
-|---|---|
-| **① 固定 System Prompt 的应用** | 客服系统、AI 助手、代码 Review 工具。System Prompt 包含大量产品知识、规则、Few-shot。**这是最常见、收益最大的场景** |
-| **② 基于同一份长文档的多次问答** | 把合同文本放进 Prompt 后问 10 个问题。第一次建缓存，后续 9 次命中。法律、金融、医疗 AI 特别多 |
-| **③ 大量 Few-shot 示例** | 10–20 组示例引导输出格式，每次用户问题不同但示例一样 |
+FP16 到 8-bit 或 4-bit 时，理想数据载荷分别为原来的二分之一、四分之一；scale、零点、未量化残留和对齐会增加实际容量。还要验证 attention kernel 能否直接消费该格式，避免转换开销抵消收益。
 
-## 14.8 工程陷阱
+不能笼统说「KV 一定比权重更怕量化」。K 的误差会改变 attention 分数，V 的误差改变加权聚合，两者分布与误差传播不同。KIVI 的关键设计是 **K 按通道、V 按 token 的非对称分组量化**，并保留高精度残留窗口。其结果不能直接推成所有模型的低位宽质量保证。
 
-### 14.8.1 最常踩的雷：动态内容放在了前面
+### 14.9.2 PagedAttention：减少分配浪费
 
-**前缀必须完全一致才能命中，哪怕多一个空格、改一个字符，就是 miss。**
+它把逻辑连续的 KV 序列映射到不必物理连续的固定大小块，通过 block table 访问。块大小是配置与后端约束，不是永远 16 token。
 
-❌ **会让缓存永远失效的结构**：
+分页减少外部碎片和过度预留；尾块仍有内部浪费。共享块通过引用计数管理，分支写入时可采用写时复制。**分页本身不压缩一个 token 的 KV 字节数**。
 
-```
-今天是 2026-03-07，当前用户：张三          ← 每次都不同！
+### 14.9.3 APC 与 Offloading：复用和放置
 
-[数千字的系统提示 + 产品知识库]
-← cache_control 断点
+APC 负责发现可复用的前缀；offloading 把状态放到 CPU 或其他存储层，减少 GPU 驻留量但增加传输。它们和分页、GQA、量化各解决不同问题，可以组合，也可能因后端支持或带宽形成限制。
 
-用户问题：我想退换货
-```
+## 14.10 推导与排查练习
 
-日期和用户名每次都变，**导致整个前缀每次都变，缓存永远 miss**，每次还是要从零算几千字的系统提示。
-
-✅ **正确结构**：
-
-```
-[数千字的系统提示 + 产品知识库]
-← cache_control 断点放这里
-
-今天是 2026-03-07，当前用户：张三
-用户问题：我想退换货
-```
-
-**把所有固定内容集中到断点之前，动态内容放在断点之后。**
-
-### 14.8.2 缓存的时效性
-
-Anthropic 的 ephemeral 缓存默认有效期约 5 分钟，超时没命中就失效。
-
-| 流量水平 | 影响 |
-|---|---|
-| **高流量**（每分钟几十次以上） | 通常能自然保持缓存活跃，收益显著 |
-| **低流量**（几小时一次） | 频繁失效，**反而因为写入的额外费用更贵** |
-
-**低流量场景使用前要评估清楚。**
-
-## 14.9 两个进阶方向
-
-### 14.9.1 KV Cache 量化
-
-把 KV Cache 从 FP16 量化到 INT8 甚至 INT4，显存降到 1/2 或 1/4。
-
-**但 KV Cache 对量化误差比权重更敏感**，尤其长链路推理（数学题、代码题）。这仍是研究热点，主流方案还在演进。
-
-#### 14.9.2 PagedAttention 与 Automatic Prefix Caching
-
-vLLM 的核心创新，**灵感来自操作系统的虚拟内存**。
-
-把 KV Cache 切成固定大小的 Block（典型 16 个 token 一块），每个请求拿到的是逻辑 Block 列表，由一张 Block Table 映射到物理显存。
-
-PagedAttention 还使前缀块可被安全引用和回收。vLLM 的 **Automatic Prefix Caching（APC）** 会按已计算 token 前缀自动复用 KV block；它不是只属于 SGLang/RadixAttention 的能力。是否命中取决于 token 前缀、缓存容量、淘汰和当前版本配置，应以目标版本文档与压测为准。
-
-## 14.10 常见错误
-
-### 14.10.1 把两者当成不相关的优化
-
-它们是**同一机制在两个时间尺度上的应用**。这是区分两者的关键。
-
-### 14.10.2 说不出朴素实现为什么是 $O(N^3)$
-
-每步 $O(i^2)$ 求和得 $O(N^3)$，加了 KV Cache 后每步 $O(i)$，总量降到 $O(N^2)$。
-
-### 14.10.3 说不清为什么 K/V 能缓存而 Q 不能
-
-K、V 由已有 token 的 embedding 算出、不随新 token 变化；新 token 只贡献一个新的 Q。
-
-### 14.10.4 把 KV Cache 当成可选优化
-
-它是让自回归生成可行的基本盘，所有推理框架默认开启。
-
-### 14.10.5 忽略显存代价
-
-7B 模型 32K 上下文就要 17GB。整个 MQA/GQA/PagedAttention 生态都是为压它而生的。
-
-### 14.10.6 把动态内容放在缓存断点前
-
-日期、用户名放前面会让缓存永远 miss。**这是最容易踩的雷。**
-
-### 14.10.7 把某家的价格比例说成行业通用
-
-说「能显著降低重复前缀成本和首 token 延迟」更稳。
-
-### 14.10.8 忽略低流量场景可能反而更贵
-
-缓存约 5 分钟时效，没有持续命中时写入费用得不偿失。
+- 缓存长度翻倍、并发不变，标准全注意力 KV 容量怎样变化？线性翻倍，但 prefill attention 工作量不是线性。
+- 将 query 头保持 32、KV 头从 32 改为 8，理论缓存缩小多少？四倍；质量与结构改动不能只靠服务端开关实现。
+- 命中大量前缀，为什么总响应仍慢？检查输出长度、decode、排队、缓存读取和跨机传输。
+- 同一段文档为什么不命中？比较完整 token 前缀、模板、工具、多模态输入、适配器、实例路由和缓存存活状态。
 
 ## 14.11 本章总结
 
-1. **KV Cache 与 Prompt Caching 是同一机制的两个时间尺度**：单次推理内 vs 跨请求；
-2. **朴素自回归每步重算全部前缀**，总计算量 $O(N^3)$，大模型时代根本跑不动；
-3. **K/V 可缓存的原因**是它们由已有 token 算出、不随新 token 改变，新 token 只贡献一个 Q；
-4. **加上 KV Cache 后总量降到 $O(N^2)$**，这是让自回归可行的基本盘而非可选优化；
-5. **代价是显存**：7B 模型 32K 上下文约 17GB，加权重 31GB，单张 4090 放不下；
-6. **Prompt Caching 把复用扩展到请求之间**，按前缀哈希索引 KV Cache 池；
-7. **两种实现**：Claude 显式 `cache_control` 断点（可控但要改代码），OpenAI 自动缓存（省事但粒度粗）；
-8. **收益是成本与首 token 延迟**，但写入有额外费用，**要 2 次以上命中才划算**；
-9. **最大的工程陷阱是前缀必须完全一致**——固定内容在前、动态内容在后；
-10. **低流量场景可能反而更贵**，因为缓存只有约 5 分钟时效；
-11. **两个进阶方向**：KV Cache 量化（对误差比权重更敏感）与 PagedAttention/APC（降低块管理和重复前缀的开销）。
-
+KV Cache 的依据是因果前缀状态不变；收益是避免历史重算，代价是容量与带宽。Prompt Caching 把可复用状态延伸到请求之间，其收益受匹配粒度、缓存生命周期、流量与计费约束。容量估算必须数 KV 头，服务评估必须分开 prefill、decode 和排队。
 
 ## 参考资料
 
-- [Efficient Memory Management for Large Language Model Serving with PagedAttention（vLLM）](https://arxiv.org/abs/2309.06180)
-- [Fast Transformer Decoding: One Write-Head is All You Need（MQA）](https://arxiv.org/abs/1911.02150)
-- [GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints](https://arxiv.org/abs/2305.13245)
-- [Anthropic: Prompt Caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching)
-- [OpenAI: Prompt Caching](https://platform.openai.com/docs/guides/prompt-caching)
-- [KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache](https://arxiv.org/abs/2402.02750)
-- [SGLang: Efficient Execution of Structured Language Model Programs](https://arxiv.org/abs/2312.07104)
-- [vLLM: Automatic Prefix Caching](https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/)
+- [PagedAttention 原论文](https://arxiv.org/abs/2309.06180)
+- [MQA 原论文](https://arxiv.org/abs/1911.02150)
+- [GQA 原论文](https://arxiv.org/abs/2305.13245)
+- [Anthropic 官方 Prompt Caching cookbook](https://github.com/anthropics/anthropic-cookbook/blob/main/misc/prompt_caching.ipynb)
+- [Anthropic 官方 SDK：缓存 TTL 类型](https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/cache_control_ephemeral_param.py)
+- [OpenAI：Prompt Caching](https://developers.openai.com/api/docs/guides/prompt-caching)
+- [KIVI 原论文](https://arxiv.org/html/2402.02750v2)
+- [vLLM：Automatic Prefix Caching 设计](https://docs.vllm.ai/en/stable/design/prefix_caching/)
+
+本文原创讲解与示意图：Polo Li，采用 CC BY 4.0。

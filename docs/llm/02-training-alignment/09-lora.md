@@ -1,283 +1,244 @@
 ---
-description: 解释 LoRA 的低秩更新原理、参数与显存开销、权重合并、多适配器部署，以及 Rank 和 Alpha 的选择方法。
+description: 推导 LoRA 的矩阵形状、初始化和参数预算，说明 rank 与 alpha、合并精度、多适配器切换及能力退化的边界。
 ---
 
 # 第九章：LoRA 深入解析
 
-## 9.1 背景：全量微调的代价
+## 9.1 背景：减少可训练状态，而不是跳过基座计算
 
-[第八章](08-finetuning.md) 算过一笔账：一个 7B 模型全量微调需要 80GB+ 显存。
+全量微调不仅存权重，还存梯度、优化器状态和激活。[第八章](08-finetuning.md) 的显式预算示例中，7B 参数在保留 FP32 主权重、两份 FP32 Adam 状态以及 16-bit 权重和梯度时，持久状态约 **112 GB**，尚未计激活。实现、分片与卸载改变单卡占用。
 
-| 项目 | FP16 显存 |
-|---|---|
-| 权重 | 约 14 GB |
-| 梯度 | 约 14 GB |
-| Adam 优化器一阶矩 + 二阶矩 | 约 56 GB |
+LoRA 属于 PEFT（参数高效微调）：冻结基座，在指定矩阵上训练低秩增量。主要节省的是**可训练参数对应的梯度、优化器状态和每任务存储**；基座前向和激活反向传播仍然存在。
 
-普通开发者手里顶多是一张 24GB 的 RTX 4090，**跑不动**。70B 模型显存以百 GB 计，普通公司都难负担。
+## 9.2 核心公式与实现
 
-这催生了 **PEFT（Parameter-Efficient Fine-Tuning，参数高效微调）**：不更新全部参数，只训练一小部分，同时尽量不损失效果。LoRA 是其中最成功的方案。
+### 9.2.1 统一矩阵约定
 
-## 9.2 核心思路：不改原模型，在旁边打补丁
-
-不动原始权重 $W$，在旁边加两个小矩阵 $A$ 和 $B$，训练时只更新它们，$W$ 全程冻结。以下采用行向量输入约定：$x\in\mathbb{R}^{d_{\mathrm{in}}}$、$W\in\mathbb{R}^{d_{\mathrm{in}}\times d_{\mathrm{out}}}$、$B\in\mathbb{R}^{d_{\mathrm{in}}\times r}$、$A\in\mathbb{R}^{r\times d_{\mathrm{out}}}$。
+采用列向量约定：
 
 $$
-h = x(W + \Delta W),\qquad
-\Delta W = \frac{\alpha}{r}BA
+x\in\mathbb{R}^{d_{\mathrm{in}}},\quad
+W\in\mathbb{R}^{d_{\mathrm{out}}\times d_{\mathrm{in}}},
+\quad
+A\in\mathbb{R}^{r\times d_{\mathrm{in}}},
+\quad
+B\in\mathbb{R}^{d_{\mathrm{out}}\times r}
 $$
+
+$$
+h=Wx+\frac{\alpha}{r}B(Ax),\qquad
+\Delta W=\frac{\alpha}{r}BA
+$$
+
+对 PyTorch 中按行存储的 batch 输入，等价的前向写法是：
 
 ```python
-# W 是原始权重（冻结，不更新）
-# A、B 是两个小矩阵（可训练）
-# alpha 是缩放因子（超参，控制 LoRA 更新的强度）
+import torch.nn.functional as F
 
-output = x @ (W + (alpha / r) * (B @ A))
-#                    ↑ 旁路分支，只有这里在学习
+# W: [out, in]，A: [r, in]，B: [out, r]
+output = F.linear(x, W) + (alpha / r) * F.linear(F.linear(x, A), B)
 ```
 
-- **$A$、$B$ 组成旁路分支**，负责学习微调任务需要的增量知识；
-- **$W$ 保存预训练学到的通用知识，一字不改。**
+训练时应计算两个小投影，而不是每步先物化一个完整的 `B @ A` 再乘输入；后者会丢掉部分低秩计算优势。上例省略 bias 和 LoRA dropout。
 
-> **给书批注的类比**：全量微调是把书重新印一遍、改掉原文；LoRA 是在空白处贴便利贴，原书一个字不动。读书时原文和便利贴都能看到，效果叠加。
+### 9.2.2 为什么通常一个矩阵随机、另一个为零
 
-**这种「在旁边打补丁」的设计，是 LoRA 后续所有优点的根源。**
+原始 LoRA 用随机初始化的 `A` 和零初始化的 `B`，使训练开始时 `ΔW = 0`，模型输出与基座一致。PEFT 的默认 `A` 使用 Kaiming-uniform、`B` 为零；分布细节与原论文不完全相同。
 
-## 9.3 低秩分解到底是什么意思
+**不能把 A、B 都初始化为零**：乘积对任一因子的梯度都依赖另一个因子，这会让两个分支在起点都收不到有效梯度。只有 `B` 为零时，第一步 `A` 梯度可以为零，但 `B` 可更新，随后 `A` 也开始学习。
 
-这是最让初学者困惑的词，拆开来理解。
+这也是低秩乘积参数化与直接训练一个稠密 `ΔW` 的优化差异之一。
 
-### 9.3.1 「秩」是什么
+## 9.3 低秩假设与参数预算
 
-矩阵的秩代表矩阵里**真正独立的信息维度**。一个 $4096 \times 4096$ 的矩阵，秩最高可以是 4096。
+### 9.3.1 限制的是更新，不是原权重
 
-但研究发现：**微调时权重的更新量 $\Delta W$ 往往具有内在低秩性**——变化只在很低维的子空间里发生，秩通常只有 8–16，其余几千个维度几乎没有有效信息。
+$$
+\mathrm{rank}(\Delta W)\leq r
+$$
 
-> **JPEG 类比**：一张 4K 照片有几百万像素，但信息量可以用几十个主要频率分量近似表达。低秩分解的思路与此类似——把高维数据投影到低维空间，保留主要信息，丢掉噪声。
+原权重 `W` 和合并后的 `W + ΔW` 仍可是满秩矩阵。LoRA 不是先把预训练权重压缩成低秩，也不是先算出全量更新再做 SVD；它直接在低秩参数空间里训练。
 
-### 9.3.2 「分解」是什么操作
+论文在若干模型和任务上发现较低 rank 已有效，但这不证明“所有有效更新秩都在 8–16”。内在维度与某个权重矩阵的代数秩也不能简单视为同一概念。
 
-既然有效信息只在 $r$ 维子空间，就不需要存整个 $d \times d$ 的大矩阵，用两个小矩阵的乘积近似它：
+### 9.3.2 怎么计算可训练参数
 
-| 矩阵 | 形状 | 作用 |
+单个目标矩阵的新增参数：
+
+$$
+P_{\mathrm{LoRA}}=r(d_{\mathrm{in}}+d_{\mathrm{out}})
+$$
+
+| 示例 | 参数量 |
+|---|---|
+| 原矩阵 `4096 × 4096` | 16,777,216 |
+| `r = 16` 的 LoRA | 131,072 |
+| 两者之比 | 1/128 |
+
+全模型要对目标层逐个求和，再加入 `modules_to_save`、bias 等实际训练的参数。Attention 的 Q/K/V/O 形状可能不同，尤其 GQA 的 K/V 投影不能默认与 Q 同宽。
+
+**问“LoRA 占基座百分之几”时，应先问 target modules、rank 与是否额外训练输出头。**
+
+### 9.3.3 Rank 并非越大越接近同一次全量训练
+
+增大 `r` 会放宽可表示更新的秩约束，但目标层仍可能只覆盖一部分模型，而且乘积参数化的优化轨迹不同。即使 rank 足够大，也不保证得到全量微调的同一个解。
+
+更大的 rank 可能改善欠拟合，也可能增加存储和过拟合风险。应比较验证集表现与训练曲线，而不是规定“多数任务 8–16 足够”。
+
+## 9.4 推理合并：什么时候没有额外分支
+
+```python
+# 训练结束、关闭 dropout 后，只对兼容的浮点权重做一次合并
+W_merged = W + (alpha / r) * (B @ A)
+output = F.linear(x, W_merged)
+```
+
+合并后计算图与原线性层相同，无需再运行 adapter 分支。“零开销”指**合并后没有额外推理算子**，不代表合并没有内存开销，也不代表所有部署形式都零延迟。
+
+| 部署形式 | 好处 | 限制 |
 |---|---|---|
-| $B$ | $d_{\mathrm{in}} \times r$ | 把输入从 $d_{\mathrm{in}}$ 维投影到 $r$ 维 |
-| $A$ | $r \times d_{\mathrm{out}}$ | 从 $r$ 维投影到输出维 |
-| $BA$ | $d_{\mathrm{in}} \times d_{\mathrm{out}}$ | 和原始更新矩阵同维，**但参数量大幅减少** |
+| 单 adapter 合并成完整模型 | 标准推理路径 | 每个合并版本需要完整权重，不能再廉价切换 |
+| 基座 + 未合并 adapter | 多任务共享基座、切换灵活 | 有额外矩阵乘法、加载与调度成本 |
+| 量化基座上的 adapter | 降低基座存储 | 合并支持与误差取决于量化后端 |
 
-$r$ 就是 **rank**，LoRA 最重要的超参：
-
-- $r$ 越小 → 参数越少，表达能力越弱；
-- $r$ 越大 → 参数越多，越接近全量微调。
-
-**大多数任务 $r = 8$ 到 $16$ 就够了。**
-
-### 9.3.3 参数量算一笔账
-
-| | 参数量 |
-|---|---|
-| 原始更新矩阵（$d = 4096$） | $4096 \times 4096 \approx 1677$ 万 |
-| LoRA $r = 16$ | $4096 \times 16 + 16 \times 4096 \approx 13.1$ 万 |
-| **减少倍数** | **约 128 倍** |
-
-放到整个 7B 模型上：可训练参数从 70 亿降到约 2000 万，**不到 0.3%**。
-
-## 9.4 优点一：推理零开销
-
-这是 LoRA 最被低估的优点。
-
-### 9.4.1 数学上为什么能做到
-
-```python
-# 前向计算时：
-output = x @ (W + (alpha / r) * (B @ A))
-
-# 但 W 是固定的，可以提前把 LoRA 更新合并进去：
-W_merged = W + (alpha / r) * (B @ A)   # 只做一次
-
-# 推理时和原始模型完全一样，没有额外计算
-output = x @ W_merged
-```
-
-训练完成后把 $\frac{\alpha}{r}BA$ 加到 $W$ 上得到 `W_merged`，**合并后**推理时计算图与原始模型相同，不需要带着 $A$、$B$。未合并的 adapter 仍有额外矩阵乘法与调度成本，但便于按请求切换。
-
-### 9.4.2 与 Adapter 的鲜明对比
-
-Adapter 是在 Transformer 每层之间插入一个小型网络，**推理时每次都要让激活值额外过一遍这个小网络**，每层延迟叠加。
-
-在一个 32 层模型里，每层多几毫秒，叠加起来就很可观。
+对 QLoRA，要区分在反量化后的基座上合并与重新载入原浮点基座后合并；这两者权重不同。合并后再量化也会引入舍入误差，需要重新评估。
 
 ```mermaid
 flowchart LR
-    subgraph AD["Adapter：推理时永远绕不开"]
-        X1["输入"] --> L1["Layer 1"] --> AD1["Adapter"] --> L2["Layer 2"] --> AD2["Adapter"] --> O1["输出"]
+    subgraph AD["常见非线性 Adapter"]
+        X1["输入"] --> L1["Transformer 子层"] --> AD1["额外瓶颈网络"] --> O1["输出"]
     end
-    subgraph LR2["LoRA：合并后旁路消失"]
-        X2["输入"] --> M1["Layer 1<br/>W_merged"] --> M2["Layer 2<br/>W_merged"] --> O2["输出"]
+    subgraph LR2["LoRA 合并后"]
+        X2["输入"] --> M1["原线性层<br/>W + ΔW"] --> O2["输出"]
     end
 
     style AD1 fill:#fdecea
-    style AD2 fill:#fdecea
 ```
 
-**对延迟敏感的在线服务来说，这个特性非常重要。**
+常见瓶颈 Adapter 含非线性，通常不能折叠成同一个线性权重。不能据此给出“每层固定多几毫秒”的延迟，必须实际测量。
 
-## 9.5 优点二：模块化插拔，一个基底多套能力
+## 9.5 一个基座，多个 adapter
 
-LoRA 带来一种非常灵活的部署模式：**一个基础模型 + 多套 LoRA 权重，按需加载。**
-
-> **手机类比**：基础模型像操作系统（14GB），每套 LoRA 像一个 APP（10–100MB）。你不需要为「打电话」和「拍照」分别买两部手机。
+下面是 **PEFT 的顺序切换示例**，本地 adapter 必须基于同一个兼容 checkpoint 训练。路径是占位符，不是可下载的适配器；若配置未记录精确 revision，需要从训练记录补齐：
 
 ```python
-from peft import PeftModel
+from peft import PeftConfig, PeftModel
 from transformers import AutoModelForCausalLM
 
-# 基础模型只加载一次，常驻显存（约 14GB）
-base_model = AutoModelForCausalLM.from_pretrained("Qwen2.5-7B")
-
-# 场景一：客服请求，挂载客服 LoRA（只有几十 MB）
-service_model = PeftModel.from_pretrained(base_model, "path/to/service_lora")
-
-# 场景二：代码请求，挂载代码 LoRA
-coding_model = PeftModel.from_pretrained(base_model, "path/to/coding_lora")
+service_path = "path/to/service_lora"
+coding_path = "path/to/coding_lora"
+config = PeftConfig.from_pretrained(service_path)
+base_model = AutoModelForCausalLM.from_pretrained(
+    config.base_model_name_or_path,
+    revision=config.revision,
+)
+model = PeftModel.from_pretrained(
+    base_model, service_path, adapter_name="service"
+)
+model.load_adapter(coding_path, adapter_name="coding")
+model.eval()
+model.set_adapter("service")
+# 完成本次客服推理后，再切换到代码 adapter
+model.set_adapter("coding")
 ```
 
-`base_model` 始终只有一份，两套 LoRA 都挂在同一个基座上，**显存里不需要同时跑两个完整的 7B 模型**。
+不要反复把同一个可变 `base_model` 包装成多个 `PeftModel`，再假定它们是彼此独立的服务实例。明确使用一个 wrapper、命名加载和切换更容易管理。
 
-| 方案 | 服务 5 个场景的显存 |
-|---|---|
-| 每场景一个全量微调模型 | $5 \times 14 = 70$ GB |
-| 一个基座 + 5 套 LoRA | $14 + 5 \times 0.05 \approx 14.3$ GB |
+### 9.5.1 切换不等于并发隔离
 
-在 AI 应用平台里，「一基座 + 多 LoRA」已经是非常普遍的架构。vLLM 等推理框架甚至支持**同一批请求里不同请求挂不同 LoRA**（Multi-LoRA batching）。
+`set_adapter` 修改实例状态，不能在共享实例上让多个请求随意同时调用。并发服务应使用支持请求级 adapter 路由的后端，或明确串行化切换。
 
-## 9.6 优点三：不丢通用能力
+vLLM 支持按请求选择 LoRA，并对批次中 adapter 数、rank、CPU/GPU 缓存等设限制。是否支持具体架构与量化组合，应检查部署版本文档。
 
-### 9.6.1 灾难性遗忘怎么产生的
+### 9.5.2 显存账还缺什么
 
-全量微调时所有参数都在被更新。如果新任务数据分布比较窄（比如只有医疗问答），模型会逐渐**忘掉预训练学到的通用能力**——你微调完一个医疗模型，发现它写代码的能力大幅下降。
+如果**仅为举例**假设浮点基座权重 14 GB、每个 adapter 权重 50 MB，那么五个任务的权重存储约为 `14 + 5 × 0.05 = 14.25 GB`，而五份独立 14 GB 权重是 70 GB。
 
-### 9.6.2 LoRA 为什么风险低
+这只是权重预算。并发生成还要计算 KV cache、激活和运行时 workspace；50 MB 也不是 LoRA 的固定大小。不同基座版本、tokenizer、目标层或新增词表不兼容时，不能强行共享。
 
-原因直接体现在设计上：**原始权重 $W$ 全程冻结，训练过程中一个参数都不动**，所有学习都发生在旁边的小矩阵里。
+## 9.6 冻结基座与遗忘：可恢复，不等于不退化
 
-> 全量微调是在白板上擦掉原内容再重写；LoRA 是在白板旁边贴便利贴，**原内容完好无损**。
+LoRA 保留了原始 `W`，因此停用未合并 adapter 可以回到原基座行为（前提是没有另外训练或修改 embedding 等模块）。
 
-### 9.6.3 但不是免测金牌
+但启用 adapter 时使用的是 `W + ΔW`。即使 `W` 不变，输出分布也可能显著改变，出现通用能力下降、过度拒绝或某种模板化风格。数据偏、学习率过大、训练过久都可能导致问题，**小 rank 同样不是保险**。
 
-**LoRA 不是绝对不会遗忘。** 如果：
+可以采用混合通用数据、控制训练步数、验证集早停和通用任务回归。合并之后若要回退，应保留原基座与 adapter，不要依赖低精度“先加再减”恰好恢复。
 
-- 数据分布很偏，
-- rank 设得很大，
-- 学习率过高，
-- 或者把 LoRA 合并后继续训练，
+## 9.7 Rank、Alpha 与学习率如何共同作用
 
-通用能力仍然可能下降。**微调后还是要跑通用能力回归测试。**
+原始缩放为 `s = α/r`。`α` 控制 adapter 分支尺度，但它与学习率不是完全可互换：尺度同时影响前向和因子梯度，优化器、初始化和训练过程也参与其中。
 
-## 9.7 优点四：训练更稳定，超参不敏感
+| 超参数或配置 | 主要影响 | 排查思路 |
+|---|---|---|
+| `r` | 表达容量、参数与状态大小 | 判断欠拟合后再扩大，不靠训练 loss 单独决定 |
+| `lora_alpha` | 更新尺度 | 比较 rank 时记录 `α/r` 是否也变了 |
+| 学习率、步数 | 更新幅度与收敛 | 看验证退化、梯度、更新范数 |
+| `target_modules` | 允许修改哪些映射 | Q/V 不足时比较更多注意力和 MLP 层 |
+| dropout、数据混合 | 正则化与泛化 | 小数据时观察过拟合，不默认越大越好 |
 
-全量微调对超参很敏感，尤其学习率：大一点就「跑飞」，小一点收敛极慢。因为要同步调整几十亿个参数，梯度空间极其复杂。
+PEFT 支持 rsLoRA 的 `α/√r` 缩放，和原始 `α/r` 不是同一配置。**比较 rank 实验时，连缩放规则一起固定或明确报告**。
 
-LoRA 只训练两个小矩阵，**可训练参数减少 100 倍以上，梯度搜索空间大幅缩小**。空间小意味着优化器更容易找到好方向，训练更平稳，对超参敏感性更低。
+LoRA 的参数少不意味着优化必然稳定、超参数不敏感。参数化、数据和优化设置仍可能造成梯度异常、欠拟合或遗忘。
 
-实践中 LoRA 最关键的超参只有 rank $r$，取 8–64 在很多任务上都能得到不错结果，不需要反复调参。
+## 9.8 多 LoRA 混合：权重可加，能力不保证可加
 
-**对资源有限的团队，「调参成本低」意味着更少的实验开销**，这是很实际的优点。
-
-## 9.8 优点五（进阶）：LoRA 权重可加权混合
-
-多个 LoRA 可以**加权混合实现能力融合，而不需要重新训练**。
+对同一兼容基座的两个更新：
 
 $$
-W' = W + \alpha_1 B_1 A_1 + \alpha_2 B_2 A_2
+W' = W+\lambda_1\Delta W_1+\lambda_2\Delta W_2
 $$
 
-调整 $\alpha_1$、$\alpha_2$ 的比例，就能调整两种能力的配比。
+其中每个 `ΔWi` 已包含各自的 `αi/ri`。数学上可以求和，不意味着“代码能力 70% + 写作能力 30%”会按比例出现在输出中。
+
+如果直接分别平均 `A` 和 `B` 再相乘，会产生交叉项，通常**不等于平均两个 BA 更新**。按 rank 方向拼接可以表示更新之和，但 rank 与存储会相加；SVD 截断等压缩方案又会引入近似误差。
+
+PEFT 提供专门的加权合成 API，例如接续上节已加载的 `model`：
 
 ```python
-from peft import PeftModel
-
-# 加载第一个 LoRA（指令遵循能力）
-model = PeftModel.from_pretrained(base_model, "instruction_lora")
-
-# 再加载第二个 LoRA（代码生成能力）
-model.load_adapter("coding_lora", adapter_name="coding")
-
-# 同时激活，两套权重叠加生效
-model.set_adapter(["default", "coding"])
+model.add_weighted_adapter(
+    adapters=["service", "coding"],
+    weights=[0.5, 0.5],
+    adapter_name="mixed",
+    combination_type="cat",
+)
+model.set_adapter("mixed")
 ```
 
-这项技术叫 **LoRA Merging**，是 Model Merging 领域的重要方向。
+这个例子使用拼接表示加权更新，不是把 `set_adapter(["a", "b"])` 当成通用的加权混合接口。方法支持、额外保存模块的冲突和显存需求都要按所用 PEFT 版本检查。
 
-实际意义：分别微调了「擅长写代码的 LoRA」和「擅长遵循指令的 LoRA」，可以直接混合，得到「既擅长写代码又遵循指令」的效果，**不用为这个组合重新收集数据训练**。
+两个 adapter 可能产生相反更新，合成后任一任务都退步。应与单 adapter 和重新做多任务训练比较；合成是可评测的候选，不是无需训练就一定获得能力融合。
 
-## 9.9 三方对比：LoRA vs 全量微调 vs Adapter
+## 9.9 与全量微调、Adapter 的对比
 
-| 维度 | 全量微调 | Adapter | **LoRA** |
+| 维度 | 全量微调 | 常见瓶颈 Adapter | LoRA |
 |---|---|---|---|
-| 可训练参数量 | 100% | 约 1% | **0.1%–1%** |
-| **推理额外开销** | 无 | **有（每层额外网络）** | **无（可合并进 W）** |
-| 灾难性遗忘风险 | 高 | 低 | 低 |
-| 部署灵活性 | 低（每任务一个全量模型） | 中 | **高（一基座 + 多套 LoRA）** |
-| 训练稳定性 | 较差（超参敏感） | 较好 | **好（超参不敏感）** |
-| 权重可组合性 | 不支持 | 不支持 | **支持（LoRA Merging）** |
-| 效果上限 | 最高 | 中等 | 接近全量微调 |
+| 参数化 | 直接改原权重 | 额外小网络 | 线性低秩增量 |
+| 训练状态 | 通常较多 | 较少，取决于配置 | 较少，取决于 rank / 目标层 |
+| 推理额外分支 | 无 | 通常有 | 合并后无，未合并有 |
+| 多任务存储 | 通常每任务完整权重 | 可共享基座 | 可共享基座 |
+| 退化与稳定性 | 都需要验证 | 都需要验证 | 都需要验证 |
 
-LoRA 在推理开销、灵活性、稳定性、可组合性上**全面优于 Adapter**，效果上与全量微调接近，资源需求远低于全量微调。
+不能写成“全量权重无法合并”或“LoRA 全面优于 Adapter”。全量模型也有权重合并方法；不同参数化的质量与优化特性应通过任务评估比较。
 
-**这就是它成为 PEFT 常用基线的原因——不是单一维度领先，而是五个优点叠加。**
+## 9.10 常见追问
 
-## 9.10 常见错误
-
-### 9.10.1 只说「LoRA 省参数省显存」
-
-这是最容易被追问倒的答法。真正的价值在于**推理零开销 + 部署灵活 + 不遗忘 + 训练稳 + 可组合**这五点叠加。
-
-### 9.10.2 说不清「低秩」的含义
-
-关键是 $\Delta W$ 的内在低秩性——微调的有效变化只发生在很低维的子空间里。说不出这一点等于只在背公式形状。
-
-### 9.10.3 认为 LoRA 推理时要多算两个矩阵
-
-合并之后旁路就消失了，计算图和原始模型完全相同。这是它区别于 Adapter 的关键。
-
-### 9.10.4 把 LoRA 当成「绝不遗忘」的保险
-
-数据偏、rank 大、学习率高、合并后继续训练，都可能导致通用能力下降。微调后必须做回归评测。
-
-### 9.10.5 认为 rank 越大越好
-
-$r$ 越大越接近全量微调，但也越容易过拟合和遗忘。多数任务 8–16 足够。
-
-### 9.10.6 不知道多 LoRA 可以共享同一个基座部署
-
-这是工业界最有价值的落地形态，也是 vLLM 等框架支持 Multi-LoRA batching 的原因。
-
-### 9.10.7 没听说过 LoRA Merging
-
-加权混合多个 LoRA 实现能力融合而不重新训练，是进阶加分点。
+1. **W 冻结，为什么还需要反向传播？** 下游损失需要通过冻结层对上游 adapter 求梯度；不计算 `W` 的梯度，不等于切断计算图。
+2. **把 r 加大能解决所有欠拟合吗？** 不能，目标层、数据缺陷和基座能力也可能是瓶颈。
+3. **Alpha 是最终更新范数吗？** 不是，实际范数还由训练得到的 `BA` 决定。
+4. **合并后结果为什么略有差别？** 浮点计算顺序、dtype、量化及未关闭 dropout 都可能影响；应比较同一输入下的 logits 与任务指标。
+5. **为什么多 adapter 部署不一定比多个小模型快？** 共享省的是权重，调度、批次碎片、KV cache 和旁路内核仍有成本。
 
 ## 9.11 本章总结
 
-1. **全量微调 7B 需要 80GB+ 显存**，催生了 PEFT 这一类方法；
-2. **LoRA 冻结 $W$，只训练旁路的 $A$、$B$**，像在书上贴便利贴而不是重印整本书；
-3. **低秩性的依据**是微调更新量 $\Delta W$ 的有效信息只在很低维子空间里；
-4. **$r=16$ 时单个矩阵参数量降到 1/128**，整个 7B 模型可训练参数不到 0.3%；
-5. **合并后无额外计算分支**：$\frac{\alpha}{r}BA$ 可提前合并进 $W$，计算图与原模型一致；未合并时仍有额外矩阵乘法与调度成本；
-6. **一基座 + 多 LoRA 的部署模式**：基座 14GB 常驻，每套 LoRA 只有几十 MB，可热切换；
-7. **灾难性遗忘风险低**因为基座冻结，但**不是免测金牌**，仍需回归评测；
-8. **训练稳定、超参不敏感**，最关键超参只有 rank，调参成本远低于全量微调；
-9. **LoRA Merging 支持能力加权融合**，无需为组合重新训练；
-10. **成为 PEFT 常用基线的原因是五个优点叠加**，而不是单点领先。
-
-> LoRA 之所以常用，不只是因为参数少，而是「冻结主干、旁路可合并」这个设计同时带来了低显存、低延迟、易部署和较稳的训练过程。
+LoRA 的关键是**用低秩参数化约束更新，同时保留可冻结、可共享、可合并的基座**。省显存、低延迟和方便切换分别需要不同条件，不能再推导成“不遗忘、无需调参、混合后能力必然叠加”。
 
 ## 参考资料
 
-- [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685)
-- [QLoRA: Efficient Finetuning of Quantized LLMs](https://arxiv.org/abs/2305.14314)
-- [Parameter-Efficient Transfer Learning for NLP（Adapter）](https://arxiv.org/abs/1902.00751)
-- [Intrinsic Dimensionality Explains the Effectiveness of Language Model Fine-Tuning](https://arxiv.org/abs/2012.13255)
-- [S-LoRA: Serving Thousands of Concurrent LoRA Adapters](https://arxiv.org/abs/2311.03285)
-- [DoRA: Weight-Decomposed Low-Rank Adaptation](https://arxiv.org/abs/2402.09353)
-- [Hugging Face PEFT](https://github.com/huggingface/peft)
+- [LoRA：公式、初始化与 rank 实验](https://arxiv.org/abs/2106.09685)
+- [QLoRA](https://arxiv.org/abs/2305.14314)
+- [Parameter-Efficient Transfer Learning for NLP](https://arxiv.org/abs/1902.00751)
+- [PEFT v0.17.0：LoRA 配置、初始化与缩放](https://huggingface.co/docs/peft/v0.17.0/en/developer_guides/lora)
+- [PEFT：Model merging 与 add_weighted_adapter](https://huggingface.co/docs/peft/developer_guides/model_merging)
+- [PEFT v0.17.0：加权 adapter 的实现与限制](https://github.com/huggingface/peft/blob/v0.17.0/src/peft/tuners/lora/model.py)
+- [vLLM：LoRA adapters](https://docs.vllm.ai/en/stable/features/lora/)
+- [Transformers：模型训练的内存组成](https://huggingface.co/docs/transformers/v4.46.3/model_memory_anatomy)
