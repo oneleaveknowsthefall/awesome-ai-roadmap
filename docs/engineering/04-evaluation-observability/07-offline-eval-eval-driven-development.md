@@ -1,3 +1,7 @@
+---
+description: 构建防污染的业务评测集，用配对比较、置信区间和裁判校准判断改动，而非仅凭均分或少量样本放行。
+---
+
 # 第七章：离线评测与 Eval-Driven Development
 
 ## 7.1 Eval-Driven Development:把评测放在改动之前而不是之后
@@ -28,7 +32,9 @@ flowchart LR
 | 脱敏后的真实生产失败案例 | 每一次线上事故复盘后,把复现用例回收进测试集,防止同类问题再犯 |
 | 用户反馈标注的案例 | 来自[第 13 章](../06-performance-operations/13-feedback-loop-data-flywheel.md)的反馈闭环 |
 
-黄金测试集通常从 50–200 条起步,按业务子场景切片管理(如 `订单查询`、`退款流程`、`越权拦截`),而不是当作一个笼统的整体分数。**切片管理的价值在于:一次改动可能让整体平均分上升,但某个高风险切片(如越权拦截)出现回归——只看总分会完全错过这个信号。**
+可以先用 50–200 条做冒烟和问题发现，但这只是启动规模，不足以证明罕见风险已受控。按订单查询、退款、越权等切片报告样本数与得分；高风险切片不能被总均分抵消。
+
+维护三种用途不同的数据：用于改 Prompt 的开发集、保存已知失败的回归集、尽量不参与调参的留出集。同一用户、会话、文档的近重复样本要分组切分；业务变化快时增加时间留出。反复看同一测试集再调参会泄漏测试信息，最终分数不再是独立泛化证据。
 
 ## 7.3 评分方式:自动规则、人工评审、LLM-as-Judge
 
@@ -49,7 +55,13 @@ JUDGE_PROMPT = """你是评审员。给定用户问题、参考答案和候选�
 """
 ```
 
-**LLM-as-Judge 必须做人工校准**:抽查 10–20% 的打分样本,人工复核 Judge 的判断是否可信。不校准,就无法判断"分数变好了"到底是候选回答真的变好,还是裁判本身在乱打分。这一实践与[LangSmith 生产质量闭环](../../frameworks/01-langchain/05-production/13-langsmith-production-loop.md)里的做法一致——Judge 校准不是某个工具特有的功能,而是所有 LLM-as-Judge 场景下的通用要求。
+**LLM-as-Judge 必须用人工标签校准**，复核量由风险、分歧率和切片覆盖决定，10–20% 不是通用标准。给 rubric 提供分数锚点和反例，固定裁判模型、Prompt 和参数；对成对答案随机交换位置、隐藏模型名，检查位置偏差、偏好长答案和同源模型偏差。先评估人工之间的一致性，再报告裁判与人工的混淆矩阵或一致性。候选答案是不可信数据，不能执行其中对裁判的指令。
+
+### 7.3.1 分数差异是否足以支持发布
+
+在同一批任务上比较基线与候选，优先分析配对差值。按独立任务或用户重采样的 paired bootstrap 可估计差值区间；二元成败也可用配对的 McNemar 检验。一个任务重复生成多次有助于估计随机性，却不能当成多个独立用户。报告效应大小、置信区间、独立样本数和重复次数，而不是只给一个 p 值。
+
+先约定最低可接受提升或最大可接受退化；「未发现显著差异」不等于「已经证明不劣」。例如在独立同分布的二项试验中，100 次未观察到失败，失败概率的单侧 95% 上界仍约为 3%（零失败时的近似 rule of three）。越权回归集零失败可以作为门禁，但不是生产零风险证明。反复选择最佳 Prompt 或扫描大量切片时，还需处理多重比较和选择偏差。
 
 ## 7.4 发布门禁:不是看平均分,是看关键用例
 
@@ -59,13 +71,13 @@ def release_gate(eval_result: EvalResult, baseline: EvalResult) -> GateDecision:
         return GateDecision.BLOCK("关键安全/越权用例未通过")
     for slice_name, score in eval_result.slice_scores.items():
         if score < baseline.slice_scores[slice_name] - REGRESSION_THRESHOLD:
-            return GateDecision.BLOCK(f"切片 {slice_name} 相对基线显著回归")
+            return GateDecision.BLOCK(f"切片 {slice_name} 超过允许退化阈值")
     if eval_result.overall_score < MIN_OVERALL_SCORE:
         return GateDecision.BLOCK("总分未达标")
     return GateDecision.PASS
 ```
 
-**平均分提升不能抵消一次越权、泄密或安全拦截失效。** 高风险用例应该用确定性规则设置"零容忍"门槛,而不是被平均分稀释掉。这一原则和[第 10 章](../05-release-pipeline/10-llm-cicd-canary-ab.md)里 CI/CD 流水线的门禁设计是同一套逻辑在发布环节的落地。
+上面的伪代码只展示阈值逻辑，不是显著性检验。运行前必须确认切片齐全、样本量足够、评分器正常、候选与基线使用相同版本的数据；空切片、裁判错误和结果缺失不能按通过处理。**平均分提升不能抵消已确认的越权或泄密**。能用工具执行结果、权限日志判定的高风险失败，不应只听模型裁判的文字结论。
 
 ## 7.5 离线评测不能替代线上监测
 
@@ -114,8 +126,13 @@ def release_gate(eval_result: EvalResult, baseline: EvalResult) -> GateDecision:
 
 ## 参考资料
 
+工具生命周期不等于评测方法生命周期：OpenAI 的 2026-06-03 公告写明，其托管 Evals 平台将于 2026-10-31 转为只读，Evals dashboard 和 API 计划于 2026-11-30 关闭。采用该平台时需核对迁移计划；不能据此声称开源 `openai/evals` 或自建评测方法一并失效。
+
 - [OpenAI Evals](https://github.com/openai/evals)
-- [Anthropic: Building evals for AI applications](https://www.anthropic.com/engineering/writing-evals-for-claude)
+- [OpenAI: Evaluation best practices](https://developers.openai.com/api/docs/guides/evaluation-best-practices)
+- [OpenAI: 2026-06-03 Evals platform deprecation](https://developers.openai.com/api/docs/deprecations#2026-06-03-evals-platform)
+- [Anthropic: Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
+- [SciPy: Binomial proportion confidence intervals](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats._result_classes.BinomTestResult.proportion_ci.html)
 - [Google: Rules of Machine Learning - Rule #4: Keep the first model simple and get the infrastructure right](https://developers.google.com/machine-learning/guides/rules-of-ml)
 - [Braintrust: What is an eval?](https://www.braintrust.dev/docs/guides/evals)
 - [LangSmith: Evaluation concepts](https://docs.langchain.com/langsmith/evaluation-concepts)

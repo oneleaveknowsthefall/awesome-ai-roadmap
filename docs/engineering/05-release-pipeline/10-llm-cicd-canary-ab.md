@@ -1,8 +1,12 @@
+---
+description: 将离线评测加入现有 CI，隔离影子流量的副作用，设计有统计口径和完整回滚边界的灰度与 A/B 实验。
+---
+
 # 第十章：LLM CI/CD 与灰度、Canary、A/B 发布
 
 ## 10.1 LLM CI/CD 流水线长什么样
 
-传统 CI/CD 的"测试"阶段是确定性断言,LLM 应用的流水线在这一阶段替换成[第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)的离线评测门禁,发布阶段则需要比传统蓝绿部署更谨慎的灰度策略——因为质量退化不像应用崩溃那样会立刻报错,而是悄悄发生。
+LLM CI/CD 在单元测试、集成测试、授权和契约测试之外，**新增**[离线评测门禁](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)，不是替换这些测试。质量退化可能不触发异常，因此发布还需观察业务质量信号，不能只看进程存活。
 
 ```mermaid
 flowchart LR
@@ -33,7 +37,7 @@ def handle_request(request):
     return response
 ```
 
-Shadow 测试的价值在于**用真实流量分布验证新版本,而不承担任何用户体验风险**,是离线评测(固定测试集)和线上灰度(真实承接流量)之间的中间地带。局限是它只能对比"输出内容",无法验证端到端的用户交互体验(如多轮追问)。
+Shadow 不把候选回答发给用户，但并非零风险：重复调用会增加费用、争用配额，也可能把数据送往新的处理方。上例的 `shadow_pipeline` 必须使用只读副本、录制回放或模拟工具，**禁止真实写操作与重复通知**，并隔离队列、限流和日志。它能比较相同输入下的结果，却不能直接测量候选回答引发的后续用户行为。
 
 ## 10.3 灰度发布:按比例放量,而不是一步切换
 
@@ -42,18 +46,20 @@ rollout_plan:
   - stage: canary
     traffic_percent: 5
     duration_minutes: 60
-    guard_metrics:
-      error_rate_max: 0.02
-      contract_violation_rate_max: 0.01
-      p99_latency_ms_max: 8000
+    guard_metrics: &guards
+      error_rate: 0.02
+      contract_violation_rate: 0.01
+      p99_latency_ms: 8000
   - stage: ramp_25
     traffic_percent: 25
     duration_minutes: 120
+    guard_metrics: *guards
   - stage: full
     traffic_percent: 100
+    guard_metrics: *guards
 ```
 
-每一阶段都设置**护栏指标(guard metrics)**,这些指标来自[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md)的可观测性聚合数据。任意护栏指标越界,自动暂停放量或回滚到上一阶段,而不是等人工发现问题。
+数值和时长仅为示例，不是推荐阈值。每一阶段都设置**护栏指标(guard metrics)**,这些指标来自[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md)的可观测性聚合数据。任意护栏指标越界,自动暂停放量或回滚到上一阶段,而不是等人工发现问题。
 
 ## 10.4 A/B 测试:回答"哪个版本更好",而不只是"新版本有没有崩"
 
@@ -68,36 +74,50 @@ rollout_plan:
 
 ### 10.4.1 A/B 测试对样本量和统计显著性有明确要求
 
-LLM 输出的业务指标(如用户满意度)方差通常比传统 A/B 测试(如按钮点击率)更大,需要更大的样本量才能得出有统计意义的结论。**没有做显著性检验就下结论"新版本更好",是最容易踩的坑**——观察到的差异很可能只是噪声。
+样本量取决于基线、方差、最小可检测效应和统计功效，不能因「用了 LLM」就断言方差更大。先明确主指标和随机化单位；多轮场景按用户或租户稳定分组，避免同一用户来回切版本。检查分流比例异常（SRM）、曝光丢失和跨组污染，并覆盖业务周期与反馈延迟。
 
 ```python
 from scipy import stats
 
-def is_significant(control_scores: list[float], treatment_scores: list[float], alpha=0.05) -> bool:
-    _, p_value = stats.ttest_ind(control_scores, treatment_scores)
-    return p_value < alpha
+def compare_user_scores(control_scores: list[float], treatment_scores: list[float]):
+    # 两组独立、每用户一个汇总分数、样本量充足的连续指标示例
+    result = stats.ttest_ind(control_scores, treatment_scores, equal_var=False)
+    return result.statistic, result.pvalue
 ```
+
+这是 Welch t 检验的局部示例，不是自动上线函数；空样本、缺失值和检验前提需要先检查。二元任务完成率、重尾成本、用户内相关数据各有相应方法。报告提升幅度与置信区间，区分统计显著与业务有用；不应每天重复看固定样本检验并在首次显著时停止。可预先固定样本量与时长，或使用事先选定的序贯检验；多指标、多版本比较需要控制误报。
 
 ## 10.5 回滚要快且要有明确触发条件
 
 回滚不应该依赖人工盯着仪表盘做判断,应该把 10.3 节的护栏指标接入自动化回滚:
 
 ```python
+from math import isfinite
+
 def check_rollout_health(current_metrics: dict, guard_metrics: dict) -> bool:
+    if not guard_metrics:
+        pause_rollout(reason="未配置护栏")
+        return False
     for metric_name, max_value in guard_metrics.items():
-        if current_metrics.get(metric_name, 0) > max_value:
+        if metric_name not in current_metrics:
+            pause_rollout(reason=f"缺少指标 {metric_name}")
+            return False
+        if not isfinite(current_metrics[metric_name]) or not isfinite(max_value):
+            pause_rollout(reason=f"指标或阈值无效: {metric_name}")
+            return False
+        if current_metrics[metric_name] > max_value:
             trigger_rollback(reason=f"{metric_name} 超过阈值")
             return False
     return True
 ```
 
-回滚目标应该是[第 9 章](09-prompt-model-data-versioning.md)版本注册表里"上一个已知良好版本"的完整快照——Prompt、模型快照、路由策略三者一起回滚,而不是只回滚其中一项,否则可能出现版本组合不一致导致的新问题。
+示例配置的值都是上界，键与指标同名；真实发布系统还需检查数据类型、窗口、分母和采集新鲜度，不能把缺失或过期指标当作正常。回滚按[第 9 章](09-prompt-model-data-versioning.md)的已验证组合恢复 Prompt、模型、路由、工具和兼容的数据版本。正在执行的任务需要版本粘性或排空；已发邮件、已扣款等副作用不会被配置回滚撤销。安全补丁、删除标记和权限撤销不能跟着回滚失效。
 
 ## 10.6 常见错误
 
 ### 10.6.1 评测通过就直接全量发布
 
-离线评测无法覆盖生产环境全部输入分布,必须经过 Shadow 测试和灰度放量的验证,才能全量。
+离线评测无法覆盖全部生产分布，应按风险选择影子测试、受控试点或灰度。无法隔离写操作时不要机械复制生产请求做 Shadow。
 
 ### 10.6.2 灰度阶段不设护栏指标,靠人工盯着看
 
@@ -109,7 +129,7 @@ def check_rollout_health(current_metrics: dict, guard_metrics: dict) -> bool:
 
 ### 10.6.4 A/B 测试样本量不足就下结论
 
-LLM 业务指标方差大,没做统计显著性检验就宣布"新版本更好",很可能被噪声误导。
+低流量或高方差指标可能需要较长观察；只运行一小时或只看 p 值，无法证明收益稳定，也不能证明「没有显著退化」就是安全。
 
 ### 10.6.5 回滚只回滚模型,不回滚配套的 Prompt 和路由策略
 
@@ -117,8 +137,8 @@ LLM 业务指标方差大,没做统计显著性检验就宣布"新版本更好",
 
 ## 10.7 本章总结
 
-1. **LLM CI/CD 用评测门禁替代传统的确定性测试断言**,发布环节需要比传统应用更谨慎的灰度策略;
-2. **Shadow 测试用真实流量验证新版本,但不影响用户**,是离线评测和线上灰度之间的中间地带;
+1. **LLM CI/CD 在传统测试之外增加评测门禁**，不取消确定性的契约、授权和状态机测试;
+2. **Shadow 不返回候选结果，但仍需隔离副作用、资源与数据流向**;
 3. **灰度发布按比例递增放量,每阶段设自动化护栏指标**,越界自动暂停或回滚;
 4. **A/B 测试和灰度发布目的不同**:前者比较业务效果,后者验证安全性,需要统计显著性支撑结论;
 5. **回滚要快且自动化**,回滚目标是版本注册表里的完整版本快照,而非单一组件。
@@ -127,6 +147,7 @@ LLM 业务指标方差大,没做统计显著性检验就宣布"新版本更好",
 
 - [Martin Fowler: CanaryRelease](https://martinfowler.com/bliki/CanaryRelease.html)
 - [Google SRE Workbook: Canarying Releases](https://sre.google/workbook/canarying-releases/)
+- [SciPy: ttest_ind，独立样本与 Welch 检验前提](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.ttest_ind.html)
 - [Martin Fowler: Continuous Delivery for Machine Learning](https://martinfowler.com/articles/cd4ml.html)
 - [Spinnaker: Canary Analysis](https://spinnaker.io/docs/guides/user/canary/)
 - [Optimizely: Statistical significance in A/B testing](https://www.optimizely.com/optimization-glossary/statistical-significance/)

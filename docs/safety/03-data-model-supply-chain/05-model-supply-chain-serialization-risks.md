@@ -1,3 +1,7 @@
+---
+description: 审查模型及依赖的来源与加载链路，解释 PyTorch weights_only、safetensors、签名和物料清单各自能保证什么。
+---
+
 # 第五章：模型供应链与序列化风险
 
 ## 5.1 模型也是一种依赖
@@ -31,7 +35,9 @@ flowchart TB
 
 ## 5.3 反序列化风险：Pickle 与安全格式的选择
 
-历史上最常见的模型文件格式（PyTorch 的 `.pt`/`.bin`）默认基于 Python 的 `pickle` 序列化。**Pickle 的反序列化过程本身可以执行任意代码**——攻击者只需构造一个包含恶意 `__reduce__` 方法的对象并序列化，加载该文件时（哪怕只是"加载模型权重"这一个操作）就会触发任意代码执行，这与文件是否被当作"模型"没有关系，纯粹是反序列化机制的固有缺陷。
+PyTorch 检查点常含 Pickle 元数据，而**通用 Pickle 反序列化可以执行代码**。但不能把任意 `.pt`/`.bin` 文件或所有 `torch.load()` 调用都描述为同一种执行路径：扩展名不决定内容与加载器，限制模式也影响可执行能力。
+
+PyTorch 2.6 起，未传入 `pickle_module` 时，`torch.load` 默认采用 `weights_only=True`，限制可构造类型并禁止动态导入。它是攻击面缩减措施，不是完整沙箱；拒绝服务、解析器缺陷和不安全 allowlist 仍需防范。不能为消除报错就无审查地切换 `weights_only=False`。
 
 ```mermaid
 sequenceDiagram
@@ -39,14 +45,14 @@ sequenceDiagram
     participant F as 恶意 .pt/.bin 文件
     participant V as 受害者环境
     A->>F: 构造带 __reduce__ 的对象并 pickle
-    V->>F: torch.load() / pickle.load()
+    V->>F: 不受限的 Pickle 加载<br/>例如 weights_only=False
     F-->>V: 反序列化时执行任意代码
 ```
 
 **防御要点**：
 
 - **优先使用不可执行代码的序列化格式**，例如 `safetensors`——它只存储张量数据，不支持任意 Python 对象反序列化，从格式层面消除了这一类风险；
-- 如果必须加载 `pickle`/`.bin` 格式的历史模型，使用具备恶意对象扫描能力的工具做静态检查，或在沙箱环境（见第八章）中隔离加载；
+- 必须处理历史 Pickle 时，先验证来源并扫描，再在无凭据、受限网络与资源的隔离环境处理；静态扫描无告警不等于可安全执行；
 - 框架层面优先使用支持 `weights_only=True` 等安全加载模式的新版本 API，并保持推理框架本身的及时更新，历史上多个推理框架都修复过与模型加载相关的反序列化漏洞；
 - 不要因为「文件扩展名是 .bin/.pt 看起来像模型」就降低警惕，模型文件的可信度评估标准应该与任意可执行文件一致。
 
@@ -65,21 +71,21 @@ sequenceDiagram
 
 ## 5.5 出处、签名与 ML-BOM
 
-供应链治理的核心手段是让「这份工件从哪来、经过了谁的手、内容是否被篡改」变得可验证，而不是依赖信任。
+供应链治理让来源和完整性可核验，但仍依赖可信发布者、构建环境及验证策略。攻击者与文件一起提供的哈希没有独立可信度；签名只能证明受信身份签过这些字节，不能证明权重无后门或数据许可合法。`safetensors` 不执行任意 Python 对象，但不能阻止伴随的远程代码、推理框架缺陷或模型行为后门。
 
 | 手段 | 作用 |
 |---|---|
 | **模型签名** | 对发布的模型文件做数字签名（如基于 Sigstore 一类的透明签名生态），下游在加载前验证签名与发布者身份 |
 | **ML-BOM（Machine Learning Bill of Materials）** | 参照软件 SBOM 的思路，记录模型的训练数据来源、基础模型血缘、依赖库版本、评测结果，作为可审计的物料清单 |
 | **模型卡/数据集卡** | 记录用途、已知局限、训练数据特征、评测结果，是治理和事后追责的基础文档（详见第十章） |
-| **可复现构建** | 记录训练所用的精确代码版本、超参数、随机种子和数据快照，使得关键模型可以独立复现验证 |
+| **可复现构建/训练记录** | 记录代码、环境、数据与种子；分布式训练不一定逐位复现，需声明可重复的指标与容差 |
 | **内部制品库** | 私有镜像仓库统一管理已审查通过的模型、适配器和工具版本，生产环境禁止直接从公网拉取 |
 
 ## 5.6 上线检查表
 
 - [ ] 模型、适配器、Tokenizer 均锁定具体版本/哈希，而非跟随最新分支自动更新；
 - [ ] 生产环境模型来自内部已审查的私有镜像，而非直接从公网仓库拉取；
-- [ ] 优先使用 `safetensors` 等不可执行代码的序列化格式；仍需加载 pickle/.bin 格式时经过沙箱隔离或恶意对象扫描；
+- [ ] 优先使用张量数据格式；历史 Pickle 做来源验证、扫描和隔离，不把扫描当作沙箱替代；
 - [ ] 默认关闭「信任远程自定义代码」，确需开启时仅对审查过的来源放行；
 - [ ] 依赖扫描覆盖模型文件、工具包、MCP Server 及其传递依赖，防范依赖混淆；
 - [ ] 关键模型具备可复现构建记录或 ML-BOM，供事后审计。
@@ -114,6 +120,7 @@ sequenceDiagram
 
 - [OWASP LLM03:2025 Supply Chain Vulnerabilities](https://genai.owasp.org/llmrisk/llm03-supply-chain/)
 - [Hugging Face: Pickle Scanning and Safetensors](https://huggingface.co/docs/hub/security-pickle)
+- [PyTorch 2.6: Serialization semantics and weights_only](https://docs.pytorch.org/docs/2.6/notes/serialization.html#torch-load-with-weights-only-true)
 - [Sleepy Pickle: Exploiting Machine Learning Pickle Files](https://blog.trailofbits.com/2024/06/11/exploiting-ml-models-with-pickle-file-attacks-part-1/)
 - [MITRE ATLAS: ML Supply Chain Compromise](https://atlas.mitre.org/techniques/AML.T0010)
 - [CycloneDX: Machine Learning Bill of Materials (ML-BOM)](https://cyclonedx.org/capabilities/mlbom/)

@@ -1,8 +1,12 @@
+---
+description: 区分 Agent 工作负载与用户委托身份，用受验证的令牌、动作绑定审批和逐跳授权限制权限放大。
+---
+
 # 第七章：Agent、Tool、MCP、A2A 最小权限与身份治理
 
 ## 7.1 本章的定位：从单个协议到组织级身份治理
 
-[Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md) 已经讲清楚了 MCP/A2A 协议层面的具体控制——OAuth 2.1、PKCE、audience 校验、禁止 token passthrough。这些是**单次调用、单个协议**的正确姿势。但当一个组织同时运行几十上百个 Agent、数百个工具/MCP Server，并且这些 Agent 彼此调用、共享凭据池时，会出现协议层控制无法单独解决的问题：**谁能代表谁行动？权限是怎么在一条委托链上传递和衰减的？整个 Agent 舰队的工具权限该由谁审批、怎么审计？** 规模一上来，问题就变成**跨系统的身份联邦、通用化的 confused deputy 模式，以及舰队级的权限治理**，而不是重复某一个协议的实现细节。
+[Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md) 讨论认证、令牌受众和协议边界。本章关注跨系统的三个问题：谁能代表谁行动、权限如何在委托链上收紧、工具接入和撤权由谁负责。即使每个接口单独符合其协议，也不能证明整条委托链没有越权。
 
 ```mermaid
 flowchart TB
@@ -19,9 +23,11 @@ flowchart TB
     L1 --> L2 --> L3
 ```
 
+MCP 与 A2A 不共享一套完全相同的授权规范。本章引用的 MCP 2026-07-28 授权规范针对 HTTP 传输，引用 OAuth 2.1 草案；STDIO 的凭据处理不同。A2A 的具体认证方案需核对其规范和服务配置，不能把 MCP 的每条要求直接套过去。
+
 ## 7.2 Agent 的身份模型：谁在代表谁
 
-传统应用只有"用户身份"和"服务身份"两种。Agent 系统引入了第三种：**Agent 自身的身份**，它既不完全等同于触发它的用户，也不完全等同于运行它的服务账号。
+传统系统早已有用户、服务、设备与委托身份，Agent 不天然创造一种新的密码学身份。工程上应区分谁运行 Agent（工作负载）、谁发起任务（用户或自动任务主体）、谁授权动作，以及执行中的 Agent/任务 ID。后两者常是审计属性，不应直接替代可验证的主体凭据。
 
 | 身份类型 | 特点 | 典型问题 |
 |---|---|---|
@@ -54,9 +60,11 @@ flowchart LR
 
 **通用防御原则**：
 
-1. **权限不应该在委托链中被放大，只能收紧**——下游收到的有效权限应该是"发起者权限"和"每一跳自身权限"的交集，而不是取任意一跳的最大值；
-2. **凭据应该携带"代表谁"的声明**（如 OAuth 的 `act_as`/`on_behalf_of` 模式或等价的委托声明），资源服务器基于这个声明而不是"谁在直接调用我"做授权决策；
-3. **不做隐式信任传递**：一个组件被认证过，不代表它请求的下一跳操作也应该被自动信任，每一跳都要重新校验。
+1. **委托不得隐式放大权限**：有效权限受主体可委托范围、显式授权、接收方策略、资源归属和任务约束共同限制。「交集」是策略原则，不是把不同服务的 scope 字符串直接求交集；需由授权系统映射语义。
+2. **使用受验证的委托信息**：RFC 8693 Token Exchange 定义 `subject_token`、`actor_token`，JWT `act` 可表达行动者；`act_as`、`on_behalf_of` 不是所有 OAuth 实现通用的标准声明。令牌交换不自动保证权限衰减，签发方仍须执行策略。
+3. **每跳重新授权**：资源服务验证签名、issuer、audience、有效期和本地资源权限；仅在 Prompt、请求头或 JSON 中写「代表用户 A」不是授权证明。
+
+人工审批要绑定规范化的动作参数、资源、金额、目的地、有效期与一次性动作 ID。执行前参数变化应重新审批，不能复用一句笼统的「允许 Agent 操作」。用户撤销授权后还需阻断排队任务、清理凭据缓存；短期令牌在过期前仍可能有效，高风险系统要补撤销或实时策略检查。
 
 ## 7.4 多 Agent 与跨组织场景下的信任边界
 
@@ -93,7 +101,7 @@ flowchart TB
 - [ ] 每一次跨系统调用都能明确回答"以谁的身份、基于谁的授权"发生；
 - [ ] Agent 的服务身份与用户委托身份分离管理，不用服务身份代替应有的用户委托流程；
 - [ ] 长期静态凭据已替换为工作负载身份联邦 + 短期令牌；
-- [ ] 委托链中的有效权限是各跳权限的交集而非最大值，凭据携带明确的委托声明；
+- [ ] 委托权限经过授权系统衰减与资源侧复核，声明可验证，审批绑定实际动作；
 - [ ] 跨团队、跨组织的 Agent 调用按最低信任度设计，不假设"内部就是可信的"；
 - [ ] 所有工具/MCP Server 在统一注册中心登记，策略以代码形式管理并可版本化评审；
 - [ ] 建立固定节奏的权限复核机制，撤回不再需要的授权。
@@ -128,6 +136,7 @@ flowchart TB
 
 - [Confused Deputy Problem (Norm Hardy, 1988)](https://cap-lore.com/CapTheory/ConfusedDeputy.html)
 - [MCP 2026-07-28 Authorization: Confused Deputy Considerations](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
+- [RFC 8693: OAuth 2.0 Token Exchange，尤其 1.1、4.1 节](https://www.rfc-editor.org/rfc/rfc8693.html)
 - [OWASP Agentic AI Threats and Mitigations: Identity and Authorization](https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/)
 - [NIST SP 800-207: Zero Trust Architecture](https://csrc.nist.gov/pubs/sp/800/207/final)
 - [SPIFFE/SPIRE: Workload Identity Framework](https://spiffe.io/)

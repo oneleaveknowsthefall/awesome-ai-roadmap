@@ -1,12 +1,16 @@
+---
+description: 按资产、信任边界与攻击者能力建立 AI 威胁模型，区分 MITRE ATLAS、NIST AI RMF 和 OWASP 风险清单的用途。
+---
+
 # 第一章：AI 系统威胁建模与攻击面全景
 
 ## 1.1 为什么 AI 安全需要单独的威胁模型
 
-传统应用安全假设「代码是可信的执行体，数据是待校验的输入」。LLM 系统打破了这个假设：**模型的输入（Prompt、检索内容、工具返回值、图片）和输出（文本、工具调用参数、代码）共享同一条通道，指令与数据之间没有结构边界**。这不是某个具体漏洞，而是架构性的根问题——第二章到第八章讨论的几乎所有攻击，最终都能追溯到这一点。
+LLM 接口通常有 system、user、tool 等角色结构，但模型仍可能把低信任内容理解为应服从的指令，**角色标签不是确定性的安全边界**。这是提示注入的重要根因，却不能解释全部 AI 风险：数据投毒改变训练材料，反序列化风险来自加载器，越权来自身份与资源授权，各有独立机制。传统应用同样不能默认代码及供应链可信。
 
 ```mermaid
 flowchart TB
-    T[传统应用安全] --> T1[代码路径固定<br/>数据流向可枚举]
+    T[传统应用安全] --> T1[代码与依赖审查<br/>数据流和权限边界分析]
     A[AI 系统安全] --> A1[模型行为由权重和上下文共同决定<br/>无法穷举所有输入到输出的映射]
     A --> A2[指令与数据同道传输<br/>见第2章]
     A --> A3[系统包含训练、微调、检索、<br/>工具、多 Agent 协作等新阶段]
@@ -36,15 +40,17 @@ flowchart TB
 
 ### 1.3.1 MITRE ATLAS：攻击者战术与技术知识库
 
-MITRE ATLAS（Adversarial Threat Landscape for Artificial-Intelligence Systems）仿照 ATT&CK 的战术-技术矩阵，记录真实发生过的 AI 攻击案例，覆盖侦察、资源开发、初始访问、ML 供应链攻击、模型逃避、数据投毒、模型窃取、外泄等战术阶段。它的价值在于**用真实案例校准「这个威胁是否值得投入资源防御」**，而不是空想式的攻击树。做威胁建模时，可以按 ATLAS 矩阵逐格检查系统是否暴露对应技术面。
+MITRE ATLAS（Adversarial Threat Landscape for Artificial-Intelligence Systems）以战术、技术和案例描述 AI 攻击，既包含现实事件，也包含研究或红队演示。引用时应注明案例性质与攻击前提；某技术被收录不代表已在所有生产系统中被利用。它适合帮助团队检查可能路径，而非替代本系统的可达性和影响分析。
 
 ### 1.3.2 NIST AI RMF：治理生命周期
 
-NIST AI Risk Management Framework 定义了 **Govern、Map、Measure、Manage** 四个循环功能：Govern 建立问责与制度，Map 识别场景中的风险来源，Measure 用指标量化风险，Manage 决定缓解、转移或接受。RMF 不关心具体攻击技术，而是回答「谁负责、什么时候评估、评估不通过怎么办」——这是第十章治理章节的直接依据。生成式 AI 场景可结合 NIST 的 Generative AI Profile 补充具体风险清单（如幻觉、内容真实性、CBRN 滥用等）。
+NIST AI RMF 1.0 是自愿使用的风险管理框架，不是法律或产品安全认证。**Govern、Map、Measure、Manage** 分别涉及问责制度、场景风险识别、风险测量和处置，Govern 贯穿其他功能，并非一次性的线性流程。生成式 AI 可结合 2024 年发布的 NIST AI 600-1 Generative AI Profile。NIST 官网说明 RMF 正在修订，不应据此把尚未发布的后续版本当作既定标准。
 
 ### 1.3.3 OWASP Top 10：漏洞分类与速查
 
-OWASP 维护两份互补清单：**LLM Applications Top 10**（面向单模型应用，如 LLM01 Prompt Injection、LLM02 Sensitive Information Disclosure、LLM03 Supply Chain、LLM04 Data and Model Poisoning、LLM05 Improper Output Handling、LLM06 Excessive Agency、LLM07 System Prompt Leakage、LLM08 Vector and Embedding Weaknesses、LLM09 Misinformation、LLM10 Unbounded Consumption）和 **Agentic AI / Multi-Agentic System Top 10**（面向自主 Agent，覆盖工具滥用、身份冒充、级联失控、人机协同失效等）。两份清单的粒度接近 CWE，适合作为代码评审和安全测试的检查项。
+**OWASP Top 10 for LLM Applications 2025** 不限于单模型架构：LLM01 Prompt Injection、LLM02 Sensitive Information Disclosure、LLM03 Supply Chain、LLM04 Data and Model Poisoning、LLM05 Improper Output Handling、LLM06 Excessive Agency、LLM07 System Prompt Leakage、LLM08 Vector and Embedding Weaknesses、LLM09 Misinformation、LLM10 Unbounded Consumption。
+
+另有 **Top 10 for Agentic Applications 2026**，聚焦自主 Agent 的工具、身份、委托和级联风险。它与 Agentic AI Threats and Mitigations 指南不是同一份文档。Top 10 是风险清单，不是与 CWE 逐项等价的弱点分类，也不是认证标准。
 
 三者分工不同：ATLAS 描述攻击者的战术与技术，RMF 管理组织风险，OWASP 提供应用实现层的漏洞检查项。
 
@@ -101,14 +107,16 @@ flowchart TB
 
 | 能力等级 | 描述 | 举例 |
 |---|---|---|
-| L0 匿名用户 | 仅能通过公开接口发送 Prompt | 越狱、间接注入投放 |
+| L0 匿名用户 | 仅能通过公开接口发送 Prompt | 直接注入、越狱；间接注入还需第三方内容投放路径 |
 | L1 认证用户 | 拥有合法账号和正常权限 | 滥用自身权限做越权探测、差分探测 |
 | L2 内容供应方 | 能让内容进入训练语料或知识库 | 数据投毒、后门触发器 |
 | L3 供应链角色 | 能发布模型/依赖/工具描述 | 供应链投毒、Tool poisoning |
 | L4 内部人员 | 拥有部署、日志或密钥访问权限 | 权限滥用、日志泄漏 |
 | L5 具备算力的研究级攻击者 | 可训练影子模型做迁移攻击 | 模型窃取、成员推断 |
 
-多数生产系统的第一优先级应放在 L0-L2（因为攻击面最大、门槛最低），L3-L5 需要结合具体业务的暴露程度决定投入。
+L0–L5 是本章的讨论标签，不是行业标准或严格递增的权限等级；算力、内部权限和内容控制是不同维度。投入应根据资产价值、可达性、损害与现有控制排序，不能统一认定匿名用户风险最高。
+
+例如只读客服助手与可退款 Agent 都会读取不可信文档，但后者多了资金动作、委托身份和重放风险。应写出「文档 → 模型 → 退款参数 → 授权服务」的数据流，验证授权服务能否独立检查用户、订单、金额和审批，再把攻击分类映射成具体控制。
 
 ## 1.6 本主题的定位与交叉引用约定
 
@@ -138,7 +146,7 @@ flowchart TB
 
 ### 1.7.3 忽略攻击者能力分级
 
-不区分「匿名用户」和「内部人员」会导致防御资源错配——把大量精力投入防内部威胁，却对最容易触发的匿名越狱和间接注入疏于防范。
+不区分攻击者控制哪些数据、能否调用工具、是否拥有内部凭据，会导致资源错配；不能只凭「内网」或「匿名」标签判断风险。
 
 ### 1.7.4 认为威胁模型是安全团队的事
 
@@ -149,14 +157,15 @@ flowchart TB
 1. AI 系统的威胁建模需要额外回答「模型行为从哪来、运行时什么内容会进入决策链路、输出能触发什么」三个问题；
 2. **MITRE ATLAS** 给出攻击者战术技术知识库，**NIST AI RMF** 给出 Govern/Map/Measure/Manage 治理流程，**OWASP LLM/Agentic Top 10** 给出漏洞检查清单，三者互补；
 3. 攻击面应沿「训练/微调 → 分发 → 运行时输入/检索/工具调用/执行 → 输出 → 治理」的生命周期铺开，而不是零散罗列；
-4. 攻击者能力应分级（匿名用户到内部人员），防御投入应优先覆盖门槛最低、暴露面最大的等级；
+4. 攻击者能力要按实际控制面描述，优先级结合可达性与损害，不按固定标签机械排序；
 5. `docs/safety/` 负责跨层框架、标准映射和第2-10章覆盖的补充环节，Agent/Tools/RAG 已有的架构级防御细节通过交叉引用复用，不重复展开。
 
 ## 参考资料
 
 - [MITRE ATLAS](https://atlas.mitre.org/)
 - [NIST AI Risk Management Framework (AI RMF 1.0)](https://www.nist.gov/itl/ai-risk-management-framework)
-- [NIST Generative AI Profile (NIST AI 600-1)](https://www.nist.gov/publications/generative-ai-profile)
+- [NIST Generative AI Profile (NIST AI 600-1)](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence)
 - [OWASP Top 10 for Large Language Model Applications](https://genai.owasp.org/llm-top-10/)
 - [OWASP Agentic AI Threats and Mitigations](https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/)
+- [OWASP Top 10 for Agentic Applications 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/)
 - [NIST AI 100-2 E2025: Adversarial Machine Learning Taxonomy](https://www.nist.gov/publications/adversarial-machine-learning-taxonomy-and-terminology-attacks-and-mitigations)

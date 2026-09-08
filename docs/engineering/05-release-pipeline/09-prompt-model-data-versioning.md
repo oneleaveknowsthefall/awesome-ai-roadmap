@@ -1,3 +1,7 @@
+---
+description: 用可追溯的发布清单关联 Prompt、模型快照、检索和策略版本，区分快照锁定、行为复现与安全回滚。
+---
+
 # 第九章：Prompt / 模型 / 数据版本管理
 
 ## 9.1 为什么 Prompt 也需要像代码一样版本化
@@ -36,14 +40,14 @@ Prompt 改动应该进入版本控制系统,通过 Pull Request 走评审,并附
 
 ## 9.3 模型版本锁定
 
-第 1 章提到过 LLMOps 独有的风险:**厂商静默升级模型版本**。多数供应商同时提供"浮动别名"(如 `gpt-4o`)和"固定快照"(如 `gpt-4o-2026-08-06`)两种引用方式:
+部分供应商提供浮动别名和固定快照。例如 OpenAI GPT-4o 文档列有 `gpt-4o` 与 `gpt-4o-2024-08-06`；这是已发布的历史快照示例，不是当前选型推荐。不要按日期自行拼出未发布的模型名。是否支持固定版本、可用区域和退役时间，要以具体模型生命周期文档为准：
 
 | 引用方式 | 行为 | 适用场景 |
 |---|---|---|
 | 浮动别名 | 厂商随时可能切换到新的底层版本 | 快速原型、对细微行为变化不敏感的场景 |
-| 固定快照 | 明确指向某个不变的模型版本 | 生产环境的默认选择,行为可复现 |
+| 固定快照 | 指向明确的模型版本，但仍有退役与服务配置变化 | 优先用于受控发布，减少版本变量；不保证逐字可复现 |
 
-生产环境应默认使用固定快照,**主动升级到新快照本身也是一次需要经过评测门禁的"发布"**,而不是被动接受厂商推送。升级前后的评测对比,和[第 10 章](10-llm-cicd-canary-ab.md)的灰度发布流程完全一致。
+生产环境在供应商支持时优先锁定快照，升级视为一次发布。若只能使用自动更新部署，应记录实际响应模型标识、持续跑探针并准备替代路径。即使温度为零或设置 seed，也不能把托管推理当成跨时间、硬件和服务配置的逐字复现保证。
 
 ## 9.4 数据版本管理:让评测和排障可复现
 
@@ -57,17 +61,19 @@ embedding_model: text-embedding-3-large
 indexed_at: 2026-08-25T02:00:00Z
 ```
 
-常见做法是用 DVC、LakeFS 等工具对数据集做类似 Git 的版本管理,或者至少为每次索引重建生成一个不可变的版本标签。**没有数据版本,离线评测的分数会失去可比性**——如果知识库在两次评测之间偷偷更新过,分数变化到底是 Prompt 改动的效果还是数据变化的效果,根本无法区分。
+常见做法是用 DVC、LakeFS 等工具对数据集做类似 Git 的版本管理,或者至少为每次索引重建生成一个不可变的版本标签。还应记录文档与 chunk ID、切分规则、嵌入模型、索引配置、重排器和权限策略版本；只记录源文件哈希不足以复现检索。删除与权限撤销应覆盖旧索引和缓存，回滚不能恢复已撤销的数据访问。**没有数据版本,离线评测的分数会失去可比性**——如果知识库在两次评测之间偷偷更新过,分数变化到底是 Prompt 改动的效果还是数据变化的效果,根本无法区分。
 
 ## 9.5 模型注册表:统一记录"什么版本在哪里跑"
 
-三者版本信息最终应该汇总到一个模型/配置注册表,而不是分散在各个服务的配置文件里:
+把相关版本汇总为不可变的发布清单，各资产可独立编号，但线上一次请求要能关联到完整组合：
 
 | 记录项 | 用途 |
 |---|---|
 | Prompt 版本 + 关联的 Schema 版本 | 排查输出格式变化的根因 |
 | 模型快照版本 + 路由策略版本 | 排查"这次输出风格为什么不一样"([第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.md)) |
 | 知识库/数据版本 | 排查检索内容变化的根因 |
+| 代码、工具 Schema、权限与护栏版本 | 区分生成质量变化和执行策略变化，防止只回滚模型却留下不兼容配置 |
+| 评测集、评分器、rubric 与运行 ID | 分数必须绑定具体评测条件，单个 `eval_score` 不能作为完整发布证据 |
 | 关联的评测分数与变更时间 | 支持第 10 章发布流水线的门禁判断和回滚决策 |
 
 这和 MLOps 里的模型注册表(如 MLflow Model Registry)是同一个思路,只是登记的资产从"训练出的权重文件"换成了"Prompt + 路由 + 数据的组合快照"。
@@ -100,7 +106,8 @@ indexed_at: 2026-08-25T02:00:00Z
 
 ## 参考资料
 
-- [OpenAI: Model version and lifecycle](https://platform.openai.com/docs/models#model-version)
+- [OpenAI: GPT-4o snapshots](https://developers.openai.com/api/docs/models/gpt-4o)
+- [OpenAI: Deprecations](https://developers.openai.com/api/docs/deprecations)
 - [DVC: Data Version Control](https://dvc.org/doc)
 - [MLflow: Model Registry](https://mlflow.org/docs/latest/model-registry.html)
 - [Google Cloud: MLOps continuous delivery and automation pipelines](https://cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning)
