@@ -58,6 +58,8 @@ flowchart TB
     RAG -.知识增强.-> AGENT
 ```
 
+图中的层次用于组织知识，不代表项目必须采用全部组件。评测、安全和客户验收贯穿设计与交付；简单任务可以直接使用模型 API，不必先搭建 Agent 或引入编排框架。
+
 ## 主题目录
 
 | 层次 | 主题 | 内容范围 | 章数 | 入口 |
@@ -82,7 +84,7 @@ flowchart TB
 | 幻觉 | LLM | RAG 生成章、Agent 安全章 | LLM 讲根因，RAG 讲如何通过知识约束生成 |
 | KV Cache / Prompt Caching | LLM | Agent 上下文、AI Engineering | LLM 讲缓存机制，应用与工程层讲使用策略 |
 | VLM / 语音 / 生成模型 | 多模态 AI | Agent Computer Use、RAG 多模态章 | 多模态讲模型能力，应用层讲如何进入任务链路 |
-| Function Calling / MCP | Tools | Agent Harness、框架与编排 | Tools 讲协议，Agent 讲运行时，框架讲具体封装 |
+| Function Calling / MCP | Tools | Agent Harness、框架与编排 | Tools 讲调用接口与协议，Agent 讲运行时，框架讲具体封装 |
 | Runtime / Harness | Agent | 框架与编排、AI Engineering | Agent 讲通用运行时，框架讲实现，工程层讲生产运营 |
 | 记忆 | Agent | 框架与编排的 LangChain 模块 | Agent 讲分层与取舍，框架主题讲具体实现 |
 | 向量检索 | RAG | 框架与编排 | RAG 讲索引与召回原理，框架主题讲组件封装 |
@@ -122,8 +124,8 @@ flowchart TB
 
 ### 应该从 LLM、Agent 还是 RAG 开始？
 
-想理解模型能力边界，应先读 LLM；想构建能调用工具并持续执行任务的系统，从 Agent 和 Tools 开始；想让模型使用私有或持续更新的知识，从 RAG 开始。生产上线前还需要补充 AI Engineering 和安全治理。
+想理解模型能力边界，应先读 LLM；想构建能调用工具并持续执行任务的系统，从 Agent 和 Tools 开始；想让模型使用私有或持续更新的知识，从 RAG 开始。设计方案时就应结合 AI Engineering 和安全治理确定评测、权限与可靠性要求。
 
 ### 内容多久更新一次？
 
-项目不采用固定发布周期。协议、框架或模型能力出现重要变化时更新对应章节，页面会显示 Git 记录中的首次发布和最后修改日期。高时效性结论仍应结合正文标注的版本与官方链接核验。
+项目不采用固定发布周期。协议、框架或模型能力出现重要变化时更新对应章节，页面日期来自当前文件路径的 Git 历史，不一定对应内容最初公开的日期。高时效性结论仍应结合正文标注的版本与官方链接核验。
