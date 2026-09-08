@@ -100,6 +100,20 @@ flowchart TB
 - **安全与治理**：AI 安全与治理 → Agent、Tools、RAG 各自的安全章节。
 - **客户交付与解决方案**：FDE → AI Engineering → 按项目需要回查 Agent、RAG、Harness 与安全治理。
 
+## 按面试题型串联知识
+
+基础题先把概念解释准确，系统设计题则需要把数据流、控制流和故障处理接起来。下面几条路径可以用来练习跨主题追问，不代表所有公司都会按同一套题目面试。
+
+| 练习题 | 建议串联的章节 | 需要说清楚的取舍 |
+|---|---|---|
+| 如何给企业内部知识助手选方案？ | [RAG、微调与长上下文](rag/01-foundations/02-rag-finetune-longcontext.md) → [RAG 评测](rag/05-generation-evaluation/18-rag-evaluation.md) → [离线 Eval](engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md) | 知识缺失和行为问题如何区分，如何用业务查询集证明改动有效 |
+| 如何让 Agent 在工具超时后继续执行？ | [Harness 边界](agent/02-runtime-harness/16-harness-definition-and-boundaries.md) → [Checkpoint 与恢复](agent/02-runtime-harness/21-checkpoint-persistence-recovery.md) → [重试与幂等](engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md) | 恢复计算状态与避免重复业务写入不是同一个问题 |
+| MCP 接入后，权限由谁负责？ | [MCP 与 Function Calling](tools/02-mcp/06-mcp-vs-function-calling.md) → [Tool Protocol 安全](tools/02-mcp/15-tool-protocol-security.md) → [最小权限与身份](safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md) | 协议能力、模型调用意图与服务端授权的边界 |
+| 模型效果不错，为什么线上还是不能用？ | [模型评测](llm/05-evaluation-selection/21-evaluation-metrics.md) → [输出契约](engineering/03-output-safety/05-structured-output-contracts.md) → [SLO 与故障响应](engineering/06-performance-operations/12-slo-capacity-incident-response.md) | 榜单成绩、结构合法、业务正确和服务可靠分别如何衡量 |
+| 如何把客户的模糊需求变成可交付项目？ | [FDE](fde/01-foundations/01-forward-deployed-engineering.md) → [版本管理](engineering/05-release-pipeline/09-prompt-model-data-versioning.md) → [数据飞轮](engineering/06-performance-operations/13-feedback-loop-data-flywheel.md) | 验收口径、客户系统集成、灰度回滚与可复用边界 |
+
+项目题应以自己真正做过的工作为准：当时有哪些约束，为什么没有选另一种方案，结果怎么测，失败后怎么定位。没有做过的部分可以作为方案推演讨论，不把假设写成经历。
+
 ## 常见问题
 
 ### 这份路线图适合什么读者？
