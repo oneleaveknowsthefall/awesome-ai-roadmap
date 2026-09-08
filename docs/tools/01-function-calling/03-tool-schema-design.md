@@ -58,12 +58,12 @@ cancel_order
 对语义复杂的工具，直接在 `description` 里塞一两个调用示例，效果往往比反复措辞更好：
 
 ```python
-"description": (
+{"description": (
     "执行 SQL 查询并返回结果。只支持 SELECT，不支持写操作。\n"
     "示例：查询昨天订单数 -> "
     "SELECT COUNT(*) FROM orders WHERE created_at >= CURRENT_DATE - 1 "
     "AND created_at < CURRENT_DATE"
-)
+)}
 ```
 
 它相当于把 few-shot 示例塞进了工具定义里。代价是 token，收益是参数准确率，值不值得取决于这个工具被调用的频率和出错的成本。
@@ -90,10 +90,10 @@ cancel_order
 
 ```python
 # 差：模型可能填 "已完成"、"completed"、"DONE"、"finish"
-"status": {"type": "string", "description": "订单状态"}
+{"status": {"type": "string", "description": "订单状态"}}
 
 # 好
-"status": {"type": "string", "enum": ["pending", "paid", "shipped", "completed", "cancelled"]}
+{"status": {"type": "string", "enum": ["pending", "paid", "shipped", "completed", "cancelled"]}}
 ```
 
 支持 strict 或结构化输出的运行时可利用 Schema 做约束解码；仅提供 `enum` 不代表该路径已启用。即使格式有效，`cancelled` 与 `completed` 仍可能被选错，业务状态需单独校验。
@@ -105,7 +105,7 @@ cancel_order
 非 strict 示例可在描述中说明缺省行为，但实际默认值和范围由服务端实现：
 
 ```python
-"limit": {"type": "integer", "description": "返回条数，默认 20，最大 100"}
+{"limit": {"type": "integer", "description": "返回条数，默认 20，最大 100"}}
 ```
 
 #### strict 的具体约束
@@ -147,29 +147,31 @@ cancel_order
 
 ### 3.4.2 大结果要截断并告知
 
-返回 500 条记录不如返回前 20 条加一句提示：
+大结果可以分页返回，并明确还有多少内容未展示。下面假设 `page_items` 是已取得的前 20 条订单摘要，总数 517 已由查询确认：
 
 ```python
-{"items": [...20 条...],
+{"items": page_items,
  "total": 517,
+ "returned_count": 20,
+ "has_more": True,
  "note": "结果过多，仅返回前 20 条。请缩小时间范围或增加筛选条件后重试。"}
 ```
 
-关键是那句 `note`。它不只是截断，而是**告诉模型该怎么办**。没有它，模型会以为总共就 20 条，直接基于不完整数据下结论。
+`has_more`、返回数和 `note` 让下游知道结果尚不完整，以及如何继续查询。拿不到准确总数时应明确未知，不能把已返回数量当成总数；汇总整批订单的金额或数量，通常应交给数据库聚合，而不是只对这一页计算。
 
 ### 3.4.3 错误必须结构化
 
 ```python
-# 差：抛异常中断整个流程
+# 预期业务错误若未被适配层处理，可能中断整个流程
 raise ValueError("city not found")
 
-# 好：以工具结果的形式回填
+# 对可纠正的业务错误，可转成结构化工具结果
 {"error": "city_not_found",
  "message": "未找到城市「广洲」",
  "hint": "可能的正确拼写：广州。请确认后重试。"}
 ```
 
-结构化错误让模型有机会自己纠正重试。直接抛异常等于放弃了模型的自我修复能力。`hint` 字段是关键——它把「出错了」变成了「出错了，这样改」。
+结构化错误让模型有机会修正参数，但不要求底层函数停止使用异常。适配层可以将已知业务异常转换为有限、脱敏的错误码与提示；非预期异常应显式上报，不能宽泛捕获后伪装成可继续的成功结果。`hint` 提供下一步建议，不授予额外权限。
 
 设定**重试次数与总时间预算**，检测重复参数错误。鉴权或策略拒绝通常应停止，网络超时需区分未提交、已提交和结果未知；写操作只有具备幂等或可核对状态时才可自动重试。
 

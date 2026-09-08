@@ -148,10 +148,10 @@ tools = [{
 
 ```python
 # 差：模型可能填 "高"、"HIGH"、"P0"、"urgent"
-"priority": {"type": "string", "description": "优先级"}
+{"priority": {"type": "string", "description": "优先级"}}
 
 # 好：限定合法取值；仍需校验业务含义
-"priority": {"type": "string", "enum": ["low", "medium", "high"]}
+{"priority": {"type": "string", "enum": ["low", "medium", "high"]}}
 ```
 
 `enum` 既可用于服务端校验，也可被支持约束解码的运行时用于屏蔽非法 token。只有实际启用并支持该 Schema 的 strict/structured-output 路径才有此约束；仅注册 Schema 不能保证值合法，更不能保证优先级选得合理。上面的 Chat Completions 示例未开启 strict，严格模式见[第三章](03-tool-schema-design.md)。
