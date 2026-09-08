@@ -1,8 +1,14 @@
+---
+description: 比较 LangChain、LangGraph、LlamaIndex、DSPy 与微软等 Agent 框架的状态模型、工具契约、迁移边界和生产成本。
+---
+
 # AI 框架与编排
 
 本主题聚焦「框架实现层」：[Agent](../agent/README.md) 与 [RAG](../rag/README.md) 主题讨论原理与取舍，[Tools](../tools/README.md) 主题单独说明协议；这里关注这些原理和协议在不同框架中的落地方式，以及框架不再适合项目时的迁移成本和路径。
 
 当前内容按六个子模块组织。[LangChain 生态](01-langchain/README.md) 沿用原有 LangChain/LangGraph 路径，其余模块分别展开 LlamaIndex、DSPy、Semantic Kernel、轻量级 Agent 框架，以及跨框架的选型与可移植架构。
+
+目录中的「轻量级」是阅读分组，不表示 AutoGen、CrewAI 的运行时、依赖或运维成本一定更小。选型应比较同一任务的工具正确率、恢复语义、延迟与费用，而不是把框架名称当作能力保证。版本相关说明以各章链接的官方文档为依据，不以本页日期推断最新补丁号。
 
 ## 子模块
 
@@ -26,7 +32,7 @@ flowchart TB
         LC["LangChain / LangGraph<br/>通用 Agent 编排"]
         LI["LlamaIndex<br/>数据与上下文"]
         DS["DSPy<br/>声明式优化"]
-        SK["Semantic Kernel<br/>企业级编排"]
+            SK["Semantic Kernel / Microsoft Agent Framework<br/>企业级编排与迁移"]
         LW["AutoGen / CrewAI / PydanticAI<br/>轻量级 Agent 框架"]
         SEL["选型与可移植架构<br/>跨框架统一解构"]
     end

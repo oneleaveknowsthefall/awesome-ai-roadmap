@@ -1,3 +1,7 @@
+---
+description: 沿消息、工具调用和状态流理解 LangChain v1 的协议、provider、中间件与 LangGraph 运行时职责。
+---
+
 # 第三章：LangChain v1 的底层架构
 
 ## 3.1 LangChain 解决什么问题
@@ -96,7 +100,7 @@ flowchart TB
 
 `create_agent` 根据模型、工具、系统提示词和中间件创建这套循环。
 
-> **它返回的不是普通函数，而是编译后的 LangGraph 图**——因此能够在每一步保存状态、输出进度并决定下一条执行边。
+> **它返回的不是普通函数，而是编译后的 LangGraph 图**，可以输出进度并决定下一条执行边。跨调用保存和恢复状态还必须配置 checkpointer，并传入 `thread_id`；编译图本身不等于已经启用持久化。
 
 ## 3.5 数据应该放在哪里
 
@@ -109,6 +113,8 @@ flowchart TB
 | **Store** | **跨线程**保存的数据 | 用户偏好、长期事实 |
 
 这样划分后，可信用户身份不需要让模型生成，数据库连接也不会被写入对话上下文。工具可以通过 Runtime 读取这些数据，**同时只把真正需要模型填写的参数暴露在工具 Schema 中**。
+
+Context 的可信性来自应用的认证边界，不来自 dataclass 或类型注解；State 中的工具结果可能仍是不可信外部内容。长暂停后恢复时，应重新检查当下权限，不能因为旧 checkpoint 记录过一个身份就跳过授权。Store 的 namespace 是定位机制，也不替代服务端访问控制。
 
 ## 3.6 Middleware 做什么
 
@@ -142,7 +148,7 @@ LangGraph 把流程建模为 **State + Node + Edge**：
 | Node | 执行模型或工具 |
 | Edge | 决定下一步 |
 
-**检查点可以保存每一步状态**，因此能支持中断恢复、人工介入、故障恢复和长时间运行。
+**检查点在 super-step 边界保存状态快照**，同一步成功节点的 pending writes 可辅助故障恢复；不是每一行代码都被持久化。由此能支持中断恢复、人工介入和长时间运行，但外部写入与 checkpoint 不自动处于同一事务。
 
 ### 3.7.1 两者不是二选一
 
@@ -220,3 +226,4 @@ LangChain 提供高层组件和标准 Agent 架构，LangGraph 提供底层执�
 - [LangChain: Middleware 概念文档](https://docs.langchain.com/oss/python/langchain/middleware)
 - [LangChain v1 迁移指南](https://docs.langchain.com/oss/python/migrate/langchain-v1)
 - [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
+- [LangGraph Checkpointers：super-step 与 pending writes](https://docs.langchain.com/oss/python/langgraph/checkpointers)

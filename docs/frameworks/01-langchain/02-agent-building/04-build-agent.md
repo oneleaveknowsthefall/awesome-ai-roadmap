@@ -1,3 +1,7 @@
+---
+description: 以订单助手说明 create_agent 的工具、结构化输出、审批恢复、持久化和调用预算如何接入业务边界。
+---
+
 # 第四章：用 LangChain 构建生产级 Agent 的七步
 
 ## 4.1 什么才算完整 Agent
@@ -113,7 +117,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 @tool
 def request_refund(order_id: str) -> str:
     """提交退款申请；实际退款服务必须基于可信身份重新授权并使用幂等键。"""
-    return f"退款申请已提交：{order_id}"
+    return f"演示：订单 {order_id} 的退款申请未连接真实服务"
 
 agent = create_agent(
     model="<provider>:<your-model-id>",
@@ -132,6 +136,8 @@ agent = create_agent(
 ```
 
 金额阈值、租户隔离、职责分离等业务规则若不属于一次 Tool Call，则应在调用 Agent 前的确定性路由节点，或在 LangGraph 节点与边中执行。**中断和服务端授权才是控制点；模型字段只是供界面和后续流程参考的数据。**
+
+这个片段演示「允许人工批准后提交申请」的另一个业务范围，不改变前面只读助手「禁止自行退款」的边界。使用此 Agent 时，首次调用与 `Command(resume={"decisions": [{"type": "approve"}]})` 恢复必须复用同一 `thread_id`；多个待审批工具调用的 decisions 应按中断请求顺序一一对应。审批接口需要先验证审核员权限、任务归属和决策有效期，不能让浏览器直接调用任意线程的恢复入口。
 
 ## 4.5 第四步：组装 Agent
 
@@ -157,6 +163,8 @@ result = agent.invoke({
 # 结构化结果已经通过 SupportReply 的字段校验
 reply: SupportReply = result["structured_response"]
 ```
+
+这里直接传 Pydantic 类型时，框架会根据模型能力选择 `ProviderStrategy`（供应商原生结构约束）或 `ToolStrategy`（用工具调用承载输出）。若同时提供业务工具，必须验证模型支持相应组合；JSON Schema 字典则应显式包进策略。`structured_response` 是成功完成后的结果，不代表拒答、截断或校验重试耗尽时也一定存在。调用方必须区分成功、等待审批和异常，而不是缺字段就制造一个「已处理」答复。
 
 **底层执行流程**（详见 [第三章](../01-foundations/03-langchain-architecture.md)）：
 
@@ -208,6 +216,8 @@ flowchart TB
 | `stream` | 长任务，需要展示 Token、步骤或工具进度 |
 
 流式输出改善的是等待体验，不会自动缩短工具执行时间。超时、取消、并发限制和缓存仍要单独设计。
+
+停止条件应有独立预算：模型调用次数、工具调用次数、总耗时与费用分别计数。`recursion_limit` 限制的是图的 super-step 数，不等同于模型轮数、Python 递归深度或一个全局 Token 上限；一次模型响应还可能同时请求多个工具。更改该值只能调整最后一道循环保护，不能解决重复选错工具的根因。
 
 ## 4.8 第七步：测试与监控
 
@@ -304,3 +314,5 @@ flowchart TB
 - [LangChain: Long-term Memory](https://docs.langchain.com/oss/python/langchain/long-term-memory)
 - [LangChain: Streaming](https://docs.langchain.com/oss/python/langchain/streaming)
 - [LangGraph 持久化文档](https://docs.langchain.com/oss/python/langgraph/persistence)
+- [LangChain Human-in-the-loop：审批与恢复](https://docs.langchain.com/oss/python/langchain/human-in-the-loop)
+- [LangGraph Graph API：recursion limit](https://docs.langchain.com/oss/python/langgraph/graph-api#recursion-limit)

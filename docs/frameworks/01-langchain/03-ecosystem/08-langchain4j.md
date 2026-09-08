@@ -1,3 +1,7 @@
+---
+description: 解释 LangChain4j AI Services、工具、Chat Memory 与 RAG 的 Java 集成方式，区分模型监听、服务事件和 Guardrails 的边界。
+---
+
 # 第八章：LangChain4j 与 Java 生态
 
 ## 8.1 它是 LangChain 的 Java 版吗
@@ -57,6 +61,8 @@ Java 开发者熟悉的是**接口、类型和服务层**，而不是在业务�
 > **它很像 Spring Data JPA 或 Retrofit**：我们描述「服务要暴露什么方法」，框架负责把方法参数变成消息，再把模型响应转换成方法返回值。
 
 ### 8.3.1 一个把关键能力放在一起的例子
+
+以下是组装片段，不是独立 Java 文件：`chatModel`、`embeddingModel`、`embeddingStore`、`chatMemoryStore` 与 `orderService` 需由应用初始化；record 和文本块需要兼容的 JDK，框架及集成的 JDK/Spring Boot 要求仍以选定版本为准。`minScore(0.75)` 只是示例阈值，必须按模型、距离转换与业务数据标定，不能当成通用相关性概率。
 
 ```java
 record SupportReply(
@@ -118,11 +124,11 @@ SupportReply reply = assistant.chat("conversation-1001", "订单 A1024 到哪了
 
 ```mermaid
 flowchart TB
-    A["AI Service 代理<br/>把方法参数组织成消息"] --> B["Retriever 补充知识库内容"]
+    A["AI Service 代理<br/>按 MemoryId 读取历史并组织输入"] --> B["Retriever 补充知识库内容"]
     B --> C["模型判断"]
     C -->|需要查订单| D["调用 OrderTools"]
     D --> C
-    C -->|得到结果| E["MemoryProvider 用会话 ID 隔离上下文"]
+    C -->|得到结果| E["更新当前记忆窗口"]
     E --> F["框架把模型输出转换成 SupportReply"]
 
     style F fill:#e6f4ea
@@ -219,7 +225,7 @@ flowchart LR
     style A fill:#e8f0fe
 ```
 
-`ChatModelListener` 等监听入口就是为了采集这些阶段的**请求、响应、耗时和错误**。Spring Boot 或 Quarkus 集成能把这些事件接入团队已有的指标与追踪系统。
+`ChatModelListener` 观察的是模型请求、响应和错误，不会自动成为 Retriever、Tool 和审批等全链路的 span。整次调用还需 AI Service 事件或应用级 instrumentation，并关联同一个 trace ID；Spring Boot 或 Quarkus 集成能帮助接入团队已有的指标与追踪系统。
 
 ### 8.8.1 Guardrails 的两条边界
 
@@ -227,6 +233,8 @@ flowchart LR
 2. **Guardrail 不是安全系统的替代品**——Prompt Injection 检测可能漏报，输出校验也不能替代业务权限。
 
 > **认证、授权、数据隔离、资金风控和审计必须继续放在确定性的业务层。**
+
+尤其要注意执行顺序：官方 Input Guardrail 位于 RAG 操作之后、模型调用之前。因此即使它最后拒绝问题，检索也可能已经发生；租户 ACL 必须在检索器或数据服务里执行。基于模型的 Guardrail 还会增加调用费用与延迟，不能把每个检查都放成一次额外模型请求而不测成本。
 
 ## 8.9 什么时候适合 LangChain4j
 
@@ -331,5 +339,7 @@ flowchart LR
 - [LangChain4j: Tools 教程](https://docs.langchain4j.dev/tutorials/tools)
 - [LangChain4j: Chat Memory 教程](https://docs.langchain4j.dev/tutorials/chat-memory)
 - [LangChain4j: RAG 教程](https://docs.langchain4j.dev/tutorials/rag)
+- [LangChain4j: Guardrails 与执行顺序](https://docs.langchain4j.dev/tutorials/guardrails)
+- [LangChain4j: AI Service Observability](https://docs.langchain4j.dev/tutorials/observability)
 - [Quarkus LangChain4j](https://docs.quarkiverse.io/quarkus-langchain4j/dev/)
 - [Spring AI 官方文档](https://docs.spring.io/spring-ai/reference/)

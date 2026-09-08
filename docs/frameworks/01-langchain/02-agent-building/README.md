@@ -1,3 +1,7 @@
+---
+description: 学习 create_agent 的完整接线、工具契约、可信身份注入，以及短期状态和长期记忆的治理边界。
+---
+
 # LangChain · Agent 构建
 
 落地 Agent、Tool、短期状态和长期记忆。
@@ -8,4 +12,4 @@
 2. [第五章：Tool 注册与工具契约](05-tool-registration.md)
 3. [第六章：LangChain 的短期记忆与长期记忆](06-memory.md)
 
-返回 [Langchain 相关知识点](../README.md)。
+返回 [LangChain 生态](../README.md)。

@@ -1,18 +1,25 @@
+---
+description: "区分 SK Process、SK Agent Orchestration 与独立 Microsoft Agent Framework，说明发布状态、API 迁移和持久化边界。"
+---
+
 # 第十九章：Semantic Kernel 的 Process Framework 与 Agent Framework
 
-## 19.1 两套编排能力，两种复杂度来源
+## 19.1 先分清三个容易重名的对象
 
-第十八章末尾提到，简单场景可以让模型用 Function Calling 自动规划，复杂场景则需要显式建模。Semantic Kernel 把复杂度分成两类来源，并给出两套对应的框架：
+旧 SK 文档中的 Agent Framework 不是独立的 Microsoft Agent Framework。按 2026-09-08 可访问官方资料，应分开理解：
 
-- **Process Framework**：复杂度来自**业务流程本身**——一个多步骤、有明确阶段划分的业务流程（比如「收到工单 → 分类 → 路由给对应团队 → 等待处理 → 关闭并通知」），部分步骤需要 AI，部分步骤是纯业务代码；
-- **Agent Framework**：复杂度来自**多个智能体之间的协作**——多个各有专长的 Agent 需要互相通信、共享上下文、决定谁来处理当前请求。
+- **SK Process Framework**：以 Step/Event 组织业务流程；官方概览仍标为 experimental；
+- **SK Agent Framework / Agent Orchestration**：SK 包内的 Agent 抽象及协作层。Agent 不只用于多智能体；Agent Orchestration 概览仍标为 experimental，不能把这个标记扩展成「所有 SK API 都实验性」；
+- **Microsoft Agent Framework（MAF）**：独立后继 SDK，融合 SK 与 AutoGen 的经验。官方仓库已说明 1.0 为生产可用发布；核心发布状态不等于每个 provider、Workflows 扩展或语言 SDK 都同样稳定，应逐包核对。当前概览明确 Go SDK 仍为 public preview。
 
 ```mermaid
 flowchart TB
     C["流程复杂度来源"] --> B1["业务流程本身分阶段、有状态转移"]
     C --> B2["需要多个专精 Agent 协作"]
-    B1 --> PF["Process Framework<br/>业务流程状态机"]
-    B2 --> AF["Agent Framework<br/>多智能体协作"]
+    B1 --> PF["SK Process<br/>实验性 Step / Event"]
+    B2 --> AF["SK Agent Orchestration<br/>实验性协作层"]
+    PF -.迁移需核对能力.-> MAF["独立 Microsoft Agent Framework<br/>Agents / Workflows / Session"]
+    AF -.迁移指南.-> MAF
 ```
 
 ## 19.2 Process Framework：业务流程的显式状态机
@@ -33,67 +40,104 @@ classify
     .SendEventTo(new ProcessFunctionTargetBuilder(routeToTeam));
 ```
 
-**这与 [LangGraph](../01-langchain/04-langgraph/README.md) 用节点和边表达状态图非常接近**：两者都显式声明了流程的阶段划分，都支持在特定步骤暂停等待人工介入，都能持久化流程状态以便恢复。区别更多体现在生态定位上——Process Framework 的建模语言（Step/Event）更贴近传统的业务流程管理（BPM）术语，方便已经熟悉工作流引擎的企业团队理解；LangGraph 的建模语言（Node/Edge/State）更贴近图论和状态机术语，方便习惯函数式/图计算的团队理解。
+上例仅定义流程拓扑，`ClassifyTicketStep`、`RouteToTeamStep`、运行时与启动事件还需实现。它和 [LangGraph](../01-langchain/04-langgraph/README.md) 都能表达多步骤控制，但不能因图形相似就认定持久化、暂停和重放语义相同。必须确认所用 SK 语言包和运行时如何保存 Step 状态、事件及外部请求，进程内执行样例本身不是可靠恢复证明。
 
-## 19.3 Agent Framework：多智能体协作的编排层
+## 19.3 SK Agent Orchestration：协作模式与运行时
 
-Agent Framework 面向另一类问题——多个 Agent 各自维护对话历史和角色设定，需要按某种策略决定「下一步该谁发言」：
+SK Agent Orchestration 支持 sequential、concurrent、handoff、group chat、magentic 等模式，不只决定谁发言。下面保留存量 Python API 的 group chat 装配方式，模型服务及凭据需预先配置：
 
 ```python
-from semantic_kernel.agents import ChatCompletionAgent, GroupChatOrchestration
+from semantic_kernel.agents import (
+    ChatCompletionAgent, GroupChatOrchestration, RoundRobinGroupChatManager,
+)
+from semantic_kernel.agents.runtime import InProcessRuntime
 
-researcher = ChatCompletionAgent(name="Researcher", instructions="负责收集资料")
-writer = ChatCompletionAgent(name="Writer", instructions="负责整理成报告")
+researcher = ChatCompletionAgent(
+    name="Researcher", instructions="负责收集资料", service=chat_service,
+)
+writer = ChatCompletionAgent(
+    name="Writer", instructions="负责整理成报告", service=chat_service,
+)
 
-orchestration = GroupChatOrchestration(agents=[researcher, writer])
-result = await orchestration.invoke(task="调研并总结季度行业趋势")
+orchestration = GroupChatOrchestration(
+    members=[researcher, writer],
+    manager=RoundRobinGroupChatManager(max_rounds=4),
+)
+runtime = InProcessRuntime()
+runtime.start()
+result = await orchestration.invoke(task="调研并总结季度行业趋势", runtime=runtime)
+output = await result.get()
+await runtime.stop_when_idle()
 ```
 
-这套「多个带角色的 Agent + 一个决定发言顺序的编排策略」的设计，和 [轻量级 Agent 框架](../05-lightweight-agent-frameworks/README.md) 模块里的 AutoGen `GroupChat`、CrewAI `Crew` 在概念层面几乎是同构的。多智能体协作在不同框架里换了不同名字（GroupChat / Crew / Orchestration），但要解决的仍是同一组问题：角色划分、发言策略，以及共享上下文的边界。
+Group chat 与 AutoGen Team 有可比之处，但不等于 CrewAI Crew：顺序任务、消息轮询和动态 handoff 的状态归属及终止语义不同。例子中的轮次上限只防止无界聊天，不证明任务完成；真实系统还需时间预算、结果验收和异常时的运行时清理。
 
-## 19.4 多语言一致性与企业落地的取舍
+## 19.4 发布与支持状态：不能沿用旧预览结论
 
-Semantic Kernel 的 C#、Python、Java 三个 SDK **共享同一套核心概念（Kernel/Plugin/Process/Agent Framework）**，但功能覆盖和发布节奏并不完全同步——通常 C# SDK 功能最完整、发布最快，Python 紧随其后，Java 覆盖面相对滞后。这对企业选型有直接影响：
+SK 提供 C#、Python、Java SDK，但不保证所有 Process/Agent 功能对等；例如本次访问的 SK Agent Orchestration 文档明确 Java 尚不支持。MAF 的当前概览列出 .NET、Python、Go，不能据此推导 SK Java 有直接迁移目标。
 
 | 场景 | 需要评估的问题 |
 |---|---|
-| 团队主力是 .NET，且需要长期维护 | Semantic Kernel 的多语言一致性设计减少了「AI 团队用 Python、后端团队用 C#」之间的概念鸿沟 |
-| 需要用到最新发布的实验性能力 | 应优先确认该能力是否已经覆盖到团队实际使用的语言 SDK，而不是假设三语言功能对等 |
-| 追求版本升级的稳定性 | Semantic Kernel 1.0+ 承诺不做破坏性变更，这对长期维护的企业系统是显著优势，但也意味着新范式（比如更激进的 Agent 抽象）落地速度可能慢于社区驱动、迭代更快的框架 |
+| 新建 .NET / Python Agent | 优先评估 MAF，并核对所需 provider 和运行时包的稳定性 |
+| 已运行的 SK 项目 | 先锁定版本与回归基线，按能力缺口和维护成本分批迁移，不必因为后继发布就立即重写 |
+| 使用 SK 实验性 Process/Orchestration | 独立审查其兼容性；核心包的稳定版本不覆盖所有实验接口 |
+| 有长期支持要求 | 查具体发布及支持政策，不能把“1.x”解释为永远没有破坏性变更 |
 
-这里体现的是 [框架选型与可移植架构](../06-selection-portability/README.md) 反复出现的一组取舍：稳定性和创新速度通常无法同时最大化，企业级中间件往往用前者换后者，选型时要先明确团队更需要哪一边。
+微软过渡公告说明：SK v1.x 继续处理关键 bug、安全问题及部分既有功能，主要新功能转向 MAF，并承诺至少支持到 MAF GA 后一年。该公告同时保留了发布当时「MAF 仍在 Preview」的描述；状态判断应结合现行仓库的 1.0 说明，而不是照抄旧公告。这里不推算 SK 的精确终止支持日期，未找到单独的确定 EOL 通告。
 
-## 19.5 常见错误
+## 19.5 迁移不是换一个包名
 
-### 19.5.1 把 Process Framework 和 Agent Framework 混为一谈
+官方迁移指南给出的主要变化包括：
 
-前者解决「业务流程阶段划分」，后者解决「多智能体协作」——一个复杂系统可能同时需要两者：用 Process Framework 建模整体业务流程，其中某个 Step 内部再调用 Agent Framework 编排多个 Agent 协作完成子任务。
+| 迁移面 | SK | MAF |
+|---|---|---|
+| Python 包/命名空间 | `semantic-kernel` / `semantic_kernel` | `agent-framework` / `agent_framework`，可按 provider 拆包 |
+| .NET 主要抽象 | `Kernel`、`ChatCompletionAgent` | `AIAgent`，常配合 `Microsoft.Extensions.AI` 的客户端与消息类型 |
+| 工具注册 | Plugin / KernelFunction | Agent 工具；.NET 可用 `AIFunctionFactory.Create` |
+| 会话与运行 | AgentThread、Invoke | AgentSession、Run；消息和流式返回类型也改变 |
 
-### 19.5.2 假设三语言 SDK 功能完全对等
+先迁移无副作用、短会话的功能，验证工具 Schema、异常处理、输出与成本；随后再迁移 Filter/middleware、持久会话和长任务。旧检查点不能仅靠重命名字段转换：要盘点待处理事件、已完成业务操作和审批状态，决定让旧任务排空，还是转换业务状态后在新系统重新入场。
+
+架构讨论中可以用一次退款审批追问：谁持有会话，审批授权保存在哪，崩溃后哪个步骤重做，幂等键由谁生成？这些问题比「两套框架都支持 workflow」更能判断迁移是否安全。
+
+## 19.6 常见错误
+
+### 19.6.1 把三个名称当成同一个运行时
+
+SK Process、SK Agent Orchestration 与 MAF 有不同包和执行语义。可以用工作流包裹 Agent，但必须指定哪一层拥有检查点、取消、重试与最终提交。
+
+### 19.6.2 假设语言 SDK 功能完全对等
 
 选型前应该直接查阅目标语言 SDK 的最新文档确认具体能力覆盖，而不是假设「C# 文档写的功能 Python 也一定有」。
 
-### 19.5.3 忽视 Process Framework 早期版本的稳定性标注
+### 19.6.3 用核心包版本替实验功能作保证
 
 引入处于预览阶段的能力时，应结合官方发布说明确认其稳定性承诺，避免把实验性功能当作已受 1.0+ 稳定性保证覆盖的核心 API 长期依赖。
 
-### 19.5.4 认为「企业级」等于「功能更强」
+### 19.6.4 认为「企业级」等于「自动可靠」
 
-企业级中间件的核心价值是治理、稳定性和多语言一致性，不代表它在最新的 Agent 范式（比如复杂反思循环、大规模并行探索）上一定领先社区驱动的框架，选型仍要回到具体需求。
+发布稳定不等于工具副作用自动事务化；仍需权限、幂等、超时、补偿和生产故障演练。
 
-## 19.6 本章总结
+## 19.7 本章总结
 
-1. **Process Framework 解决业务流程本身的阶段划分复杂度**，用 Step/Event 显式建模状态转移，与 LangGraph 的图状态机在能力上高度接近，但建模语言更贴近传统 BPM 术语；
-2. **Agent Framework 解决多智能体协作复杂度**，其角色划分、发言策略、共享上下文的设计与 AutoGen、CrewAI 等框架的多智能体编排概念同构；
-3. **两套框架可以嵌套使用**：整体业务流程用 Process Framework，其中某个步骤内部再用 Agent Framework 编排多智能体子任务；
-4. **多语言一致性是 Semantic Kernel 的核心卖点，但不是绝对的功能对等**，选型前需要确认目标语言 SDK 的具体能力覆盖；
-5. **稳定性与创新速度是一组权衡**：1.0+ 的不破坏性变更承诺换来了长期维护友好性，代价可能是新范式的落地速度慢于社区驱动的框架。
+1. **SK Process 与 SK Agent Orchestration 是存量抽象**，官方相关概览仍标为实验性；
+2. **独立 MAF 是后继，不是旧 Agent Framework 改名后的同一 API**；
+3. **MAF 1.0 核心发布与 SK 支持延续应分别判断**，也要逐包、逐语言核对；
+4. **迁移重点是工具、消息、治理和会话状态语义**，而非简单替换 import；
+5. **恢复能力必须通过故障演练验证**，不由流程图或 SDK 标签保证。
 
-Semantic Kernel 的 Process Framework 和 Agent Framework 分别对应「业务流程复杂度」和「多智能体协作复杂度」两类问题。与 LangGraph、AutoGen 等社区框架相比，它更稳定的差异点仍然是多语言一致性和企业治理能力。
+维护旧项目时理解 SK 抽象仍有价值；做新选型时，应把 MAF 和实际业务约束放进同一份评估，而不是停留在旧产品分类。
 
 ## 参考资料
 
 - [Semantic Kernel: Process Framework](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/process/process-framework)
 - [Semantic Kernel: Agent Framework 概述](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/)
 - [Semantic Kernel: Agent Orchestration](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/agent-orchestration/)
+- [Semantic Kernel: Group Chat 完整运行时示例](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/agent-orchestration/group-chat)
+- [Semantic Kernel 官方仓库的 MAF 1.0 说明](https://github.com/microsoft/semantic-kernel)
+- [Microsoft Agent Framework 概览](https://learn.microsoft.com/en-us/agent-framework/overview/)
+- [SK → MAF 迁移指南](https://learn.microsoft.com/en-us/agent-framework/migration-guide/from-semantic-kernel/)
+- [微软：Semantic Kernel 与 MAF 支持过渡公告](https://devblogs.microsoft.com/agent-framework/semantic-kernel-and-microsoft-agent-framework/)
 - [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
+
+原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

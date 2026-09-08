@@ -1,3 +1,7 @@
+---
+description: 区分 LangChain 高层 Agent 与 LangGraph 图编排的依赖和控制粒度，解释状态合并、持久化及渐进组合的边界。
+---
+
 # 第九章：LangChain 与 LangGraph 的层次关系
 
 ## 9.1 两者处于同一层吗
@@ -13,7 +17,7 @@
 | **LangChain** | **高层 Agent 框架**，提供模型、工具和常见的 Agent 循环 |
 | **LangGraph** | **更低层的编排框架与运行时**，负责有状态流程如何执行、暂停和恢复 |
 
-**LangGraph 可以使用 LangChain 的模型和工具组件，但并不强制依赖 LangChain**，也可以直接接其他模型 SDK 或普通 Python 函数。
+**LangGraph 不要求使用高层 `langchain` 包或它的模型包装器**，可以直接接其他模型 SDK 或普通 Python 函数。但 Python `langgraph` 包依赖 `langchain-core` 等基础库；「可独立使用」不等于依赖树完全没有 LangChain 生态组件。
 
 ### 9.1.1 关键的层次关系
 
@@ -155,6 +159,8 @@ workflow = builder.compile()
 
 > **这段代码不是在把 LangChain「迁移」成 LangGraph，而是在正确分工。** 内部研究 Agent 继续享受高层抽象，外部业务流程则获得显式路由。
 
+这是需提供 `research_model` 和 `search_tool` 的组装片段；字符串匹配只演示路由，不是安全策略或提示注入防护。生产授权应基于可信身份、动作和资源执行。子图直接作为节点时，父子共享的消息字段沿 reducer 合并；状态结构不同则需要 wrapper 显式转换，不能假设任意两个图都可以直接拼接。
+
 ## 9.5 State：默认状态与自由建模
 
 Agent 需要状态，是因为模型调用、工具结果、人工意见和中间产物不能只靠函数局部变量一直传下去。
@@ -166,7 +172,7 @@ Agent 需要状态，是因为模型调用、工具结果、人工意见和中�
 
 ### 9.5.1 为什么需要 reducer
 
-> **假如多个研究节点同时写入 `evidence`，我们希望追加结果，而不是让后写入的结果覆盖前一份证据。**
+> **假如多个研究节点同时写入 `evidence`，我们希望合并证据；默认单值通道收到同一 super-step 的多个更新会报错，并不是最后写入者获胜。**
 >
 > **合并语义必须在 State 中提前定义。**
 
@@ -287,7 +293,7 @@ flowchart TB
 
 ### 9.11.6 用 LangGraph 却不定义 reducer
 
-**并行写入同一字段会互相覆盖**，合并语义必须提前定义。
+默认单值通道会因同一步多个更新抛出 `InvalidUpdateError`。可为合并结果定义 reducer，或让分支写不同字段；`add_messages` 按消息 ID 更新/追加，也不等同于无条件列表拼接。
 
 ### 9.11.7 以为 durable execution 就是把状态存进数据库
 
@@ -320,7 +326,7 @@ flowchart TB
 11. **LangSmith 不是 LangGraph 专属**，部署选择与抽象选择要分开；
 12. **推荐路线是渐进式组合**：先 LangChain 做出可用 Agent，业务拓扑变复杂时把它作为节点或子图嵌入 LangGraph。
 
-> 可以把两者的关系记成这样：LangChain 负责高层 Agent 入口和标准模型/工具循环，LangGraph 负责更细粒度的状态与流程控制。多数真实项目会先用 LangChain 构建 Agent，再按需要把它嵌进 LangGraph 的业务流程里。
+LangChain 负责高层 Agent 入口和标准模型/工具循环，LangGraph 负责更细粒度的状态与流程控制。可以先构建一个 Agent，再按需要组合进业务图；这是一条迁移路径，不是对所有项目架构的统计结论。
 
 ## 参考资料
 
@@ -333,3 +339,5 @@ flowchart TB
 - [LangGraph 持久化文档](https://docs.langchain.com/oss/python/langgraph/persistence)
 - [LangGraph: Human-in-the-loop](https://docs.langchain.com/oss/python/langgraph/interrupts)
 - [LangSmith 官方文档](https://docs.langchain.com/langsmith/observability)
+- [LangGraph Python 包依赖声明](https://github.com/langchain-ai/langgraph/blob/main/libs/langgraph/pyproject.toml)
+- [LangGraph 并行状态更新错误](https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE)

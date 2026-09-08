@@ -1,3 +1,7 @@
+---
+description: 理解 Runnable 与 LCEL 的组合、并行和流式语义，以及重试范围、并发预算和旧式 Chain 迁移的取舍。
+---
+
 # 第二章：Chain 的设计理念与 LCEL
 
 ## 2.1 Chain 解决什么问题
@@ -147,6 +151,8 @@ LCEL 的价值在于流程只组装一次，后续可以用同一套接口执行
 ```python
 from langchain_core.runnables import RunnableParallel
 
+parser = StrOutputParser()
+
 summary_chain = (
     ChatPromptTemplate.from_template("用两句话总结这篇文章：\n{article}")
     | model | parser
@@ -169,6 +175,10 @@ print(result["title"], result["summary"])
 | `RunnableParallel` | **把相同输入同时交给 A 和 B** |
 
 在 LCEL 里，字典也可以在组合上下文中被自动转换为 `RunnableParallel`。显式写出类名时，执行模型会更直观。
+
+并行不等于免费加速：两个分支串行耗时近似相加，并行的理想耗时接近较慢分支加调度开销，但 Token 和调用费用仍需相加。用 `config={"max_concurrency": 4}` 控制适用 Runnable 的并发只是局部限制，还要协调模型服务的配额与重试。默认 `batch` 通常是客户端并发，不等于供应商的离线 Batch API，也不承诺批量折扣。
+
+重试范围也会改变成本和语义：给整条链加 `with_retry` 可能重复已成功的检索或外部写入；只想重试模型调用时，应把重试附着在模型这个 Runnable。失败分支是否允许降级，需要业务明确规定，不能用空字符串伪装成成功。
 
 ## 2.6 为什么统一协议能不断扩展
 
@@ -230,7 +240,7 @@ flowchart TB
     style G fill:#fff3cd
 ```
 
-开发前就知道下一步去哪时，优先 Chain；运行时要由模型决定下一步时，考虑 Agent；流程需要显式状态图和恢复能力时，考虑 LangGraph。
+固定、短小的数据流通常先用 Chain；运行时要由模型决定下一步时，考虑 Agent。图中「步骤已知」也不是排除 LangGraph 的条件：确定性的长流程同样可能需要持久化、人工等待和恢复边界，此时可直接选择 LangGraph。
 
 LangGraph 不是为了取代每一条简单 Chain，而是处理 Chain 难以清楚表达的长时、有状态工作流。
 
@@ -288,8 +298,8 @@ LangGraph 不是为了取代每一条简单 Chain，而是处理 Chain 难以清
 ## 参考资料
 
 - [LangChain 官方文档](https://docs.langchain.com/oss/python/langchain/overview)
-- [LangChain Expression Language（LCEL）](https://python.langchain.com/docs/concepts/lcel/)
-- [Runnable 接口概念文档](https://python.langchain.com/docs/concepts/runnables/)
+- [RunnableSequence：LCEL 组合、批处理与流式语义](https://reference.langchain.com/python/langchain-core/runnables/base/RunnableSequence)
+- [Runnable API](https://reference.langchain.com/python/langchain-core/runnables/base/Runnable)
 - [langchain-core Runnables API 参考](https://reference.langchain.com/python/langchain-core/runnables/)
 - [LangChain v1 迁移指南](https://docs.langchain.com/oss/python/migrate/langchain-v1)
 - [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)

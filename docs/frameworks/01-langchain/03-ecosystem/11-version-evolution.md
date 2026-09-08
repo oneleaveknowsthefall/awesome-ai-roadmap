@@ -1,3 +1,7 @@
+---
+description: 解释 LangChain 拆包、Runnable、LangGraph 与 v1 Agent 演进，列出 Python、Pydantic、工具和状态迁移的兼容性检查点。
+---
+
 # 第十一章：LangChain 的版本演进
 
 ## 11.1 为什么要不断调整架构
@@ -128,6 +132,24 @@ flowchart TB
 
 **因此生产项目应该固定依赖版本，并尽量建立在公开稳定接口之上。**
 
+### 11.7.2 把迁移拆到可检查的接口
+
+以下按官方 v1 迁移指南列出，不是安装任意一组「最新包」就能跳过的工作：
+
+| 旧写法或假设 | 迁移后的检查点 |
+|---|---|
+| Python 3.9、Pydantic v1 模型 | LangChain/LangGraph v1 最低 Python 3.10，统一 Pydantic 2；不能混入旧兼容层模型 |
+| `langgraph.prebuilt.create_react_agent` | 改用 `langchain.agents.create_agent`，`prompt` 改为 `system_prompt`；不要与 classic 包内同名 ReAct 工厂混淆 |
+| `pre_model_hook`、`post_model_hook` | 按职责迁到 middleware，重新验证执行顺序、状态更新与异常路径 |
+| 向工厂传入已 `bind_tools` 的模型 | 让 `create_agent` 管理工具绑定，动态模型通过 middleware 选择 |
+| Pydantic 自定义 Agent State | `create_agent` 自定义 State 使用 `TypedDict`；不要据此误推底层 `StateGraph` 也禁止 Pydantic |
+| 从 `config["configurable"]` 取所有业务依赖 | 可信静态依赖通过 `context_schema` 与调用的 `context=` 传入；checkpoint 的 `thread_id` 仍在 `configurable` |
+| 流式消费者匹配节点名 `"agent"` | 迁移后模型节点名为 `"model"`；事件类型和过滤规则应同步回归 |
+
+最低主版本不是完整兼容矩阵。例如节点 `timeout`/`error_handler` 需要 `langgraph>=1.2`；原生结构化输出能力读取 model profile 需要 `langchain>=1.1`，`ProviderStrategy(strict=...)` 需要 `langchain>=1.2`。`stream_events(version="v3")` 也不能与旧 `astream_events(version="v2")` 的事件字典协议混用，须对照选定版本的 API。这里不声明未经确认的 v3 首发补丁号。
+
+升级恢复型系统还要测试旧 checkpoint：节点改名、移除待执行节点或改变 State 字段语义，可能让暂停中的线程无法继续。保留兼容路由或先排空旧任务，再逐步迁移状态；依赖锁文件回滚不等于持久状态已经回滚。
+
 ## 11.8 演进方向是什么
 
 把几次架构变化连起来，可以看到一条连续的路线：
@@ -205,7 +227,11 @@ flowchart LR
 - [LangChain v1 迁移指南](https://docs.langchain.com/oss/python/migrate/langchain-v1)
 - [LangChain 官方文档](https://docs.langchain.com/oss/python/langchain/overview)
 - [LangChain v1 发布说明](https://docs.langchain.com/oss/python/releases/langchain-v1)
-- [LangChain v0.3 版本说明（Pydantic 2 迁移）](https://python.langchain.com/docs/versions/v0_3/)
+- [LangChain v0.3 官方发布说明（Pydantic 2 迁移）](https://blog.langchain.com/announcing-langchain-v0-3/)
 - [LangChain 官方博客](https://blog.langchain.com/)
 - [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
 - [Pydantic 迁移指南](https://docs.pydantic.dev/latest/migration/)
+- [LangChain Structured output：能力与最低版本](https://docs.langchain.com/oss/python/langchain/structured-output)
+- [LangGraph Fault tolerance](https://docs.langchain.com/oss/python/langgraph/fault-tolerance)
+- [LangGraph Graph API：graph migrations](https://docs.langchain.com/oss/python/langgraph/graph-api#graph-migrations)
+- [LangChain Event streaming](https://docs.langchain.com/oss/python/langchain/event-streaming)

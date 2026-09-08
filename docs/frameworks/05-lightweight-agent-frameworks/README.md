@@ -1,6 +1,12 @@
+---
+description: "比较 AutoGen 消息运行时、CrewAI 任务与流程、PydanticAI 类型化 Agent，结合维护状态、持久执行和成本划定适用边界。"
+---
+
 # 框架与编排 · 轻量级 Agent 框架：AutoGen、CrewAI 与 PydanticAI
 
-前四个模块的框架覆盖了编排、数据层或企业中间件等多个层面。本模块涉及的三个框架更聚焦：它们主要解决「多智能体协作」或「单个 Agent 的类型安全」，数据处理、生产可观测性等能力通常需要外部组件补齐。阅读时更值得关注能力边界，而不只是 API 名称。
+这里保留「轻量级」目录名称以维持导航，但它不是严格的技术分类：AutoGen 有消息运行时，CrewAI 有 Crew 与 Flow，PydanticAI 也有多 Agent 和持久执行集成，不能据此断言只适合原型或单次调用。
+
+截至 2026-09-08，[AutoGen 官方仓库](https://github.com/microsoft/autogen) 已明确进入维护模式，并建议新用户采用 Microsoft Agent Framework。本模块既讲存量抽象，也修正新项目选型边界；角色数量、类型校验与运行可靠性应分别评估。
 
 ## 章节
 
@@ -11,15 +17,17 @@
 
 ```mermaid
 flowchart LR
-    A["AutoGen<br/>Actor 模型 + 事件驱动运行时"] -.对话式多智能体.-> D["适用边界对照<br/>（第二十一章）"]
+    A["AutoGen（维护模式）<br/>Core / AgentChat"] -.对话式多智能体.-> D["适用边界对照<br/>（第二十一章）"]
     C["CrewAI<br/>角色化 Crew / Process / Flow"] -.角色化多智能体.-> D
-    P["PydanticAI<br/>类型校验 + 依赖注入"] -.单 Agent 类型安全.-> D
+    P["PydanticAI<br/>类型 / 历史 / 持久执行集成"] -.可测试性与运行边界.-> D
 ```
 
 ## 阅读建议
 
-- 如果需要多个 Agent 协作，可读第二十章，对比「分布式 / 事件驱动」和「角色化快速搭建」两种路线；
+- 如果需要多个 Agent 协作，可读第二十章，对比消息策略、任务顺序和 Flow 控制，并用单 Agent 基线核对收益；
 - 如果更关心单 Agent 的工程正确性（类型、校验、依赖注入），可直接读第二十一章前半部分；
 - 如果正在选型、不确定用哪个，可直接看第二十一章的决策矩阵，再跳转 [框架选型与可移植架构](../06-selection-portability/README.md) 看跨全部框架的统一对照。
 
 返回 [AI 框架与编排 相关知识点](../README.md)。
+
+原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

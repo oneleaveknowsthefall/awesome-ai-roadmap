@@ -1,3 +1,7 @@
+---
+description: 用业务证据标签与 BM25 对照评估 Embedding 模型，分析榜单边界、MRL 降维、部署约束和微调后的索引迁移。
+---
+
 # 第七章：Embedding 模型选型与评估
 
 ## 7.1 选型的第一原则
@@ -68,7 +72,9 @@ flowchart TB
 - **标注**：每个问题标注哪些 chunk 是正确依据（**可以多个**）；
 - **覆盖**：要包含简单事实查询、同义表述、专业术语、多跳问题、以及**知识库里根本没有答案的问题**。
 
-**最后一类（无答案问题）经常被漏掉，但它是检验系统会不会瞎编的唯一手段**（第十七章展开）。
+无答案问题用于测试错误接受和拒答，但有答案问题同样可能出现误读、数字错误和错引；两类都应标注（第十七章展开）。
+
+如果比较不同切分策略，应将标签锚定到原文证据 span 和版本，再映射到各自 chunk，避免把某一版 chunk ID 当作永久真值。按文档、主题或时间划分开发与测试集，同一文档的近重复问题不能跨集合泄漏；候选模型用各自官方前缀和 tokenizer，但共享语料快照与评测预算。
 
 ### 7.3.2 必测的对照组
 
@@ -91,11 +97,11 @@ flowchart TB
 
 ### 7.4.1 维度不是越高越好
 
-维度翻倍意味着存储翻倍、检索计算量翻倍，但效果提升往往很小。
+同数据类型下，原始向量存储随维度线性增长；单次距离计算也近似线性，但完整 ANN 延迟还受遍历、缓存和 I/O 影响，不能直接说延迟翻倍。
 
 **这里有一个重要的现代技术：Matryoshka 表示学习（MRL）。**
 
-它的训练方式让向量的**前若干维本身就是一个可用的低维表示**。也就是说，一个 3072 维的向量，直接截断取前 512 维，仍然是个高质量向量，效果只轻微下降。
+MRL 训练让指定的前缀维度也承担表示目标。只有声明支持这种用法的模型才能按其契约降维；截断后通常需重新归一化，效果损失必须实测，不能任意截取普通向量。
 
 ```mermaid
 flowchart LR
@@ -104,7 +110,7 @@ flowchart LR
     V --> C3[完整 3072 维<br/>精排 最高精度]
 ```
 
-**工程价值很大**：可以用低维向量做大规模粗排、高维向量做精排，用一份向量支持多种精度需求。OpenAI 的 `text-embedding-3` 系列原生支持这种截断，**2025 年之后已是主流做法**。
+可用低维表示粗筛、全维表示重打分，但后者要求仍存有全维向量。OpenAI 在 2024 年发布的 `text-embedding-3` 系列支持 `dimensions` 参数缩短表示；这不是所有 Embedding API 的通用参数，需依官方接口与模型能力使用。
 
 ### 7.4.2 API 模型的隐性风险
 
@@ -125,7 +131,7 @@ flowchart LR
 | 通用开源 | E5、GTE 系列 | 通用性好，社区成熟 |
 | 商用 API | OpenAI text-embedding-3 系列 | 开箱即用，支持 MRL 维度截断 |
 
-**bge-m3 这类模型有个特别的工程价值**：它能用一个模型同时产出稠密向量和稀疏表示，从而**用一套模型支撑混合检索**（第十一、十三章），省掉维护两套链路的成本。
+BGE-M3 可输出稠密、学习式稀疏和多向量表示，一次编码可服务多种检索；但不同表示通常仍需各自索引与查询路径，不会自动免除融合、容量规划和运维成本。
 
 ## 7.6 微调 Embedding 模型值不值
 
@@ -141,7 +147,7 @@ flowchart LR
 
 **微调的隐性成本必须说清楚**：
 
-> **模型一旦微调，全量索引就必须重建；而且后续每次模型迭代都要重跑这套流程。** 这是长期的运维负担，不是一次性投入。
+若微调改变 Document 表示，历史文档通常需重嵌入和重建索引。固定 Document 编码器、只训练兼容 Query 侧是例外，但必须验证未破坏向量契约。训练还要处理 hard negatives 中的假负例，并保留域外回归集，防止只优化一个领域后整体退化。
 
 ## 7.7 常见错误
 
@@ -167,7 +173,7 @@ flowchart LR
 
 ### 7.7.6 忘记模型输入长度与 chunk 大小的匹配
 
-超长部分被静默截断。
+超长可能被截断或报错；实际行为由 tokenizer 与服务配置决定。
 
 ### 7.7.7 不锁定 API 模型版本
 
@@ -187,7 +193,7 @@ flowchart LR
 6. **效果之外还要看**维度、输入长度、多语言、成本、部署约束、许可证、版本稳定性；
 7. **MRL 让一份向量支持多种维度**，是现代选型的重要考量；
 8. **Query/Document 必须是兼容模型对并处于同一可比较向量空间**；API 模型还要锁版本，发生漂移必须重建；
-9. **微调 Embedding 优先级不高**，且带来永久的索引重建负担。
+9. **微调应由失败样例驱动**，文档表示变化带来重嵌入、双索引迁移和回归成本。
 
 
 ## 参考资料
@@ -195,5 +201,8 @@ flowchart LR
 - [MTEB: Massive Text Embedding Benchmark](https://arxiv.org/abs/2210.07316)
 - [MMTEB: Massive Multilingual Text Embedding Benchmark](https://arxiv.org/abs/2502.13595)
 - [Matryoshka Representation Learning](https://arxiv.org/abs/2205.13147)
+- [OpenAI：New embedding models and API updates（2024-01-25）](https://openai.com/index/new-embedding-models-and-api-updates/)
+- [OpenAI：Embedding API 与 dimensions 参数](https://developers.openai.com/api/docs/guides/embeddings)
+- [Qwen3-Embedding-0.6B 模型卡](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B)
 - [M3-Embedding: Multi-Linguality, Multi-Functionality, Multi-Granularity Text Embeddings Through Self-Knowledge Distillation](https://arxiv.org/abs/2402.03216)
 - [Searching for Best Practices in Retrieval-Augmented Generation](https://arxiv.org/abs/2407.01219)

@@ -1,8 +1,12 @@
+---
+description: 分析研究型 Agent 的证据链、串并行规划、停止预算与 Deep Agents backend 边界，区分引用质量和报告长度。
+---
+
 # 第十二章：Deep Research 的实现逻辑
 
 ## 12.1 Deep Research 是什么
 
-普通问答通常一次检索就能得到答案；研究任务往往一开始就没有固定路径。
+简单事实问答可能一次检索就能得到答案；开放研究任务往往一开始就没有固定路径。需要多跳检索的普通问答与 Deep Research 并无严格次数分界。
 
 例如比较三家云厂商的 Agent 托管能力，需要分别查产品定位、价格、限制和区域差异，还要处理**产品改名、资料过期和来源矛盾**。
 
@@ -18,6 +22,8 @@
 | **Deep Agents** | 构建在 LangGraph 上的 Python **agent harness**：提供规划、子 Agent、上下文管理和文件系统工具；不是一个保证研究正确性的托管研究产品 |
 
 > 边界需要明确：Deep Agents 是单独安装的 `deepagents` SDK/harness，不是 LangChain 核心包的开关，也不替你提供模型、身份系统、业务授权、数据治理或安全隔离。`task` 子 Agent 默认是一次性、隔离上下文后只回传最终报告；任务清单从 v0.7 起是 opt-in，不应假设每个 Deep Agent 都会规划或长期记忆。
+
+这里的 `task` 指同步子 Agent：主调用等待它完成，不代表所有委派都能后台运行。官方另有 async subagents，用于长任务、运行中追加指令和取消；该页面仍标注为 preview，依赖实现 Agent Protocol 的服务端，可以是 LangSmith Deployment，也可以自行托管兼容服务。不能把同步子任务包装成线程就宣称已经具备持久化后台调度。可选任务清单也不等于模型一定产生有效研究计划。
 
 ## 12.2 核心流程
 
@@ -92,6 +98,10 @@ flowchart TB
 
 > **通用 Benchmark 可以用于版本比较，但不能代替企业自己的业务数据集。**
 
+证据压缩后至少保留「主张、原文片段、URL/文档 ID、页码或段落位置、来源版本与抓取时间」。写作模型使用这些证据 ID，而不是凭记忆重新生成链接；最后逐项验证引用是否支持相邻主张，并统计需要引用却缺少证据的主张。一个链接真实存在只能证明可访问，不能证明结论正确；多篇转载也不构成多个独立来源。
+
+停止条件不宜只写「继续直到充分」：设定必须覆盖的研究维度、未解决冲突清单、连续补搜的新增有效证据量，以及硬性时间/费用上限。预算耗尽时应交付部分结论并标明缺口，而不是让总结模型把未查到的内容补成肯定事实。
+
 ## 12.5 如何控制成本和安全
 
 ### 12.5.1 成本受「宽度」和「深度」双重影响
@@ -130,20 +140,21 @@ Deep Agents 向模型提供的是**可插拔 backend 后面的文件系统工具
 | `LocalShellBackend` | 本机文件系统，另有 `execute` | **没有隔离**；仅限受控开发环境 |
 | Sandbox backend | 隔离的文件系统和 `execute` | 适合不可信代码与自主 Agent；仍须限制网络、凭证、挂载目录、资源和生命周期 |
 
-> 只有 Sandbox 和 LocalShell backend 会提供 shell `execute`。Sandbox 是隔离边界，不是「默认安全」的同义词：把最小权限凭证按需注入，使用只读/受限网络与 CPU、内存、时间配额，并在删除、外发、付费调用等动作前启用 `interrupt_on` 审批。不要把宿主机的环境变量或云凭证直接暴露给 Agent。
+> 上表中 Sandbox 和 LocalShell backend 提供 shell `execute`，自定义 backend 或工具还可能扩展能力。Sandbox 是隔离边界，不是「默认安全」的同义词：把最小权限凭证按需注入，使用只读/受限网络与 CPU、内存、时间配额，并在删除、外发、付费调用等动作前启用 `interrupt_on` 审批。不要把宿主机的环境变量或云凭证直接暴露给 Agent。
 
 **推荐组合**：临时中间产物放 thread-scoped State backend；经审核、需要跨会话保留的资料放带租户 namespace 的 Store backend；代码执行放一次性 sandbox。需要同时使用时用 Composite backend 按路径路由，而不是把所有数据和权限放进一个可写本地目录。
 
 ## 12.6 哪些场景适合
 
-同时满足下列三项时，Deep Research 才值得引入：
+先判断是否需要动态、多轮的证据收集，再判断是否值得使用并行研究员。能否拆成独立子课题只影响并行方案，不是 Deep Research 的必要条件：
 
 ```mermaid
 flowchart TB
     Q1{"问题是否开放到<br/>需要多轮搜索和动态调整方向?"}
     Q1 -->|一次权威检索就能回答| N1["不用<br/>复杂研究流程只会增加成本"]
     Q1 -->|是| Q2{"能否拆出相对独立的子课题?"}
-    Q2 -->|不能| N2["不用<br/>并行 Researcher 会频繁等待和交换状态"]
+    Q2 -->|不能| N2["使用串行研究<br/>避免强行并行"]
+    N2 --> Q3
     Q2 -->|能| Q3{"报告价值能否覆盖<br/>多轮模型与搜索成本?"}
     Q3 -->|不能| N3["不用"]
     Q3 -->|能| Y["适合 Deep Research"]
@@ -158,7 +169,7 @@ flowchart TB
 | 情形 | 原因 |
 |---|---|
 | 只查一个容易核验的实时事实 | **一次权威搜索更快、更便宜** |
-| 多个子任务必须严格共享中间状态 | **强行并行只会增加冲突** |
+| 多个子任务必须严格共享中间状态 | 不适合强行并行；可采用串行研究或显式依赖工作流 |
 | 数据源本身不可靠或没有访问权限 | **研究 Agent 也无法凭空得到正确答案** |
 
 ## 12.7 常见错误
@@ -218,9 +229,9 @@ flowchart TB
 ## 12.8 本章总结
 
 1. **Deep Research 是一类研究型 Agent 架构**，不是核心包中的一个开关；
-2. **它建立在 LangChain 的模型/工具/Agent 与 LangGraph 的状态与编排能力之上**；
+2. **本章参考实现使用 LangChain 与 LangGraph**，研究型 Agent 的一般方法并不依赖这套框架；
 3. **六步流程**：明确范围 → 生成 Brief → 拆分子课题 → 并行检索核验 → 压缩证据查缺 → 统一写作；
-4. **Research Brief 是稳定的成功标准**，缺了它搜索必然跑偏；
+4. **Research Brief 明确成功标准**，可以降低搜索偏离目标的风险；
 5. **只有独立子课题适合并行**，有依赖就串行；
 6. **子 Agent 的第一目的是隔离上下文**，并行是隔离之后的自然结果；
 7. **并行搜证据、统一写报告**，避免章节重复与结论冲突；
@@ -228,7 +239,7 @@ flowchart TB
 9. **评测既看答案也看轨迹、覆盖率、引用正确性、耗时和成本**；
 10. **成本受宽度和深度双重影响**，单分支上限之外还要有总预算和取消策略；
 11. **外部文档是不可信输入**：工具只读、最小权限、密钥隔离、高风险人工审批；
-12. **三项条件都成立才值得用**：问题足够开放、子课题可独立、报告价值覆盖成本。
+12. **开放程度和报告价值决定是否研究，子课题独立性决定是否并行**；串行研究同样可以是 Deep Research；
 13. **Deep Agents 是 SDK/harness 而非安全或正确性承诺**：文件、持久化和 shell 权限取决于 backend；不可信代码要在受限 sandbox 中执行。
 
 > 可以把它理解为：把一个没有固定路径的研究任务，拆成「Supervisor 规划补缺 + Researcher 隔离上下文并行搜证 + 统一写作」的有状态流程；能否上线，还取决于宽度、深度、预算、来源可信度和提示词注入风险是否被一起控制。
@@ -240,6 +251,8 @@ flowchart TB
 - [Deep Agents 概览](https://docs.langchain.com/oss/python/deepagents/overview)
 - [Deep Agents Backends](https://docs.langchain.com/oss/python/deepagents/backends)
 - [Deep Agents Sandboxes](https://docs.langchain.com/oss/python/deepagents/sandboxes)
+- [Deep Agents 同步子 Agent](https://docs.langchain.com/oss/python/deepagents/subagents)
+- [Deep Agents 异步子 Agent](https://docs.langchain.com/oss/python/deepagents/async-subagents)
 - [deepagents 官方仓库](https://github.com/langchain-ai/deepagents)
 - [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
 - [LangSmith Evaluation 文档](https://docs.langchain.com/langsmith/evaluation)

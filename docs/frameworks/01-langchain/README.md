@@ -1,8 +1,14 @@
+---
+description: 从 Runnable、create_agent 到 LangGraph 状态恢复与 LangSmith 评测，理解 LangChain 生态的 API 分层和生产边界。
+---
+
 # 框架与编排 · LangChain 生态
 
-本模块沿着 LangChain 生态展开：从 Chain/LCEL、`create_agent`，到 LangGraph 的图编排、持久化与人工介入，再到 LangSmith 的生产质量闭环。在本主题现有模块中，它也是唯一原生覆盖「从原型到生产」全链路的框架，并作为后续 02–06 各模块对照时的参考基线（见各章节内的“与 LangChain 比较”段落）。
+本模块沿着 LangChain 生态展开：从 Chain/LCEL、`create_agent`，到 LangGraph 的图编排、持久化与人工介入，再到 LangSmith 的生产质量闭环。它作为后续 02–06 各模块对照时的参考基线；这是一种教学组织方式，不表示其他框架不能用于生产，也不表示采用该生态就自动具备生产可靠性。
 
 本模块集中维护 LangChain、LangGraph、LangSmith 及相关生态内容，结构与原有学习路径保持一致。
+
+Python 示例按 LangChain v1 接口讲解，最低 Python 3.10；节点内 `asyncio.timeout()` 示例需要 Python 3.11。模型标识中的占位符必须替换，并安装对应 provider 包和配置凭证。生产项目需要锁定 `langchain`、`langchain-core`、`langgraph`、provider 与 checkpoint 后端的兼容组合；特定功能的最低版本见第 10、11 章，不能把「v1」当成任意小版本都兼容。
 
 ## 子模块
 

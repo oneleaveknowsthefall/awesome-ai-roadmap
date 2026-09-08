@@ -1,3 +1,7 @@
+---
+description: 比较自适应检索、树摘要、图检索与多模态 RAG 的原理、证据需求、构建成本和更新边界。
+---
+
 # RAG · 高级与多模态
 
 讨论 Agentic/Adaptive RAG、GraphRAG 与多模态检索。

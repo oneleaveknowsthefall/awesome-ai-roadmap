@@ -1,3 +1,7 @@
+---
+description: 将脱敏 Trace 转为版本化数据集和评测实验，解释重复运行、样本切分、风险审计与在线采样的生产质量闭环。
+---
+
 # 第十三章：用 LangSmith 建立生产质量闭环
 
 ## 13.1 为什么 Trace 不是「上线后再看日志」
@@ -29,7 +33,7 @@ flowchart LR
 |---|---|
 | 密钥、令牌、Cookie、Authorization header | **绝不写入** Trace、metadata、Tool 输出或错误堆栈 |
 | PII、订单正文、检索原文、文件内容 | 尽量不采集；必须诊断时使用字段级脱敏、截断、访问控制与保留期限 |
-| 用户/租户标识 | 使用内部不可逆 ID；不要写邮箱、手机号或完整身份凭证 |
+| 用户/租户标识 | 使用受控伪名标识；不要写邮箱、手机号或完整身份凭证，HMAC 后仍可能属于可关联个人数据 |
 | Tool 参数与结果 | 为每个工具定义日志白名单；敏感字段只记录类别、长度、哈希或状态码 |
 | 审批、支付、删除等高风险动作 | 记录任务 ID、策略版本、决策 ID、结果与审计主体；不记录不必要的材料正文 |
 
@@ -59,6 +63,8 @@ def project_tool_log(result: dict) -> dict:
 
 > 脱敏函数、采样规则和 Trace 访问权限应与应用代码一起评审和测试。对需留存的调试样本，明确租户隔离、地域、保留期、删除路径和谁能导出；这不由 LangSmith 自动替业务决定。
 
+上面的 helper 只是示意，定义后不会自动接入 tracing。LangSmith 提供 `LANGSMITH_HIDE_INPUTS=true`、`LANGSMITH_HIDE_OUTPUTS=true`，或 `Client(hide_inputs=..., hide_outputs=...)` 在发送前隐藏/转换数据；metadata、附件和嵌套工具 trace 仍需分别审查。禁止留存的租户应关闭相应 tracing，而不是假定哈希或 UI 隐藏就满足零留存。
+
 ## 13.3 Dataset：把「一次失败」变成可重复测试
 
 Dataset 不应只收集漂亮的 Demo。每个 example 至少应包含：版本化输入、预期结果或评分准则、风险标签，以及在需要时的可复现 Tool mock/fixture。
@@ -79,6 +85,8 @@ Dataset 不应只收集漂亮的 Demo。每个 example 至少应包含：版本�
 
 > Dataset 是测试资产，不是未审查的生产数据备份。不要把原始用户对话、凭证或完整内部文档直接复制进去。
 
+同一事故的改写问题不能同时进入调参集和最终测试集，否则看似泛化的提升可能只是记住了该事故。按用户会话、文档来源或时间段分组切分，固定留出集；测试中用 mock 控制工具响应，另保留真实服务集成评测，两者分别回答「策略是否改变」和「线上依赖是否可用」。
+
 ## 13.4 离线实验：在发布前比较可复现版本
 
 离线评测在受控 Dataset 上比较候选版本：Prompt、模型、middleware、Tool schema、路由与策略都应带版本号。一次 experiment 要固定数据集版本、评测器版本、模型配置、随机性设置和并发/缓存条件，否则分数差异难以解释。
@@ -89,6 +97,8 @@ Dataset 不应只收集漂亮的 Demo。每个 example 至少应包含：版本�
 | 人工评审 | 高风险、主观质量、judge 校准 | 慢且昂贵 |
 | LLM-as-judge | 大规模相关性、完整性、风格比较 | 会偏差；需要 rubric、抽检和防提示注入 |
 | 成对比较 | 两个候选版本的相对表现 | 仍须固定样本与统计阈值 |
+
+同一个 example 重复运行可以估计模型与工具路径的波动；LangSmith 的 `num_repetitions` 会重复目标函数和评测器，因此也会增加评测费用。比较候选与基线时，宜对同一批题做配对比较，并报告样本数、重复次数与区间，而不是把 0.01 的均分变化直接视为稳定收益。共享同一题的重复结果不是彼此独立的新样本；缓存若复用同一次模型响应，也不能用来估计生成随机性。
 
 ### 13.4.1 Release gate 不只看平均分
 
@@ -108,12 +118,15 @@ Dataset 不应只收集漂亮的 Demo。每个 example 至少应包含：版本�
 
 | 场景 | 采样建议 |
 |---|---|
-| 安全、拒绝、审批、支付、删除、Tool error | 100% 记录并优先评测；仍应脱敏 |
+| 审批、支付、删除等高风险动作 | 在受控审计系统完整记录必要决策与结果；诊断 Trace 与 judge 是否采集、采样另按合规和预算决定 |
+| 安全拒绝、Tool error | 优先保留合规的最小诊断信息，避免把全部错误请求的原文全量发送到评测平台 |
 | 新模型/新 Prompt 的灰度发布 | 按发布版本和租户分层采样，保留对照组 |
 | 普通低风险流量 | 随机采样，并设置成本上限 |
 | 长尾/高价值用户路径 | 以风险、反馈、延迟或工具类型触发的定向采样 |
 
 采样要保留版本、路由、租户哈希和采样原因，避免只评测「容易成功」的请求。在线 LLM-as-judge 应设置过滤条件、采样率和花费上限；对需要调查的低分样本进入人工队列，而非自动把 judge 结论当事实。
+
+定向抽样得到的是被选中人群的分数，不是全站失败率。保留独立随机样本估计总体趋势，或记录纳入概率后做适当加权。线上 judge 通常在运行后评分，不能代替操作执行前的授权拦截；LangSmith 也不会仅因为创建了 experiment 就自动阻断发布，Release gate 必须接入实际 CI/CD 决策路径。
 
 ## 13.6 反馈如何回流
 
@@ -144,9 +157,9 @@ flowchart TB
 
 线上评测用于监测真实流量；发布前仍要在固定 Dataset 上完成可复现实验和 Release gate。
 
-### 13.7.4 全量运行昂贵 judge 或随机采样高风险路径
+### 13.7.4 混淆审计留存、诊断采样与 judge 采样
 
-为高风险和失败路径设定向、100% 采样；低风险流量再随机采样并设置成本上限。
+高风险动作需要完整的必要审计记录，不表示原始对话必须全量进入 LangSmith，更不表示每条都要调用昂贵 judge。三个数据路径分别设置权限、保留期和预算。
 
 ### 13.7.5 修复线上事故却不把失败 Trace 加入回归
 
@@ -170,3 +183,5 @@ flowchart TB
 - [LangSmith 管理 Dataset](https://docs.langchain.com/langsmith/manage-datasets)
 - [LangSmith Online evaluation](https://docs.langchain.com/langsmith/online-evaluations-llm-as-judge)
 - [LangSmith 用户反馈](https://docs.langchain.com/langsmith/attach-user-feedback)
+- [LangSmith 发送前隐藏与转换敏感数据](https://docs.langchain.com/langsmith/mask-inputs-outputs)
+- [LangSmith 实验重复次数、并发与缓存](https://docs.langchain.com/langsmith/experiment-configuration)

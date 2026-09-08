@@ -1,10 +1,14 @@
+---
+description: "从状态归属、检查点、工具执行契约及评测遥测比较 Agent 框架，区分序列化、恢复和业务副作用保证。"
+---
+
 # 第二十二章：跨框架技术解构：状态、持久化、工具契约与可观测性
 
 ## 22.1 为什么不能只按功能清单比较框架
 
 前五个模块已经分别讲过每个框架的核心抽象。如果把它们记成一份产品清单——「LangChain 是通用 Agent 框架」「LlamaIndex 是 RAG 框架」「AutoGen 是多智能体框架」——这种分类很快就会失效：**几乎每个框架都在往相邻能力范围扩张**（LlamaIndex 有 Agent 和 Workflows，LangChain 有完整的检索组件，Semantic Kernel 既能做流程编排又能做多智能体协作）。功能清单式的比较会不断过时，也回答不了真正影响工程决策的问题：**如果今天选了 A，明天需要迁移到 B，代价落在哪些地方？**
 
-本章换一种比较方法——不看「能做什么」，看「怎么做」，拆成四个跨所有框架都存在、但实现方式各不相同的技术维度。
+本章从四组工程维度比较实现约束，评测与可观测性放在同一组，但它们不是同一功能。表格按 2026-09-08 可访问官方文档校对，不作框架成熟度排名；MAF 已作为 SK/AutoGen 后继进入新选型范围，AutoGen 已处于维护模式。
 
 ## 22.2 维度一：状态模型
 
@@ -12,24 +16,26 @@
 
 | 框架 | 状态模型 | 特点 |
 |---|---|---|
-| LangGraph | 显式共享 `State`（TypedDict/Pydantic 模型），节点读写同一份状态 | 状态结构在编写时就完全确定，调试时能直接看到某一步的完整状态快照 |
-| LlamaIndex Workflows | 隐式，通过 `Event` 类型的生产消费关系传递 | 无需预先设计 Schema，但状态全貌需要靠梳理事件流才能看清 |
-| DSPy | `Program`（Python 对象）的实例属性，控制流是普通函数调用 | 状态就是普通 Python 对象状态，心智模型最贴近传统编程 |
-| Semantic Kernel Process Framework | 显式 Step + Event，与 LangGraph 的图模型接近 | 建模语言更贴近传统 BPM（业务流程管理）术语 |
-| AutoGen Core | Actor 之间的异步消息，没有全局共享状态 | 每个 Agent 只维护自己的内部状态，符合分布式系统的设计假设 |
-| CrewAI | Crew 内隐式（依赖任务输出串联），Flow 内显式（`self.state`） | 简单协作靠任务串联的隐式状态，需要确定性控制时切到 Flow 的显式状态 |
-| PydanticAI | 单次 `Run` 的局部上下文，无跨 Run 状态 | 框架本身假设「无状态单次调用」，多轮状态需要应用层自己管理 |
+| LangGraph | Schema 定义状态通道，节点返回更新，由 reducer 合并 | 不是多个节点随意修改同一可变对象；并行写入要定义合并规则 |
+| LlamaIndex Workflows | 类型化 Event + 共享 `Context` / `ctx.store` | 可定义 Pydantic 状态；事件驱动不等于无 Schema |
+| DSPy | Module 参数及普通 Python 调用数据 | 指令/示例是程序参数，不应与每次请求状态、会话记忆混淆 |
+| SK Process Framework | Step 局部状态与 Event | 实验性流程能力，具体语义需按语言包和运行时核对 |
+| Microsoft Agent Framework | AgentSession 与 Workflow 执行状态 | 会话上下文和工作流检查点有不同用途 |
+| AutoGen Core / AgentChat | Agent 状态、消息和 Team 协调状态 | Core 消息模型与 AgentChat 高层状态不能混为一谈 |
+| CrewAI | Task 输出/上下文与 Flow 的字典或类型化 state | sequential Crew 也有显式任务顺序，不是完全隐式协作 |
+| PydanticAI | Run、可传递的 message history 和依赖 | 支持多轮与 durable execution；依赖对象不等于可持久会话 |
 
 ```mermaid
 flowchart TB
-    S1["显式共享状态<br/>LangGraph / SK Process Framework"]
-    S2["隐式事件驱动状态<br/>LlamaIndex Workflows / CrewAI Flow"]
-    S3["普通对象状态<br/>DSPy Program"]
-    S4["Actor 局部状态，无全局共享<br/>AutoGen Core"]
-    S5["无跨调用状态<br/>PydanticAI"]
+    S1["状态通道与合并<br/>LangGraph"]
+    S2["事件 + 显式状态<br/>LlamaIndex Workflows / CrewAI Flow"]
+    S3["程序参数与调用数据<br/>DSPy"]
+    S4["Agent 局部状态与 Team<br/>AutoGen"]
+    S5["会话历史 / Session<br/>PydanticAI / MAF"]
+    S6["Step 与事件<br/>SK Process"]
 ```
 
-如果团队经常需要回答「第 N 步执行时，系统里到底有哪些数据」，显式共享状态模型（LangGraph、Process Framework）更容易调试；如果更看重扩展新步骤的便利性，并愿意沿事件流排查问题，隐式事件驱动模型（Workflows、Flow）更合适。
+这些是侧重点，不是互斥类别。调试要同时观察状态快照和事件/消息轨迹；有共享状态却不记录谁更新了它，也很难解释问题。选型时可要求团队画出一次请求的状态所有者、并发合并规则和最终提交点。
 
 ## 22.3 维度二：持久化
 
@@ -37,41 +43,48 @@ flowchart TB
 
 | 框架 | 持久化机制 | 恢复粒度 |
 |---|---|---|
-| LangGraph | `Checkpointer`，对整个 `State` 做快照 | 可精确恢复到任意一个节点执行前后 |
-| Semantic Kernel Process Framework | 原生支持流程状态持久化 | Step 级别 |
-| LlamaIndex Workflows | 依赖 `Context` 的序列化 | 事件流粒度，需要框架版本兼容序列化格式 |
-| CrewAI Flow | Flow 状态可持久化 | Flow 步骤级别，Crew 内部协作过程通常不做细粒度持久化 |
-| DSPy / AutoGen Core / PydanticAI | 无原生高层持久化抽象 | 需要应用层自己设计（数据库记录中间结果、重放消息日志等） |
+| LangGraph | checkpointer 保存 super-step 检查点及相关任务写入 | 从可用检查点恢复；不是任意代码行回滚，也不会撤销已执行工具 |
+| SK Process Framework | 按所选实验包/运行时评估状态存储 | 不能由 Step/Event API 推断完整故障恢复保证 |
+| Microsoft Agent Framework | Workflow checkpointing 与 session 状态接口 | 需配置相应存储/运行时；不自动与业务数据库原子提交 |
+| LlamaIndex Workflows | Context 快照含待处理事件及 store；应用写入或持久运行时负责保存 | 快照中未完成步骤重跑，至少一次；快照格式需版本兼容 |
+| CrewAI Flow | `@persist` 与持久化后端，保存 Flow state | 区分恢复状态与恢复内部执行进度；不能假定每个 Crew 模型调用都有检查点 |
+| AutoGen AgentChat | Agent/Team 的 `save_state`、`load_state` | 应用选择安全保存时机与存储；不自动记录外部工具事务 |
+| PydanticAI | 消息历史序列化 + 官方 durable execution 后端集成 | 历史续聊与任务恢复不同；后者由 Temporal、DBOS 等引擎承担 |
+| DSPy | 保存/加载优化程序参数 | 不等于长任务检查点；业务执行状态需另行管理 |
 
-持久化能力的差异不在「有没有」，而在恢复粒度。恢复粒度越细，需要保存和维护的状态版本兼容性成本也越高。长时间运行、需要人工审批介入的场景（如 [LangGraph 核心优势](../01-langchain/04-langgraph/10-langgraph-advantages.md) 讨论的人工介入模式）应把这一项列为选型的硬性约束，而不是留到后期补。
+应分清五层：对象可序列化、数据写入持久存储、执行恢复、重放幂等、业务事务。前一层成立不保证后一层。长任务和审批系统应测试崩溃后的重复调用窗口、检查点升级兼容与恢复时间，而不是仅确认「有存数据库」。
 
 ## 22.4 维度三：工具契约
 
-所有框架最终都要解决「模型怎么调用外部能力」，本质都建立在 Function Calling 之上（见 [Tools 主题 · Function Calling](../../tools/01-function-calling/01-function-calling.md)），差异在于**契约生成方式**和**能否直接复用同一套工具定义**：
+模型使用外部能力可以采用供应商原生 Function Calling，也可以由框架用结构化预测或文本协议驱动。工具 Schema 相似不代表消息格式、调用顺序、错误与重试语义相同：
 
 | 框架 | Schema 生成方式 | 跨框架复用难度 |
 |---|---|---|
-| PydanticAI | 从类型注解 + docstring 自动生成，校验最严格 | 低：本质是标准 JSON Schema，容易被其他框架消费 |
-| LangChain | `@tool` 装饰器 + 类型注解 | 低：同样生成标准 Schema，是 07 章讨论互操作的基础 |
-| LlamaIndex | `FunctionTool` 包装普通函数 | 低：同上 |
-| Semantic Kernel | `[KernelFunction]`/`@kernel_function` 装饰 Native Function，或 Prompt 模板作为 Semantic Function | 中：Semantic Function 部分不是标准函数 Schema，迁移时需要单独处理 |
-| AutoGen | 工具注册到 Agent 的消息处理逻辑 | 中：底层同样是 Function Calling，但消息路由逻辑与框架运行时耦合 |
-| DSPy | `ReAct` Module 内建的工具调用循环 | 中：工具本身是标准函数，但调用循环逻辑绑定在 DSPy 的编译流程里 |
-| CrewAI | Tool 类（继承 `BaseTool`）或函数装饰器 | 中：标准函数部分容易复用，但 Agent 的角色化 Prompt 组织方式不易迁移 |
+| PydanticAI | 类型注解、docstring、Pydantic | 复用业务函数较容易；依赖注入、输出模式及重试需适配 |
+| LangChain | `@tool`、类型注解或显式 Schema | 上下文注入、ToolMessage 和错误处理需适配 |
+| LlamaIndex | `FunctionTool` 包装函数 | Query Engine 工具还要映射返回对象和引用信息 |
+| Semantic Kernel | 代码或 Prompt 创建 KernelFunction | 两者都可暴露工具元数据；Prompt 模板、Filter 和调用设置需迁移 |
+| Microsoft Agent Framework | Agent tools；.NET 常用 AIFunction | 消息、middleware 和 session 语义仍需测试 |
+| AutoGen | AgentChat 的函数工具；Core 本身是消息机制 | 业务函数可复用，Team/消息路由另迁 |
+| DSPy | ReAct 的 Tool 与预测循环 | 工具执行不必依赖编译；轨迹、错误反馈和循环边界需适配 |
+| CrewAI | BaseTool / 装饰器与参数 Schema | 需保留超时、缓存、任务上下文和调用限制 |
 
-凡是「Schema 生成方式基于标准类型注解」的框架，工具定义本身通常都更容易移植。同一个 Python 函数配合类型注解，理论上可以被 LangChain、LlamaIndex、PydanticAI 直接消费，这也是这三者经常出现在同一个系统里互相调用的技术基础。真正难迁的通常不是工具本身，而是**工具调用的编排逻辑**（谁来决定调用顺序、怎么处理调用失败）。
+标准类型注解有助于复用，但不同 provider 支持的 JSON Schema 子集、默认值、nullable 和 union 仍可能不同。迁移测试除了对比 Schema，还应验证鉴权、超时、幂等键、取消传播、错误类型和副作用。工具业务实现与工具执行契约是两份相关但不等价的资产。
 
 ## 22.5 维度四：评测与可观测性
 
 | 框架 | 评测/可观测性生态 | 特点 |
 |---|---|---|
-| LangChain/LangGraph | LangSmith：Trace、Dataset、离线评测、生产反馈闭环 | 生态最成熟，覆盖开发到生产全流程 |
+| LangChain/LangGraph | LangSmith：Trace、Dataset、离线评测、生产反馈闭环 | 开发与生产均可用；不是只能接 LangSmith |
+| LlamaIndex | instrumentation / tracing 及评测集成 | 应串起摄取、检索、重排和生成，不能只看最后一次 LLM 调用 |
 | DSPy | 编译期指标驱动的评测（见 [第十七章](../03-dspy/17-compiler-and-optimizers.md)） | 评测即优化，但生产期在线监控仍需外部工具 |
-| Semantic Kernel | 与 Application Insights、OpenTelemetry 集成 | 企业级遥测标准，适配已有的 .NET/云监控体系 |
+| Semantic Kernel / MAF | OpenTelemetry 与监控后端集成 | 按实际 SDK、导出器及语义约定版本配置 |
 | PydanticAI | 与 Pydantic Logfire 集成较紧密 | 同样基于 OpenTelemetry，适合已用 Pydantic 生态的团队 |
-| AutoGen / CrewAI | 内置基础 Trace，社区生态相对年轻 | 复杂生产可观测性通常需要接入外部 APM 工具 |
+| AutoGen / CrewAI | 消息/流程追踪与观测集成 | 核对跨 Agent 关联、工具 span、导出和数据驻留，不按“年轻”推断能力 |
 
 [OpenTelemetry GenAI 语义约定](https://github.com/open-telemetry/semantic-conventions-genai) 是行业里正在收敛的一条线索：它为「模型调用」「Agent 步骤」「工具调用」定义统一的 Span 命名和属性规范，让不同框架产生的 Trace 能被同一套观测后端消费。评估框架的可观测性时，除了看自带 UI，还要看它是否遵循这类开放标准；这会直接影响未来更换可观测性后端，甚至更换编排框架时，监控体系能保留多少投入。
+
+仍需核对语义约定版本和字段稳定性；都使用 OTLP 不代表 span 名、token 统计和业务标签完全一致。Prompt/response 采集也不是默认越全越好，应明确脱敏、采样与保留期。Trace 帮助解释执行，评测判断质量，二者互补。
 
 ## 22.6 常见错误
 
@@ -91,20 +104,39 @@ flowchart TB
 
 如果 Trace 数据格式是框架私有的、不遵循 OpenTelemetry 之类的开放标准，即使 UI 再好用，长期看也会增加更换可观测性后端的成本。
 
-## 22.7 本章总结
+## 22.7 用同一个故障场景验收各框架
+
+设定一个任务：检索合同、两位 Agent 审核、人工确认、提交订单；提交成功后、检查点保存前杀掉进程。比较以下结果：
+
+1. 恢复后是否重复提交，订单服务是否按业务 ID 去重；
+2. 原审批是否仍有效，合同与工具参数变化后是否重新审批；
+3. 哪些模型调用重做，恢复后 p95 延迟和费用增加多少；
+4. Trace 能否关联原运行、重试与同一业务操作，而不记录敏感合同全文。
+
+这能把「支持持久化」变成可测的恢复语义，也能暴露框架默认值与业务承诺之间的差距。
+
+## 22.8 本章总结
 
 1. **不应该用产品清单式的功能罗列比较框架**，因为几乎每个框架都在扩张覆盖其他框架的能力范围，功能列表很快过时；
-2. **状态模型分为显式共享状态、隐式事件驱动状态、普通对象状态、Actor 局部状态、无跨调用状态五类**，选择应基于「调试时需要多大程度看清系统全貌」；
+2. **状态模型并非互斥分类**，事件、共享状态和会话可以同时存在，关键是状态归属与并发合并；
 3. **持久化的核心问题是恢复粒度，不是「有没有」的二元判断**，长时间运行和人工审批场景应把持久化粒度列为选型硬约束；
 4. **工具契约的可移植性和编排逻辑的可移植性是两个独立维度**，基于标准类型注解生成 Schema 的框架之间工具定义更容易复用，但这不代表整个 Agent 编排逻辑也容易迁移；
-5. **评测与可观测性生态的成熟度差异很大**，LangSmith 覆盖最全面，其他框架各有侧重，但行业正在向 OpenTelemetry GenAI 语义约定这样的开放标准收敛，评估框架时应该同时关注这一点。
+5. **评测、Trace 和开放导出分别验证**，不按品牌给成熟度排名，也不把 OTLP 当成所有数据语义完全一致。
 
 > 比较框架时，更有用的做法是把「状态怎么建模」「怎么持久化和恢复」「工具契约怎么生成」「怎么评测和观测」拆成独立技术维度，而不是罗列各自支持哪些功能；真正决定系统可维护性和可迁移性的，是这些维度组合出来的约束。
 
 ## 参考资料
 
 - [LangGraph: Persistence 概念](https://docs.langchain.com/oss/python/langgraph/persistence)
+- [LangGraph: Checkpointers 与 super-step](https://docs.langchain.com/oss/python/langgraph/checkpointers)
 - [LlamaIndex: Workflows](https://developers.llamaindex.ai/python/llamaagents/workflows/)
+- [LlamaIndex: Durable Workflows](https://developers.llamaindex.ai/python/llamaagents/workflows/durable_workflows/)
+- [AutoGen: State](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/state.html)
+- [CrewAI: Flows](https://docs.crewai.com/en/concepts/flows)
+- [PydanticAI: Durable Execution](https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/)
+- [Microsoft Agent Framework 概览](https://learn.microsoft.com/en-us/agent-framework/overview/)
 - [Semantic Kernel: Process Framework](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/process/process-framework)
 - [OpenTelemetry Generative AI 语义约定仓库](https://github.com/open-telemetry/semantic-conventions-genai)
 - [LangSmith 官方文档](https://docs.smith.langchain.com/)
+
+原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

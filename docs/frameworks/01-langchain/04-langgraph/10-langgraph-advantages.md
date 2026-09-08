@@ -1,3 +1,7 @@
+---
+description: 解释 LangGraph 的 super-step、reducer、检查点、中断重放、子图记忆和容错机制，并给出受控审批与流式投影示例。
+---
+
 # 第十章：LangGraph 的核心优势
 
 ## 10.1 两者为什么不对立
@@ -51,9 +55,13 @@
 
 > **复杂流程的中间变量不必全部塞进消息历史，也不必让每个节点看到所有数据。**
 
+但输入/输出 Schema 不是安全沙箱：它们约束接口，不阻止拥有进程权限的节点访问其他资源；`values` 流还可能包含内部通道。流式出口与日志必须另外做最小化投影，不能以为字段标成 private 就不会泄露。
+
 ### 10.2.4 自由度也意味着责任
 
 > **LangGraph 不会因为用了图就自动让流程合理。** State 字段怎么设计、并行写入如何合并、节点边界切多细，都由开发者决定，**错误的 State 设计照样会造成状态膨胀、并发覆盖和难以维护**。
+
+默认单值通道在同一 super-step 收到多个更新会抛出 `InvalidUpdateError`，不是静默覆盖。Reducer 应明确重复结果如何去重、顺序是否影响含义：列表追加能收集结果，但不能自动保证证据的业务顺序或幂等性。并行分支可按稳定证据 ID 合并，最终展示时再排序。
 
 ## 10.3 两种编排 API 怎么选
 
@@ -95,11 +103,13 @@ LangGraph 同时提供 `StateGraph` 和 **Functional API**。两者**共享同�
 
 > **恢复时，节点里的代码可能重新执行；从旧 checkpoint 重放时，后续模型调用和 API 请求也会再次发生。**
 
-**因此外部副作用必须有幂等保护**：业务幂等键、upsert、发送记录或先查后写。复杂节点还应该把非确定性操作和副作用划分成更清楚的恢复边界。
+**因此外部副作用必须有幂等保护**：由外部服务接受业务幂等键，或用唯一约束、原子 upsert、事务 outbox 等约束一次业务动作。普通「先查后写」存在并发竞态，不足以保证幂等；数据库记录成功与外部系统成功也未必能原子提交。复杂节点还应该把非确定性操作和副作用划分成更清楚的恢复边界。
 
 > **LangGraph 能提供可靠执行的基础设施，却不能替业务自动定义幂等语义。**
 >
 > 把 Checkpointer 说成「绝对不会重复执行」会误导对恢复机制的理解。
+
+检查点粒度是 super-step：同一步的节点读取该步开始时的状态，结果在更新阶段合并；不是某分支一写字段，另一个分支立刻可见。`sync` 持久化在进入下一步前等待写入，`async` 让写入与下一步重叠但增加进程崩溃时的恢复窗口，`exit` 主要在运行退出时保存。选择模式是在写入延迟与故障恢复目标之间取舍，并不改变外部服务的事务语义。
 
 ## 10.5 人工怎样进入任意一步
 
@@ -135,6 +145,8 @@ flowchart LR
 - **`interrupt()` 的调用顺序不要随意改变**；
 - **中断载荷应保持可序列化**。
 
+`interrupt()` 使用运行时控制异常实现暂停，不能被包在会吞掉异常的宽泛 `try/except` 内。存在多个并行中断时，应按 interrupt ID 绑定恢复值；相同 `thread_id` 只是找到线程，不证明调用者拥有审批权。
+
 ### 10.5.4 审批恢复是安全协议，不是一个布尔转换
 
 不要写 `bool(review["approved"])`：`bool("false")` 在 Python 中是 `True`。恢复载荷必须用严格 schema 校验，并与**正在等待的任务 ID 和审批版本**绑定；审批人身份只能由认证后的服务端注入，不能相信浏览器、模型或恢复 JSON 自报的 `reviewer_id`。
@@ -158,7 +170,7 @@ flowchart TB
 
 | 能力 | 最低版本 / 条件 | 说明 |
 |---|---|---|
-| `RetryPolicy` | 当前 LangGraph 版本均可用 | 只为可重试的临时故障配置；明确 `retry_on`，不要重试参数、权限和业务拒绝 |
+| `RetryPolicy` | 本章讨论的 LangGraph v1 接口 | 只为可重试的临时故障配置；明确 `retry_on`，不要重试参数、权限和业务拒绝 |
 | 节点 `timeout`、`error_handler` | **`langgraph>=1.2`** | timeout 仅适用于 `async` 节点；超时会成为可由 Retry Policy 处理的 `NodeTimeoutError` |
 | `asyncio.timeout()` | **Python 3.11+** | 在节点内为单个 SDK/API 调用设更细的超时；阻塞 I/O 先用 `asyncio.to_thread` 隔离 |
 
@@ -186,6 +198,8 @@ builder.add_node(
 ```
 
 > `max_attempts` 包含第一次尝试。节点级 timeout/error handler 是 LangGraph 1.2 的能力；若受限于更旧版本，应在异步节点中用 `asyncio.timeout()`（或调用方超时）实现限制，而不是假设 `timeout=` 会生效。
+
+超时不等于远端操作已取消：`asyncio.to_thread` 能避免阻塞事件循环，但协程取消后底层线程或已发出的 HTTP 请求可能仍在执行。需要 SDK 自身的网络 deadline，以及对「结果未知」的查询/对账路径；否则超时重试仍可能重复产生副作用。三次尝试的总耗时还包含三次单次超时与退避，不能把 `run_timeout=30` 解释为整个任务最多 30 秒。
 
 ### 10.6.2 并行节点失败会怎样
 
@@ -224,10 +238,11 @@ builder.add_node(
 
 | 类型 | 做法 |
 |---|---|
-| 一次性子任务 | 每次调用都从新状态开始 |
-| 确实需要连续记忆的子 Agent | 让子图在同一线程的多次调用间积累状态 |
+| 一次性子任务 | `checkpointer=None`（默认）：每次调用从新状态开始，但在本次调用内继承父图 checkpointer，仍支持中断和恢复 |
+| 确实需要连续记忆的子 Agent | `checkpointer=True`：同一线程跨调用积累状态，需防止同一子图 namespace 的并发调用冲突 |
+| 完全无检查点的子任务 | `checkpointer=False`：显式关闭该子图检查点，不具备上述恢复能力 |
 
-> **完全无状态的调用虽然更简单，但也不能依赖中断与可靠恢复能力。**
+> **不保留跨调用历史，不等于调用期间没有检查点。** 前两种模式需要父图配置 checkpointer；它们的区别是状态保留作用域，不是能否中断。
 
 ### 10.7.2 多 Agent 不等于效果必然更好
 
@@ -263,20 +278,16 @@ def project_progress(state: dict) -> dict:
         if key in state
     }
 
-stream = agent.stream_events(
-    {"messages": [{"role": "user", "content": "研究采购政策"}]},
-    version="v3",
-)
-for kind, item in stream.interleave("messages", "values"):
-    if kind == "messages":
-        for token in item.text:
-            yield {"type": "token", "text": token}
-    else:
-        # 不要输出 auth header、用户资料、密钥、内部证据全文或审批意见。
+def stream_public_progress(agent, inputs: dict, config: dict):
+    stream = agent.stream_events(inputs, config=config, version="v3")
+    for item in stream.values:
+        # 本例仅公开进度，不透传任意模型节点生成的文本。
         yield {"type": "progress", "data": project_progress(item)}
 ```
 
 > v3 投影简化了消息、工具调用、状态和子图事件的消费；它**不自动脱敏**。在产生事件处建立白名单，并为日志/Trace 使用独立脱敏策略。原始协议事件只应进入受控的调试通道。
+
+这个片段假定 Agent 定义了表中的公开进度字段；`phase` 和 `status` 应使用受控枚举，不能把敏感原文塞进一个名字安全的字段。需要展示答案时，应只转发指定对外回答节点，并在输出前执行适用的内容策略；其他模型节点的文本可能只是内部草稿。只有在完整输出后运行的检查无法收回已经推到浏览器的 Token。
 
 ## 10.9 状态如何走向生产部署
 
@@ -345,7 +356,7 @@ def record_decision_once(decision: ApprovalDecision) -> ApprovalDecision:
     if existing is None:
         approval_ledger[key] = decision
         return decision
-    if existing.decision_id == decision.decision_id:
+    if existing == decision:
         return existing  # 同一决策的安全重试
     raise ValueError("该任务版本已作出不可覆盖的审批决定")
 
@@ -384,12 +395,13 @@ def human_review(state: PurchaseState) -> dict:
     }
 
 def route_after_review(state: PurchaseState) -> Literal["execute", "reject"]:
-    # 审批结果决定后续确定性路径
-    return "execute" if state["approved"] else "reject"
+    # 人工同意不能覆盖预算或合规硬约束。
+    allowed = state["budget_ok"] and state["compliance_ok"] and state["approved"]
+    return "execute" if allowed else "reject"
 
 def execute_purchase(state: PurchaseState) -> dict:
     # 真实调用必须携带 request_id，防止恢复或重试造成重复采购
-    return {"result": f"采购申请 {state['request_id']} 已执行"}
+    return {"result": f"演示：采购申请 {state['request_id']} 通过，未执行真实采购"}
 
 def reject_purchase(state: PurchaseState) -> dict:
     # 拒绝路径不触发外部采购副作用
@@ -426,7 +438,9 @@ def resume_from_authenticated_reviewer(
     return graph.invoke(Command(resume=server_payload), config=config)
 ```
 
-> 示例账本只展示语义，进程重启会丢失数据。生产实现应在事务中写入审批决定、审计审批身份和时间，并以 `request_id`（或等价业务幂等键）调用采购系统；恢复、超时重试和重复点击都不得执行第二次。
+> 示例内存账本只演示单进程、串行执行，不保证跨重启、跨 worker 或并发一致性。生产实现应以服务端持久化唯一约束和事务写入审批决定，检查同一幂等键的载荷是否一致，审计审批身份和时间，并以 `request_id`（或等价业务幂等键）调用采购系统；恢复、超时重试和重复点击都不得执行第二次。人工批准只满足该审批环节，不能覆盖权限、预算或合规硬约束。
+
+示例没有连接真实预算、合规和采购服务，也没有实现 Web 认证，不可直接作为支付系统使用。生产金额宜使用最小货币单位整数或受控 Decimal，而不是用浮点 `round` 实现财务规则；审批版本应绑定已提交材料，材料变化就生成新版本，不沿用旧批准。
 
 ## 10.11 常见错误
 
@@ -460,7 +474,7 @@ def resume_from_authenticated_reviewer(
 
 ### 10.11.8 并行写同一字段不定义 Reducer
 
-**不能指望最后写入者碰巧正确。**
+默认单值通道会报并发更新错误；自定义 reducer 后仍需定义去重与业务排序，不能只靠列表拼接。
 
 ### 10.11.9 把 time travel 当成「撤销现实操作」
 
@@ -507,3 +521,5 @@ def resume_from_authenticated_reviewer(
 - [LangGraph: Fault tolerance](https://docs.langchain.com/oss/python/langgraph/fault-tolerance)
 - [LangChain: Event streaming](https://docs.langchain.com/oss/python/langchain/event-streaming)
 - [LangChain: Agents 概念文档](https://docs.langchain.com/oss/python/langchain/agents)
+- [LangGraph Checkpointers：检查点与恢复语义](https://docs.langchain.com/oss/python/langgraph/checkpointers)
+- [LangGraph 并行状态更新错误](https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE)
