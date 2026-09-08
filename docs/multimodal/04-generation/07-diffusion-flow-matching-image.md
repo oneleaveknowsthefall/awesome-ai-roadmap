@@ -15,13 +15,13 @@ description: 推导扩散噪声预测与条件 Flow Matching 的训练目标，�
 DDPM（Denoising Diffusion Probabilistic Models）定义了一个固定的**前向加噪过程**：从真实数据 $x_0$ 出发，经过 $T$ 步逐渐加入高斯噪声，最终得到近似纯噪声的 $x_T$：
 
 $$
-q(x_t\mid x_{t-1})=\mathcal{N}\!\left(x_t;\sqrt{1-\beta_t}\,x_{t-1},\ \beta_t I\right)
+q(x_t\mid x_{t-1})=\mathcal{N}\left(x_t;\sqrt{1-\beta_t}x_{t-1},\ \beta_t I\right)
 $$
 
 其中 $\beta_t$ 是噪声调度系数。令 $\bar\alpha_t=\prod_{s=1}^{t}(1-\beta_s)$，可以直接采样任意时刻的带噪样本，无需训练时逐步跑完整条链：
 
 $$
-x_t=\sqrt{\bar\alpha_t}\,x_0+\sqrt{1-\bar\alpha_t}\,\epsilon,\qquad
+x_t=\sqrt{\bar\alpha_t}x_0+\sqrt{1-\bar\alpha_t}\epsilon,\qquad
 \epsilon\sim\mathcal{N}(0,I)
 $$
 
@@ -67,7 +67,7 @@ $$
 \frac{dx_t}{dt}=v_\theta(x_t,t)
 $$
 
-以噪声 $z$ 和数据 $x$ 的线性条件路径为例，这一节用 $t=0$ 表示噪声、$t=1$ 表示数据，时间方向与前面的 DDPM 记号相反：
+以噪声 $z$ 和数据 $x$ 的线性条件路径为例，这一节用 $t=0$ 表示噪声、 $t=1$ 表示数据，时间方向与前面的 DDPM 记号相反：
 
 $$
 x_t=(1-t)z+tx,\qquad

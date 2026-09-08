@@ -22,8 +22,11 @@
 - Do not use unsupported macros such as `\operatorname`, `\boxed`, or `\text`.
 - Do not place raw `<` or `>` characters inside math expressions. Write an explicit range such as `y_1,\ldots,y_{t-1}` instead of `y_{<t}`.
 - Keep display formulas between standalone `$$` delimiters.
+- Separate inline `$...$` from preceding Chinese text or punctuation with a space; otherwise GitHub may leave it as raw TeX.
+- Keep operators on the same line as an operand; a lone `-` or `=` can turn a formula into a Markdown heading. Do not put blank lines inside a display block.
+- Avoid backslash-punctuation commands in math: GitHub Markdown can strip their backslashes. Use `\Vert`, `\lbrace` / `\rbrace`, and `\quad` where needed; use `\cr` for matrix row breaks instead of `\\`. Put percentages in prose or use decimals.
 - Check braces, math delimiters, and fenced code blocks before publishing.
-- Review the rendered GitHub page after adding or changing formulas.
+- Review the rendered GitHub and Wiki pages after adding or changing formulas; a successful local build does not prove browser math rendering works.
 
 ## Page metadata and discoverability
 

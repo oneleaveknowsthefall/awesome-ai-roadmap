@@ -34,7 +34,7 @@ Prompt Caching 不等于答案缓存：新请求仍要处理未命中的后缀�
 
 $$
 \mathrm{Attention}(Q,K,V)=
-\mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
+\mathrm{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
 $$
 
 - **Prefill**：并行处理整个 prompt，逐层建立 K/V，用最后位置的 logits 采样第一个输出 token。

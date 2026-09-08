@@ -576,14 +576,10 @@ flowchart LR
 $$
 Score=
 \alpha S_{semantic}
-+
-\beta S_{recency}
-+
-\gamma S_{importance}
-+
-\delta S_{task}
-+
-\epsilon S_{trust}
++\beta S_{recency}
++\gamma S_{importance}
++\delta S_{task}
++\epsilon S_{trust}
 $$
 
 其中：

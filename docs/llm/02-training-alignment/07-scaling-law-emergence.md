@@ -102,7 +102,7 @@ flowchart LR
 
 $$
 C_{\mathrm{total}} =
-C_{\mathrm{train}} + Q\,C_{\mathrm{serve}}
+C_{\mathrm{train}} + QC_{\mathrm{serve}}
 $$
 
 `Q` 表示同一服务口径下的请求量，`Cserve` 是单次请求成本。实际还需要纳入输入输出长度、吞吐、延迟、显存与运维成本，不能只比参数量。

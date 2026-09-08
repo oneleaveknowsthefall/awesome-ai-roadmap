@@ -327,18 +327,7 @@ flowchart LR
 可以用一个基础效用分数表示：
 
 $$
-U_i=
-\alpha R_i
-+
-\beta I_i
-+
-\gamma D_i
-+
-\delta T_i
-+
-\epsilon N_i
--
-\zeta C_i
+U_i=\alpha R_i+\beta I_i+\gamma D_i+\delta T_i+\epsilon N_i-\zeta C_i
 $$
 
 其中：
@@ -694,18 +683,12 @@ flowchart LR
 $$
 B_{total}=
 B_{instruction}
-+
-B_{goal}
-+
-B_{state}
-+
-B_{memory}
-+
-B_{recent}
-+
-B_{tool}
-+
-B_{output}
++B_{goal}
++B_{state}
++B_{memory}
++B_{recent}
++B_{tool}
++B_{output}
 $$
 
 其中：

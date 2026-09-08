@@ -9,7 +9,7 @@ description: 推导 sin/cos、RoPE 和 ALiBi 的位置表达，解释插值与�
 没有位置特征、且所有位置都可见的 Self-Attention 具有**置换等变性**。若 `P` 表示重排输入位置：
 
 $$
-\mathrm{Attention}(PX)=P\,\mathrm{Attention}(X)
+\mathrm{Attention}(PX)=P\mathrm{Attention}(X)
 $$
 
 它不是「重排后输出完全一样」，而是输出随输入同样重排。对于相同 token，模型不能仅靠这种对称的交互，区分「我打你」与「你打我」的语序关系。
@@ -39,16 +39,15 @@ $$
 
 $$
 \begin{pmatrix}
-\sin((m+k)\theta)\\
+\sin((m+k)\theta)\cr
 \cos((m+k)\theta)
-\end{pmatrix}
-=
+\end{pmatrix}=
 \begin{pmatrix}
-\cos(k\theta)&\sin(k\theta)\\
+\cos(k\theta)&\sin(k\theta)\cr
 -\sin(k\theta)&\cos(k\theta)
 \end{pmatrix}
 \begin{pmatrix}
-\sin(m\theta)\\
+\sin(m\theta)\cr
 \cos(m\theta)
 \end{pmatrix}
 $$
@@ -66,7 +65,7 @@ RoFormer（2021）提出 Rotary Position Embedding。常见做法是把 Q/K 的�
 $$
 R(m\theta)=
 \begin{pmatrix}
-\cos(m\theta)&-\sin(m\theta)\\
+\cos(m\theta)&-\sin(m\theta)\cr
 \sin(m\theta)&\cos(m\theta)
 \end{pmatrix}
 $$

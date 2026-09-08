@@ -360,7 +360,7 @@ flowchart LR
 查询向量为 `q`，记忆向量为 `m`，两者均非零时，余弦相似度可表示为：
 
 $$
-S_{cos}(q,m)=\frac{q\cdot m}{\|q\|_2\|m\|_2}
+S_{cos}(q,m)=\frac{q\cdot m}{\Vert q\Vert_2\Vert m\Vert_2}
 $$
 
 相似度越高，表示方向越接近。
@@ -618,16 +618,7 @@ flowchart LR
 常见做法会把几类信号合成一个分数：
 
 $$
-V=
-\alpha I
-+
-\beta N
-+
-\gamma R
-+
-\delta C
--
-\epsilon S
+V=\alpha I+\beta N+\gamma R+\delta C-\epsilon S
 $$
 
 其中：
@@ -755,14 +746,10 @@ Hybrid Search 同时利用：
 $$
 Score=
 \alpha S_{vector}
-+
-\beta S_{keyword}
-+
-\gamma S_{metadata}
-+
-\delta S_{recency}
-+
-\epsilon S_{trust}
++\beta S_{keyword}
++\gamma S_{metadata}
++\delta S_{recency}
++\epsilon S_{trust}
 $$
 
 BM25、余弦相似度及新鲜度的尺度不同，不能未经校准直接求和。可以验证归一化加权，也可以用按名次融合的 RRF 作为基线，再做重排；权限、有效时间等硬条件不要塞进可抵消的 `S_metadata`。无论选哪种方法，都需要去除同一 Episode 的重复片段，并保留证据冲突。

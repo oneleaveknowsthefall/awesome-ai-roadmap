@@ -563,7 +563,7 @@ flowchart LR
 
 Verifier-Guided Reasoning 使用验证器指导候选生成、选择和修订。
 
-设候选集合为 $Y=\{y_1,\dots,y_N\}$，验证器分数为：
+设候选集合为 $Y=\lbrace y_1,\dots,y_N\rbrace$，验证器分数为：
 
 $$
 v_i=V(x,y_i,e_i)

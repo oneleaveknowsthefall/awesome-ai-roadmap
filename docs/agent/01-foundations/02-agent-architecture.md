@@ -445,14 +445,10 @@ $$
 $$
 Score(m,q)=
 \alpha S_{sem}
-+
-\beta S_{time}
-+
-\gamma S_{importance}
-+
-\delta S_{task}
-+
-\epsilon S_{trust}
++\beta S_{time}
++\gamma S_{importance}
++\delta S_{task}
++\epsilon S_{trust}
 $$
 
 这些信号分别表示语义相关性、时间新鲜度、重要性、任务匹配度和可信度。这只是启发式排序，需校准尺度与权重；租户、权限、撤销和有效期应先做硬过滤，不能被“高相关性”抵消。

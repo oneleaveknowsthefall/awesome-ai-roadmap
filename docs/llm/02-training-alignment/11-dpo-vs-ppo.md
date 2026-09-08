@@ -41,7 +41,7 @@ J(\theta)=
 \left[
 \mathbb{E}_{y\sim\pi_\theta(\cdot\mid x)}r_\phi(x,y)
 -\beta D_{\mathrm{KL}}
-\bigl(\pi_\theta(\cdot\mid x)\,\|\,\pi_{\mathrm{ref}}(\cdot\mid x)\bigr)
+\bigl(\pi_\theta(\cdot\mid x)\Vert\pi_{\mathrm{ref}}(\cdot\mid x)\bigr)
 \right]
 $$
 
@@ -65,7 +65,7 @@ $$
 J_{\mathrm{clip}}(\theta)=
 \mathbb{E}_t\left[
 \min\left(
-\rho_t\hat A_t,\,
+\rho_t\hat A_t,
 \mathrm{clip}(\rho_t,1-\epsilon,1+\epsilon)\hat A_t
 \right)
 \right]
@@ -149,8 +149,7 @@ $$
 \log\sigma\left[
 \beta\left(
 \log\frac{\pi_\theta(y_w\mid x)}{\pi_{\mathrm{ref}}(y_w\mid x)}
--
-\log\frac{\pi_\theta(y_l\mid x)}{\pi_{\mathrm{ref}}(y_l\mid x)}
+-\log\frac{\pi_\theta(y_l\mid x)}{\pi_{\mathrm{ref}}(y_l\mid x)}
 \right)
 \right]
 $$

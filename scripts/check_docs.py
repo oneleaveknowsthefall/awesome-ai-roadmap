@@ -3,6 +3,7 @@
 import glob
 import os
 import re
+import string
 import sys
 from collections import defaultdict
 
@@ -25,6 +26,45 @@ def prose_without_code(text: str) -> str:
         if not in_code:
             lines.append(line)
     return "\n".join(lines)
+
+
+def check_math(path: str, prose: str) -> None:
+    prose = re.sub(r"`+[^`\n]*`+", "", prose)
+    display_pattern = re.compile(r"^\$\$[ \t]*\n(.*?)^\$\$[ \t]*$", re.M | re.S)
+    display = display_pattern.findall(prose)
+    remaining = display_pattern.sub("", prose)
+    if "$$" in remaining:
+        report(path, "display math requires paired, standalone $$ delimiters")
+    inline_matches = list(re.finditer(
+        r"(?<![\\$])\$(?!\$)([^\n$]+)(?<!\\)\$(?!\$)", remaining
+    ))
+    inline = [match.group(1) for match in inline_matches]
+    for match in inline_matches:
+        previous = remaining[match.start() - 1] if match.start() else ""
+        if previous and not previous.isascii() and not previous.isspace():
+            report(path, "inline math needs a space after Chinese text or punctuation")
+    for expression in display:
+        if re.search(r"^[ \t]*[-=+*]+[ \t]*$", expression, re.M):
+            report(path, "standalone math operator can become a Markdown heading or list")
+        if re.search(r"\n[ \t]*\n", expression):
+            report(path, "blank line can split a display-math block in GitHub Markdown")
+    for expression in display + inline:
+        # GitHub parses Markdown escapes before passing this TeX to its renderer.
+        for escaped in sorted(set(re.findall(r"\\([^A-Za-z0-9\s])", expression))):
+            if escaped in string.punctuation:
+                report(path, f"Markdown-sensitive math escape: \\{escaped}; use a letter command")
+        if "<" in expression or ">" in expression:
+            report(path, "raw angle bracket in math; use a LaTeX comparison command")
+        depth = 0
+        for char in expression:
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+            if depth < 0:
+                break
+        if depth != 0:
+            report(path, "unbalanced braces in math")
 
 
 for path in chapter_files:
@@ -75,6 +115,7 @@ markdown_files = ["README.md", "CONTRIBUTING.md"] + glob.glob(
 link_pattern = re.compile(r"\]\(([^)#]+\.md)(?:#[^)]+)?\)")
 for path in markdown_files:
     text = open(path, encoding="utf-8").read()
+    check_math(path, prose_without_code(text))
     for target in link_pattern.findall(text):
         if "://" in target:
             continue

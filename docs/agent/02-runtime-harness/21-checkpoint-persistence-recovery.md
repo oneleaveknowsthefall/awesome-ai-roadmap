@@ -36,7 +36,7 @@ $$
 t_n \sim \mathrm{Uniform}\left(0,\ \min\left(t_{max},\ t_0 \cdot 2^{n-1}\right)\right)
 $$
 
-其中 $t_0$ 是初始退避基数，$t_{max}$ 是等待上限。这是 full jitter 示例，不是 Temporal 默认策略；总等待还必须受剩余 deadline 约束。
+其中 $t_0$ 是初始退避基数， $t_{max}$ 是等待上限。这是 full jitter 示例，不是 Temporal 默认策略；总等待还必须受剩余 deadline 约束。
 
 ## 21.5 超时：分层设置超时预算
 

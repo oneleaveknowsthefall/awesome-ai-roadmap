@@ -30,7 +30,7 @@ $$
 \mathrm{score}(q, d) = \sum_{t \in q} \mathrm{IDF}(t) \cdot \frac{f(t, d) \cdot (k_1 + 1)}{f(t, d) + k_1 \cdot \left(1 - b + b \cdot \frac{|d|}{\mathrm{avgdl}}\right)}
 $$
 
-其中 $f(t,d)$ 是词 $t$ 在文档 $d$ 中的频次，$|d|$ 是文档长度，$\mathrm{avgdl}$ 是平均文档长度，$k_1$ 和 $b$ 是可调参数。
+其中 $f(t,d)$ 是词 $t$ 在文档 $d$ 中的频次， $|d|$ 是文档长度， $\mathrm{avgdl}$ 是平均文档长度， $k_1$ 和 $b$ 是可调参数。
 
 公式本身不是重点，关键是词频、逆文档频率和长度归一化这三个因素。
 

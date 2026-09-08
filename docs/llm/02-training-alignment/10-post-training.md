@@ -89,8 +89,7 @@ DPO 从 KL 正则化的奖励最大化出发，在 Bradley–Terry 等偏好模�
 $$
 m_\theta =
 \bigl[\ell_\theta(y_w\mid x)-\ell_{\mathrm{ref}}(y_w\mid x)\bigr]
--
-\bigl[\ell_\theta(y_l\mid x)-\ell_{\mathrm{ref}}(y_l\mid x)\bigr]
+-\bigl[\ell_\theta(y_l\mid x)-\ell_{\mathrm{ref}}(y_l\mid x)\bigr]
 $$
 
 单个偏好对的损失为：

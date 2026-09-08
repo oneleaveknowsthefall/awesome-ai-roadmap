@@ -31,21 +31,21 @@ INT4 的实际存储还包含 scale、zero point、对齐和未量化层，通�
 
 ## 15.2 核心机制：连续到离散的映射
 
-量化应先明确整数范围。以**非对称 4-bit 无符号量化**为例，$q_{\min}=0$、$q_{\max}=15$，对校准范围 $[x_{\min},x_{\max}]$：
+量化应先明确整数范围。以**非对称 4-bit 无符号量化**为例， $q_{\min}=0$、 $q_{\max}=15$，对校准范围 $[x_{\min},x_{\max}]$：
 
 $$
 s = \frac{x_{\max}-x_{\min}}{q_{\max}-q_{\min}},\qquad
-z = \mathrm{clip}\!\left(q_{\min}-\mathrm{round}\!\left(\frac{x_{\min}}s\right),q_{\min},q_{\max}\right)
+z = \mathrm{clip}\left(q_{\min}-\mathrm{round}\left(\frac{x_{\min}}s\right),q_{\min},q_{\max}\right)
 $$
 
 $$
-q=\mathrm{clip}\!\left(\mathrm{round}\!\left(\frac{x}{s}\right)+z,q_{\min},q_{\max}\right),\qquad
+q=\mathrm{clip}\left(\mathrm{round}\left(\frac{x}{s}\right)+z,q_{\min},q_{\max}\right),\qquad
 \hat{x}=s(q-z)
 $$
 
-若范围为 $[-2.5,2.5]$，采用 ties-to-even 舍入，则 $s=5/15=1/3$、$z=8$。对 $x=0.7$，得到 q=10，反量化值为 2/3，约 0.667，绝对误差约 0.033。计算时不应先把 scale 截短到 0.333。
+若范围为 $[-2.5,2.5]$，采用 ties-to-even 舍入，则 $s=5/15=1/3$、 $z=8$。对 $x=0.7$，得到 q=10，反量化值为 2/3，约 0.667，绝对误差约 0.033。计算时不应先把 scale 截短到 0.333。
 
-常见的**对称有符号 INT4**则取 $q\in[-8,7]$，通常令 $s=\max(|x_{\min}|,|x_{\max}|)/7$、$q=\mathrm{clip}(\mathrm{round}(x/s),-8,7)$、$\hat{x}=sq$。具体范围、分组粒度和舍入规则由格式与 kernel 决定。
+常见的**对称有符号 INT4**则取 $q\in[-8,7]$，通常令 $s=\max(|x_{\min}|,|x_{\max}|)/7$、 $q=\mathrm{clip}(\mathrm{round}(x/s),-8,7)$、 $\hat{x}=sq$。具体范围、分组粒度和舍入规则由格式与 kernel 决定。
 
 **不同算法的差别在于**：怎么算 scale 和 zero_point、怎么处理 outlier、怎么补偿量化误差。
 
@@ -118,7 +118,7 @@ GPTQ 和 AWQ 分别通过输出重构与激活感知缩放改善低比特权重�
 GPTQ 逐层近似最小化校准集上的输出重构误差：
 
 $$
-\min_{\widehat W}\left\|WX-\widehat WX\right\|_F^2
+\min_{\widehat W}\left\Vert WX-\widehat WX\right\Vert_F^2
 $$
 
 其中量化后的权重必须受目标量化网格约束，否则直接取原权重即可使误差为零。X 是当前线性层的校准输入。该二次目标的 Hessian 与 `XXᵀ` 有关，不是对完整语言模型训练损失计算精确 Hessian。量化一列后，用二阶信息修正**同一层剩余未量化的权重**，通常配合阻尼和分块更新以提高稳定性与效率。

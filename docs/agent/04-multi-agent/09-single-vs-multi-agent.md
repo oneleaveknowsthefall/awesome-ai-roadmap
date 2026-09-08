@@ -795,7 +795,7 @@ $$
 例如，假设五个必需步骤相互独立且各自成功率为 95%，整体成功率约为：
 
 $$
-P_{system}\approx 0.95^5\approx 77.4\%
+P_{system}\approx 0.95^5\approx 0.774
 $$
 
 95% 是假设值，不是实测数据。实际步骤通常相关，验证、冗余和修复也会改变路径。因此这个计算只说明：
@@ -813,12 +813,9 @@ Multi-Agent 总时间不是所有 Worker 时间简单相加，也不等于最慢
 $$
 T_{multi}=
 T_{critical}
-+
-T_{coord}
-+
-T_{merge}
-+
-T_{retry}
++T_{coord}
++T_{merge}
++T_{retry}
 $$
 
 其中：

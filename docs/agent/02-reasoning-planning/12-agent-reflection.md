@@ -554,10 +554,8 @@ C_{reflection}=
 \sum_{r=1}^{R}
 \left(
 C_{eval,r}
-+
-C_{refine,r}
-+
-C_{verify,r}
++C_{refine,r}
++C_{verify,r}
 \right)
 $$
 
