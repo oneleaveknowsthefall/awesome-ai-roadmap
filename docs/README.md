@@ -104,7 +104,7 @@ flowchart TB
 
 ## 按面试题型串联知识
 
-基础题先把概念解释准确，系统设计题则需要把数据流、控制流和故障处理接起来。下面几条路径可以用来练习跨主题追问，不代表所有公司都会按同一套题目面试。
+基础题先把概念解释准确，系统设计题再把数据从哪里来、谁能执行动作、出错后怎么办讲清楚。下面几条路径适合练习跨章节的问题。
 
 | 练习题 | 建议串联的章节 | 需要说清楚的取舍 |
 |---|---|---|
@@ -114,7 +114,7 @@ flowchart TB
 | 模型效果不错，为什么线上还是不能用？ | [模型评测](llm/05-evaluation-selection/21-evaluation-metrics.md) → [输出契约](engineering/03-output-safety/05-structured-output-contracts.md) → [SLO 与故障响应](engineering/06-performance-operations/12-slo-capacity-incident-response.md) | 榜单成绩、结构合法、业务正确和服务可靠分别如何衡量 |
 | 如何把客户的模糊需求变成可交付项目？ | [FDE](fde/01-foundations/01-forward-deployed-engineering.md) → [版本管理](engineering/05-release-pipeline/09-prompt-model-data-versioning.md) → [数据飞轮](engineering/06-performance-operations/13-feedback-loop-data-flywheel.md) | 验收口径、客户系统集成、灰度回滚与可复用边界 |
 
-项目题应以自己真正做过的工作为准：当时有哪些约束，为什么没有选另一种方案，结果怎么测，失败后怎么定位。没有做过的部分可以作为方案推演讨论，不把假设写成经历。
+准备项目题时，可以挑一次具体改动来讲：原来哪里不好用，试过哪些办法，最后为什么这样改。把相关代码、失败样本和前后结果一起看，比背一遍架构图更容易发现自己没想清楚的地方。
 
 ## 常见问题
 
