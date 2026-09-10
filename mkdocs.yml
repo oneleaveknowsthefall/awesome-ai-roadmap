@@ -384,3 +384,6 @@ nav:
       - 基础与交付方法:
           - 模块导览: fde/01-foundations/README.md
           - 从业务问题到可复用生产系统: fde/01-foundations/01-forward-deployed-engineering.md
+      - 现场经验与踩坑:
+          - 模块导览: fde/02-field-practice/README.md
+          - FDE 项目踩坑与交付经验: fde/02-field-practice/02-delivery-lessons.md
