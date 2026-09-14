@@ -23,7 +23,7 @@ description: 整理大语言模型的知识、推理、代码、事实性和人�
 | **综合知识与推理** | **MMLU** | 57 个学科的四选一题；主要测封闭题目的知识与问题求解，不等于开放任务可靠性 |
 | | **MMLU-Pro** | 清理与扩展题目，更强调推理，选项扩展到最多十个；不是与 MMLU 完全相同题集的直接分数对比 |
 | **代码能力** | **HumanEval / MBPP** | 函数级编程任务；HumanEval 原版有 164 题，以函数签名、docstring 为输入，通过测试检验功能。测试已公开，「不放进模型输入」不等于未公开 |
-| | **SWE-bench Verified** | 经人工核验的 500 个仓库 issue 修复任务；分数受模型、Agent 脚手架、环境、工具和预算共同影响，不是裸模型的代码能力分数 |
+| | **SWE-bench Verified** | 经人工核验的 500 个仓库 issue 修复任务；分数受模型、Agent 脚手架、环境、工具和预算共同影响，不是裸模型的代码能力分数。OpenAI 指出该基准存在测试设计缺陷和训练数据污染问题，已停止报告其分数，并建议改报 SWE-bench Pro，见 [OpenAI 声明](https://openai.com/index/why-we-no-longer-evaluate-swe-bench-verified/) |
 | **数学与科学推理** | **GSM8K** | 小学数学应用题，考基础四则运算和逻辑推理 |
 | | **MATH** | 竞赛数学：代数、几何、组合数学 |
 | | **GPQA** | 物理、化学、生物的专家编写选择题；需标明完整集或 Diamond 等子集，不能混比 |
@@ -181,6 +181,7 @@ LLM 裁判可能偏爱较长回答、特定位置、自己熟悉的风格，也�
 - [MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding Benchmark](https://arxiv.org/abs/2406.01574)
 - [Evaluating Large Language Models Trained on Code（HumanEval / Pass@k）](https://arxiv.org/abs/2107.03374)
 - [SWE-bench: Can Language Models Resolve Real-World GitHub Issues?](https://arxiv.org/abs/2310.06770)
+- [OpenAI: Why SWE-bench Verified no longer measures frontier coding capabilities](https://openai.com/index/why-we-no-longer-evaluate-swe-bench-verified/)
 - [Training Verifiers to Solve Math Word Problems（GSM8K）](https://arxiv.org/abs/2110.14168)
 - [Measuring Mathematical Problem Solving With the MATH Dataset](https://arxiv.org/abs/2103.03874)
 - [GPQA: A Graduate-Level Google-Proof Q&A Benchmark](https://arxiv.org/abs/2311.12022)
