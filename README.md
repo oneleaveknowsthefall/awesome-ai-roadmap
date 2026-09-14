@@ -6,11 +6,11 @@
 
 **作者：** [Polo Li](https://github.com/zongyangbigpolo) · **许可：** [CC BY 4.0](LICENSE)
 
-> **资料更新：2026-09-10。** 版本信息、实验条件和参考来源见各章正文。
+> **资料更新：2026-09-14。** 版本信息、实验条件和参考来源见各章正文。
 
 ## 总体策略图
 
-九个主题按“模型能力 → 协议接口 → 应用架构 → 框架实现 → 生产治理 → 现场交付”组织，共 140 章。
+九个主题按“模型能力 → 协议接口 → 应用架构 → 框架实现 → 生产治理 → 现场交付”组织，共 143 章。
 
 ```mermaid
 flowchart TB
@@ -24,8 +24,8 @@ flowchart TB
     end
 
     subgraph L3["第三层 · 应用架构"]
-        AGENT["Agent · 23 章<br/>Harness / 规划 / 记忆 / 多智能体"]
-        RAG["RAG · 21 章<br/>索引 / 检索 / 多模态 / 生成"]
+        AGENT["Agent · 25 章<br/>Harness / 规划 / 记忆 / 编码 / 后训练"]
+        RAG["RAG · 22 章<br/>索引 / 检索 / 多模态 / 结构化查询"]
     end
 
     subgraph L4["第四层 · 框架实现"]
@@ -68,8 +68,8 @@ flowchart TB
 | 底层原理 | LLM 相关知识点 | [`docs/llm/`](docs/llm/README.md) | 23 章 |
 | 模型能力 | 多模态 AI | [`docs/multimodal/`](docs/multimodal/README.md) | 10 章 |
 | 协议接口 | Tools 相关知识点 | [`docs/tools/`](docs/tools/README.md) | 15 章 |
-| 应用架构 | Agent 相关知识点 | [`docs/agent/`](docs/agent/README.md) | 23 章 |
-| 应用架构 | RAG 相关知识点 | [`docs/rag/`](docs/rag/README.md) | 21 章 |
+| 应用架构 | Agent 相关知识点 | [`docs/agent/`](docs/agent/README.md) | 25 章 |
+| 应用架构 | RAG 相关知识点 | [`docs/rag/`](docs/rag/README.md) | 22 章 |
 | 框架实现 | AI 框架与编排 | [`docs/frameworks/`](docs/frameworks/README.md) | 23 章 |
 | 生产工程 | AI Engineering / LLMOps | [`docs/engineering/`](docs/engineering/README.md) | 13 章 |
 | 安全治理 | AI 安全与治理 | [`docs/safety/`](docs/safety/README.md) | 10 章 |
@@ -79,7 +79,7 @@ flowchart TB
 
 ## 如何用于面试准备
 
-先按目标岗位选择主题，不必从头背完 140 章。复习一个概念时，合上文档解释它如何工作，再换一个约束试着推演：数据变大、延迟变紧、权限变化或工具失败后，原来的方案还成立吗？讲不清的部分再回到对应章节和原始资料。
+先按目标岗位选择主题，不必从头背完 143 章。复习一个概念时，合上文档解释它如何工作，再换一个约束试着推演：数据变大、延迟变紧、权限变化或工具失败后，原来的方案还成立吗？讲不清的部分再回到对应章节和原始资料。
 
 系统设计题需要把几个主题连起来：例如企业知识助手不止涉及 RAG，还涉及工具权限、离线评测、发布回滚和客户验收。项目题则应结合自己实际做过的工作；文中的假设案例只用于练习设计和追问。
 

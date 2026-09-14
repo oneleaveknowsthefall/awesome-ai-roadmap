@@ -1,6 +1,6 @@
 ---
 title: Awesome AI Roadmap：中文 AI 工程知识图谱
-description: 面向 AI 工程面试准备的中文知识图谱，按模型、协议、应用架构、框架、生产治理和现场交付组织，共 9 个主题、140 个章节。
+description: 面向 AI 工程面试准备的中文知识图谱，按模型、协议、应用架构、框架、生产治理和现场交付组织，共 9 个主题、143 个章节。
 ---
 
 # 文档主题索引
@@ -67,8 +67,8 @@ flowchart TB
 | 底层原理 | LLM | Transformer、训练与对齐、解码、量化、MoE、部署与评测选型 | 23 | [进入 LLM](llm/README.md) |
 | 模型能力 | 多模态 AI | 融合架构、VLM、Document AI、语音、图像与视频生成、评测与服务 | 10 | [进入多模态 AI](multimodal/README.md) |
 | 协议接口 | Tools | Function Calling、工具学习、MCP、Skill、A2A、传输协议、安全与 LLM 网关 | 15 | [进入 Tools](tools/README.md) |
-| 应用架构 | Agent | 架构、Runtime/Harness、工具、记忆、规划、反思、多 Agent、评估与安全 | 23 | [进入 Agent](agent/README.md) |
-| 应用架构 | RAG | 文档处理、Embedding、向量库、检索、重排、多模态、生成、评估、更新与安全 | 21 | [进入 RAG](rag/README.md) |
+| 应用架构 | Agent | 架构、Harness、记忆、规划、多 Agent、评估与安全，以及代码编辑和后训练工程 | 25 | [进入 Agent](agent/README.md) |
+| 应用架构 | RAG | 文档处理、索引、检索重排、多模态、生成评估、更新与安全，以及 Text-to-SQL | 22 | [进入 RAG](rag/README.md) |
 | 框架实现 | 框架与编排 | LangChain、LangGraph、LlamaIndex、DSPy、Semantic Kernel、轻量 Agent 框架与迁移 | 23 | [进入框架与编排](frameworks/README.md) |
 | 生产工程 | AI Engineering | LLMOps、网关与回退、评测、可观测性、CI/CD、SLO、成本与数据飞轮 | 13 | [进入 AI Engineering](engineering/README.md) |
 | 安全治理 | AI 安全与治理 | 威胁建模、Prompt 攻击、供应链、隐私、执行隔离、红队、治理与审计 | 10 | [进入 AI 安全与治理](safety/README.md) |
@@ -91,6 +91,8 @@ flowchart TB
 | 可观测性与发布 | AI Engineering | 各应用主题 | 工程层讲跨应用生产闭环，应用主题定义领域信号 |
 | 跨层安全治理 | AI 安全与治理 | LLM、Tools、Agent、RAG | 各层讲局部控制，治理主题统一威胁模型、红队和审计 |
 | 客户现场交付 | FDE | 全部技术主题 | 技术主题讲能力，FDE 讲如何组合能力并交付可衡量结果 |
+| Agent 后训练 | Agent 第 25 章 | LLM、Tools、AI Engineering | LLM 讲优化算法，Tools 讲调用数据，Agent 串起失败归因、训练样本与任务验收 |
+| 结构化数据问答 | RAG 第 22 章 | Tools、FDE | 需要全量统计时改用受限 SQL 查询，不靠检索几个片段估算总数 |
 
 ## 阅读建议
 
@@ -113,6 +115,8 @@ flowchart TB
 | MCP 接入后，权限由谁负责？ | [MCP 与 Function Calling](tools/02-mcp/06-mcp-vs-function-calling.md) → [Tool Protocol 安全](tools/02-mcp/15-tool-protocol-security.md) → [最小权限与身份](safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md) | 协议能力、模型调用意图与服务端授权的边界 |
 | 模型效果不错，为什么线上还是不能用？ | [模型评测](llm/05-evaluation-selection/21-evaluation-metrics.md) → [输出契约](engineering/03-output-safety/05-structured-output-contracts.md) → [SLO 与故障响应](engineering/06-performance-operations/12-slo-capacity-incident-response.md) | 榜单成绩、结构合法、业务正确和服务可靠分别如何衡量 |
 | 如何把客户的模糊需求变成可交付项目？ | [FDE 基础](fde/01-foundations/01-forward-deployed-engineering.md) → [现场经验与踩坑](fde/02-field-practice/02-delivery-lessons.md) → [版本管理](engineering/05-release-pipeline/09-prompt-model-data-versioning.md) | 需求调整由谁确认，PoC 结论怎样保留，客户如何验收和接手 |
+| Agent 改了代码，为什么问题还没解决？ | [代码搜索、编辑与验证](agent/06-coding-agents/24-code-search-edit-verification.md) → [Agent 后训练](agent/07-post-training/25-agent-post-training.md) | 区分搜索遗漏、编辑失败、验证不足和模型错误，再决定是否值得训练 |
+| 怎样让助手准确统计订单，而不是猜一个总数？ | [Text-to-SQL](rag/07-structured-queries/22-text-to-sql.md) → [工具 Schema](tools/01-function-calling/03-tool-schema-design.md) → [离线评测](engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md) | 业务口径、表关联、查询权限和独立结果验收 |
 
 准备项目题时，可以挑一次具体改动来讲：原来哪里不好用，试过哪些办法，最后为什么这样改。把相关代码、失败样本和前后结果一起看，比背一遍架构图更容易发现自己没想清楚的地方。
 

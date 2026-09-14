@@ -8,15 +8,15 @@ description: 用可手算的订单快照讲解 Text-to-SQL，从未发货口径�
 
 客服问“上周还有多少订单没完成”，如果系统只检索到几张订单，再让模型加总，遗漏的订单根本不会进入计算。问题不是模型算术差，而是输入没有覆盖统计范围。
 
-[第三章的表格处理](../02-ingestion-indexing/03-document-parsing.md#34-表格的特殊处理)已经区分了定位表格与全表聚合；[第十六章](../04-advanced/16-graphrag.md#166-一个务实的中间方案)也提出，已有可靠关系表时可以直接查询，不必先抽成知识图谱。Text-to-SQL 接上这条路径：**模型把问题翻译成 SQL，数据库计算，应用交付结果。**
+[第三章](../02-ingestion-indexing/03-document-parsing.md) §3.4 已经区分了定位表格与全表聚合；[第十六章](../04-advanced/16-graphrag.md) §16.6 也提出，已有可靠关系表时可以直接查询，不必先抽成知识图谱。Text-to-SQL 接上这条路径：**模型把问题翻译成 SQL，数据库计算，应用交付结果。**
 
-李博杰《深入理解 AI Agent》第五章的[“生成 SQL 查询”](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md)把 SQL 看作交给系统执行的制品，而不是要求模型逐行搬运数据。配套 ERP 示例用 SQLite 员工、工资两表，单次模型调用生成查询，CLI 展示结果，再与独立 Python 参考答案比较。这是教学流程，不是成熟的生产 DBAgent。
+李博杰《深入理解 AI Agent》第五章的[“生成 SQL 查询”](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md)让模型生成查询，由应用执行和展示结果，而不是要求模型逐行搬运数据。配套 ERP 示例用 SQLite 员工、工资两表，单次模型调用生成查询，再与独立 Python 参考答案比较。
 
-本章借用“生成制品、系统执行、独立验收”的分工，不沿用原例的业务数据，也不要求增加多轮 Agent。已有固定报表时，先让模型选择报表并填写经过校验的参数；只有用户确实需要新的组合查询，才开放 SQL 结构生成。
+本章沿用这种分工，换成订单统计案例，不要求增加多轮 Agent。已有固定报表时，先让模型选择报表并填写经过校验的参数；只有用户确实需要新的组合查询，才开放 SQL 结构生成。
 
 ## 22.2 先请业务同事把“未完成”说清楚
 
-> 以下是虚构的工业备件订单统计案例，人物、两表快照和金额均为教学设定；金额用人民币分表示，不含税费、运费与折扣，数字只用于说明计算和验收。
+> 下面用一个虚构的备件订单案例计算待发货数量。金额以人民币分表示，不含税费、运费与折扣。
 
 运营小周请客服小林导出“9 月 1 日到 7 日未完成订单”。小林发现，已发货但未签收也可能叫“未完成”；财务还可能把它理解为“未结清”。工程师没有先写提示词，而是让他们确认这次要解决的是仓库待发货统计。
 
@@ -31,7 +31,7 @@ description: 用可手算的订单快照讲解 Text-to-SQL，从未发货口径�
 
 这里有两个时间条件：**下单窗口决定哪些订单入选，快照截止点决定这些订单当时发了多少。**只在今天的订单表加一个下单日期条件，不能还原上周的发货状态。
 
-[FDE 订单异常助手](../../fde/01-foundations/01-forward-deployed-engineering.md#1112-三个系统分别接)同样把“已发出”“客户已收到”“采购预计到仓库”分开。Text-to-SQL 不能把这些差别压成一个模糊的 `status != 'completed'`。
+[FDE 订单异常助手](../../fde/01-foundations/01-forward-deployed-engineering.md) §1.11.2 同样把“已发出”“客户已收到”“采购预计到仓库”分开。Text-to-SQL 不能把这些差别压成一个模糊的 `status != 'completed'`。
 
 ## 22.3 固定两张表，先看清一行代表什么
 
@@ -126,11 +126,11 @@ flowchart LR
     D --> G
 ```
 
-[Tools 第三章](../../tools/01-function-calling/03-tool-schema-design.md#323-在描述里给出使用示例)提醒过：“只支持 SELECT”的描述不能代替只读凭据、对象权限和查询限制。上游 [`agent.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/agent.py#L31-L87)也在提示词里限定 SELECT，但 [`demo.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py#L119-L165)直接调用 `cur.execute(sql)`；不能把这种执行方式当作已落实数据库只读权限。
+[Tools 第三章](../../tools/01-function-calling/03-tool-schema-design.md) §3.2.3 提醒过：“只支持 SELECT”的描述不能代替只读凭据、对象权限和查询限制。上游 [`agent.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/agent.py#L31-L87)也在提示词里限定 SELECT，但 [`demo.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py#L119-L165)直接调用 `cur.execute(sql)`；不能把这种执行方式当作已落实数据库只读权限。
 
 ## 22.5 一条完整查询，先按订单汇总
 
-下面是确认业务口径后可审查的 SQL 制品。它刻意先把明细折回“一单一行”，再统计客户。过滤条件用于说明查询语义，**即使条件遗漏，也必须由执行层阻止越权**，不能靠模型总能写对它们。
+下面是确认业务口径后的查询草案。它先把明细折回“一单一行”，再统计客户。过滤条件用于说明查询语义，**即使条件遗漏，也必须由执行层阻止越权**，不能靠模型总能写对它们。
 
 ```sql
 WITH per_order AS (
@@ -226,8 +226,10 @@ SQLite 没有服务型数据库那样的内置用户角色和行级授权。本�
 
 ## 参考资料
 
-- 李博杰，《深入理解 AI Agent》[第五章：代码作为交互接口与生成 SQL 查询](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md)。本章借鉴制品交付的分工，业务、数据、SQL 与图为重新设计。
+- 李博杰，《深入理解 AI Agent》[第五章：代码作为交互接口与生成 SQL 查询](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md)。本章借鉴查询生成与执行的分工，业务、数据、SQL 与图为重新设计。
 - 同一固定提交的 ERP 示例：[README](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/README.md)、[agent.py](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/agent.py)、[demo.py](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py)。书中实验描述使用 PostgreSQL，配套运行示例使用 SQLite；这里核读源码，不运行上游程序，不引用其通过率为本章实验结论或客户收益。
 - SQLite 官方：[聚合函数](https://www.sqlite.org/lang_aggfunc.html)、[URI 只读模式](https://www.sqlite.org/uri.html)、[授权回调](https://www.sqlite.org/c3ref/set_authorizer.html)、[不可信 SQL 的安全措施](https://www.sqlite.org/security.html)、[应用函数安全](https://www.sqlite.org/appfunc.html#security_implications)、[执行计划](https://www.sqlite.org/eqp.html)。
+
+资料查阅于 2026-09-14。上游仓库采用 [Apache-2.0](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/LICENSE)，第三方材料遵循各自许可。
 
 原创文档与图：Polo Li，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 许可；引用资料归原作者所有。

@@ -6,7 +6,7 @@ description: 用 limit=0 的分页缺陷串起代码定位、符号与调用关�
 
 ## 24.1 从一张缺陷单开始，而不是从“全库理解”开始
 
-> 本章用一个虚构的 Python 报表服务说明修复过程：测试同学小周发现 `limit=0` 返回了全部 3 条记录。约定是 `None` 不限条数、`0` 返回空列表、正整数限制条数；负数由入口拒绝。文件名、人物与样例数据均为教学设置，不是作者项目经历。
+> 下面是一个虚构的 Python 报表服务案例：查询接口约定 `None` 不限条数、`0` 返回空列表、正整数限制条数，负数由入口拒绝；测试同学小周却发现 `limit=0` 返回了全部 3 条记录。
 
 开发者把缺陷交给 Agent，要求修复查询接口，又不能改变后台导出任务的既有行为。困难不是模型会不会写 `is None`，而是它能否证明：找到了真正执行的函数，只改了该改的位置，并且没有用一个绿色的语法检查冒充业务验收。
 
@@ -60,7 +60,7 @@ Agent 需要从路由处理函数追到实际导入的 `take_rows`，再查看�
 
 AST 能识别函数、调用表达式等语法结构，但单靠 AST 通常不知道跨模块名字最终绑定到谁。LSP 是客户端与语言服务通信的协议；定义、引用、调用层级等能力依赖服务器实现和能力协商，并不保证解析出每一条运行时调用。
 
-按 [LSP 3.17 的定义、引用与调用层级接口](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/)，客户端可以请求这些关系；它们不是上述书中示例已经实现的完整 AST/LSP 引擎。阅读旧版本接口足以说明机制，不意味着把它当作当前最新规范。
+客户端如何请求这些关系，可以对照 [LSP 3.17 的定义、引用与调用层级接口](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/)阅读。
 
 如果一开始连 `take_rows` 都不知道，语义搜索可以用“截取报表结果数量”召回候选函数。按函数分块能保留局部语义，但装饰器、类状态和调用方仍可能在块外。命中后必须回到当前文件读取，并核对索引对应的提交或文件版本。
 
@@ -143,15 +143,11 @@ LSP 位置还涉及协商的字符编码单位，不能把 Unicode 码点数、U
 
 重新读取后若发现用户已经做了等价修复，Agent 应检查现有 diff 与测试，而不是重复应用。如果用户改动与任务要求矛盾，就说明冲突所在，不能擅自把用户改动恢复成自己更熟悉的版本。
 
-### 对照一个小型实现的边界
+### 编辑报错后，文件可能已经变了
 
-上游固定提交的 [`EditTool`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/coding-agent/tools/edit_tool.py)展示了非空旧串检查、默认唯一匹配、可选全量替换，以及写后检查。它适合帮助理解“匹配失败也应成为模型反馈”。
+李博杰配套的 [`EditTool`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/coding-agent/tools/edit_tool.py)展示了非空旧串检查、默认唯一匹配，以及写后检查。它先写入文件，再报告语法问题，没有自动回滚。因此，Agent 收到“语法检查失败”时，应先读回当前内容，不能按“编辑从未发生”重试原补丁。
 
-但该实现直接读取再写回文件，没有展示版本比较与并发写入保护；“编辑前必须读取”是方法说明，不能仅凭这段说明认定它已强制执行。写后发现语法错误，也没有自动回滚。
-
-它对 Python 调用 `py_compile`，对若干 JS/TS 扩展名调用 `node --check`。后者能否检查某种扩展名与语法取决于 Node 版本及项目配置，更不是 TypeScript 项目的完整类型检查。检查器缺失时返回空结果，也不能理解成检查通过。
-
-同目录的 [`TaskTool`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/coding-agent/tools/task_tool.py)明确返回“未实现”的错误。因此这些源码是机制示例，不是完整、可直接投入生产的 Coding Agent。
+这个小实现没有覆盖版本比较与并发写入保护，接入宿主时仍需补齐。检查器也应使用项目实际支持的语言版本与配置，不能把一次语法检查当作完整类型检查或业务测试。
 
 ## 24.6 查看 diff 后，再问每一层验证证明了什么
 
@@ -234,13 +230,13 @@ print("旧错误已复现；6 个函数级样例满足预期")
 
 最终交给小周的应是可解释的差异：查询把 `None` 与 `0` 分开，导出约定没变；函数样例覆盖了什么、接口和相关回归覆盖了什么、哪些环境尚未验证，分别说清楚。工程交付的边界由这些证据决定，不由 Agent 最后一条“已完成”决定。
 
+如果同类错误反复出现，先按[第二十五章](../07-post-training/25-agent-post-training.md)定位模型第一次做错决定的位置，再判断该改工具、提示还是训练数据，不要把每次编辑失败都归因于模型能力。
+
 ## 参考资料与来源边界
 
 - 李博杰（Bojie Li），《深入理解 AI Agent：设计原理与工程实践》[第五章相关段落](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md#L227-L307)：用于搜索类别、编辑格式与即时反馈的讨论。固定提交 `985a49d35b9f50937f1f757cf25867672991ded7`，查阅于 2026-09-14。
-- 同提交 [`edit_tool.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/coding-agent/tools/edit_tool.py) 与 [`task_tool.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/coding-agent/tools/task_tool.py)：只读源码核对，未运行模型实验。上游仓库按 [Apache-2.0](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/LICENSE) 发布，第三方内容保留原许可；本章未搬运其实现或配图。
-- [Language Server Protocol 3.17](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/)：定义、引用、调用层级与位置编码机制；引用的是明确版本，不宣称最新。查阅于 2026-09-14。
+- 同提交 [`edit_tool.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/coding-agent/tools/edit_tool.py)：用于匹配与写后检查的讨论。上游仓库按 [Apache-2.0](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/LICENSE) 发布，第三方内容保留原许可；本章未搬运其实现或配图。
+- [Language Server Protocol 3.17](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/)：定义、引用、调用层级与位置编码机制。查阅于 2026-09-14。
 - [Python `ast.parse` 文档](https://docs.python.org/3/library/ast.html#ast.parse)：解析 AST 与完整编译检查的边界。查阅于 2026-09-14。
-
-上游关于特定商业产品是否采用某类搜索或编辑工具的时效性判断，不作为本章事实依据；本文不据此推断 Cursor 或所有主流产品的当前实现。
 
 原创中文说明、案例、示例与图示：Polo Li，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)；引用资料的权利与许可归原作者。

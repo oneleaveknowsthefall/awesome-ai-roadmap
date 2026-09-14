@@ -248,6 +248,12 @@ nav:
           - 模块导览: agent/05-production/README.md
           - Agent 评估与 Benchmark: agent/05-production/14-agent-evaluation.md
           - Agent 安全与 Prompt Injection: agent/05-production/15-agent-security.md
+      - Coding Agent 工程:
+          - 模块导览: agent/06-coding-agents/README.md
+          - 代码搜索、编辑与验证: agent/06-coding-agents/24-code-search-edit-verification.md
+      - Agent 后训练:
+          - 模块导览: agent/07-post-training/README.md
+          - 从失败轨迹到可靠策略: agent/07-post-training/25-agent-post-training.md
   - RAG:
       - 主题导览: rag/README.md
       - 基础与选型:
@@ -283,6 +289,9 @@ nav:
           - 模块导览: rag/06-operations-security/README.md
           - 动态更新与增量索引: rag/06-operations-security/19-dynamic-update.md
           - RAG 落地难点与安全: rag/06-operations-security/20-rag-challenges-security.md
+      - 结构化查询:
+          - 模块导览: rag/07-structured-queries/README.md
+          - Text-to-SQL 业务问答: rag/07-structured-queries/22-text-to-sql.md
   - 框架与编排:
       - 主题导览: frameworks/README.md
       - LangChain 生态:

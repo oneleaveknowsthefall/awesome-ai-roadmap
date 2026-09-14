@@ -1,10 +1,10 @@
 ---
-description: 覆盖 AI Agent 的架构、推理规划、记忆、多智能体、Runtime/Harness、评测与安全，强调可执行系统的工程边界。
+description: 覆盖 AI Agent 的架构、规划、记忆、多智能体与 Harness，并通过代码搜索编辑、失败归因和后训练案例说明工程取舍。
 ---
 
 # Agent 相关知识点
 
-本主题位于应用架构层，覆盖 Agent 基础架构、运行时 Harness、推理规划、记忆上下文、多智能体协作，以及生产评估与安全。
+本主题位于应用架构层，覆盖 Agent 基础架构、运行时 Harness、推理规划、记忆上下文、多智能体协作，以及生产评估与安全。编码与后训练模块进一步讨论：怎样可靠地修改代码，怎样从失败轨迹判断该改工具还是训练模型。
 
 ## 子模块
 
@@ -14,6 +14,8 @@ description: 覆盖 AI Agent 的架构、推理规划、记忆、多智能体、
 4. [记忆与上下文（第 7–8、10 章）](03-memory-context/README.md)
 5. [多智能体系统（第 9、13 章）](04-multi-agent/README.md)
 6. [评估与安全（第 14–15 章）](05-production/README.md)
+7. [Coding Agent 工程（第 24 章）](06-coding-agents/README.md)
+8. [Agent 后训练（第 25 章）](07-post-training/README.md)
 
 ## 模块关系
 
@@ -30,6 +32,9 @@ flowchart TB
     R --> P
     M --> P
     A --> P
+    H --> C[代码搜索、编辑与验证]
+    C --> P
+    P --> T[失败归因与后训练]
 ```
 
 协议细节不在本主题重复展开：工具接入见 [Tools · MCP](../tools/02-mcp/README.md)，跨 Agent 互操作见 [Tools · Agent 通信](../tools/04-agent-communication/README.md)。
@@ -40,6 +45,8 @@ flowchart TB
 - **有状态 Agent**：基础与架构 → 记忆与上下文；
 - **多 Agent 系统**：基础与架构 → 推理规划 → 多智能体系统；
 - **工程落地 / Harness 开发**：基础与架构 → Runtime 与 Harness；
+- **Coding Agent**：Runtime 与 Harness → Coding Agent 工程 → 评估与安全；
+- **用训练改善 Agent**：先读 [LLM 训练与对齐](../llm/02-training-alignment/README.md)和[工具学习](../tools/01-function-calling/02-tool-learning.md)，再读 Agent 后训练；
 - **生产上线**：完成目标模块后阅读评估与安全。
 
 ## 常见问题
