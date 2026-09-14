@@ -80,7 +80,7 @@ flowchart TB
 1. **用可执行测试而非文本相似度做判定**，减少主观评分，但测试仍可能遗漏需求、脆弱或被投机满足；
 2. **提供完整仓库而非孤立文件**，迫使 Agent 具备检索与导航能力。
 
-由于原始数据集中存在部分描述不充分或测试不可靠的样例，后续出现了人工筛选过的 **SWE-bench Verified** 子集（500 题）。主流已不再沿用它作为前沿编码能力的引用口径，见 [OpenAI: Why SWE-bench Verified no longer measures frontier coding capabilities](https://openai.com/index/why-we-no-longer-evaluate-swe-bench-verified/)。**引用分数时必须说明是哪个子集**，Full、Lite、Verified 的分数不可直接比较。
+由于原始数据集中存在部分描述不充分或测试不可靠的样例，后续出现了人工筛选过的 **SWE-bench Verified** 子集（500 题）。OpenAI 指出该子集存在测试设计缺陷和训练数据污染，已停止报告其分数，当时建议改报 SWE-bench Pro，见 [Why SWE-bench Verified no longer measures frontier coding capabilities](https://openai.com/index/why-we-no-longer-evaluate-swe-bench-verified/)。**引用分数时必须说明是哪个子集**，Full、Lite、Verified 的分数不可直接比较；引用 Verified 成绩时应注意上述局限。
 
 **SWE-Lancer** 使用真实自由职业市场的软件任务，包含独立贡献者任务与管理者选择方案任务。按任务历史报酬聚合的金额是该基准下的价值代理，不是 Agent 实际收入，也不能直接推算生产 ROI。
 
