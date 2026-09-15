@@ -61,6 +61,25 @@ flowchart LR
 
 图示为 `H=4, G=2` 的 GQA。常见实现要求 Q 头数能被 KV 头数整除；张量并行还可能要求分片整除或复制部分 KV 头，不能忽略这些约束直接按卡数均分显存。
 
+```python
+# GQA：H 个 Q 头共享 G 组 K/V（要求 H % G == 0）
+# x: (B, N, d_model)，d_h 为每个头的维度
+q = W_q(x).view(B, N, H, d_h).transpose(1, 2)  # (B, H, N, d_h)
+
+# K/V 只投影出 G 个头，KV Cache 保存的就是这份较小的张量
+k = W_k(x).view(B, N, G, d_h).transpose(1, 2)  # (B, G, N, d_h)
+v = W_v(x).view(B, N, G, d_h).transpose(1, 2)
+
+# 计算注意力前，把每组 K/V 复制 H // G 份，与 Q 头一一对应：
+# 第 i 个 Q 头使用第 i // (H // G) 组 K/V
+k = k.repeat_interleave(H // G, dim=1)  # (B, H, N, d_h)
+v = v.repeat_interleave(H // G, dim=1)
+
+# 之后与 MHA 相同，每个 Q 头仍各自计算注意力分布
+# is_causal 只适用于 Q、K 等长的 prefill；带缓存 decode 时需另行处理掩码
+out = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+```
+
 共享的是 K/V 投影及表示，**Q 头仍各自计算不同的注意力分布**，因此 MQA 不等于「只剩一个视角」。减少 KV 头降低容量与带宽需求，也可能影响质量；变化取决于模型规模、数据、训练方式和任务，没有通用的「MQA 降 2–5%、GQA 降不到 0.5%」。
 
 GQA 原论文研究了从 MHA checkpoint 转换：组内 K/V 头均值池化后继续预训练，并在其设置下用原预训练算力约 5% 做 uptraining。它不是无需训练、删除头就可保证质量的推理开关。

@@ -121,6 +121,52 @@ $$
 
 Attention 包含依赖输入的 softmax，**本身已经是非线性的**；FFN 不是整个 Block 唯一的非线性来源。部分可解释性研究将 FFN 看作键值记忆，但事实知识也分布在其他参数与计算路径中，不能把它视作可逐条查询的数据库。
 
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class DecoderBlock(nn.Module):
+    """Pre-Norm decoder block，省略位置编码、dropout 与 KV Cache。"""
+
+    def __init__(self, d_model, n_heads, d_ff):
+        super().__init__()
+        self.n_heads = n_heads
+        # 注意力子层：一次线性变换同时得到 Q、K、V，再经输出投影 W^O
+        self.norm1 = nn.RMSNorm(d_model)
+        self.qkv = nn.Linear(d_model, 3 * d_model, bias=False)
+        self.out = nn.Linear(d_model, d_model, bias=False)
+        # FFN 子层：SwiGLU 的门控、升维与降维三个矩阵
+        self.norm2 = nn.RMSNorm(d_model)
+        self.gate = nn.Linear(d_model, d_ff, bias=False)
+        self.up = nn.Linear(d_model, d_ff, bias=False)
+        self.down = nn.Linear(d_ff, d_model, bias=False)
+
+    def attention(self, x):  # x: (B, N, d_model)
+        B, N, D = x.shape
+        # 切出 Q、K、V，并拆成 H 个头：(B, N, D) -> (B, H, N, d_k)
+        q, k, v = (
+            t.view(B, N, self.n_heads, -1).transpose(1, 2)
+            for t in self.qkv(x).split(D, dim=-1)
+        )
+        # 缩放点积：每个查询位置对所有键位置打分
+        scores = q @ k.transpose(-2, -1) / k.size(-1) ** 0.5  # (B, H, N, N)
+        # 因果掩码：严格上三角是未来位置，填 -inf 后 softmax 权重为 0
+        future = torch.ones(N, N, dtype=torch.bool, device=x.device).triu(1)
+        weights = scores.masked_fill(future, float("-inf")).softmax(dim=-1)
+        # 按权重聚合 V，再把 H 个头拼回 d_model 维
+        heads = (weights @ v).transpose(1, 2).reshape(B, N, D)
+        return self.out(heads)
+
+    def forward(self, x):
+        # u = x + Attention(Norm(x))
+        u = x + self.attention(self.norm1(x))
+        # y = u + FFN(Norm(u))，FFN 采用 SwiGLU
+        h = self.norm2(u)
+        return u + self.down(F.silu(self.gate(h)) * self.up(h))
+```
+
 ## 2.7 训练与生成怎样走过这个 Block
 
 训练时所有输入 token 已知，因果掩码保证不泄漏答案，可以一次前向计算各位置的预测损失。
