@@ -34,7 +34,7 @@ flowchart LR
 - **每次执行短生命周期、一次性环境**：执行结束即销毁，不复用带有历史状态的沙箱，防止跨任务的状态污染或残留数据被后续任务读取；
 - **CPU/内存/磁盘/执行时长硬限制**：防止资源耗尽型攻击（构造无限循环、大量写盘、fork bomb）；
 - **文件系统最小化**：沙箱内不挂载宿主机的真实文件系统、不包含无关的凭据文件、环境变量默认不包含云凭据（呼应第三章"密钥不进上下文"）；
-- **无出站网络或按需最小开放**：默认禁止沙箱访问外部网络，确需网络能力时走 8.4 的出口控制，而不是给沙箱直连公网的能力。
+- **无出站网络或按需最小开放**：默认禁止沙箱访问外部网络，确需网络能力时走 8.5 的出口控制，而不是给沙箱直连公网的能力。
 
 ## 8.3 浏览器自动化的特有风险
 
@@ -131,12 +131,12 @@ flowchart TB
 1. 三类能力的风险由实际权限、数据和网络决定，防御重点是限制最大损害，而非假定固定风险排序；
 2. 代码执行应使用微虚拟机/用户态内核级别的隔离、短生命周期环境和严格的资源限制；
 3. 浏览器自动化的特有风险在于登录态和会话相关的攻击面，登录态应按任务最小化注入，网页内容按不可信输入处理；
-4. Computer Use 把风险扩大到整个操作系统，视觉层面的间接 Prompt Injection、剪贴板劫持和伪造系统弹窗是其特有风险，默认应运行在隔离桌面环境；
-5. 三类执行环境应共享统一的网络出口控制策略——强制代理、allowlist、拒绝内网地址、按需注入凭据。
+4. Computer Use 把风险扩展到其可访问的桌面、应用和共享状态，不等于拥有整个操作系统的权限；默认使用隔离桌面，并控制视觉注入、剪贴板和伪造弹窗带来的动作风险；
+5. 三类执行环境应共享网络出口控制原则：强制代理，拒绝 metadata、loopback 和非授权私网，业务例外逐服务放行，凭据绑定目标与动作。
 
 ## 参考资料
 
-- [OWASP LLM06:2025 Excessive Agency](https://genai.owasp.org/llmrisk/llm06-excessive-agency/)
+- [OWASP LLM06:2025 Excessive Agency](https://genai.owasp.org/llmrisk/llm062025-excessive-agency/)
 - [gVisor: Application Kernel for Containers](https://gvisor.dev/)
 - [Firecracker: Secure and Fast microVMs](https://firecracker-microvm.io/)
 - [MDN: Same-origin policy](https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Same-origin_policy)

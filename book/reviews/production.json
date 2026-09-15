@@ -1,0 +1,520 @@
+{
+  "scope": "docs/engineering/**（13章）、docs/safety/**（10章）、docs/fde/**（2章）及其16个索引；基线1ccb8aced9dea6eaa32a6cb17d5d2b4ed7cf2e10",
+  "review_date": "2026-09-15",
+  "chapters": [
+    {
+      "path": "docs/engineering/01-foundations/01-llmops-vs-mlops-devops.md",
+      "disposition": "retained",
+      "summary": "完整通读后保留。已说明三者职责重叠、LLMOps包括训练与自托管、统计评测不替代确定性测试，没有把岗位划成互斥层级；本轮只修正主题索引中较窄的定义。",
+      "technical_checks": [
+        {
+          "check": "正文、对照表与总结的职责边界",
+          "result": "区分主要资产而非互斥岗位，保留MLOps基础能力；温度、快照和重复采样均未被写成确定性保证。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/engineering/01-foundations/02-production-architecture-overview.md",
+      "disposition": "revised",
+      "summary": "把入口鉴权、编排、模型网关与供应商画成一致的请求顺序，补模型响应回到编排层和独立工具授权路径；修改图后说明与总结。小团队不自建复杂平台，不等于省略评测和受控发布。",
+      "technical_checks": [
+        {
+          "check": "请求图与2.2节职责是否一致",
+          "result": "模型调用经过模型网关，工具动作经过资源授权，最终回答另做输出校验；不再靠图下注释为错误顺序兜底。",
+          "source_urls": []
+        },
+        {
+          "check": "小团队上线条件",
+          "result": "保留鉴权、预算、开关等最低边界，去掉灰度和自动化评测对小团队一概不划算的断言。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/engineering/02-request-reliability/03-model-gateway-routing-fallback.md",
+      "disposition": "revised",
+      "summary": "回退图增加许可、剩余预算和合规候选判断及终止出口；契约失败不再一概触发换模型，而先区分拒绝、截断和不兼容。",
+      "technical_checks": [
+        {
+          "check": "回退的终止性及安全拦截边界",
+          "result": "图与正文共同限制次数、费用、时间和候选；保留安全拦截不得换供应商绕过、流式片段不能盲目续接的说明。",
+          "source_urls": []
+        },
+        {
+          "check": "结构化输出异常是否全是解析失败",
+          "result": "官方文档区分拒绝与不完整响应；对应原因不应统一当作可修复格式错误。",
+          "source_urls": [
+            "https://developers.openai.com/api/docs/guides/structured-outputs"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md",
+      "disposition": "revised",
+      "summary": "修正错误类型表中解析失败必须改Prompt后重试的表述，改为按拒绝、截断、Schema和偶发错误分别处理；保留共享deadline、动作级幂等、熔断和舱壁的已有解释。",
+      "technical_checks": [
+        {
+          "check": "Stripe幂等键的保存结果与失效边界",
+          "result": "原文核对确认：可保存500结果，执行开始前的校验或并发冲突不保存结果，键清除后复用可能重新执行；章节没有宣称端到端exactly-once。",
+          "source_urls": [
+            "https://docs.stripe.com/api/idempotent_requests"
+          ]
+        },
+        {
+          "check": "重试放大与示例代码范围",
+          "result": "三层各三次尝试的27次上界成立；示例明确仅演示退避，未声称已实现共享预算或已运行供应商调用。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/engineering/03-output-safety/05-structured-output-contracts.md",
+      "disposition": "revised",
+      "summary": "纠正图中先验Schema再解析的顺序，补拒绝/截断分支、有预算修复和业务授权；说明5.4是扩展契约，不可直接输入5.3禁止额外字段的模型；收窄重试必然有效和自由文本不能被任何程序消费的断言。",
+      "technical_checks": [
+        {
+          "check": "JSON模式、严格输出、拒绝与截断",
+          "result": "核对官方Structured Outputs正文与错误处理示例：JSON语法不等于Schema，拒绝未必符合业务Schema，长度上限可产生不完整响应。",
+          "source_urls": [
+            "https://developers.openai.com/api/docs/guides/structured-outputs"
+          ]
+        },
+        {
+          "check": "两个代码示例的契约兼容性",
+          "result": "静态对照发现扩展示例含schema_version和confidence，而前例extra=forbid；通过正文明确示例边界，没有冒称执行Pydantic或API实验。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/engineering/03-output-safety/06-guardrails-degradation.md",
+      "disposition": "revised",
+      "summary": "把自动逐级换模型的图改为按风险选择处置，表格、解释与总结同步；区分普通信息查询与高影响决定，不只凭支付/医疗主题词决定风险，也不把模板返回计作任务完成。",
+      "technical_checks": [
+        {
+          "check": "降级图、处置表和安全原则一致性",
+          "result": "确认越权、泄密和禁止动作不得换模型放行；缩小任务仍需授权，缓存仍需当前权限与时效校验。",
+          "source_urls": []
+        },
+        {
+          "check": "护栏指标与流式放行",
+          "result": "保留误报率与拦截中误伤占比的不同分母，以及已发送流式内容不可撤回的边界。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md",
+      "disposition": "retained",
+      "summary": "完整通读后保留。开发/回归/留出集、配对比较、重复采样非独立样本、非显著不代表不劣、关键风险不可被均分抵消均已讲清；Evals退役日期与一级来源一致。",
+      "technical_checks": [
+        {
+          "check": "OpenAI Evals平台退役时间",
+          "result": "2026-06-03公告仍列明2026-10-31只读、2026-11-30仪表盘和API关闭；章节正确区分托管平台与开源openai/evals及工程方法。",
+          "source_urls": [
+            "https://developers.openai.com/api/docs/deprecations"
+          ]
+        },
+        {
+          "check": "100次独立试验零失败的单侧上界",
+          "result": "按1-0.05^(1/100)核算约2.95%，与文中rule of three约3%一致；已限定独立同分布二项试验。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/engineering/04-evaluation-observability/08-online-observability-tracing.md",
+      "disposition": "revised",
+      "summary": "明确图中根Span和模型请求的插桩边界，编排层最终校验另作请求子Span；不再声称只有Trace才能定位步骤。GenAI约定入口直接指向独立仓库，迁移核对说明移至参考资料。",
+      "technical_checks": [
+        {
+          "check": "OpenTelemetry GenAI语义约定入口状态",
+          "result": "官方旧入口明确显示Moved且不再维护，指向semantic-conventions-genai；保留固定约定与插桩版本、逐字段核对稳定性的要求。",
+          "source_urls": [
+            "https://opentelemetry.io/docs/specs/semconv/gen-ai/",
+            "https://github.com/open-telemetry/semantic-conventions-genai"
+          ]
+        },
+        {
+          "check": "采样与统计口径",
+          "result": "失败偏采样不能直接计算总体错误率，实例p99不能平均为全局p99，HMAC仍为假名化；这些正确内容保持。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/engineering/05-release-pipeline/09-prompt-model-data-versioning.md",
+      "disposition": "revised",
+      "summary": "Schema变更要求重新验证兼容性，不必然改Prompt文本；常见错误和总结补回供应商支持固定快照的条件，保留退役、探针与替代路径。",
+      "technical_checks": [
+        {
+          "check": "Schema与Prompt是否必须同时修改",
+          "result": "严格结构可以经独立Schema参数配置，因此文本修改与兼容性复验需要区分。",
+          "source_urls": [
+            "https://developers.openai.com/api/docs/guides/structured-outputs"
+          ]
+        },
+        {
+          "check": "快照锁定与永久可用",
+          "result": "官方退役文档仍列模型/快照关闭时间；保留历史快照仅作示例、锁定不保证逐字复现的说明。",
+          "source_urls": [
+            "https://developers.openai.com/api/docs/deprecations"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/engineering/05-release-pipeline/10-llm-cicd-canary-ab.md",
+      "disposition": "revised",
+      "summary": "图中影子测试改为按风险选择，逐档放量均返回线上门禁；对照表不再把灰度定义为只能单调增加，也不把A/B固定为50/50或首次显著即结束。",
+      "technical_checks": [
+        {
+          "check": "影子流量与放量闭环",
+          "result": "正文已有隔离写操作、资源和数据流向的前提，图已同步；最终全量阶段也需观察而非从一次小流量通过直达完成。",
+          "source_urls": []
+        },
+        {
+          "check": "A/B与回滚的解释",
+          "result": "保留随机化单位、SRM、置信区间、多重比较、序贯检验及版本粘性；回滚不能撤销已执行副作用的边界未删。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/engineering/06-performance-operations/11-caching-batching-throughput-cost.md",
+      "disposition": "revised",
+      "summary": "区分API计费与自托管成本；澄清前缀缓存减少prefill但生成仍读取历史KV，删除示例中必然命中的注释；实时任务不长时间攒批不等于引擎不能连续批处理，前缀变化也不必然让所有缓存失效。",
+      "technical_checks": [
+        {
+          "check": "Batch定价、窗口与逐项身份",
+          "result": "OpenAI官方Batch文档仍列相对同步API的50%折扣、24小时窗口及唯一custom_id；章节正确限定为产品条件而非批处理定律。",
+          "source_urls": [
+            "https://developers.openai.com/api/docs/guides/batch"
+          ]
+        },
+        {
+          "check": "缓存、并发与业务正确性",
+          "result": "保留相似度不等于答案等价、命中后再授权、单进程Semaphore不限制全局配额/等待队列；补充计算层次以避免把KV复用解释成上下文不再参与计算。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/engineering/06-performance-operations/12-slo-capacity-incident-response.md",
+      "disposition": "revised",
+      "summary": "修复事故图只把错误率归因供应商、把质量下降归因模型换版的单一路径，改为根据自身证据排查数据/依赖/配额/配置后选择止损措施；保留SLO、错误预算与Little定律边界。",
+      "technical_checks": [
+        {
+          "check": "错误预算示例单位与算术",
+          "result": "100万有效请求、99.9%目标允许1000个坏事件，已用700剩300；代码返回请求数而非停机分钟，多指标预算不能相加。",
+          "source_urls": []
+        },
+        {
+          "check": "容量与事故归因",
+          "result": "平均在途量不能推导p99容量；自身探针与版本证据比供应商状态页单一线索更充分，图已与正文一致。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/engineering/06-performance-operations/13-feedback-loop-data-flywheel.md",
+      "disposition": "revised",
+      "summary": "反馈图补使用授权，并让新训练模型先经过发布门禁，不再直接入生产；去掉数据量达到即可训练、Prompt/路由能解决大部分问题及反馈必须全部留存回流的暗示。",
+      "technical_checks": [
+        {
+          "check": "两张反馈图与发布流程一致性",
+          "result": "短周期回归与长周期训练都经过评测发布；训练还需任务适配、可靠标签、使用授权与独立证据。",
+          "source_urls": []
+        },
+        {
+          "check": "反馈偏差与根因处置",
+          "result": "点赞/放弃不直接当标签，修复可落在检索、工具、权限或流程；隐私要求删除也是有效处置。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/safety/01-threat-modeling/01-ai-threat-modeling-attack-surface.md",
+      "disposition": "revised",
+      "summary": "区分训练/微调/检索数据，修复预训练语料直接变成微调数据的图示；明确生命周期图不是每个请求的必经流程，Host策略不能替代资源服务授权。",
+      "technical_checks": [
+        {
+          "check": "NIST AI RMF状态及GenAI Profile",
+          "result": "官网确认RMF1.0自愿使用且正在修订，AI600-1于2024-07-26发布；章节未把修订中版本当已发布标准。",
+          "source_urls": [
+            "https://www.nist.gov/itl/ai-risk-management-framework"
+          ]
+        },
+        {
+          "check": "OWASP两套Top10及框架用途",
+          "result": "官方Agentic Applications2026资源页存在；保留它与LLM2025、Agentic威胁指南不是同一文档，以及ATLAS/RMF/OWASP用途不同的解释。",
+          "source_urls": [
+            "https://genai.owasp.org/llm-top-10/",
+            "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/safety/02-prompt-content-attacks/02-prompt-injection-jailbreak-system-prompt-leakage.md",
+      "disposition": "revised",
+      "summary": "把唯一可靠防御的口号改为不依赖系统提示保密的具体安全目标；日志默认只留元数据，复现片段按授权采集；修复OWASP LLM07失效链接。",
+      "technical_checks": [
+        {
+          "check": "System Prompt Leakage的风险根因",
+          "result": "旧URL返回404，官方新页强调提示本身不应当作秘密/安全控制，风险在其中的敏感数据与被委托给模型的授权；修订与该界限一致。",
+          "source_urls": [
+            "https://genai.owasp.org/llmrisk/llm072025-system-prompt-leakage/"
+          ]
+        },
+        {
+          "check": "注入、越狱、泄漏的目标是否混淆",
+          "result": "保留三者可组合但不同义、角色结构不是确定性安全边界，以及研究结果不能外推到所有模型的限定。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/safety/02-prompt-content-attacks/03-output-handling-secret-exfiltration.md",
+      "disposition": "revised",
+      "summary": "同步CSV和出口检查表与正文：普通引号转义、域名白名单及代理不构成完整防护；补工具可直接外传数据而不先经过模型上下文的路径。示意域名换为保留的.example，修复LLM02/05来源链接。",
+      "technical_checks": [
+        {
+          "check": "CSV公式防护跨客户端边界",
+          "result": "OWASP原文明确保存后重开可能激活公式、无通用净化策略；正文与检查表统一强调文本类型及目标客户端往返验证。",
+          "source_urls": [
+            "https://owasp.org/www-community/attacks/CSV_Injection"
+          ]
+        },
+        {
+          "check": "不同输出消费点的控制",
+          "result": "SQL参数化、Shell参数校验、渲染净化与资源授权分别保留，不再用笼统净化涵盖全部风险；更新后的官方风险页可访问。",
+          "source_urls": [
+            "https://genai.owasp.org/llmrisk/llm052025-improper-output-handling/",
+            "https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/safety/03-data-model-supply-chain/04-training-finetuning-rag-poisoning.md",
+      "disposition": "revised",
+      "summary": "删除微调一定更易投毒、偏好污染一定更隐蔽等无条件排序；区分无目标退化和针对群体/结论的目标型污染，解释RLHF与DPO入口；ML-BOM只记录血缘，不自动保证所有改动可追溯。修复LLM04来源链接。",
+      "technical_checks": [
+        {
+          "check": "250份文档后门研究的条件",
+          "result": "Anthropic联合研究原文确认600M–13B、窄乱码后门及约250份污染文档；对更大模型、更有害目标仍保留不确定性，章节限定正确。",
+          "source_urls": [
+            "https://www.anthropic.com/research/small-samples-poison"
+          ]
+        },
+        {
+          "check": "训练与RAG投毒的恢复边界",
+          "result": "保留权重影响不能靠删除源文档消除、RAG删除还需传播至索引缓存派生记忆的区分；不存在按数据规模决定的统一难度顺序。",
+          "source_urls": [
+            "https://genai.owasp.org/llmrisk/llm042025-data-and-model-poisoning/"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/safety/03-data-model-supply-chain/05-model-supply-chain-serialization-risks.md",
+      "disposition": "revised",
+      "summary": "技术正文完整通读并保留，仅修复OWASP LLM03参考链接与标题。已有内容准确区分文件扩展名、加载模式、safetensors格式边界、远程代码、签名和行为后门。",
+      "technical_checks": [
+        {
+          "check": "PyTorch2.6的weights_only默认值与allowlist",
+          "result": "2.6官方文档确认未传pickle_module时默认weights_only=True，禁止动态导入，放宽加载或添加allowlist需要信任来源；静态扫描可能漏动态构造类型。",
+          "source_urls": [
+            "https://docs.pytorch.org/docs/2.6/notes/serialization.html#torch-load-with-weights-only-true"
+          ]
+        },
+        {
+          "check": "来源可信、格式约束与模型行为",
+          "result": "签名不证明无后门，张量格式不阻止附带脚本或框架漏洞的限定充分；更新后的官方供应链风险页可访问。",
+          "source_urls": [
+            "https://genai.owasp.org/llmrisk/llm032025-supply-chain/"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/safety/03-data-model-supply-chain/06-privacy-pii-memory-leakage.md",
+      "disposition": "revised",
+      "summary": "日志默认策略由脱敏原文落盘改为最小元数据，必要诊断材料另做授权与保留；总结不再把应用记忆泄漏排除在访问控制之外。修复LLM02来源链接。",
+      "technical_checks": [
+        {
+          "check": "OpenAI训练使用、日志、状态和ZDR承诺",
+          "result": "官方数据控制文档确认默认不用于训练不等于不留存，滥用监控通常最多30天但有例外，ZDR需批准且有端点/功能限制。",
+          "source_urls": [
+            "https://developers.openai.com/api/docs/guides/your-data"
+          ]
+        },
+        {
+          "check": "DP、成员推断、应用记忆边界",
+          "result": "保留样本级/用户级DP及组合预算区别、成员推断是统计证据、同一模型处理独立请求不自动共享状态、删除原文不等于消除权重影响。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md",
+      "disposition": "revised",
+      "summary": "补不透明令牌与JWT的不同验证方式；按RFC8693说明历史act只供追溯，不能用于扩权；权限交集不是scope字符串运算。共享旧系统账号需可信连接器与委托审计，不一概声称无法归因。",
+      "technical_checks": [
+        {
+          "check": "MCP授权的版本、传输和OAuth状态",
+          "result": "2026-07-28官方规范针对HTTP，引用OAuth2.1草案；STDIO不按同一流程处理，章节保留了这些限制。",
+          "source_urls": [
+            "https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization"
+          ]
+        },
+        {
+          "check": "Token Exchange与令牌内省",
+          "result": "RFC8693第4.1节明确只以顶层声明与当前行动者作访问控制，历史act仅为信息；RFC7662允许资源方查询令牌active状态、权限和授权上下文。",
+          "source_urls": [
+            "https://www.rfc-editor.org/rfc/rfc8693.html",
+            "https://www.rfc-editor.org/rfc/rfc7662.html"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/safety/04-agent-execution-isolation/08-code-execution-browser-computer-use-sandboxing.md",
+      "disposition": "revised",
+      "summary": "出口控制交叉引用从8.4改为实际的8.5；总结按真实桌面权限限定Computer Use，不再说必然覆盖整个操作系统，网络例外与正文的逐服务放行保持一致。修复LLM06来源链接。",
+      "technical_checks": [
+        {
+          "check": "隔离和网络边界的图文一致性",
+          "result": "保留容器共享内核、微虚拟机依赖宿主/VMM、代理须在网络层强制且覆盖DNS/IPv6/重定向、允许域名也可能外带的说明。",
+          "source_urls": []
+        },
+        {
+          "check": "能力与实际后果",
+          "result": "桌面工具的影响由权限与共享状态决定；修复后的Excessive Agency官方链接可访问。",
+          "source_urls": [
+            "https://genai.owasp.org/llmrisk/llm062025-excessive-agency/"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/safety/05-assurance-governance/09-security-evaluation-red-teaming-continuous-assurance.md",
+      "disposition": "retained",
+      "summary": "完整通读后保留。已有授权范围、停止条件、合成数据、人工与自动化互补、ASR分母/预算/成功层级、效用和独立留出的完整解释，不需为改变格式而重写。",
+      "technical_checks": [
+        {
+          "check": "攻击成功与统计口径",
+          "result": "区分生成危险文字、产生调用、服务接受和实际资源变化；单次ASR与k次至少一次成功不可直接比较，自适应红队结果不能当真实流量概率。",
+          "source_urls": []
+        },
+        {
+          "check": "持续保障是否被写成安全保证",
+          "result": "原文明确工具覆盖、搜索预算、评分器限制以及零失败非零风险；MTTD、MTTR恢复/修复语义和正常效用均有边界。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/safety/05-assurance-governance/10-ai-governance-risk-classification-audit-provenance.md",
+      "disposition": "revised",
+      "summary": "法律段落先回答不同义务不能共用一个生效日，保留修订后的适用日期及例外，把公报/核对过程移到参考资料；纠正跨境不是数据事件披露前提，补GDPR33/34出处；C2PA版本说明集中到参考资料。",
+      "technical_checks": [
+        {
+          "check": "Regulation(EU)2026/1744法律效力与适用日期",
+          "result": "EUR-Lex原文确认2026-07-24刊登、第4条第三日生效；第1条(40)项修改113条，III章1–3节除6(5)外分别于2027-12-02和2028-08-02适用，非全部义务统一延期。",
+          "source_urls": [
+            "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ:L_202601744"
+          ]
+        },
+        {
+          "check": "数据事件通知与内容出处的保证边界",
+          "result": "GDPR33/34按风险、角色和时限规定通知，不以跨境为前提；C2PA2.2 Explainer确认出处完整性/信任验证不判断事实真假。",
+          "source_urls": [
+            "https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng",
+            "https://spec.c2pa.org/specifications/specifications/2.2/explainer/Explainer.html"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/fde/01-foundations/01-forward-deployed-engineering.md",
+      "disposition": "revised",
+      "summary": "完整通读并保留1.11全部人物、事件、对话、错误、验收目标和成本故事。仅把1.2五列岗位宽表改为四段等义说明，Evals退役过程移至参考资料，注明历史403记录的日期，移除通用版权页尾；虚构说明仍只在案例开头出现。",
+      "technical_checks": [
+        {
+          "check": "公开案例数字与结果性质",
+          "result": "Microsoft原文确认五分钟、超过2500词及逐条确认业务规则；Baseten原文将70%回产品称为目标；AWS/INRIX写的是可能从数周到数天，均未被改写为作者经历或已测结果。",
+          "source_urls": [
+            "https://devblogs.microsoft.com/all-things-azure/only-believe-what-you-can-validate/",
+            "https://www.baseten.co/blog/forward-deployed-engineering/",
+            "https://aws.amazon.com/blogs/machine-learning/how-inrix-accelerates-transportation-planning-with-amazon-bedrock/"
+          ]
+        },
+        {
+          "check": "案例内数量、门禁与ROI",
+          "result": "100-80=20未发，采购ETA不等于客户交付承诺；120+40+20+20=200验收任务；2400次×4分钟=160小时，成本8288、折合人工19200、净额10912、静态回收约11个月，且均以收益实际兑现为前提。",
+          "source_urls": []
+        },
+        {
+          "check": "供应商版本与数据处理条件",
+          "result": "复核Evals退役时间和默认30天滥用监控及例外/ZDR审批条件，保留store=false不是所有存储总开关的说明。",
+          "source_urls": [
+            "https://developers.openai.com/api/docs/deprecations",
+            "https://developers.openai.com/api/docs/guides/your-data"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/fde/02-field-practice/02-delivery-lessons.md",
+      "disposition": "revised",
+      "summary": "完整通读并保留按现场事件展开的范围协商、待决事项、PoC记录、记忆、验收与换人交接。去掉重复虚构提示和通用版权页尾，以已接受状态替代任务卡变绿的彩色依赖，参考资料补实际代码复核范围。",
+      "technical_checks": [
+        {
+          "check": "OpenFDE固定提交的eval与accepted关系",
+          "result": "读取e2dec16中的eval.ts和tasks.ts：eval把结果写入审计/数据集；review到accepted的状态转换未检查评测通过，保留原章判断。",
+          "source_urls": [
+            "https://github.com/memovai/openfde/blob/e2dec1608f7cdebd8cfe587cd94fc0c346bff6bb/apps/cli/src/commands/eval.ts",
+            "https://github.com/memovai/openfde/blob/e2dec1608f7cdebd8cfe587cd94fc0c346bff6bb/packages/core/src/dispatch/tasks.ts"
+          ]
+        },
+        {
+          "check": "local-first与模型数据外发",
+          "result": "同提交anthropic.ts读取文本或将图片/PDF编码后发送messages.parse；本地数据库不等于数据不离机。只做代码阅读，未安装或运行四个第三方项目。",
+          "source_urls": [
+            "https://github.com/memovai/openfde/blob/e2dec1608f7cdebd8cfe587cd94fc0c346bff6bb/packages/core/src/extraction/anthropic.ts"
+          ]
+        }
+      ]
+    }
+  ],
+  "validation": [
+    {
+      "command": "python3 scripts/check_docs.py",
+      "result": "chapters=143 issues=0；现有脚本无范围选择参数，检查了全仓编号、数学分隔符、内部目标与导航一致性。"
+    },
+    {
+      "command": "npm run check:mermaid",
+      "result": "diagrams=485 failures=0；初次因缺jsdom失败，随后npm ci --ignore-scripts恢复锁文件中的既有依赖后通过，未改依赖清单。"
+    },
+    {
+      "command": "范围内清单、基线与静态示例核对",
+      "result": "25章一一覆盖，22 revised / 3 retained，16个索引已读；25章H1/H2/H3逐项与基线一致，47个章节Mermaid代码块数量保留；19段Python通过AST语法解析，2段JSON可解析；FDE1.11与基线逐字一致，案例算术一致，通用版权页尾为0。"
+    },
+    {
+      "command": "git diff --check",
+      "result": "通过；改动限制在授权的三个主题目录及本审校记录。"
+    }
+  ],
+  "review_notes": [
+    "25章正文与16个索引均完整阅读；22章有修改，3章保留。没有改H1、路径、章数、章号或H2/H3标题，因此没有新增标题锚点迁移。",
+    "删除7处通用Polo Li/CC BY页尾，保留技术出处、第三方真实归属与全部源Mermaid；FDE1.11故事正文不改。",
+    "OWASP官方风险页迁移影响其他目录的同型链接，已通知父会话；范围外文件未修改。",
+    "本轮未新增第三方原文、图片或代码转载，也未发现需要删除或迁移的独立法定代码许可块；全书作者署名、许可汇总与KDP出版授权由父会话统一处理。",
+    "来源核对仅覆盖各technical_checks所列项目，不宣称重跑论文实验、供应商API或第三方开源项目；历史Medium/X等全部链接未做逐个可达性或授权法律审查。",
+    "完整MkDocs构建、GitHub/Wiki/电子书最终版式与链接呈现由父会话统一验证；本地不push、不创建PR。"
+  ]
+}

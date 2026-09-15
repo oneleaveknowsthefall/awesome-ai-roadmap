@@ -72,12 +72,12 @@ flowchart TB
 ```mermaid
 flowchart TB
     ALERT["告警触发"] --> TRIAGE{"故障类型?"}
-    TRIAGE -->|错误率飙升| CHECK_PROVIDER["检查是否供应商侧故障<br/>(状态页/官方公告)"]
-    TRIAGE -->|质量下降但无报错| CHECK_MODEL["检查是否模型版本被静默切换<br/>(见第9章版本锁定)"]
-    TRIAGE -->|契约违反率上升| CHECK_PROMPT["检查最近的 Prompt/路由变更"]
-    CHECK_PROVIDER --> MITIGATE["触发回退到备用供应商<br/>(第3章)"]
-    CHECK_MODEL --> MITIGATE2["锁定到已知良好的模型快照"]
-    CHECK_PROMPT --> ROLLBACK["回滚到上一个版本注册表快照<br/>(第9、10章)"]
+    TRIAGE -->|错误率飙升| CHECK_PROVIDER["结合自身探针排查<br/>入口、依赖、配额和供应商"]
+    TRIAGE -->|质量下降但无报错| CHECK_MODEL["对照版本与证据<br/>查数据、检索、缓存、工具和模型"]
+    TRIAGE -->|契约违反率上升| CHECK_PROMPT["查响应状态、截断<br/>Schema、Prompt 与路由变更"]
+    CHECK_PROVIDER --> MITIGATE["按已确认原因止损<br/>限流、受控回退、停用或回滚"]
+    CHECK_MODEL --> MITIGATE
+    CHECK_PROMPT --> MITIGATE
 ```
 
 质量下降但无异常并非 LLM 独有。服务返回 200、Schema 合规，也可能因检索权限、数据新鲜度、缓存或工具失败而生成错误内容；不要仅归因于模型升级。这也是为什么[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md)强调要采集足够的元数据(模型快照版本、路由决策)来支撑这类排查。

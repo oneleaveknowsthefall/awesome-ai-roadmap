@@ -40,6 +40,4 @@ flowchart LR
 | AI 安全与治理 | 如何控制跨层风险 | 满足客户数据、权限、审计和合规要求 |
 | FDE | 如何把上述能力转化成客户结果 | 对问题、交付和现场反馈闭环负责 |
 
-原创文档与图示：Polo Li，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。
-
 返回[文档主题索引](../README.md)。

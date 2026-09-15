@@ -62,7 +62,9 @@ flowchart LR
 
 1. **委托不得隐式放大权限**：有效权限受主体可委托范围、显式授权、接收方策略、资源归属和任务约束共同限制。「交集」是策略原则，不是把不同服务的 scope 字符串直接求交集；需由授权系统映射语义。
 2. **使用受验证的委托信息**：RFC 8693 Token Exchange 定义 `subject_token`、`actor_token`，JWT `act` 可表达行动者；`act_as`、`on_behalf_of` 不是所有 OAuth 实现通用的标准声明。令牌交换不自动保证权限衰减，签发方仍须执行策略。
-3. **每跳重新授权**：资源服务验证签名、issuer、audience、有效期和本地资源权限；仅在 Prompt、请求头或 JSON 中写「代表用户 A」不是授权证明。
+3. **每跳重新授权**：资源服务按令牌类型校验。JWT 需检查签名、issuer、audience 和有效期；不透明令牌则通过受信的内省接口或服务端状态验证。两者都还要检查本地资源权限，仅在 Prompt、请求头或 JSON 中写「代表用户 A」不是授权证明。
+
+RFC 8693 的嵌套 `act` 可保留历史行动者，但历史项只用于追溯，不能被接收方当成额外授权。令牌消费者按顶层声明与当前行动者执行访问控制；逐跳衰减由签发和资源策略实现，而不是遍历历史 `act` 后自动得出。
 
 人工审批要绑定规范化的动作参数、资源、金额、目的地、有效期与一次性动作 ID。执行前参数变化应重新审批，不能复用一句笼统的「允许 Agent 操作」。用户撤销授权后还需阻断排队任务、清理凭据缓存；短期令牌在过期前仍可能有效，高风险系统要补撤销或实时策略检查。
 
@@ -114,7 +116,7 @@ flowchart TB
 
 ### 7.7.2 多个 Agent/租户共用同一个工具服务账号
 
-这会让审计无法归因到具体发起者，任何异常都难以定位责任，应按 Agent/租户维度拆分凭据。
+若只记录共享服务账号，审计就无法区分实际发起者。应按隔离需求拆分凭据，或使用能验证委托主体并逐次授权的连接器；即使底层旧系统只能用共享账号，上游仍须保留用户、租户、任务与动作的可验证关联。
 
 ### 7.7.3 假设内部 Agent 互调不需要身份校验
 
@@ -128,7 +130,7 @@ flowchart TB
 
 1. 本章聚焦跨系统、组织级的身份治理，与 [Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md) 覆盖的单协议实现细节互补而不重复；
 2. Agent 的身份应明确区分用户委托身份和服务/工作负载身份，工作负载身份联邦 + 短期令牌优于静态长期凭据；
-3. Confused Deputy 是贯穿多层的通用模式，token passthrough 只是其中一种表现，委托链中的有效权限应该是各跳权限的交集而非最大值；
+3. Confused Deputy 是贯穿多层的通用模式；委托不得隐式放大权限，但跨服务的权限语义需要映射，不能对 scope 字符串或历史 `act` 机械求交集；
 4. 多 Agent、跨组织协作场景需要额外的信任边界设计，内部团队之间也不能假设默认可信；
 5. 组织规模化后需要工具注册中心、策略即代码、集中审计和定期权限复核这套舰队级治理机制，而不能依赖逐个人工审批。
 
@@ -137,6 +139,7 @@ flowchart TB
 - [Confused Deputy Problem (Norm Hardy, 1988)](https://cap-lore.com/CapTheory/ConfusedDeputy.html)
 - [MCP 2026-07-28 Authorization: Confused Deputy Considerations](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
 - [RFC 8693: OAuth 2.0 Token Exchange，尤其 1.1、4.1 节](https://www.rfc-editor.org/rfc/rfc8693.html)
+- [RFC 7662: OAuth 2.0 Token Introspection](https://www.rfc-editor.org/rfc/rfc7662.html)
 - [OWASP Agentic AI Threats and Mitigations: Identity and Authorization](https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/)
 - [NIST SP 800-207: Zero Trust Architecture](https://csrc.nist.gov/pubs/sp/800/207/final)
 - [SPIFFE/SPIRE: Workload Identity Framework](https://spiffe.io/)

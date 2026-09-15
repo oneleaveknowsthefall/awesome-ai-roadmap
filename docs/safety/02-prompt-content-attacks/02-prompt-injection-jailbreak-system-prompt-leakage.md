@@ -101,9 +101,9 @@ OWASP 将其单列为 LLM07（System Prompt Leakage），原因是很多团队�
 
 ### 2.4.3 正确的设计原则：把系统提示当作不可靠的保密边界
 
-**唯一可靠的防御是不要依赖系统提示的保密性来实现安全控制。** 具体做法：
+**安全控制不能依赖系统提示保密。** 防御目标是让提示内容即使被获知，攻击者仍无法绕过授权或拿到秘密，而不是承诺提示永不泄漏。具体做法：
 
-- 真正的授权、敏感阈值、密钥判断逻辑放在系统提示之外的确定性代码里执行，系统提示只做行为引导，即使泄漏也不改变安全后果；
+- 真正的授权、敏感阈值、密钥判断逻辑放在系统提示之外的确定性代码里执行，系统提示只做行为引导，泄漏不能授予额外权限；
 - 不在系统提示中写入凭据、内部主机名、未脱敏的客户数据或竞争性商业机密；
 - 输出侧增加对「逐字复述系统提示」模式的检测，作为纵深防御而非唯一防线；
 - 如果业务确实需要保密 Prompt 工程细节（例如商业竞争考虑），应认识到这是**尽力而为的混淆**，而不是安全边界，不能把安全控制建立在它之上。
@@ -114,7 +114,7 @@ OWASP 将其单列为 LLM07（System Prompt Leakage），原因是很多团队�
 
 - 对输入和输出同时做异常检测：输入侧关注编码混淆特征（高熵字符串、语言切换、超长 Few-shot 示例），输出侧关注是否出现了系统提示片段、越权内容或与业务无关的敏感话题；
 - 维护越狱和注入的样本库，定期跑回归（详见第九章），因为对齐模型的行为会随版本更新变化，旧的防御可能对新版本模型失效或过度触发；
-- 记录（但脱敏后记录）触发防御的原始输入，用于分析攻击趋势，同时避免日志本身成为敏感信息泄漏点。
+- 默认记录触发规则、来源类别和决策等元数据；需要复现时，再按授权保留最小必要、脱敏的输入片段，设置访问权限与期限，不默认保存原始对话。
 
 ## 2.6 常见错误
 
@@ -139,13 +139,13 @@ Base64、同形字和语言混合等方式可能避开精确匹配，单靠静�
 1. 三者目标不同且可能组合；角色结构能表达优先级，却不是确定性的授权与保密边界；
 2. 编码与跨轮组合会降低静态词表覆盖，多 Agent 的来源标注和逐跳授权不能因上游处理过内容而省略；
 3. Jailbreak 手法可分为角色扮演、情境包装、多轮蚕食、对抗后缀和 Many-shot 五类，安全对齐是概率性缓解而非确定性边界；
-4. 系统提示泄漏被 OWASP 单列为 LLM07，唯一可靠的防御是**不把安全控制建立在系统提示保密性之上**；
+4. 系统提示泄漏被 OWASP 单列为 LLM07，关键是**不把安全控制建立在系统提示保密性之上**，提示抽取检测只能提供补充信号；
 5. 检测与红队需要覆盖多轮对话和持续更新的攻击样本库，而不是一次性静态测试。
 
 ## 参考资料
 
 - [OWASP LLM01:2025 Prompt Injection](https://genai.owasp.org/llmrisk/llm01-prompt-injection/)
-- [OWASP LLM07:2025 System Prompt Leakage](https://genai.owasp.org/llmrisk/llm07-system-prompt-leakage/)
+- [OWASP LLM07:2025 System Prompt Leakage](https://genai.owasp.org/llmrisk/llm072025-system-prompt-leakage/)
 - [Many-shot Jailbreaking (Anthropic)](https://www.anthropic.com/research/many-shot-jailbreaking)
 - [Universal and Transferable Adversarial Attacks on Aligned Language Models](https://arxiv.org/abs/2307.15043)
 - [Ignore This Title and HackAPrompt: Exposing Systemic Vulnerabilities of LLMs](https://arxiv.org/abs/2311.16119)

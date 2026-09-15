@@ -9,17 +9,24 @@ description: 区分工具调用、JSON 模式和严格结构化输出，处理�
 生产系统里的 LLM 输出既可能展示给人，也可能被程序解析——填进数据库字段、驱动一次 API 调用、拼进另一个 Prompt。自由文本生成天然带有格式不稳定的风险:同一个 Prompt 多次调用,模型可能这次输出 `{"amount": 100}`,下次输出 `金额是100元`。**契约校验的作用,是在模型输出和下游程序之间建立一层可验证的接口。**
 
 ```mermaid
-flowchart LR
+flowchart TB
     P["Prompt"] --> M["模型生成"]
     M --> RAW["原始输出"]
-    RAW --> SCHEMA{"符合 Schema?"}
-    SCHEMA -->|是| PARSE["解析为结构化对象"]
-    SCHEMA -->|否| REPAIR["修复策略:<br/>重试/回填错误/降级"]
-    REPAIR --> M
-    PARSE --> DOWNSTREAM["下游程序消费"]
+    RAW --> STATUS{"正常完成且未拒绝?"}
+    STATUS -->|否| STOP["按拒绝、截断或失败处置"]
+    STATUS -->|是| PARSE["解析 JSON"]
+    PARSE -->|解析成功| SCHEMA{"符合 Schema?"}
+    PARSE -->|解析失败| REPAIR{"可修复且还有预算?"}
+    SCHEMA -->|否| REPAIR
+    REPAIR -->|是| M
+    REPAIR -->|否| STOP
+    SCHEMA -->|是| BUSINESS["核对业务事实与权限"]
+    BUSINESS --> DOWNSTREAM["通过后交给下游消费"]
 
     style SCHEMA fill:#fff3cd
 ```
+
+顺序是先检查响应状态，再解析 JSON、验证 Schema，最后核对业务条件。解析和 Schema 校验可以由同一个库完成，但它们不是同一个判断；任何一层失败，都不能把半成品交给下游执行。
 
 ## 5.2 接口形式与约束强度要分开看
 
@@ -71,7 +78,7 @@ def parse_model_output(raw_json: str) -> ExtractedOrder:
 }
 ```
 
-请求配置决定预期的 `schema_version`，不能让模型声明任意版本后就选择更宽松的解析器。Prompt 与 Schema 分别编号、显式关联并一起发布。示例的 `confidence` 只是一个数值，不是经校准的正确概率，不能单独作为支付或自动审批依据。
+这是扩展契约的独立示例，新增了 `schema_version` 和 `confidence`，不能直接传给 5.3 节禁止额外字段的模型类。请求配置决定预期的 `schema_version`，不能让模型声明任意版本后就选择更宽松的解析器。Prompt 与 Schema 分别编号、显式关联并一起发布。示例的 `confidence` 只是一个数值，不是经校准的正确概率，不能单独作为支付或自动审批依据。
 
 ## 5.5 修复策略:校验失败之后怎么办
 
@@ -114,7 +121,7 @@ def parse_with_repair(raw_text: str, schema: type, max_repairs: int = 1):
 
 ### 5.6.4 校验失败后无脑原样重试
 
-同样的 Prompt 大概率产生同样的错误。更有效的做法是把错误信息回填给模型,或者切换到修复策略里更强的手段。
+同样的 Prompt 可能重复原来的错误，回填错误也不保证有效。先判断失败能否通过重新生成解决，再在共同的次数、费用与超时预算内选择修复方式；拒绝、权限不足和不支持的 Schema 不能靠反复生成解决。
 
 ### 5.6.5 混淆"格式正确"和"内容正确"
 
@@ -122,7 +129,7 @@ def parse_with_repair(raw_text: str, schema: type, max_repairs: int = 1):
 
 ## 5.7 本章总结
 
-1. **自由文本不能被下游程序直接消费**,契约校验是模型输出和下游系统之间的必要接口层;
+1. **程序需要结构化字段或执行动作时，不能直接信任自由文本**，应建立可验证的契约；单纯展示文本也仍需按渲染环境做安全处理;
 2. **工具调用是接口形式，不是固定的约束等级**；JSON 语法约束与严格 Schema 约束要区分;
 3. **约束解码解决格式问题,不解决内容语义问题**,两者需要不同的机制兜底;
 4. **接收端必须独立做 Schema 校验**,不能假设生成端一定按约束生效;

@@ -118,7 +118,7 @@ sequenceDiagram
 
 ## 参考资料
 
-- [OWASP LLM03:2025 Supply Chain Vulnerabilities](https://genai.owasp.org/llmrisk/llm03-supply-chain/)
+- [OWASP LLM03:2025 Supply Chain](https://genai.owasp.org/llmrisk/llm032025-supply-chain/)
 - [Hugging Face: Pickle Scanning and Safetensors](https://huggingface.co/docs/hub/security-pickle)
 - [PyTorch 2.6: Serialization semantics and weights_only](https://docs.pytorch.org/docs/2.6/notes/serialization.html#torch-load-with-weights-only-true)
 - [Sleepy Pickle: Exploiting Machine Learning Pickle Files](https://blog.trailofbits.com/2024/06/11/exploiting-ml-models-with-pickle-file-attacks-part-1/)
