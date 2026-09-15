@@ -103,6 +103,21 @@ class BookTests(unittest.TestCase):
             self.assertIn(expected, text)
         self.assertIn("https://example.org/repository/blob/main/docs/llm/01-foundations/README.md", text)
 
+    def test_module_fragments_after_comments_use_consistent_offsets(self):
+        self.write("docs/llm/01-foundations/README.md",
+                   "# 模块目录\n\n<!-- Generated navigation -->\n\n## 基础\n\n"
+                   "<!-- 多行\n## 不是标题\n注释 -->\n\n## `KV Cache` 基础\n")
+        self.write(self.first, "# 第一章：模型\n\n[基础](README.md#基础)\n"
+                   "[缓存](README.md#kv-cache-基础)\n")
+        text = self.book().assemble()
+        self.assertIn("README.md#%E5%9F%BA%E7%A1%80", text)
+        self.assertIn("README.md#kv-cache-%E5%9F%BA%E7%A1%80", text)
+        with patch.object(builder, "ROOT", self.root), patch("sys.stdout"), patch("sys.stderr"):
+            self.assertEqual(builder.main(["--check"]), 0)
+        self.write(self.first, "# 第一章：模型\n\n[不存在](README.md#不是标题)\n")
+        with self.assertRaisesRegex(builder.BookError, "missing index fragment"):
+            self.book().assemble()
+
     def test_inline_code_in_headings_keeps_spacing_and_complete_fragment(self):
         self.write(self.first, "# 第一章：`LLM` 模型\n\n## 1.1 `KV Cache` 与缓存\n\n"
                    "[本节](#11-kv-cache-与缓存)\n")
@@ -143,6 +158,83 @@ class BookTests(unittest.TestCase):
         self.assertEqual(definitions[0][1], '#llm-02 "标题"')
         self.assertIn(f"[第二章][{definitions[0][0]}]", text)
         self.assertEqual(text.count(f"[ref][{definitions[0][0]}]"), 2)
+
+    def test_reference_labels_can_contain_protected_inline_spans(self):
+        self.write(self.first, "# 第一章：模型\n\n"
+                   "[`KV Cache`][ref] [关于 `KV` 与 `Cache` 的说明][ref]\n"
+                   "[`KV Cache`][] [`KV Cache`] [公式 $x_i$][ref]\n"
+                   "[`直接链接`](../02-second/02-second.md)\n\n"
+                   "[ref]: ../02-second/02-second.md\n"
+                   "[`KV Cache`]: ../02-second/02-second.md#21-机制\n\n"
+                   "```markdown\n[`KV Cache`][ref]\n[ref]: missing.md\n```\n")
+        book = self.book()
+        text = book.assemble()
+        references = book.documents[self.first].references
+        ref = references["ref"]
+        code_ref = references["`kv cache`"]
+        self.assertIn(f"[`KV Cache`][{ref}]", text)
+        self.assertIn(f"[关于 `KV` 与 `Cache` 的说明][{ref}]", text)
+        self.assertIn(f"[公式 $x_i$][{ref}]", text)
+        self.assertEqual(text.count(f"[`KV Cache`][{code_ref}]"), 2)
+        self.assertIn("[`直接链接`](#llm-02)", text)
+        self.assertIn("```markdown\n[`KV Cache`][ref]\n[ref]: missing.md\n```", text)
+        self.assertNotIn("\x00", text)
+        self.write(self.first, "# 第一章：模型\n\n[`KV Cache`][undefined]\n")
+        with self.assertRaisesRegex(builder.BookError, "undefined link reference"):
+            self.book().assemble()
+
+    def test_nested_lists_rewrite_links_but_preserve_actual_indented_code(self):
+        body = (
+            "- 列表\n"
+            "    - [本章](#第一章模型)\n"
+            "        继续阅读[第二章](../02-second/02-second.md)。\n"
+            "        1. [前言](../../book/preface.md)\n\n"
+            "           [同章](#第一章模型)\n\n"
+            "               [列表内代码](missing.md)\n\n"
+            "- 第二项\n\n"
+            "  继续阅读[第二章](../02-second/02-second.md)。\n\n"
+            "      [另一段列表内代码](missing.md)\n\n"
+            "正文恢复。\n\n"
+            "    - [顶层缩进代码里的列表](missing.md)\n\n"
+            "普通段落\n"
+            "    [段落延续](#第一章模型)\n"
+        )
+        self.write(self.first, "# 第一章：模型\n\n" + body)
+        text = self.book().assemble()
+        self.assertIn("    - [本章](#llm-01)", text)
+        self.assertIn("        继续阅读[第二章](#llm-02)", text)
+        self.assertIn("        1. [前言](#preface)", text)
+        self.assertIn("           [同章](#llm-01)", text)
+        self.assertIn("               [列表内代码](missing.md)", text)
+        self.assertIn("      [另一段列表内代码](missing.md)", text)
+        self.assertIn("    - [顶层缩进代码里的列表](missing.md)", text)
+        self.assertIn("    [段落延续](#llm-01)", text)
+        self.write(self.first, "# 第一章：模型\n\n- 列表\n    - [坏锚点](#不存在)\n")
+        with self.assertRaisesRegex(builder.BookError, "missing heading fragment"):
+            self.book().assemble()
+
+    def test_list_container_indentation_handles_tabs_ordered_items_and_fences(self):
+        self.write("docs/assets/image.svg", "<svg/>")
+        self.write(self.first, "# 第一章：模型\n\n"
+                   "10. 外层有序列表\n"
+                   "    - ![图](../../assets/image.svg)\n\n"
+                   "      ```markdown\n"
+                   "      - [代码中的链接](missing.md)\n"
+                   "      ```\n\n"
+                   "      [代码后的本章](#第一章模型)\n\n"
+                   "- 另一列表\n"
+                   "\t- [带制表符缩进](#第一章模型)\n\n"
+                   "正文。\n\n"
+                   "- - -\n\n"
+                   "    [分隔线后的缩进代码](missing.md)\n\n"
+                   "-     [同一行开始的缩进代码](missing.md)\n")
+        text = self.book().assemble()
+        self.assertIn("    - ![图](assets/docs/assets/image.svg)", text)
+        self.assertIn("      - [代码中的链接](missing.md)", text)
+        self.assertIn("      [代码后的本章](#llm-01)", text)
+        self.assertIn("\t- [带制表符缩进](#llm-01)", text)
+        self.assertIn("    [分隔线后的缩进代码](missing.md)", text)
+        self.assertIn("-     [同一行开始的缩进代码](missing.md)", text)
 
     def test_assets_titles_encoded_paths_and_html(self):
         self.write("docs/assets/图 (1).svg", "<svg>asset</svg>")

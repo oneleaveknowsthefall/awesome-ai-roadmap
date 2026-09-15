@@ -20,13 +20,9 @@ CHAPTER = re.compile(r"^(\d{2})-.+\.md$")
 HEADING = re.compile(r"^(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$", re.M)
 ID = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
 SPECIAL = re.compile(
-    r"(?P<fence>^ {0,3}(?P<ticks>`{3,}|~{3,})[^\n]*(?:\n|$))"
-    r"|(?P<display>^\$\$[ \t]*(?:\n|$))"
-    r"|(?P<comment><!--)"
+    r"(?P<comment><!--)"
     r"|(?P<code>`+)"
-    r"|(?P<math>(?<!\\)\$(?!\$))"
-    r"|(?P<indent>^(?: {4}|\t)[^\n]*(?:\n|$))",
-    re.M,
+    r"|(?P<math>(?<!\\)\$(?!\$))",
 )
 ATTRIBUTION = re.compile(
     r"(?:本文原创讲解与示意图|原文与图示|原创文档与图示|原创文档与图"
@@ -70,24 +66,85 @@ def slug(text):
     return text.replace(" ", "-")
 
 
+def block_boundary(body):
+    return re.match(r"#{1,6}\s|`{3,}|~{3,}|\$\$$|<!--", body) or thematic_break(body)
+
+
+def thematic_break(body):
+    return re.fullmatch(r"(?:\* *){3,}|(?:- *){3,}|(?:_ *){3,}", body)
+
+
+class BlockContext:
+    """Track list content columns; indentation is relative to its container."""
+
+    def __init__(self):
+        self.list_columns = []
+        self.paragraph = False
+
+    def classify(self, line):
+        expanded = line.expandtabs(4).rstrip("\n")
+        body = expanded.lstrip(" ")
+        indent = len(expanded) - len(body)
+        if not body:
+            self.paragraph = False
+            return body, 0, False, 0
+        marker = None if thematic_break(body) else re.match(r"([-+*]|\d{1,9}[.)])( +|$)", body)
+        block = block_boundary(body)
+        if marker or block or not self.paragraph:
+            while self.list_columns and indent < self.list_columns[-1]:
+                self.list_columns.pop()
+        base = self.list_columns[-1] if self.list_columns else 0
+        relative = max(0, indent - base)
+        if marker and relative <= 3:
+            padding = len(marker[2])
+            # More than four spaces after a marker starts indented code in the item.
+            padding = padding if 1 <= padding <= 4 else 1
+            base = indent + len(marker[1]) + padding
+            self.list_columns.append(base)
+            remainder = expanded[base:]
+            body = remainder.lstrip(" ")
+            relative = len(remainder) - len(body)
+            self.paragraph = False
+        code = relative >= 4 and not self.paragraph
+        self.paragraph = bool(body) and not code and not block_boundary(body)
+        return body, base, code, relative
+
+
 def segments(text, path):
     """Protect fences, inline code, math and indented code; discard comments."""
+    context = BlockContext()
     position = 0
-    while match := SPECIAL.search(text, position):
+    while position < len(text):
+        newline = text.find("\n", position)
+        line_end = len(text) if newline == -1 else newline + 1
+        if position == 0 or text[position - 1] == "\n":
+            body, base, code, relative = context.classify(text[position:line_end])
+            if code:
+                yield True, text[position:line_end]
+                position = line_end
+                continue
+            fence = re.match(r"(`{3,}|~{3,})", body)
+            display = body.rstrip() == "$$"
+            if relative <= 3 and (fence or display):
+                delimiter = (re.escape(fence[1][0]) + "{" + str(len(fence[1])) + ",}"
+                             if fence else r"\$\$")
+                closing = re.compile(r"^([ \t]*)" + delimiter + r"[ \t]*(?:\n|$)", re.M)
+                stop = next((m for m in closing.finditer(text, line_end)
+                             if base <= len(m[1].expandtabs(4)) <= base + 3), None)
+                require(stop is not None,
+                        f"{path}: unclosed {'code fence' if fence else 'display math'}")
+                yield True, text[position:stop.end()]
+                position = stop.end()
+                context.paragraph = False
+                continue
+        match = SPECIAL.search(text, position, line_end)
+        if match is None:
+            yield False, text[position:line_end]
+            position = line_end
+            continue
         yield False, text[position:match.start()]
         start, end = match.span()
-        if match.group("fence"):
-            ticks = match.group("ticks")
-            closing = re.compile(r"^ {0,3}" + re.escape(ticks[0]) +
-                                 "{" + str(len(ticks)) + r",}[ \t]*(?:\n|$)", re.M)
-            stop = closing.search(text, end)
-            require(stop is not None, f"{path}: unclosed code fence")
-            end = stop.end()
-        elif match.group("display"):
-            stop = re.search(r"^\$\$[ \t]*(?:\n|$)", text[end:], re.M)
-            require(stop is not None, f"{path}: unclosed display math")
-            end += stop.end()
-        elif match.group("comment"):
+        if match.group("comment"):
             end = text.find("-->", end)
             require(end != -1, f"{path}: unclosed HTML comment")
             position = end + 3
@@ -105,17 +162,40 @@ def segments(text, path):
             end += stop.end()
         yield True, text[start:end]
         position = end
-    yield False, text[position:]
 
 
 def inside(root, path):
     return path == root or root in path.parents
 
 
-def visible_headings(text, chunks):
+def visible_headings(chunks):
+    text = "".join(content for _, content in chunks)
     mask = "".join(re.sub(r"[^\n]", " ", content) if protected else content
                    for protected, content in chunks)
     return [match for match in HEADING.finditer(text) if mask[match.start()] == "#"]
+
+
+def protect(chunks):
+    """Keep complete link labels visible while hiding code/math from rewriting."""
+    replacements, pieces = {}, []
+    for protected, content in chunks:
+        require("\x00" not in content, "NUL is not valid in Markdown input")
+        if protected:
+            token = f"\x00{len(replacements)}\x00" + "\n" * content.count("\n")
+            replacements[token] = content
+            pieces.append(token)
+        else:
+            pieces.append(content)
+    pattern = re.compile("|".join(re.escape(token) for token in replacements)) if replacements else None
+
+    def restore(value):
+        return pattern.sub(lambda m: replacements[m[0]], value) if pattern else value
+
+    return "".join(pieces), restore
+
+
+def reference_key(label):
+    return " ".join(label.lower().split())
 
 
 def source_path(root, value):
@@ -276,7 +356,7 @@ class Book:
         document.chunks = list(segments(text, document.path))
         prose = "".join(re.sub(r"[^\n]", " ", content) if protected else content
                         for protected, content in document.chunks)
-        source_headings = visible_headings(text, document.chunks)
+        source_headings = visible_headings(document.chunks)
         h1 = [m for m in source_headings if len(m[1]) == 1]
         require(len(h1) == 1, f"{document.path}: expected exactly one H1")
         require(text[:h1[0].start()].strip() == "", f"{document.path}: content precedes H1")
@@ -307,8 +387,9 @@ class Book:
             document.headings[match.start()] = anchor
             document.aliases[alias] = anchor
             document.aliases[anchor] = anchor
-        for ref in REFERENCE.finditer(prose):
-            key = " ".join(ref[1].lower().split())
+        protected_text, restore = protect(document.chunks)
+        for ref in REFERENCE.finditer(protected_text):
+            key = reference_key(restore(ref[1]))
             require(not key.startswith("^"), f"{document.path}: footnotes are not supported")
             require(key not in document.references, f"{document.path}: duplicate reference: {key}")
             document.references[key] = f"{document.id}-ref-{digest(key.encode())[:12]}"
@@ -351,7 +432,7 @@ class Book:
                 counts = {}
                 text = target.read_text(encoding="utf-8")
                 chunks = list(segments(text, relative))
-                for heading in visible_headings(text, chunks):
+                for heading in visible_headings(chunks):
                     name = slug(heading[2])
                     count = counts.get(name, 0)
                     aliases.add(name + (f"-{count}" if count else ""))
@@ -408,14 +489,14 @@ class Book:
         pieces.append(content[position:])
         return "".join(pieces)
 
-    def rewrite_prose(self, content, document):
+    def rewrite_prose(self, content, document, restore):
         require(not re.search(r"\[\^[^\]]+\]", content),
                 f"{document.path}: footnotes need an explicit book conversion")
         content = self.rewrite_destinations(content, document)
 
         def reference(match):
             label, explicit = match[1], match[2]
-            key = " ".join((explicit or label).lower().split())
+            key = reference_key(restore(explicit or label))
             if explicit is not None:
                 require(key in document.references,
                         f"{document.path}: undefined link reference: {key}")
@@ -427,7 +508,7 @@ class Book:
         for line in content.splitlines(keepends=True):
             definition = REFERENCE.match(line)
             if definition:
-                key = " ".join(definition[1].lower().split())
+                key = reference_key(restore(definition[1]))
                 line = line.replace("[" + definition[1] + "]:",
                                     "[" + document.references[key] + "]:", 1)
             else:
@@ -462,9 +543,8 @@ class Book:
 
         text = "".join(content for _, content in document.chunks)
         text = HEADING.sub(heading, text)
-        result = [content if protected else self.rewrite_prose(content, document)
-                  for protected, content in segments(text, document.path)]
-        return "".join(result).strip()
+        protected_text, restore = protect(segments(text, document.path))
+        return restore(self.rewrite_prose(protected_text, document, restore)).strip()
 
     def contents(self, website=False):
         link = (lambda d: os.path.relpath(self.root / d.path, self.root / "docs/book")) \
