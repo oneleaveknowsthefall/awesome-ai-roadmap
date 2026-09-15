@@ -58,6 +58,8 @@ flowchart TB
 
 `@tool` 默认从**函数签名推导参数 Schema**、把 docstring 用作工具描述；逐参数的 docstring 解析需显式启用 `parse_docstring=True` 并遵循支持的格式。复杂约束可通过 Pydantic 显式声明，不能假设自然语言描述就会成为运行时校验器。
 
+下面的订单状态是教学用固定返回值，用于观察参数契约，不是实际查询结果。
+
 ```python
 from typing import Literal
 
@@ -124,7 +126,7 @@ agent = create_agent(
 | 参数类型 | 示例 | 来源 |
 |---|---|---|
 | **任务参数** | 城市、关键词、订单号 | **模型**根据用户问题生成 |
-| **可信参数** | 用户 ID、租户、权限、当前状态 | **应用运行时注入** |
+| **可信身份与依赖** | 已认证用户 ID、租户、服务端权限 | **应用运行时注入** |
 
 ### 5.5.2 ToolRuntime 的三个作用域与完整接线
 
@@ -147,7 +149,11 @@ class UserContext:
     user_id: str
     tenant_id: str
     permissions: frozenset[str]
+```
 
+接着定义读写工具。两者使用同一个 namespace 规则；未保存语言时，本例约定产品默认语言为 `zh-CN`。
+
+```python
 @tool
 def save_locale(
     locale: str,
@@ -170,8 +176,12 @@ def get_locale(runtime: ToolRuntime[UserContext]) -> str:
     namespace = ("profile", runtime.context.tenant_id, runtime.context.user_id)
     item = runtime.store.get(namespace, "locale")
     return item.value["value"] if item else "zh-CN"
+```
 
-store = InMemoryStore()  # 仅为可运行示例；生产环境换成持久化 Store。
+最后把依赖类型、Store 和工具接入 Agent，再传入认证层构造的上下文。
+
+```python
+store = InMemoryStore()  # 进程内演示；生产环境换成持久化 Store。
 agent = create_agent(
     model="<provider>:<your-model-id>",
     tools=[save_locale, get_locale],
@@ -191,7 +201,7 @@ result = agent.invoke(
 )
 ```
 
-`context_schema=UserContext` 是让框架知道 Context 类型的接线；没有它，`ToolRuntime[UserContext]` 只是工具函数的类型标注。模型只能看到 `locale`，看不到 `runtime`、身份或 Store namespace。
+`context_schema=UserContext` 声明 Agent 的 Context 类型，`context=` 才传入本次调用的数据；`ToolRuntime[UserContext]` 注解本身不会完成认证或构造身份。模型可见的工具参数只有 `locale`，不含 `runtime`。如果工具把身份或 namespace 写进结果、错误或日志，它们仍可能泄漏，不能把参数隐藏理解为全面脱敏。
 
 可信身份边界在 Agent 外部：认证层验证凭证、查出服务端权限后才构造 `UserContext`。不要从用户消息、模型输出、工具参数或浏览器传入的 `user_id` 创建它；工具服务还应对该身份重新执行授权。`runtime.state` 是当前线程的业务状态，不应用来伪造身份；`runtime.store` 也不是访问控制系统。
 
@@ -216,7 +226,7 @@ result = agent.invoke(
 | **临时故障** | 网络超时、限流、服务不可用 | **有上限**的重试 + 退避 + **总超时** |
 | **真实缺陷** | 程序 Bug、数据损坏、权限配置错误 | **不应统一转成「调用失败」后继续执行**，否则掩盖真正的问题 |
 
-> **对于付款、发邮件、创建订单等有副作用的工具**，还必须设计**幂等键和人工审批**，避免重试造成重复执行。
+> **对于付款、发邮件、创建订单等有副作用的工具**，应设计业务幂等键；是否需要人工审批由风险和业务策略决定。审批不能代替幂等，用户批准一次也不应导致重复执行。
 
 ## 5.8 注册后还要检查什么
 
@@ -290,7 +300,7 @@ Trace 要能排查问题，**但不能落密钥和完整身份凭证**。
 6. **ToolRuntime 三作用域**：`context_schema` 定义并接入可信的调用上下文，context（调用上下文）、state（会话状态）、store（跨会话长期）各司其职；
 7. **异步要真异步**，底层客户端、工具、调用链三者一致；
 8. **错误分四类**：参数错误、业务结果、临时故障、真实缺陷——处理方式完全不同；
-9. **有副作用的工具必须幂等 + 审批 + 审计**；
+9. **有副作用的工具需要幂等与审计**，人工审批按风险配置，不代替幂等；
 10. **上线检查沿一次真实调用走**：选择前看契约、执行时看权限与限流、结束后看日志脱敏；
 11. **工具数量要治理**，按权限和任务动态缩小可见集合。
 

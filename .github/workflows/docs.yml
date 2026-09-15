@@ -6,23 +6,88 @@ on:
       - main
     paths:
       - "docs/**"
+      - "book/**"
       - "overrides/**"
-      - "scripts/mkdocs_hooks.py"
+      - "scripts/**"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "package.json"
+      - "package-lock.json"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "book/**"
+      - "overrides/**"
+      - "scripts/**"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "package.json"
+      - "package-lock.json"
       - "mkdocs.yml"
       - "requirements-docs.txt"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: mkdocs-deploy
+  group: docs-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  validate:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-docs.txt
+          npm ci
+
+      - name: Check chapters and manuscript
+        run: |
+          python scripts/check_docs.py
+          npm run check:mermaid
+          python -m unittest discover -s scripts/tests -p 'test_*.py'
+          python scripts/build_book.py --check --check-index
+          python scripts/build_book.py
+          mkdocs build --strict
+
+      - name: Attach review manuscript
+        uses: actions/upload-artifact@v4
+        with:
+          name: chinese-manuscript
+          path: book/zh-CN/generated/
+          if-no-files-found: error
+          retention-days: 14
+
+  deploy:
+    needs: validate
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository

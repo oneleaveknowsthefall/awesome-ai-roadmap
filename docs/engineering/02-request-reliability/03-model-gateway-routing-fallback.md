@@ -19,7 +19,9 @@ flowchart TB
     CAPABLE --> CALL
     FAST --> CALL
     CANARY --> CALL
-    CALL -->|失败| FALLBACK["按回退链路尝试下一个候选"]
+    CALL -->|失败| CHECK{"允许回退且<br/>还有预算与合规候选?"}
+    CHECK -->|是| FALLBACK["按回退链路尝试下一个候选"]
+    CHECK -->|否| STOP["明确失败或受限降级"]
     FALLBACK --> CALL
     CALL -->|成功| DONE["返回"]
 ```
@@ -70,7 +72,7 @@ fallback_chain:
 |---|---|
 | HTTP 5xx / 超时 | 最直接的失败信号 |
 | 429 限流 | 供应商配额耗尽,不代表模型本身有问题 |
-| 输出未通过契约校验 | 见[第 5 章](../03-output-safety/05-structured-output-contracts.md),连续多次解析失败也应触发回退 |
+| 输出未通过契约校验 | 先区分拒绝、截断、Schema 不兼容与偶发格式错误；只有可恢复且预算允许时才修复或回退，见[第 5 章](../03-output-safety/05-structured-output-contracts.md) |
 | 内容安全拦截 | 不自动回退；先按统一业务政策判断是否拒绝、缩小任务或复核，不能轮询供应商直到有一家放行 |
 
 ### 3.3.3 回退要防止「雪崩式重试」

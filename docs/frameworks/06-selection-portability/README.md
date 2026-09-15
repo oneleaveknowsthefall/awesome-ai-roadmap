@@ -29,5 +29,3 @@ flowchart LR
 - **需要把现有系统从一个框架迁移到另一个框架**：看第二十三章 23.4 节的迁移策略部分。
 
 返回 [AI 框架与编排 相关知识点](../README.md)。
-
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

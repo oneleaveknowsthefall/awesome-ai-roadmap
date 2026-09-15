@@ -52,7 +52,7 @@ DP 要报告 epsilon、delta、样本级还是用户级保护，以及训练步�
 
 - **最小化原则**：只把完成当前任务必需的字段放进上下文，而不是整份记录；
 - **脱敏与令牌化**：对不需要模型"理解"具体值、只需要模型"引用"该字段的场景（如订单号、身份证号），可以用占位符替换，模型操作占位符，真实值由确定性代码在边界处替换回来；
-- **日志与可观测性**：Prompt、检索片段、模型输出默认脱敏落盘，访问权限比业务数据本身更严格（因为日志往往聚合了多个用户的敏感信息，且访问审计相对宽松）；
+- **日志与可观测性**：默认记录必要元数据，不落盘 Prompt、检索片段和输出原文；确需诊断时再按授权采集、脱敏并限期保留。日志可能聚合多个用户的信息，需要独立的最小权限和访问审计，不能让能排障的人默认读到全部业务数据；
 - **第三方模型调用**：调用外部托管的模型 API 时，需要明确该次调用的数据是否会被用于训练、保留多久、是否有区域限制，并在合同和数据处理协议（DPA）中落实。
 
 ## 6.4 记忆机制的跨会话/跨用户泄漏
@@ -115,9 +115,9 @@ GDPR 的目的限制、数据最小化、合法依据、删除权及其例外、
 
 ## 6.7 本章总结
 
-1. LLM 系统的隐私攻击面在传统访问控制之外，额外包括训练数据记忆化和记忆机制跨会话泄漏两类风险；
+1. 区分权重中的训练数据记忆化与应用记忆存储泄漏；后者仍需要会话、租户和资源授权，不能因冠以“记忆”就脱离传统访问控制；
 2. 抽取攻击试图还原训练数据原文，成员推断攻击判断某条数据是否被用于训练，两者都可能构成隐私泄漏，去重、差分隐私训练和记忆化审计是核心防御；
-3. 推理阶段应对上下文中的 PII 做最小化、脱敏与令牌化处理，日志访问权限应比业务数据本身更严格；
+3. 推理阶段最小化 PII，按任务选择脱敏与令牌化；日志默认不保存原文，必要诊断材料另设授权与保留期限；
 4. Agent 长期记忆存储必须带用户/租户维度过滤，写入前做敏感度分级，并提供用户可控的记忆管理入口；
 5. 数据驻留与跨境合规需要先做数据分类，再反推架构约束，且必须覆盖日志、缓存、向量索引和记忆存储的完整删除链路，而不只是推理请求本身。
 
@@ -127,7 +127,7 @@ GDPR 的目的限制、数据最小化、合法依据、删除权及其例外、
 - [Quantifying Memorization Across Neural Language Models](https://arxiv.org/abs/2202.07646)
 - [Membership Inference Attacks against Machine Learning Models](https://arxiv.org/abs/1610.05820)
 - [Deep Learning with Differential Privacy (DP-SGD)](https://arxiv.org/abs/1607.00133)
-- [OWASP LLM02:2025 Sensitive Information Disclosure](https://genai.owasp.org/llmrisk/llm02-sensitive-information-disclosure/)
+- [OWASP LLM02:2025 Sensitive Information Disclosure](https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/)
 - [NIST AI 600-1: Generative AI Profile — Privacy risks](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence)
 - [OpenAI: Data controls in the API platform](https://developers.openai.com/api/docs/guides/your-data)
 - [GDPR 原文：第 5、6、17 条及第五章](https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng)

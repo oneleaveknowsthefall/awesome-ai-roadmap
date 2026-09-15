@@ -1,0 +1,482 @@
+{
+  "scope": "docs/agent/**",
+  "baseline": "1ccb8ac",
+  "reviewed_at": "2026-09-15",
+  "chapters": [
+    {
+      "path": "docs/agent/01-foundations/01-agent-foundations.md",
+      "disposition": "revised",
+      "summary": "完整阅读270行。以邮件和订单说明生成与执行的差别，纠正实时信息只能靠检索、所有工具都会改变业务状态等概括；环境转移加入真实状态与动作条件，状态更新保留动作。A2A按明确的0.3.0核心对象说明，补充Message可直接返回及Artifact内容类型。",
+      "technical_checks": [
+        "对照Anthropic定义，固定脚本也可有分支、反馈和重试；LLM Agent区别在模型于边界内动态选择行动。",
+        "环境转移依赖当前真实状态和动作，观察不是完整环境真相；新增公式的括号、分隔符、中文空格及GitHub宏经静态核对。",
+        "核对MCP进入AAIF后的维护者技术治理与Linux基金会A2A公告时间线，不将基金会治理写成接管技术决策。",
+        "核对A2A 0.3.0 Artifact由Parts组成、message/send可返回Task或Message；没有声称该版本是当前最新。"
+      ],
+      "source_urls": [
+        "https://www.anthropic.com/engineering/building-effective-agents",
+        "https://blog.modelcontextprotocol.io/posts/2025-12-09-mcp-joins-agentic-ai-foundation/",
+        "https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents",
+        "https://a2a-protocol.org/v0.3.0/specification/"
+      ]
+    },
+    {
+      "path": "docs/agent/01-foundations/02-agent-architecture.md",
+      "disposition": "revised",
+      "summary": "完整阅读664行。保留架构深度，区分Chat Completions与Responses工具格式，补strict与授权边界；用退款已成功但checkpoint未保存解释重放风险。收敛注意力必然衰减和必须组合全部上下文策略等断言，修复不存在的前文策略表指代。",
+      "technical_checks": [
+        "核对OpenAI Function Calling及类型定义：Chat Completions嵌套function，strict属于FunctionDefinition，Responses使用顶层函数字段；示例required和additionalProperties满足严格模式要求。",
+        "对照AWS幂等API说明，checkpoint不能与外部副作用自动形成原子事务；查询状态或服务端幂等仍需单独设计。",
+        "核对Chroma Context Rot的任务/模型条件、LangChain Write/Select/Compress/Isolate分类，避免把经验结果写成普遍定律。",
+        "核对Anthropic代码执行示例的150000到2000 Token为特定示例；Microsoft Agent Framework概览确有Harness Agent，但语言与功能发布阶段仍需分别确认。",
+        "新增第六章#617-失败处理链接已核对；未改H1/H2/H3。"
+      ],
+      "source_urls": [
+        "https://developers.openai.com/api/docs/guides/function-calling",
+        "https://raw.githubusercontent.com/openai/openai-python/main/src/openai/types/shared_params/function_definition.py",
+        "https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/",
+        "https://research.trychroma.com/context-rot",
+        "https://blog.langchain.com/context-engineering-for-agents/",
+        "https://www.anthropic.com/engineering/code-execution-with-mcp",
+        "https://learn.microsoft.com/en-us/agent-framework/overview/"
+      ]
+    },
+    {
+      "path": "docs/agent/01-foundations/03-agentic-building-blocks.md",
+      "disposition": "revised",
+      "summary": "完整阅读759行。保留五类组件、协议与客服案例，修正AGENTS.md像运行时门禁、只读最近指令、Tool必须原子化及按输入结构区分Agent/Workflow的问题；补宿主发现合并差异、Skill执行边界与控制循环停止条件，合并重复轨迹清单。",
+      "technical_checks": [
+        "核对Agent Skills规范：SKILL.md、name和description要求，allowed-tools为实验性空格分隔字段，metadata.version不是开放格式版本。",
+        "核对Codex官方AGENTS.md根到当前目录发现、顺序合并及AGENTS.override.md；未推广成所有宿主的统一行为。",
+        "核对OpenAI工具Schema归属、参数字符串及调用ID语义；示例明确为定义或语义片段。",
+        "对照Anthropic五种工作流，Orchestrator-Workers可动态生成任务而外层组织固定；输入是不是JSON不是分类标准。",
+        "保留license作为Skill技术字段，不误删为版权尾注；客服案例只作一次虚构声明。"
+      ],
+      "source_urls": [
+        "https://agentskills.io/specification",
+        "https://developers.openai.com/codex/guides/agents-md",
+        "https://agents.md/",
+        "https://developers.openai.com/api/docs/guides/function-calling",
+        "https://www.anthropic.com/engineering/building-effective-agents"
+      ]
+    },
+    {
+      "path": "docs/agent/02-reasoning-planning/04-agent-design-patterns.md",
+      "disposition": "revised",
+      "summary": "完整阅读618行。保留ReAct、ReWOO、LLMCompiler与Reflexion论文机制及反例；用搜索失败和价格口径不一致替代重复轨迹清单，计划执行图增加整体验收，Reflexion改为三个功能模块加记忆而非四个独立模型。",
+      "technical_checks": [
+        "核对ReAct v3稀疏推理、提示实验与另行微调的区别；不要求采集隐藏思维链。",
+        "核对Reflexion v4的Actor、Evaluator、Self-Reflection和情景记忆；保留HumanEval Python 80.1%到91.0%及MBPP Python 80.1%到77.1%的预算与任务限定。",
+        "核对ReWOO先规划后收证据，Without Observation不等于不用工具结果；LLMCompiler的TFU、Executor、Joiner职责不混用。",
+        "整体验收检查跨任务可比性，合法轮询不被直接视为无进展；新增第五章#553-不要把完整思维链当作可靠解释链接有效。"
+      ],
+      "source_urls": [
+        "https://arxiv.org/html/2210.03629v3",
+        "https://arxiv.org/html/2303.11366v4",
+        "https://arxiv.org/html/2305.18323v1",
+        "https://arxiv.org/html/2312.04511v3",
+        "https://www.anthropic.com/engineering/building-effective-agents"
+      ]
+    },
+    {
+      "path": "docs/agent/02-reasoning-planning/05-agent-reasoning-methods.md",
+      "disposition": "revised",
+      "summary": "完整阅读885行。保留推理方法、公式及历史结果，增加inference/reasoning区分；用时间单位和单程/往返解释投票规范化，区分任务DAG与GoT。程序返回不再等于精确业务答案，补金额精度和舍入边界，综合成稿之后仍须核验证据。",
+      "technical_checks": [
+        "核对ToT v2的GPT-4在24点任务CoT 4%、ToT 74%及搜索机制，保留预算与题集条件。",
+        "核对GoT v4的候选变换、聚合、评分及GoO/GRS，普通任务DAG不等于论文方法。",
+        "核对OpenAI推理提示指南的厂商适用范围和Python 3.13 decimal的表示、精度、舍入条件。",
+        "检查Self-Consistency答案规范化、票数非校准概率及同候选同预算评估；Self-Refine固定流程不自动成为Agent。",
+        "H1/H2/H3与既有公式保持，补充文字未新建数学块。"
+      ],
+      "source_urls": [
+        "https://arxiv.org/html/2305.10601v2",
+        "https://arxiv.org/html/2308.09687v4",
+        "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
+        "https://docs.python.org/3.13/library/decimal.html",
+        "https://arxiv.org/html/2305.20050v1",
+        "https://arxiv.org/html/2408.03314v1"
+      ]
+    },
+    {
+      "path": "docs/agent/02-reasoning-planning/06-task-decomposition.md",
+      "disposition": "revised",
+      "summary": "完整阅读986行。保留任务契约、HTN、关键路径与幂等深度，以一次声明的虚构竞品研究串联；统一timeout_seconds、固定研究时间与max_attempts口径。补前置条件、旧Worker提交保护及图中的成功/停止出口，调整依赖先生成新计划而非修改运行中DAG。",
+      "technical_checks": [
+        "核对AWS幂等设计和Kleppmann租约过期迟到写入，Task ID/checkpoint不保证exactly-once；存储端须原子校验领取标识和计划版本。",
+        "核对SHOP作者资料，HTN需要方法、适用条件与动作语义，层级图不是执行顺序或并行许可。",
+        "复算40/50/60秒分支及10秒合并：顺序160秒、理想并行70秒、节省56.25%；关键路径70秒与单执行器130秒的条件保留。",
+        "核对UTC半开时间区间、max_attempts包含首次；模型置信度不当作概率，成稿后再验收。"
+      ],
+      "source_urls": [
+        "https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/",
+        "https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html",
+        "https://www.cs.umd.edu/projects/shop/",
+        "https://www.cs.umd.edu/projects/shop/description.html"
+      ]
+    },
+    {
+      "path": "docs/agent/03-memory-context/07-agent-memory.md",
+      "disposition": "revised",
+      "summary": "完整阅读1037行。保留记忆三轴分类、生命周期与隐私边界，以昨天说过今天又问引入诊断；修复历史查询被当前有效期误过滤、冲突仅按来源覆盖的问题，区分来源可信与事实概率、版本保留与删除要求，限定基准与指标口径并删除署名页尾。",
+      "technical_checks": [
+        "核对LangGraph记忆快照：短期按thread、长期跨thread，不能用RAM/磁盘直接分类。",
+        "当前政策与历史政策查询使用不同时间条件，权限、删除和作用域始终过滤；冲突须匹配主体、属性、作用域、生效时间与替代关系。",
+        "核对LongMemEval原始/清洗版、弃答题召回分母、LoCoMo ACL 2024十段对话及LongMemEval-V2多模态Web轨迹，不把证据问答当执行成功率。",
+        "本章2个JSON和15图检查通过；H1/H2/H3及2个展示公式与基线相同，无Python或必需第三方复制代码声明。"
+      ],
+      "source_urls": [
+        "https://github.com/langchain-ai/docs/blob/1fa2214237b7a7506c34a30b394c26023d61bf4b/src/oss/concepts/memory.mdx",
+        "https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/README.md",
+        "https://github.com/snap-research/locomo/blob/92286325a40764bee61f77824ddb95233b11c4d6/README.md",
+        "https://github.com/xiaowu0162/LongMemEval-V2/blob/2cc8c540bdb87fe6761629b585e727e1c4704520/README.md"
+      ]
+    },
+    {
+      "path": "docs/agent/03-memory-context/08-agent-memory-implementation.md",
+      "disposition": "revised",
+      "summary": "完整阅读1251行。保留存储、检索与恢复深度，修正个人发布偏好仅按仓库存储而被提升为全仓政策的例子，统一用户主体及仓库作用域；补outbox、索引乱序、删除后异步重建竞态，限定全文精确匹配、重排收益和衰减参数，删除署名页尾。",
+      "technical_checks": [
+        "核对LangGraph Persistence快照：checkpointer/thread与Store分工，InMemory实现不能跨进程恢复。",
+        "8.22当前状态、长期JSON与下次查询按tenant/user/scope/predicate一致识别个人偏好，不把偏好转成执行授权；用户A变更不得影响用户B及其他仓库。",
+        "核对AWS outbox双写与重复/乱序、etcd v3.5原子条件事务；源版本和删除代次校验必须与提交协调，不靠先查一次状态消除竞态。",
+        "检查全文分词/ID等值查询、重排候选覆盖、衰减非负时间与统一单位；8个JSON和15图通过，4个展示公式未改。"
+      ],
+      "source_urls": [
+        "https://github.com/langchain-ai/docs/blob/3edafc8c187b52be4e2196cd0955dda4a7592cba/src/oss/langgraph/persistence.mdx",
+        "https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html",
+        "https://etcd.io/docs/v3.5/learning/api/"
+      ]
+    },
+    {
+      "path": "docs/agent/04-multi-agent/09-single-vs-multi-agent.md",
+      "disposition": "revised",
+      "summary": "完整阅读1180行。保留单多Agent选型、2025年对照与可靠性公式，明确唯一主Agent不等于没有子Agent；通信JSON加入固定时间、attempt_id和input_version，校正A2A Task/Message返回，补租约迟到写入、来源独立性和有界返工实例。",
+      "technical_checks": [
+        "核对Anthropic Opus 4/Sonnet 4内部研究90.2%为相对改善，15倍/4倍Token均相对聊天；Cognition结论限定于2025年耦合编码场景。",
+        "核对A2A v1.0.1发布和规范：Send Message可返回Task或Message，线上Major.Minor为1.0；Agent Card不是授权凭据。",
+        "核对etcd/Raft和fencing分析，区分租约、存储并发、语义冲突及外部副作用幂等。",
+        "请求、成功和阻塞示例的task_id/attempt_id/input_version一致，旧尝试不能覆盖新结果；3个JSON、19图通过，4个展示公式及全部标题未改。",
+        "现有第十三章§13.41引用仍匹配，未引入跨章锚点变更。"
+      ],
+      "source_urls": [
+        "https://www.anthropic.com/engineering/multi-agent-research-system",
+        "https://cognition.com/blog/dont-build-multi-agents",
+        "https://github.com/a2aproject/A2A/releases/tag/v1.0.1",
+        "https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md",
+        "https://raft.github.io/",
+        "https://etcd.io/docs/v3.5/learning/api/",
+        "https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html"
+      ]
+    },
+    {
+      "path": "docs/agent/03-memory-context/10-agent-memory-compression.md",
+      "disposition": "revised",
+      "summary": "完整阅读1064行。保留压缩策略与恢复评测，以付款结果未知说明精确状态不能自由摘要；配图增加约束、结构化状态及工件引用直接装入路径。修正必然省Token/总成本的断言，明确显式compact完整返回窗口与自动压缩续接，删除无据渲染理由和署名页尾。",
+      "technical_checks": [
+        "检查否定、未知状态、来源链、删除传播与恢复证据，模型摘要不成为执行状态权威。",
+        "核对OpenAI缓存前缀、窗口占用、配置与模型相关成本，未增加通用价格或TTL。",
+        "核对Compaction输入仍需装入窗口，显式compact保留完整输出而非只取加密item，自动压缩与previous_response_id另按接口规则处理。",
+        "CR分母须为正、减少率可为负；当前窗口减少与摘要/重读的端到端费用分开。7个JSON、15图通过，5个展示公式与标题未改。",
+        "未实际调用缓存/Compaction API；滚动文档条件不冒充不可变SDK版本或账单实测。"
+      ],
+      "source_urls": [
+        "https://developers.openai.com/api/docs/guides/prompt-caching",
+        "https://developers.openai.com/api/docs/guides/compaction",
+        "https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/README.md",
+        "https://github.com/xiaowu0162/LongMemEval-V2/blob/2cc8c540bdb87fe6761629b585e727e1c4704520/README.md"
+      ]
+    },
+    {
+      "path": "docs/agent/02-reasoning-planning/11-llm-agent-planning.md",
+      "disposition": "revised",
+      "summary": "完整阅读1135行。保留模型/系统层规划、搜索、动作语义和求解器深度；用发布后代码变化使审批失效引入规划，解释重规划变量，区分任务DAG无环与状态机合法循环，补滚动规划短视及全局兼容约束，消除预算变量重名。",
+      "technical_checks": [
+        "核对ToT/GoT搜索、回溯和候选聚合与普通任务编排的区别，完整树节点求和及O(kbd)扩展不等于Token成本。",
+        "核对OR-Tools CP-SAT：FEASIBLE不等于OPTIMAL，UNKNOWN不等于证明无解。",
+        "检查重规划历史、新观察、计划版本及审批绑定；允许状态机合法循环，明确成功、暂停和预算停止出口。",
+        "本组5章既有定向文档检查、77图、16个JSON通过；本章H1/H2/H3未改。"
+      ],
+      "source_urls": [
+        "https://arxiv.org/abs/2305.10601",
+        "https://arxiv.org/abs/2308.09687",
+        "https://developers.google.com/optimization/cp/cp_solver"
+      ]
+    },
+    {
+      "path": "docs/agent/02-reasoning-planning/12-agent-reflection.md",
+      "disposition": "revised",
+      "summary": "完整阅读1219行。保留Self-Refine、Reflexion、LATS及同预算评估，区分训练阶段自纠错与运行时权重更新；验证器按要求选证据，不作固定排名。控制图让Stop Controller先决定修订、长期经验先验证，补评分噪声、返工和费用去重，用空输入契约解释反思不是验收。",
+      "technical_checks": [
+        "核对Self-Refine无需额外训练、Reflexion v4语言记忆及HumanEval/MBPP实验限制。",
+        "核对LATS v3 MCTS选择、扩展、评价、模拟和树回传不是梯度更新；SCoRe v1训练RL与测试时无外部纠错反馈的区别。",
+        "检查停止控制权、未验证反思不得直接写长期记忆、评分尺度噪声及修订后回归。",
+        "首次解释Rubric、MCTS和rollout；本组77图、16 JSON及既有文档检查通过，标题未改。"
+      ],
+      "source_urls": [
+        "https://arxiv.org/abs/2303.17651",
+        "https://arxiv.org/html/2303.11366v4",
+        "https://arxiv.org/html/2310.04406v3",
+        "https://arxiv.org/html/2409.12917v1"
+      ]
+    },
+    {
+      "path": "docs/agent/04-multi-agent/13-multi-agent-coordination.md",
+      "disposition": "revised",
+      "summary": "完整阅读1490行。保留事务账本、Lease/fencing、Reducer和预算恢复内容；修正Pipeline发布门、Hybrid Routing断路及缺共同校验、Handoff绕过权限账本的图示，代码协作增加必需测试与交付终点。A2A图同时表示Task和直接Message返回。",
+      "technical_checks": [
+        "核对LangGraph默认覆盖、并行同字段冲突、Reducer/add_messages/Overwrite，Reducer不等于跨进程事务。",
+        "核对OpenAI Handoff input_type只定义参数、默认历史与input_filter，不把交接参数当完整传入上下文。",
+        "核对A2A v1.0.1 Release及标签规范、线上版本1.0；不因文档中的旧提示回退已发布标签。",
+        "核对etcd v3.6持有键与事务保护，租约释放不等于外部副作用停止；逐图检查共同准入、测试失败、授权账本和Verifier出口。",
+        "本章全部标题和路径不变，§13.41仍供第九章引用；本组77图及16 JSON通过。"
+      ],
+      "source_urls": [
+        "https://docs.langchain.com/oss/python/langgraph/graph-api",
+        "https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE",
+        "https://openai.github.io/openai-agents-python/handoffs/",
+        "https://github.com/a2aproject/A2A/releases/tag/v1.0.1",
+        "https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md",
+        "https://etcd.io/docs/v3.6/dev-guide/api_concurrency_reference_v3/"
+      ]
+    },
+    {
+      "path": "docs/agent/05-production/14-agent-evaluation.md",
+      "disposition": "revised",
+      "summary": "完整阅读457行。逐字保留PR#1已修复的SWE-bench Verified段落及OpenAI来源。退款例子区分文本与任务完成，校正tau-bench、SWE-Lancer和GAIA计分口径；补组合数估计的独立同分布前提、计费单位、回归集偏差和A/B样本量条件，固定GenAI Development来源。",
+      "technical_checks": [
+        "与1ccb8ac逐字比较SWE-bench Verified段落，Why SWE-bench Verified no longer measures frontier coding capabilities链接保留。",
+        "核对tau-bench用户模拟/API/政策关系，最终数据库状态不验证全部对话政策；SWE-Lancer实现测试、管理选择和价值加权不混为实际收入。",
+        "核对pass@k/pass^k组合数、n不小于k、成功次数不足时分子为零；共享反思或状态会破坏iid假设。",
+        "核对CostPerSuccess零分母、每Token报价换算和多模型缓存分项；零违规观测不等于证明零风险。",
+        "OTel Development来源与23章同固定提交；本组77图、16 JSON及静态公式检查通过，标题未改。"
+      ],
+      "source_urls": [
+        "https://arxiv.org/html/2406.12045v1",
+        "https://arxiv.org/abs/2502.12115",
+        "https://www.tbench.ai/",
+        "https://github.com/open-telemetry/semantic-conventions-genai/blob/0c87594975195608dc91b3f702e250a7b240c151/docs/gen-ai/README.md",
+        "https://openai.com/index/why-we-no-longer-evaluate-swe-bench-verified/"
+      ]
+    },
+    {
+      "path": "docs/agent/05-production/15-agent-security.md",
+      "disposition": "revised",
+      "summary": "完整阅读422行。保留威胁模型与纵深防御，去除工具描述必完整注入、模型必然不能解决等无条件说法；补Dual LLM不透明引用、CaMeL解释器和依赖元数据边界、工具错误回显凭据及Runtime带外来源标签。统一预授权与循环检测口径，ASR同时定义攻击目标及效用。",
+      "technical_checks": [
+        "核对Dual LLM原作者及Design Patterns v1，隔离模型与不透明引用仍需参数和出口约束。",
+        "核对CaMeL v2受限Python解释器、能力元数据和数据/控制依赖，不把原型约束写成通用认证。",
+        "核对Guardrails绕过论文v3的检测系统/测试条件；Docker seccomp为Linux内核机制，容器不自动提供完整隔离。",
+        "保留MCP 2026-07-28安全引用；来源标签由Runtime维护、审批不能替代授权，全拒绝不等于所有威胁下ASR为零。",
+        "按一般技术书稿编辑，未执行攻击、漏洞审计或安全认证；本组77图、16 JSON及文档检查通过，标题未改。"
+      ],
+      "source_urls": [
+        "https://simonwillison.net/2023/Apr/25/dual-llm-pattern/",
+        "https://arxiv.org/html/2506.08837v1",
+        "https://arxiv.org/html/2503.18813v2",
+        "https://arxiv.org/abs/2504.11168v3",
+        "https://docs.docker.com/engine/security/seccomp/",
+        "https://modelcontextprotocol.io/specification/2026-07-28/basic/security_best_practices"
+      ]
+    },
+    {
+      "path": "docs/agent/02-runtime-harness/16-harness-definition-and-boundaries.md",
+      "disposition": "revised",
+      "summary": "用工具请求与实际执行的差别引入 Harness；修正分层图中 Framework 仅在开发时生效、Workflow 只能填节点的旧表述，明确模型选择受执行器约束，持久化不是区分记忆与 Harness 的充分条件。",
+      "technical_checks": [
+        "完整审读六个术语、两张职责图、产品案例与误区，图文现在一致承认框架可以提供运行时。",
+        "对照 OpenAI Runner 与 LangGraph Persistence，保留循环、执行宿主和托管状态的职责区别，不把产品类别说成互斥软件层。",
+        "核对 GitHub 官方环境说明，仓库 setup steps 定制环境而非私有循环实现；保留 SWE-agent ACI 与 METR 时长指标的既有限定。"
+      ],
+      "source_urls": [
+        "https://openai.github.io/openai-agents-python/running_agents/",
+        "https://docs.langchain.com/oss/python/langgraph/persistence",
+        "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/customize-the-agent-environment"
+      ]
+    },
+    {
+      "path": "docs/agent/02-runtime-harness/17-agent-loop-and-runtime-state-machine.md",
+      "disposition": "revised",
+      "summary": "从模型待决策、工具执行和等待审批的不同动作权限解释显式状态；补齐并行调用结果收集，区分合法结束与空响应，修正 SDK 轮数口径、消息审计存储和预算预留的泛化。",
+      "technical_checks": [
+        "完整审读状态字段、转移图、停止条件、流式、委派与 SDK 对比；并行结果不再由单个工具返回直接触发下一轮。",
+        "核对 Claude Agent SDK 工具使用轮数与 OpenAI max_turns/MaxTurnsExceeded，明确不是同一计数规范。",
+        "保留 Handoff 接管和 Subagent 返回的区别；混合调用优先级由运行时决定，根任务预算不因角色切换重置。"
+      ],
+      "source_urls": [
+        "https://code.claude.com/docs/en/agent-sdk/agent-loop",
+        "https://openai.github.io/openai-agents-python/running_agents/"
+      ]
+    },
+    {
+      "path": "docs/agent/02-runtime-harness/18-context-engineering-assembly.md",
+      "disposition": "revised",
+      "summary": "以本轮实际请求为主线，区分指令来源、加载时机和消息角色；删除 SDK 可任意热更新 system prompt 的误导，限定前缀缓存和位置效果，说明引用可达性、持久化 Working Memory 与装配伪代码边界。",
+      "technical_checks": [
+        "完整审读五路来源图、预算式和装配代码；公式保持不变，代码仍明确为职责示意而非可运行厂商 payload。",
+        "核对 Claude SDK modifying-system-prompts：preset、append、自定义 system_prompt 不证明会话中任意热更新，项目内容也可注入对话而非 system。",
+        "核对 OpenAI 前缀匹配、模型与断点条件；保住稳定前缀不是缓存命中保证。",
+        "核对 MCP 2026-07-28 工具顺序是 SHOULD；Anthropic Prompt Caching 本轮跳转区域不可用，保留原链接但不以该访问确认当前参数。"
+      ],
+      "source_urls": [
+        "https://code.claude.com/docs/en/agent-sdk/modifying-system-prompts",
+        "https://developers.openai.com/api/docs/guides/prompt-caching",
+        "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+        "https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching"
+      ]
+    },
+    {
+      "path": "docs/agent/02-runtime-harness/19-tool-registry-and-execution-pipeline.md",
+      "disposition": "revised",
+      "summary": "沿选中工具到执行结果的链路展开，补充服务自报名称不唯一、结果未知不能伪装成功，以及工具 Guardrail 的具体覆盖范围和执行后检查不能撤销副作用。",
+      "technical_checks": [
+        "完整审读 Registry、调用契约、五段管线、并发超时及动态工具集，保留代码执行与检索式披露的权衡。",
+        "一级来源核对 MCP 2026-07-28 的授权相关列表、subscriptions/listen、toolsListChanged、SHOULD 顺序和 serverInfo.name 不保证唯一；保留 Current 而非 Final 的版本条件。",
+        "OpenAI 工具 Guardrails 只对相应配置的 FunctionTool 管线生效，不能自动覆盖托管工具、Handoff 和全部内置执行工具。",
+        "保留业务幂等键与模型调用 ID 的区别，超时结果状态与消息配对契约不混为一谈。"
+      ],
+      "source_urls": [
+        "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+        "https://modelcontextprotocol.io/specification/versioning",
+        "https://openai.github.io/openai-agents-python/guardrails/"
+      ]
+    },
+    {
+      "path": "docs/agent/02-runtime-harness/20-permissions-sandbox-isolation.md",
+      "disposition": "revised",
+      "summary": "以批准不等于隔离起笔；修复权限图缺少 Hook 拒绝和 plan 写操作分支，限定禁用工具的宿主行为、沙箱选型与 GitHub 防火墙覆盖范围，并纠正组织与仓库的策略覆盖权限。",
+      "technical_checks": [
+        "完整审读权限图、规则粒度、隔离路线、凭据和 cloud agent 案例；保留 SDK allowed_tools 是预批准而非能力白名单。",
+        "官方权限文档核对 Hooks→deny→ask→mode→allow→callback，plan 写操作不走 allow 自动批准；保留 v2.1.199 厂商扩展前提。",
+        "GitHub 官方说明确认内置防火墙不覆盖 MCP Server/setup steps，不兼容自托管 Runner/Windows，组织决定仓库可覆盖范围。",
+        "删去隔离路线固定强弱等级；仓库 .git/config 与 hooks 也需按资源风险限制。未运行 SDK 权限或云环境实验。"
+      ],
+      "source_urls": [
+        "https://code.claude.com/docs/en/agent-sdk/permissions",
+        "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/customize-the-agent-environment",
+        "https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-the-firewall"
+      ]
+    },
+    {
+      "path": "docs/agent/02-runtime-harness/21-checkpoint-persistence-recovery.md",
+      "disposition": "revised",
+      "summary": "用邮件成功但响应丢失解释恢复问题；纠正短任务只需内存、checkpoint 必为完整外部快照、恢复绝不重放代码等表述，区分控制代码重放、业务效果和待执行状态。",
+      "technical_checks": [
+        "完整审读持久化层次、重试、full-jitter 公式、分层 deadline 和幂等；原公式未改。",
+        "核对 LangGraph 内存 checkpointer 不能跨进程保存、interrupt 恢复重新进入节点，保持 checkpoint 不等于 exactly-once。",
+        "核对 Temporal Activity 默认重试、Workflow Execution 默认无 Retry Policy，Workflow 代码可为恢复而重放。",
+        "核对 Stripe 同键重试、参数一致性和保留期限说明；副作用结果未知时不能盲目生成新键重发。"
+      ],
+      "source_urls": [
+        "https://docs.langchain.com/oss/python/langgraph/persistence",
+        "https://docs.langchain.com/oss/python/langgraph/interrupts",
+        "https://docs.temporal.io/encyclopedia/retry-policies",
+        "https://docs.stripe.com/api/idempotent_requests"
+      ]
+    },
+    {
+      "path": "docs/agent/02-runtime-harness/22-human-in-the-loop-and-interruption.md",
+      "disposition": "revised",
+      "summary": "区分预期审批与失败重试、进程内回调与持久化工作流；补齐 LangGraph 恢复条件和通知双写的 outbox 方案，审批依据改为对象、参数、差异与证据，避免索取私有思维链。",
+      "technical_checks": [
+        "完整审读中断点、审批载荷、恢复、长等待与风险分级；保留绑定对象版本、审批身份和有效期的要求。",
+        "核对 LangGraph interrupt 需要 checkpointer/thread_id，恢复时节点中断前代码重跑，通知需去重。",
+        "核对 MCP HITL 用 SHOULD 且不强制统一交互模型；审批不能取代工具授权。",
+        "用 AWS outbox 一级资料核对状态与通知意图同事务、重复投递仍需幂等，未宣称仅 checkpoint 就能保证审批通知送达。"
+      ],
+      "source_urls": [
+        "https://docs.langchain.com/oss/python/langgraph/interrupts",
+        "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+        "https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html"
+      ]
+    },
+    {
+      "path": "docs/agent/02-runtime-harness/23-tracing-evaluation-cost-and-coding-agent-case-study.md",
+      "disposition": "revised",
+      "summary": "从相同完成答复背后的不同过程引出观测；分开业务 Session/Turn 与 OTel Trace/Span/event，更新配图及固定版本来源，删除由本地或云端形态推断审批默认安全保证的说法。",
+      "technical_checks": [
+        "完整审读观测层级、成本公式、预算并发和三个产品案例；保留失败、重试、委派计入根预算及缓存计费差异，原公式未改。",
+        "OTel 官方说明确认 Span 为有起止的操作、event 为时点，Span links 可关联异步恢复；Session 可含多任务、多 Trace。",
+        "GenAI 语义约定固定提交 0c87594975195608dc91b3f702e250a7b240c151，原件确认 Development。",
+        "核对 OpenAI 输入 Guardrail 默认并行以及阻塞模式边界；保留 Codex CLI 不等于 Agents SDK 内核、cloud agent 私有 checkpoint 不可由公开接口推断。"
+      ],
+      "source_urls": [
+        "https://opentelemetry.io/docs/concepts/signals/traces/",
+        "https://github.com/open-telemetry/semantic-conventions-genai/blob/0c87594975195608dc91b3f702e250a7b240c151/docs/gen-ai/README.md",
+        "https://openai.github.io/openai-agents-python/guardrails/"
+      ]
+    },
+    {
+      "path": "docs/agent/06-coding-agents/24-code-search-edit-verification.md",
+      "disposition": "revised",
+      "summary": "完整保留 limit=0 查询与导出不同契约、定位编辑冲突及分层验证的线性案例；仅删除集中到书末的通用作者/许可/未搬运尾注，保留李博杰署名、固定提交及 EditTool 技术出处。",
+      "technical_checks": [
+        "全文及代码完整审读；None、0、正整数、负数入口约束与不强制副本的契约前后一致，不重写案例。",
+        "重读固定提交的 edit_tool.py，确认非空旧串、唯一匹配、先写后 py_compile 检查且没有自动回滚的讨论准确。",
+        "运行本章已有纯 Python 示例：旧 limit=0 错误复现，6 个函数级样例符合预期；不把这称为真实报表服务的 HTTP/集成验收。",
+        "保留 LSP 3.17 位置编码、AST 与完整编译的边界及第三方技术归属；本章未复制上游实现或配图，通用许可说明交书末集中处理。"
+      ],
+      "source_urls": [
+        "https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/coding-agent/tools/edit_tool.py",
+        "https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/",
+        "https://docs.python.org/3/library/ast.html#ast.parse"
+      ]
+    },
+    {
+      "path": "docs/agent/07-post-training/25-agent-post-training.md",
+      "disposition": "revised",
+      "summary": "完整保留 CSV 三项验收、首错前缀、SFT/偏好/交互训练与原能力保留案例；仅移除通用版权审计尾注，保留李博杰引用、固定提交和未独立复现 DPO 的限定。",
+      "technical_checks": [
+        "全文审读包含完整 JSON 和两张流程图；chosen 是可接受下一步而非修复成功，fixture 引用缺实际快照不能运行轨迹，表述保持明确。",
+        "本轮解析已有偏好 JSON 并核对三项需求、empty_header 缺项和 read_file 下一步，无 API rollout 或训练执行。",
+        "核对固定提交实验 README：固定候选比较改善不等于自由生成可靠性，正常收尾退化的反例被保留。",
+        "保留观察 token 不计动作策略损失、在轨版本与教师分布可用性条件，独立验收与训练奖励隔离，不把短前缀回归称为端到端成功。"
+      ],
+      "source_urls": [
+        "https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter8/premature-completion-dpo/README.md",
+        "https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter7.md#L434-L535",
+        "https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter8.md#L564-L706"
+      ]
+    }
+  ],
+  "index_review": "完整审读主题索引及8个模块索引。保留25章入口与既有阅读顺序，主题关系图补文字解释；删除通用Polo Li/CC BY页尾，记忆和多Agent索引不再重复来源审计日期。未改root README、mkdocs.yml、AGENTS.md或其他主题。",
+  "heading_review": {
+    "h1_and_paths": "25章H1、章号、路径和全书143章计数不变。",
+    "changed_sections": [
+      "16.1",
+      "17.1",
+      "18.1",
+      "18.4",
+      "19.1",
+      "20.1",
+      "21.7",
+      "22.1",
+      "23.1"
+    ],
+    "anchor_impact": "检查docs及根README指向Agent页的片段链接，未发现指向这9个旧标题的仓内引用；两处新跨章锚点分别为6.17和5.5.3，均匹配。外部书签无法枚举，改名后旧自动锚点可能失效。第九章引用第十三章§13.41的显示节号仍匹配。"
+  },
+  "validation_scope": [
+    "现有python3 scripts/check_docs.py覆盖143章的结构、编号、内部文件链接和数学静态规则。",
+    "在docs/agent作为工作目录运行现有scripts/check_mermaid.mjs，只解析本范围222张图；首次缺jsdom后用锁文件npm ci恢复依赖。",
+    "第24章已有Python最小复现和6个函数级断言；第25章已有偏好JSON及缺项状态核对。",
+    "25章审校记录路径覆盖、H1/路径不变、通用署名尾注删除和入站片段链接检查。",
+    "未执行全站MkDocs构建、GitHub/Wiki浏览器渲染、SDK/API集成、模型训练或公开Benchmark；全书发布验证交父会话。"
+  ],
+  "risks": [
+    "本轮是简体中文母稿审校，不是KDP可直接上架成品；未制作或验收电子书。",
+    "第1章环境转移与状态更新公式已修正，静态语法通过，仍需全书合并后核对GitHub/Wiki及电子书实际渲染。",
+    "滚动SDK和提供商文档不等于固定可复现实验环境；保留已明确的规范版本、论文版本和来源快照，不声称运行未执行的API实验。",
+    "Anthropic Prompt Caching本轮访问受区域跳转限制，原引用保留且未据此新增当前参数结论。",
+    "未发现本范围需要附在复制代码旁而被移除的第三方许可证；这不等于对历史全部材料来源进行法律鉴定。技术作者与来源链接保留，通用权利说明由父会话集中处理。"
+  ],
+  "colophon_items": [
+    {
+      "project": "bojieli/ai-agent-book",
+      "author": "李博杰（Bojie Li）",
+      "revision": "985a49d35b9f50937f1f757cf25867672991ded7",
+      "license": "Apache-2.0",
+      "source_url": "https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/LICENSE",
+      "handling": "集中权利说明由父会话编入书末；章节保留署名及具体技术引用，24/25未复制上游实现或配图。"
+    }
+  ]
+}

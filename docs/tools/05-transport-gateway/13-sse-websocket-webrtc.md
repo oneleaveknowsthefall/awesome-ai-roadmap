@@ -6,7 +6,7 @@ description: 区分 SSE 事件流与 EventSource、WebSocket 消息通道和 Web
 
 ## 13.1 先从 HTTP 的本质说起
 
-这三种机制都在补 HTTP 原生交互的短板，只是补法不同。
+SSE 与 WebSocket 用不同方式扩展 Web 应用的交互；WebRTC 则围绕实时媒体和数据通道组织一套协议。三者常被一起选型，但不是同一层的三个替代品。
 
 传统 HTTP 请求由客户端发起，服务端沿着这个响应回数据；HTTP 流式响应、SSE、长轮询与 HTTP/2/3 流虽然能把一个响应拉长，但服务端仍不能凭空向尚未建立请求的客户端发消息。
 
@@ -59,7 +59,7 @@ HTTP/1.1、HTTP/2 常用 TCP；HTTP/3 用 QUIC，也向每个 HTTP 流提供可�
 
 HTTP/1.1 路径使用 Upgrade 请求和 `101 Switching Protocols`；HTTP/2 的 RFC 8441 与 HTTP/3 的 RFC 9220 使用扩展 CONNECT，不能把 101 升级描述成所有 WebSocket 连接的必经步骤。
 
-从这一刻起，这条 TCP 连接就不再遵循 HTTP 的一问一答，而是变成**双方都可随时发消息的全双工信道**。
+在 HTTP/1.1 路径中，升级后的 TCP 连接承载 WebSocket 帧；在 HTTP/2/3 路径中，则由一个扩展 CONNECT 流承载，其他 HTTP 流可以继续存在。两种路径都提供**双方可独立发送消息的全双工信道**。
 
 ```mermaid
 flowchart LR
@@ -87,7 +87,7 @@ SSE 的响应方向是单向，但客户端可在读取期间并行发送其他 
 | 操作 | 可中止响应读取，或并行 POST 取消请求 | 可在同一连接发送应用定义的取消消息 |
 | 取消生效 | 取决于服务端及上游是否传播取消 | 同样取决于应用处理、排队和上游取消支持 |
 
-关闭浏览器读取不自动保证模型停止计费或工具停止执行。MCP 2026-07-28 明确把 HTTP SSE 断开定义为请求取消；A2A 任务则独立于监控流，需调用 `CancelTask`。同样的网络动作可有不同协议语义。
+关闭浏览器读取不自动保证模型停止计费或工具停止执行。MCP 2026-07-28 把未完成请求的 HTTP SSE 断开定义为取消；A2A 任务则独立于监控流，需调用 `CancelTask`。同样的网络动作可有不同协议语义。
 
 ## 13.4 SSE 的四个局限
 
@@ -153,9 +153,9 @@ WebRTC 是 Google 主导、W3C 与 IETF 联合标准化的协议族，2011 年�
 
 WebRTC 优先利用 UDP 承载实时媒体，并组合拥塞控制、抖动缓冲、编解码、丢包恢复与加密；受限网络也可经 TURN 的 TCP/TLS 路径中继。
 
-UDP 自身不保证交付，但 WebRTC 上层可以用 NACK 重传、FEC、PLC 等机制在播放截止时间内恢复。DataChannel 使用 SCTP/DTLS，可以可靠有序，也可配置部分可靠或无序；所以“WebRTC 完全不可靠”是错误的。
+UDP 自身不保证交付，但 WebRTC 媒体链路可结合 NACK（否定确认）请求重传、FEC（前向纠错）恢复数据，以及 PLC（丢包隐藏）估计缺失音频。它们分别是重传、冗余恢复和信号补偿，不是同一种可靠性保证。DataChannel 使用 SCTP/DTLS，可以可靠有序，也可配置部分可靠或无序；所以“WebRTC 完全不可靠”是错误的。
 
-### 13.6.2 为什么 TCP 重传对语音是灾难
+### 13.6.2 TCP 重传何时会拖慢实时语音
 
 ```mermaid
 flowchart TB
@@ -179,7 +179,7 @@ flowchart TB
 
 PLC 通常由编解码器/解码器在缺失音频时估计信号，不是统一的“前后帧插值算法”。连续丢包或拥塞严重时仍会有明显失真，不能承诺人耳无感。
 
-这是典型的工程权衡：**用偶尔轻微的音质损失，换取稳定的低延迟。**
+这里的权衡是：**在播放截止时间内尽量恢复，来不及的部分再丢弃或补偿**，而不是无条件等待完整数据。它不能保证网络恶化时仍有稳定低延迟或轻微失真。
 
 实时语音在延迟与音质之间取舍；离线转录、文件上传等音频任务仍更重视完整可靠交付。
 
@@ -265,12 +265,10 @@ OpenAI 在 2024 年发布 Realtime API，实现实时语音对话：用户说话
 |---|---|
 | 端到端延迟 | 分开测网络、端点检测、模型首音频与播放缓冲；没有统一的 300ms API 保证 |
 | 双向同时流动 | 不能等一方说完再切换 |
-| 随时打断 | 用户说话时 AI 立即停止 |
+| 随时打断 | 测量从检测到用户说话，到停止生成及清空待播放音频的延迟 |
 | 回声消除 | 麦克风不能把 AI 播放的声音传回去 |
 
 OpenAI 官方对浏览器和移动端推荐 WebRTC 以获得更一致的表现；服务端集成可用 WebSocket。其官方 WebRTC 示例通过 HTTP POST 交换 SDP，再用 DataChannel 交换事件，并不需要 WebSocket 信令。
-
-（Realtime API 同时也提供 WebSocket 接入方式，适合服务端到服务端的场景——那里网络环境可控，也不需要浏览器端的音频处理链路。）
 
 长期 API Key 只放后端；浏览器使用后端建立的会话或短期凭据，并限制会话配置与身份。不要为了直连把服务端密钥嵌入网页。
 
@@ -278,20 +276,21 @@ OpenAI 官方对浏览器和移动端推荐 WebRTC 以获得更一致的表现�
 
 MCP 的标准 transport 是 stdio 和 Streamable HTTP；后者可用 SSE 流式传递 JSON-RPC 消息。WebSocket 是可协商的 custom transport，不是 MCP 标准 transport。
 
-A2A 1.0（本次核查发布版 v1.0.1）的 JSON-RPC 与 HTTP/REST binding 可用 SSE 交付流式 Task/Artifact 更新，gRPC 用 server streaming。WebSocket/WebRTC 不是核心 binding；媒体通道需单独设计。
+A2A 1.0（本章采用发布版 v1.0.1）的 JSON-RPC 与 HTTP/REST binding 可用 SSE 交付流式 Task/Artifact 更新，gRPC 用 server streaming。WebSocket/WebRTC 不是核心 binding；媒体通道需单独设计。
 
 ## 13.9 三者对比与选型
 
 | 维度 | SSE | WebSocket | WebRTC |
 |---|---|---|---|
-| **底层** | HTTP；HTTP/3 可基于 QUIC | 经典 TCP；也有 HTTP/2/3 CONNECT 绑定 | 优先 UDP，可经 TURN/TCP/TLS |
+| **承载** | HTTP（TCP 或 QUIC） | TCP 或 HTTP/2/3 流 | ICE 选定的媒体/数据路径 |
 | **方向** | 服务端→客户端单向 | 全双工 | 全双工 |
-| **延迟** | 受网络、缓冲与 TCP 重传影响 | 受网络、缓冲与 TCP 重传影响 | 受网络、编解码、拥塞控制与 relay 影响 |
-| **丢包处理** | HTTP 流可靠有序交付 | 消息可靠有序交付，仍受底层阻塞影响 | 媒体按截止时间恢复；DataChannel 可配置可靠性 |
-| **音视频** | 文本事件中编码或引用媒体 | 支持二进制帧，但媒体处理链路需自行设计 | 面向实时媒体；浏览器实现通常提供音频处理能力 |
-| **建连复杂度** | HTTP GET 或 POST 响应流 | 握手与应用会话管理 | 信令 + ICE + 加密协商 |
-| **横向扩展** | 需连接所有权与事件路由；单向语义较简单 | 需连接所有权与事件路由；双向会话通常更复杂 | 需信令、ICE 与必要时的 TURN |
-| **代理穿透** | 好 | 常被企业代理拒绝 | 需 UDP 放行，企业网络常受限 |
+| **交付目标** | 事件可靠有序 | 消息可靠有序 | 媒体重时限，数据通道可配置 |
+| **媒体处理** | 另行实现 | 另行整合 | 有媒体协议与实现支持 |
+| **建连** | HTTP 请求与响应流 | 握手及应用会话 | 信令、ICE、加密协商 |
+| **扩展重点** | 连接归属与事件路由 | 连接归属与双向会话 | 信令、媒体服务与中继 |
+| **网络限制** | 缓冲与空闲超时 | 代理需支持对应握手 | 检查 UDP 与中继可达性 |
+
+表中的可靠交付只指连接正常工作期间的传输语义，断线后的补发、去重和业务恢复仍由应用负责。三者的端到端延迟都要测网络、缓冲与处理开销；WebRTC 还要计入编解码和可能的中继成本。
 
 选型原则：
 
@@ -312,8 +311,8 @@ flowchart TB
 | 多轮对话 | **SSE + POST** | 用户发消息走 POST，回复走 SSE，解耦简单 |
 | 需要中途打断 | **HTTP 取消或 WebSocket 控制** | 关键是服务端传播取消及停止播放，不必仅因此换协议 |
 | 多人协同编辑 | **WebSocket** | 频繁双向，SSE + POST 双通道太繁琐 |
-| 实时语音对话 | **WebRTC** | 需要 UDP 低延迟 + 内置音频处理 |
-| MCP 远程 Server | **Streamable HTTP** | 内部仍用 SSE 流，代理穿透友好 |
+| 实时语音对话 | **WebRTC** | 复用媒体时限控制与音频处理链路，仍需实测 |
+| MCP 远程 Server | **Streamable HTTP** | 标准 HTTP 传输，按请求返回 JSON 或 SSE |
 
 **选型时先看交互形态**：单向事件流常选 SSE；需要应用层全双工消息时评估 WebSocket；实时交互式音视频通常评估 WebRTC。代理、浏览器、媒体处理与运维约束同样会改变选择。
 
@@ -331,7 +330,7 @@ flowchart TB
 
 ### 13.10.3 认为 WebRTC 的优势是 P2P
 
-P2P 只是它的一个特点，不是核心原因。核心是**UDP + 丢包隐藏 + 内置音频处理链路**。而且大量场景下 WebRTC 根本没走 P2P（打洞失败退到 TURN、或者对端本来就是服务器）。
+优势不只来自端到端直连，还包括媒体时序、拥塞控制、丢包恢复与音频处理。路径可以经 TURN 中继，对端也可以是媒体服务器；这些部署仍可受益于 WebRTC，而不是只有浏览器直连才有价值。
 
 ### 13.10.4 认为 WebRTC 可以完全替代 WebSocket
 
@@ -376,6 +375,6 @@ SSE 与 WebSocket 连接都由某个实例持有。扩容、重连和跨实例�
 - [RFC 8831：WebRTC Data Channels](https://www.rfc-editor.org/rfc/rfc8831)
 - [RFC 8441：WebSocket over HTTP/2](https://www.rfc-editor.org/rfc/rfc8441)
 - [RFC 9220：WebSocket over HTTP/3](https://www.rfc-editor.org/rfc/rfc9220)
-- [OpenAI: Realtime API WebRTC 接入](https://developers.openai.com/api/docs/guides/realtime-webrtc)
+- [OpenAI: WebRTC 接入（Realtime API 部分）](https://developers.openai.com/api/docs/guides/voice-webrtc?api=realtime)
 - [MCP 规范：Transports](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
 - [A2A v1.0.1 发布规范](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)

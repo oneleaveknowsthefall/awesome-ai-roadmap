@@ -20,6 +20,8 @@ description: 从 KV 管理、连续批处理和前缀复用比较推理运行时
 
 还要区分 **prefill** 与 **decode**：前者批量处理输入，通常有较高算术强度；低批量 decode 常受权重或 KV 带宽限制。高并发、长上下文和不同架构会改变瓶颈，不能把全部推理都称为 memory-bound。
 
+服务选型最终要满足服务级别目标（SLO），例如首 token 延迟（TTFT）和相邻输出 token 的时间间隔（ITL）上限。后文比较缓存和调度时，既看总吞吐，也看用户等待和流式输出是否卡顿。
+
 ## 20.2 vLLM：PagedAttention + Continuous Batching
 
 ### 20.2.1 PagedAttention 的灵感来自操作系统虚拟内存
@@ -106,7 +108,7 @@ SGLang 的 RadixAttention 对高前缀复用工作负载尤其值得评估；vLL
 
 ## 20.4 TGI：处于维护模式的 HuggingFace 服务方案
 
-截至 2026-09-08 核对的官方文档，Hugging Face 已声明 TGI 进入**维护模式**：接受小型修复、文档和轻量维护工作，并推荐后续评估 vLLM、SGLang 或本地兼容运行时。现有 TGI 用户仍应按自身版本的支持矩阵维护部署；维护模式不等于既有服务立即不可用。
+Hugging Face 已在官方文档中声明 TGI 进入**维护模式**：接受小型修复、文档和轻量维护工作，并推荐后续评估 vLLM、SGLang 或本地兼容运行时。现有 TGI 用户仍应按自身版本的支持矩阵维护部署；维护模式不等于既有服务立即不可用。
 
 | 维度 | 说明 |
 |---|---|
@@ -152,7 +154,7 @@ Metal 可利用 Apple GPU；统一内存减少部分 CPU/GPU 间显式复制，�
 | 本地或嵌入式推理 | 高并发时的排队、KV 容量和目标设备吞吐 |
 | Mac 上使用 Metal | 模型格式、量化与硬件带宽 |
 | 资源受限的 CPU/GPU 混合运行 | offload 与跨设备传输的延迟代价 |
-| 离线场景、隐私敏感场景（数据不出设备） | |
+| 离线或隐私敏感场景 | 核查模型下载、遥测、日志与外部工具调用；本地推理本身不保证整个应用的数据都不出设备 |
 
 官方 `llama-server` 已列出多用户并行解码和 continuous batching，也提供多 GPU 分配选项。因此「不支持 batch」「不能多卡」都不准确。分布式规模和运维能力仍要按具体版本验证，不能从支持某个选项推成适合所有集群。
 
@@ -169,15 +171,19 @@ TensorRT-LLM 针对 NVIDIA GPU 的 kernel、运行时与服务调度进行优化
 
 适合在 NVIDIA 环境中评估，不限于大集群。是否值得采用，取决于模型支持、实际 SLO 收益和团队承担的运维成本，而不是框架名称暗示的「极致性能」。
 
-## 20.7 选型决策矩阵
+## 20.7 怎样按工作负载筛选运行时？
 
-| 框架 | 可重点评估的机制 | 常见评估场景 | 性能 | 生态 |
-|---|---|---|---|---|
-| **vLLM** | PagedAttention、Continuous Batching、APC | 高吞吐 LLM API 与重复前缀工作负载 | 需实测 | 开源活跃 |
-| **SGLang** | RadixAttention（共享前缀） | Agent / 多轮 / Few-shot | 高前缀复用时值得评估 | 快速演进 |
-| **TGI** | HF 服务生态 | 既有 TGI 部署 | 已进入维护模式 | HF 生态 |
-| **llama.cpp** | C/C++ 推理 + GGUF | CPU / Mac / 边缘 | 需按设备实测 | 个人 / 边缘 |
-| **TensorRT-LLM** | NVIDIA 运行时优化 | NVIDIA 部署 | 需按后端与负载实测 | NVIDIA 官方开源 |
+先用模型、硬件和维护要求排除不支持的组合，再用真实请求比较满足 SLO 的吞吐。下面是候选方向，不是性能排名：
+
+| 框架 | 可重点评估的机制 | 常见评估场景与限制 |
+|---|---|---|
+| **vLLM** | PagedAttention、连续批处理、APC | 高吞吐 LLM API 与重复前缀工作负载 |
+| **SGLang** | RadixAttention 与服务调度 | Agent、多轮、Few-shot；高前缀复用时尤其值得评估 |
+| **TGI** | HF 服务生态 | 既有部署维护与迁移；已进入维护模式 |
+| **llama.cpp** | C/C++ 多后端推理与 GGUF | CPU、Mac、边缘；性能受具体设备约束 |
+| **TensorRT-LLM** | NVIDIA 运行时优化 | NVIDIA 环境；按后端和模型支持矩阵选型 |
+
+这些运行时都提供公开实现，但生态归属或活跃程度不能替代目标版本的支持矩阵；最终性能仍需在相同硬件、质量和负载下测量。
 
 ### 20.7.1 四个常见误用
 
@@ -263,7 +269,7 @@ TensorRT-LLM 针对 NVIDIA GPU 的 kernel、运行时与服务调度进行优化
 - [vLLM: Automatic Prefix Caching](https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/)
 - [SGLang 仓库](https://github.com/sgl-project/sglang)
 - [Text Generation Inference 仓库](https://github.com/huggingface/text-generation-inference)
-- [TGI 官方文档（维护模式说明）](https://huggingface.co/docs/text-generation-inference/main/en/index)
+- [TGI 官方文档（维护模式说明，2026-09-15 核对）](https://huggingface.co/docs/text-generation-inference/main/en/index)
 - [llama.cpp 仓库](https://github.com/ggml-org/llama.cpp)
 - [TensorRT-LLM 仓库](https://github.com/NVIDIA/TensorRT-LLM)
 - [llama.cpp：HTTP Server 能力与参数](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)
@@ -272,5 +278,3 @@ TensorRT-LLM 针对 NVIDIA GPU 的 kernel、运行时与服务调度进行优化
 - [vLLM：Disaggregated Prefilling](https://docs.vllm.ai/en/stable/features/disagg_prefill/)
 - [TGI：组件与 HTTP/gRPC 边界](https://huggingface.co/docs/text-generation-inference/main/en/architecture)
 - [TensorRT-LLM：LLM API 与 PyTorch backend](https://github.com/NVIDIA/TensorRT-LLM/blob/main/docs/source/llm-api/index.md)
-
-本文原创讲解与示意图：Polo Li，采用 CC BY 4.0。

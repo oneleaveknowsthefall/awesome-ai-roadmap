@@ -4,16 +4,16 @@ description: 拆解工具注册、版本固定、参数和权限校验、调度�
 
 # 第十九章：Tool Registry、调用契约与执行管线
 
-## 19.1 本章边界：Harness 侧的工具执行基础设施
+## 19.1 模型选中了工具，离执行还差什么？
 
-第三章 3.3、3.4 节定义了 Tool 是什么（最小可执行能力、Schema、Tool Call 与 Tool Execution 的区别）以及 MCP 如何标准化工具连接；Tools 主题的 [MCP 组件](../../tools/02-mcp/05-mcp-components.md) 一章讲的是协议本身。本章讲的是这些概念落到 harness 内部之后，需要哪些具体的运行时基础设施才能可靠地工作：工具从哪里被发现和注册、一次调用请求到返回结果之间要经过哪些阶段、并发和超时怎么控制、失败怎么回传给模型。这一层是第 17 章状态机图中 `ToolExecution` 状态展开后的内部结构。
+还要确认它选的是哪个执行器、参数是否合法、当前身份是否有权调用，以及执行结果怎样回到原请求。两个服务器都暴露 `search` 时，名字相同并不能说明能力相同；一次超时也不能说明工具没有执行。本章从注册表走到结果回写，展开第 17 章的 `ToolExecution`。工具概念见第三章，协议结构见 [MCP 组件](../../tools/02-mcp/05-mcp-components.md)。
 
 ## 19.2 Tool Registry：注册、发现与去重
 
 Registry 是 harness 维护的"当前会话可用工具"的单一事实来源，至少要解决三个问题：
 
 - **多来源合并**：内置工具、MCP Server 工具和宿主插件注册的工具统一进入 Registry。Skill 可以引用工具或附带脚本，但 `SKILL.md` 本身不是工具注册协议，仍需宿主适配执行器。
-- **命名冲突与去重**：多个 MCP Server 可能提供同名工具（例如两个不同的 `search`），Registry 需要用命名空间前缀或显式路由规则消除歧义。
+- **命名冲突与去重**：多个 MCP Server 可能提供同名工具（例如两个不同的 `search`），Registry 需要用命名空间前缀或显式路由规则消除歧义。前缀应绑定宿主配置中的服务身份；MCP 的 `serverInfo.name` 不保证跨服务器唯一，不能只信服务自报名称。
 - **动态变化**：MCP 2026-07-28 中，`listChanged` 声明通知能力，客户端还要以 `toolsListChanged: true` 打开 `subscriptions/listen` 才接收列表变化通知。列表可随时间与请求授权变化，但不得随连接或连接上其他请求的副作用变化（[Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)）。缓存必须区分授权范围，收到通知后重新列举，不能跨租户复用私有工具列表。
 
 规范对确定性顺序使用 **SHOULD**，有助于缓存但不是唯一变化检测机制。Registry 还应固定工具来源、Schema/描述版本及执行器映射；列表更新后重新做信任检查，审批过的调用不能悄悄改绑到新工具。
@@ -22,7 +22,7 @@ Registry 是 harness 维护的"当前会话可用工具"的单一事实来源，
 
 ## 19.3 调用契约：从 Tool Call 到 Tool Result 的接口
 
-第三章 3.3.4 节已经强调"Tool Call 不等于 Tool Execution"；本节把这个区分落实成一个具体的接口契约。一次工具调用在 harness 内部至少包含四个字段：调用 ID（用于结果配对）、工具名、参数（模型生成的、需要校验的 JSON）、以及执行状态。执行完成后必须产出与调用 ID 严格对应的结果对象，包含结果内容和成功/失败标记。这个契约的核心约束是**调用 ID 的双向可追溯**——18.6 节提到的"工具调用与工具结果必须严格配对"正是这个契约在装配层的体现；一旦某次调用因为超时或异常没有对应结果被写回，装配管线在下一轮请求时就会因为消息序列不合法而被模型 API 拒绝。
+一次工具调用在 Harness 内部至少要关联调用 ID、工具名、经过校验的参数和执行状态。调用结束时回写与 ID 对应的内容及状态；超时则记录“结果未知”，不能补造成功。核心是**调用 ID 的双向可追溯**：由结果能找到请求，由请求能找到其处理进度。在要求调用/结果完整配对的模型接口中，缺失结果会造成非法消息序列；Harness 要先完成、拒绝或明确终止这些调用，再按接口规则继续，而不是悄悄丢掉它们。
 
 ## 19.4 执行管线的五个阶段
 
@@ -50,7 +50,7 @@ flowchart LR
 - **有副作用且互相依赖的工具**（连续编辑同一个文件）需要串行执行，或者由 harness 检测到目标资源冲突后自动降级为串行；
 - **每个工具调用应有独立的超时预算**，且这个超时应该嵌套在整个 Turn 乃至整个会话的更大预算之内（第 21 章 21.5 节展开分层超时的设计）；超时触发时应产出一个明确的"超时"错误结果，而不是让调用无限期挂起阻塞整个状态机。
 
-OpenAI Agents SDK 的 Guardrails 机制提供了另一个视角的调度控制：Guardrails 可以挂在工具级别，"对每一次自定义 function-tool 调用生效，输入 guardrail 在执行前运行、输出 guardrail 在执行后运行"([OpenAI Agents SDK: Guardrails](https://openai.github.io/openai-agents-python/guardrails/))，这提供了一种在校验和权限判定之外、额外插入业务规则检查的调度点。
+OpenAI Agents SDK 的工具级 Guardrails 可以在配置了检查的 `FunctionTool` 执行前后插入业务规则（[Guardrails](https://openai.github.io/openai-agents-python/guardrails/)）。这不是对所有工具自动生效的总开关：托管工具、Handoff 及内置执行工具不一定经过同一管线，需核对覆盖范围。输出检查发生在执行之后，能阻止结果继续传播，却不能撤销已经产生的副作用。
 
 ## 19.6 结果回写与错误的一等公民地位
 
@@ -81,6 +81,7 @@ Registry 管理工具身份、定义版本与授权可见性，执行管线管�
 ## 参考资料
 
 - [Model Context Protocol: Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
+- [Model Context Protocol: Versioning](https://modelcontextprotocol.io/specification/versioning)：2026-07-28 的 Current 状态与修订规则，查阅于 2026-09-15。
 - [OpenAI Agents SDK: Guardrails](https://openai.github.io/openai-agents-python/guardrails/)
 - [Anthropic: Code execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp)
 - [Cloudflare: Code Mode — the better way to use MCP](https://blog.cloudflare.com/code-mode/)

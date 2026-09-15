@@ -139,5 +139,3 @@ LlamaIndex 的编排层延续了它以数据为中心的设计：Query Engine �
 - [LlamaIndex: WorkflowServer 部署](https://developers.llamaindex.ai/python/llamaagents/workflows/deployment/)
 - [LlamaIndex: BaseSynthesizer 的 query / nodes 接口](https://github.com/run-llama/llama_index/blob/main/llama-index-core/llama_index/core/response_synthesizers/base.py)
 - [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
-
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

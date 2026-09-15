@@ -4,7 +4,7 @@ description: 区分贪心、束搜索与采样的优化目标，说明长度偏�
 
 # 第十二章：解码策略
 
-## 12.1 本质：从条件分布生成序列
+## 12.1 模型给出概率以后，解码还要决定什么？
 
 本章讨论自回归语言模型。给定前缀，模型输出词表大小的 logits；经过 softmax 和解码规则后选出下一个 token。token 不一定是完整的词，词表大小也由具体 tokenizer 决定。
 
@@ -180,5 +180,3 @@ $$
 - [PagedAttention：包含 beam search 的缓存共享设计](https://arxiv.org/abs/2309.06180)
 - [Qwen3-30B-A3B 官方模型卡](https://huggingface.co/Qwen/Qwen3-30B-A3B)
 - [vLLM：Batch Invariance](https://docs.vllm.ai/en/stable/features/batch_invariance/)
-
-本文原创讲解与示意图：Polo Li，采用 CC BY 4.0。

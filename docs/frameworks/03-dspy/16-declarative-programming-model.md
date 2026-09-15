@@ -93,7 +93,7 @@ docstring 确实会作为初始任务指令进入请求，优化器也可能改�
 
 ### 16.5.3 在 `forward` 里塞入大量不可复用的胶水逻辑
 
-`forward` 支持任意 Python 控制流是优点，但如果把大段业务逻辑和多个模型调用硬编码在一起，会导致优化器很难定位到可复用的 `Module` 边界，间接削弱后续第十七章优化器的效果。
+`forward` 可以包含普通业务逻辑，代码长本身不会让优化器失效。需要检查的是待优化的 predictor 是否注册为可发现的子模块、是否在运行轨迹中被调用，以及指标能否评价它的贡献；把模型调用藏在框架无法追踪的外部函数里，才可能使该部分不参与优化。
 
 ### 16.5.4 混淆「声明式」和「不需要写代码」
 
@@ -121,5 +121,3 @@ DSPy 依然需要开发者组织 Module、管理数据流和定义指标。声�
 - [DSPy: Class-based signatures](https://dspy.ai/getting-started/class-based-signatures/)
 - [DSPy: Changing modules](https://dspy.ai/getting-started/changing-modules/)
 - [DSPy 论文：Khattab et al., "DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines"](https://arxiv.org/abs/2310.03714)
-
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

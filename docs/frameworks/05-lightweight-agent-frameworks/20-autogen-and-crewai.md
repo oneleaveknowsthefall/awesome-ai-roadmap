@@ -6,7 +6,7 @@ description: "分析 AutoGen 的维护状态、Core/AgentChat 分层与 CrewAI �
 
 ## 20.1 两条多智能体编排路线
 
-[Semantic Kernel · 第十九章](../04-semantic-kernel/19-process-and-agent-framework.md) 已区分协作模式与产品状态。**截至 2026-09-08，AutoGen 官方仓库明确进入 maintenance mode：不再增加新功能或增强，由社区继续维护，官方建议新用户采用 Microsoft Agent Framework，存量用户参考迁移指南。** 这不是「已有代码立刻不能运行」，也不是仍承诺积极新增功能。
+[Semantic Kernel · 第十九章](../04-semantic-kernel/19-process-and-agent-framework.md) 已区分协作模式与产品状态。**AutoGen 已进入维护模式：不再增加新功能或增强，由社区继续维护，官方建议新用户采用 Microsoft Agent Framework，存量用户参考迁移指南。** 这不是「已有代码立刻不能运行」，也不是仍承诺积极新增功能。
 
 本章保留 AutoGen 用于理解和维护既有系统，并与 CrewAI 比较架构；目录名「轻量级」是组织标签，不代表这两者只适合原型或具有低运行成本：
 
@@ -94,7 +94,7 @@ result = ResearchFlow().kickoff()
 
 ## 20.5 常见错误
 
-### 20.5.1 认为 AutoGen 的 `GroupChat` 类协作策略只有一种
+### 20.5.1 认为 AutoGen 的 Team 只有轮询一种策略
 
 不同 Team 实现（RoundRobin/Selector/Swarm）适合不同的协作模式，直接套用默认的轮询策略处理需要动态决策「谁该发言」的场景，会导致协作效率低下。
 
@@ -134,7 +134,7 @@ AutoGen 用 Actor 模型处理分布式协作问题，CrewAI 用团队协作隐�
 - [AutoGen 官方文档](https://microsoft.github.io/autogen/stable/)
 - [AutoGen: Core 用户指南](https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/index.html)
 - [AutoGen: AgentChat 用户指南](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/index.html)
-- [AutoGen 官方仓库：Maintenance Mode](https://github.com/microsoft/autogen)
+- [AutoGen 官方仓库：Maintenance Mode（固定提交）](https://github.com/microsoft/autogen/blob/027ecf0a379bcc1d09956d46d12d44a3ad9cee14/README.md)
 - [AutoGen → MAF 迁移指南](https://learn.microsoft.com/en-us/agent-framework/migration-guide/from-autogen/)
 - [AutoGen: 保存与加载 Agent/Team 状态](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/state.html)
 - [CrewAI 官方文档](https://docs.crewai.com/)
@@ -142,4 +142,4 @@ AutoGen 用 Actor 模型处理分布式协作问题，CrewAI 用团队协作隐�
 - [CrewAI: Crews 概念](https://docs.crewai.com/en/concepts/crews)
 - [CrewAI: Processes 的顺序与层级执行](https://docs.crewai.com/en/concepts/processes)
 
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。
+版本说明：AutoGen 维护模式及后继建议于 2026-09-15 对照上述固定提交复核；本章代码保留 Core/AgentChat 代际，不改写成 MAF API。

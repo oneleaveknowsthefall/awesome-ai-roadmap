@@ -65,38 +65,51 @@ CREATE TABLE order_lines (
 
 快照名为 `orders-20260908-shanghai-v1`，逻辑截止点是 `2026-09-08T01:00:00Z`。所有非空时间统一为固定宽度 UTC 文本 `YYYY-MM-DDTHH:MM:SSZ`，并在入库时校验；这里的文本比较才等价于时间比较。不要混入本地时间、不同偏移量或不一致的精度。
 
-`orders`：
+`orders` 共 8 行。为便于窄屏阅读，按同一个联合键分两张展示表；`T1/O101` 表示 `tenant_id=T1`、`order_id=O101`，不是数据库里新增的字段。
 
-| tenant_id | order_id | customer_id | created_at | status | total_amount_cents | promised_at |
-|---|---|---|---|---|---|---|
-| T1 | O101 | C1 | 2026-08-31T16:00:00Z | open | 10000 | NULL |
-| T1 | O102 | C1 | 2026-09-03T02:00:00Z | open | 4000 | 2026-09-10T04:00:00Z |
-| T1 | O103 | C2 | 2026-09-04T02:00:00Z | cancelled | 6000 | NULL |
-| T1 | O104 | C2 | 2026-09-05T02:00:00Z | shipped | 4000 | NULL |
-| T1 | O105 | C2 | 2026-09-07T16:00:00Z | open | 3000 | NULL |
-| T1 | O106 | C2 | 2026-09-06T02:00:00Z | open | 4000 | NULL |
-| T1 | O107 | C3 | 2026-09-07T02:00:00Z | open | 8000 | NULL |
-| T2 | O101 | C1 | 2026-09-02T02:00:00Z | open | 50000 | NULL |
+| 租户/订单 | 客户 | 状态 | 整单金额（分） |
+|---|---|---|---|
+| T1/O101 | C1 | open | 10000 |
+| T1/O102 | C1 | open | 4000 |
+| T1/O103 | C2 | cancelled | 6000 |
+| T1/O104 | C2 | shipped | 4000 |
+| T1/O105 | C2 | open | 3000 |
+| T1/O106 | C2 | open | 4000 |
+| T1/O107 | C3 | open | 8000 |
+| T2/O101 | C1 | open | 50000 |
 
-`order_lines`：
+| 租户/订单 | 下单时间 `created_at` | 承诺时间 `promised_at` |
+|---|---|---|
+| T1/O101 | 2026-08-31T16:00:00Z | NULL |
+| T1/O102 | 2026-09-03T02:00:00Z | 2026-09-10T04:00:00Z |
+| T1/O103 | 2026-09-04T02:00:00Z | NULL |
+| T1/O104 | 2026-09-05T02:00:00Z | NULL |
+| T1/O105 | 2026-09-07T16:00:00Z | NULL |
+| T1/O106 | 2026-09-06T02:00:00Z | NULL |
+| T1/O107 | 2026-09-07T02:00:00Z | NULL |
+| T2/O101 | 2026-09-02T02:00:00Z | NULL |
 
-| tenant_id | order_id | line_id | ordered_qty | shipped_qty | unit_price_cents |
-|---|---|---|---|---|---|
-| T1 | O101 | 1 | 10 | 4 | 500 |
-| T1 | O101 | 2 | 5 | 5 | 1000 |
-| T1 | O102 | 1 | 4 | 0 | 1000 |
-| T1 | O103 | 1 | 3 | 0 | 2000 |
-| T1 | O104 | 1 | 2 | 2 | 2000 |
-| T1 | O105 | 1 | 1 | 0 | 3000 |
-| T1 | O106 | 1 | 2 | 0 | 2000 |
-| T1 | O107 | 1 | 1 | 0 | 8000 |
-| T2 | O101 | 1 | 100 | 0 | 500 |
+`order_lines` 共 9 行，键依次为租户、订单和 `line_id`。后三列分别对应 `ordered_qty`、`shipped_qty`、`unit_price_cents`：
+
+| 租户/订单/行 | 订购件数 | 已发件数 | 单价（分） |
+|---|---|---|---|
+| T1/O101/1 | 10 | 4 | 500 |
+| T1/O101/2 | 5 | 5 | 1000 |
+| T1/O102/1 | 4 | 0 | 1000 |
+| T1/O103/1 | 3 | 0 | 2000 |
+| T1/O104/1 | 2 | 2 | 2000 |
+| T1/O105/1 | 1 | 0 | 3000 |
+| T1/O106/1 | 2 | 0 | 2000 |
+| T1/O107/1 | 1 | 0 | 8000 |
+| T2/O101/1 | 100 | 0 | 500 |
 
 O105 在快照中已经存在，但恰好落在下单窗口的右端点，不进入本次统计。所有记录的状态和发货量均按快照截止前事件确定。实际回放历史时，应使用对应历史快照或事件重建，不能拿当前累计值冒充历史值。
 
 `promised_at = NULL` 表示没有已确认的承诺日期，不是“今天交付”。`shipped_qty = 0` 才是已确认尚未发货；若源系统发货量缺失，应报告数据不完整，不能用 `COALESCE(shipped_qty, 0)` 把未知改成零。
 
 这份快照假设每单至少一条明细、头表金额与行金额一致，取消只发生在整单，不处理退货或超发。主外键和 `CHECK` 不会自动验证所有跨行规则，发布快照前仍需核对；支持部分取消时，要增加取消数量及其生效时间，不能直接套用下面的减法。
+
+还要核验存储类型：普通 SQLite 表的 `INTEGER` 是类型亲和性，不会仅凭列声明拒绝所有小数。这里假设维护程序已经验证件数、分金额与 ID 类型；需要数据库强制整数类型时，可增加 `typeof` 检查，或在 SQLite 3.37.0 及以上采用 `STRICT` 表。单行乘积与汇总值也应落在整数安全范围内，不能等溢出后再把浮点近似结果称为“精确到分”。
 
 ## 22.4 模型交的是查询草案，不是通行证
 
@@ -166,7 +179,7 @@ O101 第一行剩 6 件、3000 分，第二行全部发完；O102 剩 4 件、40
 
 确切结果如下，应用显示金额时可将分转换为元，不改动底层整数：
 
-| customer_id | pending_orders | remaining_qty | remaining_amount_cents |
+| 客户 | 欠发订单数 | 未发件数 | 未发金额（分） |
 |---|---|---|---|
 | C1 | 2 | 10 | 7000 |
 | C2 | 1 | 2 | 4000 |
@@ -229,7 +242,6 @@ SQLite 没有服务型数据库那样的内置用户角色和行级授权。本�
 - 李博杰，《深入理解 AI Agent》[第五章：代码作为交互接口与生成 SQL 查询](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md)。本章借鉴查询生成与执行的分工，业务、数据、SQL 与图为重新设计。
 - 同一固定提交的 ERP 示例：[README](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/README.md)、[agent.py](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/agent.py)、[demo.py](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py)。书中实验描述使用 PostgreSQL，配套运行示例使用 SQLite；这里核读源码，不运行上游程序，不引用其通过率为本章实验结论或客户收益。
 - SQLite 官方：[聚合函数](https://www.sqlite.org/lang_aggfunc.html)、[URI 只读模式](https://www.sqlite.org/uri.html)、[授权回调](https://www.sqlite.org/c3ref/set_authorizer.html)、[不可信 SQL 的安全措施](https://www.sqlite.org/security.html)、[应用函数安全](https://www.sqlite.org/appfunc.html#security_implications)、[执行计划](https://www.sqlite.org/eqp.html)。
+- SQLite 官方：[类型亲和性](https://www.sqlite.org/datatype3.html)、[STRICT 表及版本要求](https://www.sqlite.org/stricttables.html)。
 
-资料查阅于 2026-09-14。上游仓库采用 [Apache-2.0](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/LICENSE)，第三方材料遵循各自许可。
-
-原创文档与图：Polo Li，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 许可；引用资料归原作者所有。
+资料查阅于 2026-09-14，2026-09-15 复核固定提交与 SQLite 类型、聚合及执行限制。

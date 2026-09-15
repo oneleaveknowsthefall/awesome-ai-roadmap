@@ -8,7 +8,7 @@ description: "从状态归属、检查点、工具执行契约及评测遥测比
 
 前五个模块已经分别讲过每个框架的核心抽象。如果把它们记成一份产品清单——「LangChain 是通用 Agent 框架」「LlamaIndex 是 RAG 框架」「AutoGen 是多智能体框架」——这种分类很快就会失效：**几乎每个框架都在往相邻能力范围扩张**（LlamaIndex 有 Agent 和 Workflows，LangChain 有完整的检索组件，Semantic Kernel 既能做流程编排又能做多智能体协作）。功能清单式的比较会不断过时，也回答不了真正影响工程决策的问题：**如果今天选了 A，明天需要迁移到 B，代价落在哪些地方？**
 
-本章从四组工程维度比较实现约束，评测与可观测性放在同一组，但它们不是同一功能。表格按 2026-09-08 可访问官方文档校对，不作框架成熟度排名；MAF 已作为 SK/AutoGen 后继进入新选型范围，AutoGen 已处于维护模式。
+本章从四组工程维度比较实现约束，评测与可观测性放在同一组，但它们不是同一功能。这里不作框架成熟度排名；MAF 已作为 SK/AutoGen 后继进入新选型范围，AutoGen 已处于维护模式。
 
 ## 22.2 维度一：状态模型
 
@@ -39,7 +39,7 @@ flowchart TB
 
 ## 22.3 维度二：持久化
 
-持久化决定了「一次执行能不能被打断、之后从断点恢复」，这是生产系统里长时间运行任务、人工审批、故障恢复的基础：
+持久化为恢复提供数据基础，但还要由运行时解释这些数据并决定下一步。比较时，应同时问「保存了什么」和「恢复后会重做什么」：
 
 | 框架 | 持久化机制 | 恢复粒度 |
 |---|---|---|
@@ -82,7 +82,7 @@ flowchart TB
 | PydanticAI | 与 Pydantic Logfire 集成较紧密 | 同样基于 OpenTelemetry，适合已用 Pydantic 生态的团队 |
 | AutoGen / CrewAI | 消息/流程追踪与观测集成 | 核对跨 Agent 关联、工具 span、导出和数据驻留，不按“年轻”推断能力 |
 
-[OpenTelemetry GenAI 语义约定](https://github.com/open-telemetry/semantic-conventions-genai) 是行业里正在收敛的一条线索：它为「模型调用」「Agent 步骤」「工具调用」定义统一的 Span 命名和属性规范，让不同框架产生的 Trace 能被同一套观测后端消费。评估框架的可观测性时，除了看自带 UI，还要看它是否遵循这类开放标准；这会直接影响未来更换可观测性后端，甚至更换编排框架时，监控体系能保留多少投入。
+[OpenTelemetry GenAI 语义约定](https://github.com/open-telemetry/semantic-conventions-genai) 尝试统一模型、Agent 和工具调用的 span 命名与属性，便于不同框架的 Trace 在同一后端分析。**GenAI 总体文档和 Agent spans 仍标为 Development，不能把它们当成全部稳定的协议。** 评估时应检查实际导出字段与语义约定版本，而不只看自带 UI 或是否声称支持 OpenTelemetry。
 
 仍需核对语义约定版本和字段稳定性；都使用 OTLP 不代表 span 名、token 统计和业务标签完全一致。Prompt/response 采集也不是默认越全越好，应明确脱敏、采样与保留期。Trace 帮助解释执行，评测判断质量，二者互补。
 
@@ -136,7 +136,7 @@ flowchart TB
 - [PydanticAI: Durable Execution](https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/)
 - [Microsoft Agent Framework 概览](https://learn.microsoft.com/en-us/agent-framework/overview/)
 - [Semantic Kernel: Process Framework](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/process/process-framework)
-- [OpenTelemetry Generative AI 语义约定仓库](https://github.com/open-telemetry/semantic-conventions-genai)
+- [OpenTelemetry Generative AI 语义约定及状态](https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/README.md)
 - [LangSmith 官方文档](https://docs.smith.langchain.com/)
 
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。
+版本说明：微软框架的发布与维护状态见第十九、二十章的固定来源；OpenTelemetry GenAI 的 Development 标记于 2026-09-15 复核。不同导出器仍需锁定并验证各自采用的语义约定版本。

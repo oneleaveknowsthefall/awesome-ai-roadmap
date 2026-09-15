@@ -18,6 +18,4 @@ description: "FDE 基础章阅读入口，涵盖需求访谈、验收、系统�
 
 继续看[第二章：FDE 项目踩坑与交付经验](../02-field-practice/02-delivery-lessons.md)，可以把需求变更、PoC 结论、项目记忆和交接几个问题再往下展开。
 
-原创文档与图示：Polo Li，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。
-
 返回 [FDE 主题](../README.md)。

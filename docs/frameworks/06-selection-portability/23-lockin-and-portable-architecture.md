@@ -35,15 +35,15 @@ flowchart TB
         A2["SK / MAF 适配器"]
         A3["其他 Agent 运行时适配器"]
     end
-    Core --> A1
-    Core --> A2
-    Core --> A3
+    A1 -->|依赖领域接口| BL
+    A2 -->|依赖领域接口| BL
+    A3 -->|依赖领域接口| BL
     A1 --> R1["运行时 1"]
     A2 --> R2["运行时 2"]
     A3 --> R3["运行时 3"]
 ```
 
-具体到 Agent 系统的落地，这意味着：
+图中箭头表示代码依赖：适配器依赖领域接口和具体运行时，领域核心不反向导入框架。具体到 Agent 系统，这意味着：
 
 - **业务工具实现放在核心层**：保留领域输入输出、授权规则和幂等语义；适配器处理框架注册、调用上下文、错误映射和取消，不只是换装饰器；
 - **评测标准放在核心层**：评测指标、Golden Dataset 应该独立于任何框架的 Trace 格式存在（比如用普通的输入输出对存成结构化文件），这样即使换了编排框架，历史积累的评测能力依然可以复用；
@@ -59,9 +59,10 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    Q1{"团队技术栈是否强制约束<br/>（如企业只用 .NET）？"}
-    Q1 -->|"是"| SK["新 Agent 评估 MAF<br/>存量 SK 核对迁移与支持"]
-    Q1 -->|"否"| Q2{"核心难题是私有数据质量<br/>还是模型/工具编排？"}
+    Q1{"团队主要使用哪种技术栈？"}
+    Q1 -->|".NET"| SK["新 Agent 评估 MAF<br/>存量 SK 核对迁移与支持"]
+    Q1 -->|"JVM"| JV["评估 LangChain4j / Spring AI<br/>沿用现有服务框架"]
+    Q1 -->|"Python 或无强制约束"| Q2{"核心难题是私有数据质量<br/>还是模型/工具编排？"}
     Q2 -->|"数据质量"| LI["优先评估 LlamaIndex"]
     Q2 -->|"模型/工具编排"| Q3{"是否需要长时间运行、<br/>人工审批、精细状态恢复？"}
     Q3 -->|"是"| LG["评估 LangGraph / MAF<br/>或已集成的持久工作流引擎"]
@@ -69,7 +70,7 @@ flowchart TB
     Q4 -->|"是，且有分布式需求"| AG["比较运行时与消息边界<br/>AutoGen 仅作存量维护候选"]
     Q4 -->|"是，且需要快速搭建角色化协作"| CR["评估 CrewAI"]
     Q4 -->|"否，重视类型与可测试性"| PA["评估 PydanticAI"]
-    Q4 -->|"否，简单原型阶段"| LC["原生 SDK 或轻量 Agent 循环"]
+    Q4 -->|"否，标准工具循环"| LC["LangChain create_agent<br/>或原生 SDK"]
     Q5{"Prompt 有明确评估指标，<br/>且需要跨模型迁移？"}
     LC -.可选叠加.-> Q5
     LI -.也可优化子任务.-> Q5
@@ -77,7 +78,7 @@ flowchart TB
     Q5 -->|"是"| DS["叠加评估 DSPy 做子任务编译优化"]
 ```
 
-这张图是候选收敛流程，不是品牌推荐算法。按 2026-09-08 官方信息，MAF 是 SK/AutoGen 后继，AutoGen 已进入维护模式；不能继续把 AutoGen 当作新分布式 Agent 项目的默认选择。PydanticAI 已有持久执行集成，Workflows、CrewAI Flow 也应按运行时需求参与评估。
+这张图用于缩小候选范围，不是品牌推荐算法。语言只约束接入成本，任何分支都还需检查状态、恢复和权限要求。MAF 是 SK/AutoGen 后继，AutoGen 已进入维护模式；PydanticAI 已有持久执行集成，Workflows、CrewAI Flow 也应按运行时需求参与评估。
 
 组合框架是可选方案，不是复杂项目的必然答案。若一个运行时能满足要求，少一层往往更容易管理。确需嵌套时，指定一个顶层状态所有者，让子流程以有界请求返回；明确谁负责重试、取消和审批，避免两层同时重放同一个写工具。
 
@@ -133,7 +134,7 @@ flowchart LR
 1. **常见技术 lock-in 可拆三组**：状态格式、编排契约、运维资产；还应计入服务依赖和团队迁移成本；
 2. **可移植架构的核心是把业务核心（工具定义、评测标准）和框架细节（编排执行引擎）分层**，用适配器隔离框架特定代码，但这层投入应该和系统预期生命周期成正比，不是所有项目都需要；
 3. **先按业务约束筛选，再按维护状态和实际运行时验证**，组合多个框架也要说明额外收益；
-4. **迁移应该走契约测试 + Strangler Fig 灰度切换的路径**，避免大爆炸式重写，历史状态数据需要单独设计迁移方案；
+4. **契约测试应先于迁移**；能按流量拆分时可采用 Strangler Fig 灰度切换，小系统也可受控停机切换，历史状态与回滚仍需单独设计；
 5. **选型时最终仍要回到同一组技术维度**：不要按框架名字和功能清单做决策，而要按状态模型、持久化粒度、工具契约可移植性、评测与可观测性这些维度，结合项目自身的生命周期和团队约束做判断。
 
 > 长期可移植性依赖于资产分层管理：把工具定义、评测标准和业务规则独立出来，用灰度迁移替代大爆炸式重写，这样更换框架才会是一项可控的工程工作。
@@ -149,5 +150,3 @@ flowchart LR
 - [OpenTelemetry Generative AI 语义约定仓库](https://github.com/open-telemetry/semantic-conventions-genai)
 - [Martin Fowler: StranglerFigApplication](https://martinfowler.com/bliki/StranglerFigApplication.html)
 - [Alistair Cockburn: Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/)
-
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

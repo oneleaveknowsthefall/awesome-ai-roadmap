@@ -70,18 +70,39 @@ flowchart LR
 
 可用 output validator 检查跨字段业务约束，并以 `ModelRetry` 请求修正；如果证据本身不足，则应拒答而非无限重试。重试同样增加 token、延迟，不能绕过单请求预算。
 
-## 21.4 决策矩阵：AutoGen、CrewAI、PydanticAI 与本主题其他框架的适用边界
+## 21.4 类型化接口之外，还要比较什么
 
-把本模块两章和前几个模块放在一起，可以按六个工程维度画出一张对照表（更完整的跨全部框架对照见 [框架选型与可移植架构 · 第二十二章](../06-selection-portability/22-cross-framework-technical-taxonomy.md)）：
+还要比较状态归属、失败后的恢复粒度，以及工具和观测数据的迁移成本。可以按下面三步检查；跨全部框架的对照见[第二十二章](../06-selection-portability/22-cross-framework-technical-taxonomy.md)。
 
-| 维度 | AutoGen | CrewAI | PydanticAI | Semantic Kernel | LangGraph |
-|---|---|---|---|---|---|
-| **核心抽象** | Core 消息 / AgentChat Team | Agent、Task、Crew、Flow | 类型化 Agent 与依赖 | Kernel、Plugin、Process / Agent | 状态图 |
-| **状态模型** | Agent 内部状态及 Team 消息 | Task 输出、记忆与 Flow state | Run、消息历史、依赖；三者职责不同 | 按具体 Agent/Process 建模 | 状态通道与 reducer |
-| **恢复入口** | `save_state` / `load_state`，应用管理存储 | Flow 持久化，不等于内部每次调用检查点 | 官方 durable execution 集成，如 Temporal、DBOS、Prefect | 核对实验功能及运行时，不笼统承诺 | checkpointer，仍需持久后端 |
-| **工具契约** | AgentChat 工具与 Core 消息分层 | Tool / 参数 Schema | 类型注解、Pydantic、业务 validator | KernelFunction 与 Plugin | Tool Schema 与工具执行 |
-| **观测接入** | Core 有遥测，需配置导出 | Flow/Crew 追踪与可观测性集成 | Logfire / OpenTelemetry | OpenTelemetry / Application Insights | LangSmith / 其他集成 |
-| **迁移负担** | 消息、Team 策略；维护模式需评估 MAF | Task 上下文、Flow 状态和运行服务 | 消息格式、重试/工具语义、持久执行后端 | Plugin、Filter、线程及 MAF 迁移 | reducer、检查点与中断语义 |
+**先看状态：框架提供什么对象，运行数据放在哪里。**
+
+| 框架 | 核心抽象 | 状态模型 |
+|---|---|---|
+| AutoGen | Core 消息 / AgentChat Team | Agent 内部状态及 Team 消息 |
+| CrewAI | Agent、Task、Crew、Flow | Task 输出、记忆与 Flow state |
+| PydanticAI | 类型化 Agent 与依赖 | Run、消息历史、依赖；三者职责不同 |
+| Semantic Kernel | Kernel、Plugin、Process / Agent | 按具体 Agent/Process 建模 |
+| LangGraph | 状态图 | 状态通道与 reducer |
+
+**再看恢复：保存过数据，不代表能从任意中间步骤继续。**
+
+| 框架 | 恢复入口 |
+|---|---|
+| AutoGen | `save_state` / `load_state`，应用管理存储 |
+| CrewAI | Flow 持久化，不等于内部每次调用检查点 |
+| PydanticAI | 官方 durable execution 集成，如 Temporal、DBOS、Prefect |
+| Semantic Kernel | 核对实验功能及运行时，不笼统承诺 |
+| LangGraph | checkpointer，仍需持久后端 |
+
+**最后检查工具与运维资产：哪些能保留，哪些需要重新适配。**
+
+| 框架 | 工具与观测接入 | 主要迁移负担 |
+|---|---|---|
+| AutoGen | AgentChat 工具与 Core 消息分层；Core 遥测需配置导出 | 消息、Team 策略；维护模式需评估 MAF |
+| CrewAI | Tool / 参数 Schema；Flow/Crew 追踪集成 | Task 上下文、Flow 状态和运行服务 |
+| PydanticAI | 类型注解、Pydantic、业务 validator；Logfire / OpenTelemetry | 消息格式、重试/工具语义、持久执行后端 |
+| Semantic Kernel | KernelFunction 与 Plugin；OpenTelemetry / Application Insights | Plugin、Filter、线程及 MAF 迁移 |
+| LangGraph | 可接 Tool Schema 与执行节点；LangSmith / 其他集成 | reducer、检查点与中断语义 |
 
 这是核对清单，不是「最严格/最成熟/最低锁定」排名。新 .NET/Python 项目应另外评估 [MAF](../04-semantic-kernel/19-process-and-agent-framework.md)，不要默认选处于维护模式的 AutoGen 或 SK 实验 Process。PydanticAI 的持久执行也需要部署相应引擎，运维负担并未因为提供集成而消失。
 
@@ -109,7 +130,7 @@ CrewAI 的 `role`/`goal`/`backstory` 是 Prompt 工程的组织方式，不代�
 
 ## 21.6 本章总结
 
-1. **PydanticAI 把「Agent 开发」重新定义为「类型安全的函数调用」**：`output_type` 保证输出可被自动校验并重试，`RunContext` 提供可测试的依赖注入入口；
+1. **PydanticAI 用类型化接口组织 Agent 调用**：`output_type` 声明输出契约，校验失败可有限重试；`RunContext` 提供可测试的依赖注入入口；
 2. **类型注解帮助生成工具 Schema**，供应商支持的 Schema 子集、输出模式和校验语义仍需核对；
 3. **类型校验解决的是「格式正确性」，不是「内容正确性」**，仍然需要独立的评测体系判断语义质量；
 4. **AutoGen、CrewAI、PydanticAI 在状态模型、持久化、工具契约、可观测性和 lock-in 风险上呈现出明显不同的取舍**，没有一个框架在全部维度上都最优；
@@ -128,5 +149,3 @@ CrewAI 的 `role`/`goal`/`backstory` 是 Prompt 工程的组织方式，不代�
 - [PydanticAI: 输出模式与校验](https://pydantic.dev/docs/ai/core-concepts/output/)
 - [PydanticAI: Durable Execution](https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/)
 - [AutoGen: State](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/state.html)
-
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

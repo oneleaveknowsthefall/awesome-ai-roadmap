@@ -217,5 +217,3 @@ MoE 要分开讨论四件事：总参数容量、每 token 的激活计算、全
 - [Expert Choice Routing](https://arxiv.org/abs/2202.09368)
 - [ST-MoE：Router z-loss](https://arxiv.org/abs/2202.08906)
 - [Qwen3-30B-A3B 官方模型卡](https://huggingface.co/Qwen/Qwen3-30B-A3B)
-
-本文原创讲解与示意图：Polo Li，采用 CC BY 4.0。

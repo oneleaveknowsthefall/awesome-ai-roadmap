@@ -63,7 +63,7 @@ flowchart TB
 
 ## 18.3 生成层指标
 
-Ragas 提供多种生成和上下文指标，**并非全部无参考答案**。以下依本次可访问官方文档区分含义；实际运行需固定包版本、指标类、提示词、Judge 和输入字段，不能混合不同 API 口径：
+Ragas 提供多种生成和上下文指标，**并非全部无参考答案**。下表采用官方文档中基于 LLM 的指标口径；实际运行需固定包版本、指标类、提示词、Judge 和输入字段，不能混合不同 API：
 
 | 指标 | 衡量什么 |
 |---|---|
@@ -73,6 +73,10 @@ Ragas 提供多种生成和上下文指标，**并非全部无参考答案**。�
 | **Context Recall（上下文召回率）** | 将参考答案拆成主张，判断被检索上下文覆盖的比例，**需要 reference** |
 
 Faithfulness 通常只需生成答案和检索上下文，不需标准答案；Response/Answer Relevancy 也可不依赖标准答案，但不检验事实真假。官方文档还区分基于生成回答的 `ContextUtilization`、非 LLM 文本匹配和 ID-based recall 等变体。名称相近不意味着输入、分母或统计目标一致。
+
+两个计算细节值得单独说明。基于 LLM 的 Context Precision 先判每块是否有用，再对有用块所在位置的 Precision@k 求和，除以返回列表中被判为有用的块数；它不会惩罚所有尚未召回的证据，因此仍要配合 Recall。Answer Relevancy 则从回答反向生成问题，再比较这些问题与原问题的嵌入相似度；回答看似切题但漏掉一个条件时，这个代理分数仍可能很高。
+
+官方文档同时列出 collections API 与 legacy API：例如前者的 `ContextUtilization` 和后者的 `LLMContextPrecisionWithoutReference` 都使用生成回答，而不是参考答案来判块的用途。报告不能只写“跑了 Context Precision”，还要写清具体变体。
 
 ### 18.3.1 四个使用边界
 
@@ -106,12 +110,12 @@ Context Recall 不能凭空知道遗漏了哪些证据，需要参考答案、�
 
 最终还是要回答「用户的问题解决了吗」。
 
-| 方式 | 说明 | 成本 | 可靠性 |
-|---|---|---|---|
-| **人工评分** | 专家按维度打分 | 高 | 依赖专业背景、明确准则与标注一致性；需双标、仲裁和抽检 |
-| **LLM-as-Judge** | 模型对照参考答案打分 | 中 | 中（**需校准**） |
-| **程序化断言** | 检查答案是否包含关键事实 | 低 | 高（**但覆盖窄**） |
-| **AB 测试** | 线上对比两个版本 | 中 | **最贴近真实** |
+| 方式 | 能判断什么，不能保证什么 |
+|---|---|
+| 人工评分 | 专家按业务准则判断；成本随规模增加，需双标、仲裁和抽检控制分歧 |
+| LLM-as-Judge | 对照证据和参考答案评价开放性回答；需校准，并保留无法判定和评判失败 |
+| 程序化断言 | 精确比较结构化数值、单位、ID 与约束；仅检查关键词出现会漏掉否定和归属错误 |
+| A/B 测试 | 观察真实流量中的差异；需稳定分流、样本量、护栏指标和反馈偏差分析 |
 
 **推荐组合**：**程序化断言做主体**（快速、确定性、可回归），**LLM-as-Judge 做补充**（覆盖开放性问题），**定期人工抽查做校准**（验证前两者的可信度）。
 
@@ -226,7 +230,7 @@ flowchart TB
     S6 --> S1
 ```
 
-这是一条闭环流程：线上反馈会不断补充评测集，评测集再指导下一轮优化。
+这是一条闭环流程：线上反馈补充开发集和回归集，再指导优化。冻结测试集应隔离保管、按约定周期更新，不能把已经反复用于选阈值和调提示词的测试题继续当作未见样本。
 
 ## 18.9 常见错误
 
@@ -248,7 +252,7 @@ flowchart TB
 
 ### 18.9.5 用生成模型自己做评判
 
-存在同源偏见，应该换一个模型。
+应检查共同错误与风格偏好；换模型可以缓解同源偏见，但仍需盲评、顺序扰动与人工校准。
 
 ### 18.9.6 评测集不含"无答案"问题
 
@@ -286,8 +290,11 @@ flowchart TB
 - [Ragas：Context Recall](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_recall/)
 - [Ragas：Context Precision](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_precision/)
 - [Ragas：Faithfulness](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/)
+- [Ragas：Answer / Response Relevancy](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/answer_relevance/)
 - [ALCE：Enabling Large Language Models to Generate Text with Citations](https://arxiv.org/abs/2305.14627)
 - [Evaluation of Retrieval-Augmented Generation: A Survey](https://arxiv.org/abs/2405.07437)
 - [CRAG - Comprehensive RAG Benchmark](https://arxiv.org/abs/2406.04744)
 - [TREC RAG Track](https://trec-rag.github.io/)
 - [Fact, Fetch, and Reason: A Unified Evaluation of Retrieval-Augmented Generation](https://arxiv.org/abs/2409.12941)
+
+Ragas 在线指标文档查阅于 2026-09-15；文中的 API 名称用于区分统计口径，不代表所有历史版本都提供同名类。

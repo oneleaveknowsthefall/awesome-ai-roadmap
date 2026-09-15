@@ -31,5 +31,3 @@ flowchart LR
 - 准备技术讨论时，尝试解释文档更新后如何删除旧节点、为何换向量库仍需回归，以及检查点恢复后怎样防止工具重复提交。
 
 返回 [AI 框架与编排 相关知识点](../README.md)。
-
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

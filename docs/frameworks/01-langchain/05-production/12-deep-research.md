@@ -57,6 +57,8 @@ flowchart TB
 
 > **每个 Researcher 只处理一个子课题，最终只返回压缩后的结论和来源，主 Agent 不必背着全部搜索过程继续思考。**
 
+这里隔离的是消息上下文，不是操作系统权限或所有存储。Deep Agents 的默认 State backend 文件可由主 Agent 与子 Agent 共享；需要保密隔离时，还要分别配置工具权限和存储边界，不能只靠委派。
+
 ### 12.3.2 并行是隔离之后的自然结果
 
 - 相互独立的研究任务可以同时执行，**整体等待时间下降**；
@@ -136,11 +138,13 @@ Deep Agents 向模型提供的是**可插拔 backend 后面的文件系统工具
 |---|---|---|
 | 默认 State backend | 文件随 LangGraph state/checkpointer 在**同一 thread**内保存 | 适合临时工作区；不跨 thread 共享 |
 | `StoreBackend` | 文件跨 thread 持久化 | namespace、租户隔离、保留与删除策略由应用负责 |
-| `FilesystemBackend` | 访问指定根目录的本地文件 | 只授予专用、最小目录；不要把主机目录、密钥目录或用户主目录作为 root |
+| `FilesystemBackend` | 读写真实本地文件 | `root_dir` 本身不是访问限制；需配合 `virtual_mode=True` 约束文件工具路径，仍不等于进程沙箱 |
 | `LocalShellBackend` | 本机文件系统，另有 `execute` | **没有隔离**；仅限受控开发环境 |
 | Sandbox backend | 隔离的文件系统和 `execute` | 适合不可信代码与自主 Agent；仍须限制网络、凭证、挂载目录、资源和生命周期 |
 
 > 上表中 Sandbox 和 LocalShell backend 提供 shell `execute`，自定义 backend 或工具还可能扩展能力。Sandbox 是隔离边界，不是「默认安全」的同义词：把最小权限凭证按需注入，使用只读/受限网络与 CPU、内存、时间配额，并在删除、外发、付费调用等动作前启用 `interrupt_on` 审批。不要把宿主机的环境变量或云凭证直接暴露给 Agent。
+
+官方说明 `FilesystemBackend` 默认 `virtual_mode=False`，即使设置 `root_dir` 也不提供路径安全边界。启用虚拟路径后仍应只暴露专用最小目录；若同时开放本机 shell，命令可以绕过文件工具的路径约束，必须另用受限执行环境。
 
 **推荐组合**：临时中间产物放 thread-scoped State backend；经审核、需要跨会话保留的资料放带租户 namespace 的 Store backend；代码执行放一次性 sandbox。需要同时使用时用 Composite backend 按路径路由，而不是把所有数据和权限放进一个可写本地目录。
 

@@ -1,0 +1,575 @@
+{
+  "scope": "docs/llm/** 与 docs/multimodal/**：23 章 LLM、10 章多模态，以及两主题的 13 个索引",
+  "baseline": "1ccb8aced9dea6eaa32a6cb17d5d2b4ed7cf2e10",
+  "reviewed_on": "2026-09-15",
+  "method": "逐章完整阅读正文、公式、代码、表格和参考资料；保留已严谨的解释，只修正实质问题和妨碍直接回答的组织。以下核对不代表训练或推理实验；外部来源仅在实际访问并读到有关内容时记录为本轮复核依据。",
+  "validation": {
+    "documentation": "python3 scripts/check_docs.py：143 章，0 个问题；git diff --check 通过。",
+    "mermaid": "使用现有 scripts/check_mermaid.mjs，分别以 docs/llm 和 docs/multimodal 为工作目录：40 + 8 张图，0 个解析失败。缺少 jsdom 后才执行 npm ci 恢复锁定依赖。",
+    "scope_and_examples": "33 条记录一一覆盖章节，22 revised / 11 retained；路径、H1 和章节数与基线一致；78 个代码/图表围栏内容与基线逐字一致，其中 10 个 Python 代码块通过 AST 语法检查。",
+    "anchors": "20 个标题锚点改变；全仓已跟踪 Markdown 中未发现引用这些旧锚点的链接，也未发现显式指向两主题的带片段跨主题或绝对链接。站外书签及未在仓库中的链接不可排查。",
+    "numerical_examples": "复算两种上下文长度的 KV 容量、训练状态字节数、LoRA 参数数、6ND、温度归一化、量化舍入、二项标准误和分页尾块。",
+    "limits": "未运行模型训练、真实推理、计费 API、全仓 MkDocs 或 KDP 排版。修改的交叉注意力公式仍需在后续发布时复核 GitHub/Wiki 浏览器渲染。OpenAI SWE-bench 声明全文本轮不可访问，保留基线事实并明确机构范围。"
+  },
+  "chapters": [
+    {
+      "path": "docs/llm/01-foundations/01-what-is-llm.md",
+      "disposition": "revised",
+      "summary": "将开篇比较对象写成明确问题；移除提及旧稿错误数字的审校口吻，保留涌现没有通用参数临界点的技术限定。",
+      "technical_checks": [
+        {
+          "check": "核对自回归目标中的真实前缀、训练位置并行与生成逐 token 推进的区别；BERT 的 MLM 目标没有被误写成开放聊天接口。"
+        },
+        {
+          "check": "核对词与 token 的计量区别、ICL 不更新权重，以及 Chinchilla 配比不能直接外推为业务最优配置；未重新核验各历史模型的全部训练数据数字。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/01-foundations/02-transformer-architecture.md",
+      "disposition": "retained",
+      "summary": "正文已从串行依赖、Q/K/V 形状展开到完整 Block 与训练/生成数据流；保留现有推导和代码，没有为统一标题而重写。",
+      "technical_checks": [
+        {
+          "check": "按行输入约定核对 QKᵀ 为 N×N、注意力输出为 N×d_v，固定模型宽度下四个 MHA 投影约有 4d_model² 参数。"
+        },
+        {
+          "check": "核对平方根缩放的独立性假设、严格上三角因果掩码、右移标签、Pre/Post-LN 与 SwiGLU；原文已正确区分 loss mask 和 attention mask。"
+        },
+        {
+          "check": "核对置换等变性带有无位置特征及无非对称掩码的前提，且未将 FFN 说成 Block 唯一的非线性来源。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/01-foundations/03-attention-variants.md",
+      "disposition": "revised",
+      "summary": "开篇直接回答训练、prefill、decode 瓶颈是否相同；将版本访问日期从正文移开，以固定官方快照限定 FlashAttention-4 说明。",
+      "technical_checks": [
+        {
+          "check": "复算 32 层、32000 token、32 KV 头、128 头维、16-bit 的缓存为 16777216000 字节，即 15.625 GiB；GQA 比例作用于 KV 头而不是全部模型成本。"
+        },
+        {
+          "check": "核对 online softmax 合并时必须同时重缩放指数和及加权 V，FlashAttention 不把全注意力算术量改成线性。"
+        },
+        {
+          "check": "读取指定提交的官方 README，确认 FA3 面向 Hopper，FA4 使用 CuTeDSL 并面向 Hopper/Blackwell；未将此当作框架默认后端。",
+          "source_urls": [
+            "https://raw.githubusercontent.com/Dao-AILab/flash-attention/1f7ce2f7cb503473559f3d44d575ae05b1ed8557/README.md"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/01-foundations/04-position-encoding.md",
+      "disposition": "retained",
+      "summary": "sin/cos、RoPE、ALiBi 的机制和外推边界已线性展开；保留旋转矩阵推导、位置插值算例与长窗口验收条件。",
+      "technical_checks": [
+        {
+          "check": "核对 sin/cos 固定偏移矩阵的正负号，以及 R_mᵀR_n=R_(n−m)；相对位置结论仅针对固定内容向量的位置项。"
+        },
+        {
+          "check": "核对 4096 到 16384 的线性插值因子为 1/4；ALiBi 在因果可见位置使用负距离偏置，未来位置仍需掩码。"
+        },
+        {
+          "check": "原文已区分公式可计算、接口可接受长度和实际长文能力，并说明动态频率修改可能使既有 KV 失效。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/01-foundations/05-tokenizer.md",
+      "disposition": "revised",
+      "summary": "纠正词级 OOV 导致全部语义丢失、特殊 token 不来自文本、messages 接口天然优于文本输入等绝对说法；补全字节覆盖与 EOS 停止配置前提。",
+      "technical_checks": [
+        {
+          "check": "依据官方 chat template 文档核对 messages 最终被序列化成 token；相同 token 与其余配置下，接口名字不提供额外对话信息。",
+          "source_urls": [
+            "https://huggingface.co/docs/transformers/chat_templating"
+          ]
+        },
+        {
+          "check": "检查 BPE 训练合并与推理编码优先级的区别、SentencePiece 是库而非并列子词算法；避免 OOV 需要基础单元覆盖，token 边界不保证是 Unicode 边界。"
+        },
+        {
+          "check": "核对 embedding 参数 Vd 与非共享输出投影的额外成本；保留全部分词示例，并明确其不是目标 tokenizer 实测结果。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/02-training-alignment/06-llm-training.md",
+      "disposition": "revised",
+      "summary": "将三个阶段的标题改为数据、损失与反馈的具体问题，并先直接说明各阶段改变什么，再进入原有推导和案例。",
+      "technical_checks": [
+        {
+          "check": "核对 C≈6ND 的 FLOPs 单位；175B 参数与 300B token 的乘积给出约 3.15×10²³ FLOPs，不能直接换算 GPU 年或费用。"
+        },
+        {
+          "check": "核对预训练平均负对数似然与 completion-only SFT 的目标位置，提示不计 loss 不等于不参与 attention。"
+        },
+        {
+          "check": "保留 SFT 属于后训练、三阶段不是能力硬分区、R1-Zero 复用预训练基座及与完整 R1 流程不同的已有限定。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/02-training-alignment/07-scaling-law-emergence.md",
+      "disposition": "revised",
+      "summary": "补齐训练成本与服务成本相加时的单位约束，明确 FLOPs 核算与经济成本核算不能混加；其余预算推导与涌现争议保留。",
+      "technical_checks": [
+        {
+          "check": "将 D=C/(6N) 代入 E+A/N^α+B/D^β，核对最优 N 与 D 的计算预算指数分别为 β/(α+β)、α/(α+β)。"
+        },
+        {
+          "check": "核对 D/N=20 只是 Chinchilla 代表配置；固定 GPT-3 参数再增加 token 不再是相同训练预算比较。"
+        },
+        {
+          "check": "核对 p^k 示例明确要求独立且同正确率，表观指标陡变不被当成严格数学不连续或全部能力变化的否定。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/02-training-alignment/08-finetuning.md",
+      "disposition": "retained",
+      "summary": "错误归因、参数方案与训练目标两个维度，以及显存账和产物复现要求已经完整；保留选择流程与全部公式。",
+      "technical_checks": [
+        {
+          "check": "复算 7B 持久状态：16 字节/参数为 112 GB，FP32 梯度情形为 126 GB；原文明确排除激活、分片和卸载。"
+        },
+        {
+          "check": "复算 4096×4096、rank=16 的 LoRA 参数为 131072，比例 1/128；该比例未被用于直接推断整体显存或速度。"
+        },
+        {
+          "check": "核对 QLoRA 冻结离散基座、训练 adapter，NF4 存储不等于全部 4-bit 算术；SFT/DPO 与 LoRA 可组合但需后端支持。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/02-training-alignment/09-lora.md",
+      "disposition": "retained",
+      "summary": "矩阵约定、初始化梯度、合并和多适配器限制已充分解释；保留 PEFT 顺序切换与加权拼接代码，没有运行占位模型加载。",
+      "technical_checks": [
+        {
+          "check": "核对列向量公式 BA 与 PyTorch F.linear 的等价形状；A/B 同为零时乘积梯度阻塞，只有 B 为零时 B 仍可先更新。"
+        },
+        {
+          "check": "核对 rank 约束只约束增量，缩放包含 α/r；两个 adapter 分别平均因子会产生交叉项，不等于平均 BA。"
+        },
+        {
+          "check": "检查示例采用单一 PeftModel 包装、命名适配器与顺序切换；原文已声明占位路径、基座兼容与共享实例并发隔离限制。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/02-training-alignment/10-post-training.md",
+      "disposition": "retained",
+      "summary": "已按监督来源、策略更新和数据生成循环区分方法，避免算法排行榜；保留 DPO 间隔与 GRPO 组内优势公式及公开流程的版本边界。",
+      "technical_checks": [
+        {
+          "check": "核对 DPO 损失作用于策略相对参考的成对 log-ratio 差，不要求 chosen 绝对概率必然上升。"
+        },
+        {
+          "check": "检查 GRPO 组内标准差、数值保护、结果奖励广播与同奖励组无任务优势的解释；没有把无 Critic 说成无 rollout 成本。"
+        },
+        {
+          "check": "检查拒绝采样微调与推理 best-of-N、Constitutional AI 的监督批评修订与偏好 RL 阶段被分别说明。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/02-training-alignment/11-dpo-vs-ppo.md",
+      "disposition": "retained",
+      "summary": "推导已经包含参考策略支持集、配分函数抵消、PPO 旧策略与 KL 参考策略的区别；保留全章技术深度。",
+      "technical_checks": [
+        {
+          "check": "代回 π*∝πref·exp(r/β)，核对奖励中的 βlogZ(x) 仅在同一问题两答案相减时消失，DPO 公式的偏好方向和符号一致。"
+        },
+        {
+          "check": "核对 token 级 GAE 的 t=0…T−1 编号、终止值与截断 bootstrap 限定，PPO clipping 被表述为目标激励而非概率比硬投影。"
+        },
+        {
+          "check": "检查 F.logsigmoid 代码、回答 token 求和及参考概率缓存的模板/截断一致性；未执行 GPU 训练。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/03-inference-serving/12-decoding-strategies.md",
+      "disposition": "revised",
+      "summary": "开篇标题改为概率分布之后解码还需决定什么；移除通用署名页尾，保留束搜索、推测解码和多路径聚合的完整机制。",
+      "technical_checks": [
+        {
+          "check": "核对贪心示例 0.6×0.5=0.30 小于另一前缀 0.4×0.9=0.36；局部最优不推出序列最优。"
+        },
+        {
+          "check": "核对推测采样接受率 min(1,p/q)、拒绝后正残差分布和全接受时额外采样；保持目标分布不同于同随机种子逐字相同。"
+        },
+        {
+          "check": "读取原版 Qwen3-30B-A3B 模型卡，确认 thinking 模式不推荐贪心；未外推到后续型号。",
+          "source_urls": [
+            "https://huggingface.co/Qwen/Qwen3-30B-A3B/raw/main/README.md"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/03-inference-serving/13-temperature-top-p-top-k.md",
+      "disposition": "revised",
+      "summary": "修正 do_sample=False 就是贪心的缺失条件，明确束宽大于 1 时仍做束搜索；补官方版本文档，删除通用署名页尾。",
+      "technical_checks": [
+        {
+          "check": "按 Transformers 文档区分贪心、采样与 num_beams>1 的束搜索，保留 T=0 不能直接代入温度公式的边界。",
+          "source_urls": [
+            "https://huggingface.co/docs/transformers/v4.56.2/en/generation_strategies"
+          ]
+        },
+        {
+          "check": "复算 [0.6,0.3,0.1] 的平方、平方根归一化及 Top-P 顺序算例；Top-K 与 Top-P 的候选集合确实可能随执行顺序改变。"
+        },
+        {
+          "check": "核对原版 Qwen 模型卡两种模式的温度、TopP、TopK 与 MinP 配置，不将其包装成通用调参表。",
+          "source_urls": [
+            "https://huggingface.co/Qwen/Qwen3-30B-A3B/raw/main/README.md"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/03-inference-serving/14-kv-cache.md",
+      "disposition": "revised",
+      "summary": "开篇直接区分三个缓存层次；补明注意力式省略的因果/padding 掩码和单 token decode 前提；访问日期归入参考资料，删除署名页尾。",
+      "technical_checks": [
+        {
+          "check": "复算 N=32768 时 MHA/GQA/MQA 的 16/4/0.5 GiB，区别于第三章 N=32000 的算例；检查 O(P²+PG+G²) 只统计 attention。"
+        },
+        {
+          "check": "核对写一次、命中 h 次的回本条件 h(1−r)>w−1；w=1.25、r=0.1 时一次命中即可回本。"
+        },
+        {
+          "check": "复核 OpenAI 官方指南的完整前缀匹配、按模型计价及缓存不等于直接返回答案；Anthropic 示例仅静态阅读，未调用服务或宣称缓存实测命中。",
+          "source_urls": [
+            "https://developers.openai.com/api/docs/guides/prompt-caching"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/03-inference-serving/15-quantization.md",
+      "disposition": "revised",
+      "summary": "将 QLoRA 段落改成冻结低比特基座如何微调的直接问答，避免用消费级 GPU 标签代替资源条件；移除署名页尾。",
+      "technical_checks": [
+        {
+          "check": "复算非对称 4-bit 示例的 scale=1/3、ties-to-even 零点 8、q=10、重建 2/3；检查零范围、裁剪及元数据边界。"
+        },
+        {
+          "check": "核对 GPTQ 的 WX 重构目标与同层误差补偿、AWQ 的 WS·S⁻¹X 缩放，以及 NF4/算法/kernel/GGUF 的层级区别。"
+        },
+        {
+          "check": "核对裸 4-bit 存储和每 128 权重一个 16-bit scale 时的 4.125 平均位宽，不以压缩率承诺固定吞吐收益。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/04-prompt-reliability/16-prompt-engineering.md",
+      "disposition": "revised",
+      "summary": "将五要素段落改成模糊请求如何可执行、可验收的具体问题；纠正少展示推理链就少算 token 的暗示，区分推理预算与展示长度。",
+      "technical_checks": [
+        {
+          "check": "逐段检查角色、任务、背景、格式、示例均为按需检查项；完整博客摘要示例未被裁剪，也没有被补成必须包含 few-shot 的模板。"
+        },
+        {
+          "check": "核对 JSON 语法、schema 结构和业务语义三层验证；分隔符没有被当作权限或注入隔离机制。"
+        },
+        {
+          "check": "核对不展示内部推理不改变已经发生的生成计算；保留离散压缩与需要训练的 soft prompt 不属于同一种文档压缩方法。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/04-prompt-reliability/17-cot.md",
+      "disposition": "revised",
+      "summary": "移除复杂题必然无法从训练内容召回的断言；说明 CoT 边缘化公式只描述同一生成过程，不能证明加入提示前后分布相同；给机制图增加文字解释。",
+      "technical_checks": [
+        {
+          "check": "核对 p(a|x)=Σr p(r|x)p(a|x,r) 的联合过程前提，与单路径采样不等于枚举所有推导的区别。"
+        },
+        {
+          "check": "核对 Self-Consistency 取众数而非必然过半，答案归一化、相关错误、并行成本与选择器误差均已保留。"
+        },
+        {
+          "check": "检查答案正确、步骤有效、解释忠实三个概念未相互替代；将 CoT 必能减少跳跃错误限定为条件性收益。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/04-prompt-reliability/18-hallucination.md",
+      "disposition": "retained",
+      "summary": "原文已区分事实性、来源忠实性及推理错误，并沿训练、生成、反馈与系统证据链展开；保留真实营收核查案例和选择性回答边界。",
+      "technical_checks": [
+        {
+          "check": "检查低温不保证真实性、模型可学会弃答、RAG 不自动替换参数知识，以及引用存在不等于支持声明。"
+        },
+        {
+          "check": "核对选择性回答必须同时报告覆盖率和已回答错误率；内部一致性与自评概率均未被当作外部真值。"
+        },
+        {
+          "check": "检查开放域无零错误保证与受限数据库/形式证明任务的条件保证分开论述，没有从概率生成直接推出所有系统必错。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/03-inference-serving/19-moe.md",
+      "disposition": "revised",
+      "summary": "仅移除通用署名页尾；逐 token 路由、激活参数、负载均衡、容量与通信的正文已经准确且有足够技术深度。",
+      "technical_checks": [
+        {
+          "check": "核对 K/N 只作用于 routed expert 参数，671B 权重的裸 16/8/4-bit 存储与 37B 激活参数不是同一口径。"
+        },
+        {
+          "check": "检查 Switch 辅助损失使用实际分配比例与平均概率两项，容量 ceil(cTK/N)、离散索引梯度和 expert dropping 的解释一致。"
+        },
+        {
+          "check": "复核 Qwen3-30B-A3B 的 30.5B/3.3B、128 专家 Top-8、GQA 架构数据；其他历史模型配置未在本轮重新逐项联网核验。",
+          "source_urls": [
+            "https://huggingface.co/Qwen/Qwen3-30B-A3B/raw/main/README.md"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/03-inference-serving/20-deployment-frameworks.md",
+      "disposition": "revised",
+      "summary": "提前定义 SLO、TTFT、ITL；补全本地推理仍需检查遥测、日志与外部调用的隐私边界；将五列排名式表格改成三列候选比较，删除署名页尾。",
+      "technical_checks": [
+        {
+          "check": "复算 200 token 按 16-token 块分配为 13 块、208 容量、尾块空 8；回收到池不等于立即归还 CUDA 显存。"
+        },
+        {
+          "check": "核对连续批处理、chunked prefill、前缀缓存和 prefill/decode 分离各自解决不同问题；SLO goodput 不等于无时延约束的峰值吞吐。"
+        },
+        {
+          "check": "读取 TGI 官方维护模式公告，确认接受轻量维护并推荐后续运行时候选；不是据日期推断既有部署失效。",
+          "source_urls": [
+            "https://huggingface.co/docs/text-generation-inference/main/en/index"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/05-evaluation-selection/21-evaluation-metrics.md",
+      "disposition": "revised",
+      "summary": "区分开放输出与受限任务的验收，去除模型评测一概更难的断言；将 SWE-bench Verified 长说明移出表格，并明确机构决定不等于全行业停用。",
+      "technical_checks": [
+        {
+          "check": "核对 HumanEval 组合数 pass@k 估计、失败数不足 k 时分子为零，以及 τ-bench pass^k 在独立同成功率条件下的不同含义。"
+        },
+        {
+          "check": "复算 100 个独立样本、正确率 0.8 时粗略标准误为 0.04；配对比较和按题聚类的要求没有被总体均值替代。"
+        },
+        {
+          "check": "SWE-bench 官方声明链接与事实来自基线已合入内容，本轮未新增基准事实。访问 OpenAI 页面仅取得标题，直接获取正文返回 403，因此未声称重新核验其全文；调整仅限呈现和适用范围。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/05-evaluation-selection/22-model-selection.md",
+      "disposition": "retained",
+      "summary": "硬约束、候选配置、路由/级联/故障降级和成功任务成本已经自然串联；保留财报工作流及副作用重试的完整边界。",
+      "technical_checks": [
+        {
+          "check": "核对成功任务成本分子包括失败尝试，分母为实际成功数；零成功单独报告，内部推理 token 不能重复计费。"
+        },
+        {
+          "check": "检查离线评测、备用端点与日志同样遵守数据边界，不把不用于训练等同于不存储。"
+        },
+        {
+          "check": "检查副作用动作超时后先查状态、再用幂等键恢复；路由整体评测包含升级路径，而不是只报被选模型分数。"
+        }
+      ]
+    },
+    {
+      "path": "docs/llm/06-multimodal/23-multimodal-models.md",
+      "disposition": "retained",
+      "summary": "概览已分别交代输入/输出模态、编码与连接、时空证据、训练冻结和服务边界，与多模态主题各专章互补；保留全文。",
+      "technical_checks": [
+        {
+          "check": "核对条件文本生成概率包含已生成前缀；特征压缩与拼接/交叉注意力是可组合维度，CLIP 本身不是生成聊天模型。"
+        },
+        {
+          "check": "核对 WER 的替换、删除、插入分母为参考词数，可超过 100%；原文明确空参考与中文分词口径。"
+        },
+        {
+          "check": "检查视觉宽高翻倍只在固定 patch、无合并条件下产生约四倍位置；相同媒体特征缓存不等于相同语言 KV。"
+        }
+      ]
+    },
+    {
+      "path": "docs/multimodal/01-foundations/01-multimodal-fusion-architecture.md",
+      "disposition": "revised",
+      "summary": "修正交叉注意力中投影公式混用行/列约定的问题，给出语言与视觉矩阵形状及 softmax 维度；将不占文本上下文的标题改为有条件的成本问题。",
+      "technical_checks": [
+        {
+          "check": "统一为 Q=h_tW_q、K=zW_k、V=zW_v，按行堆叠序列后 QKᵀ 为 N_text×N_visual；明确下标 t 指文本侧，避免误作单一时间步向量。"
+        },
+        {
+          "check": "检查视觉表示不逐个进入文本位置，不代表无媒体边界 token、跨注意力缓存或编码成本。"
+        },
+        {
+          "check": "核对 CLIP 所示为单方向 InfoNCE、正文补充双向平均；VQ 索引与连续表示及未公开 GPT-4o 内部结构的边界保留。"
+        }
+      ]
+    },
+    {
+      "path": "docs/multimodal/02-vision-document/02-vlm-grounding.md",
+      "disposition": "retained",
+      "summary": "坐标序列化、检测、分割和视觉问答的区别已清晰；保留原模型坐标协议、负样本和分辨率逆变换，不机械改写标题。",
+      "technical_checks": [
+        {
+          "check": "检查 IoU 的分子分母均为同参考图像下的区域面积，GUI 点击命中与框 IoU 没有混用。"
+        },
+        {
+          "check": "检查 Qwen-VL 数字框与 PaliGemma 专用位置 token 的坐标顺序和量化规则被区分；未将后续模型协议套回初代。"
+        },
+        {
+          "check": "检查未标注不等于不存在、开放词表不等于任意概念可检测，以及补边/裁剪后不能只乘原图宽高的映射限制。"
+        }
+      ]
+    },
+    {
+      "path": "docs/multimodal/02-vision-document/03-ocr-document-ai.md",
+      "disposition": "revised",
+      "summary": "开篇明确回答识字为何不等于理解文档；修正 Textract 表单/表格必须分别调用独立 API 的误导，补明同步/异步分析与 FeatureTypes；首次展开 ANLS 名称。",
+      "technical_checks": [
+        {
+          "check": "依据 AWS API 文档确认 AnalyzeDocument 可同时选择 FORMS/TABLES 并返回关系块，异步入口为 StartDocumentAnalysis。",
+          "source_urls": [
+            "https://docs.aws.amazon.com/textract/latest/APIReference/API_AnalyzeDocument.html"
+          ]
+        },
+        {
+          "check": "检查 LayoutLM 依赖文字与框、Donut OCR-free 仅省独立 OCR 引擎而非不学文字识别；置信度和 SLA 不被当成字段准确率保证。"
+        },
+        {
+          "check": "检查 TEDS 的内容/结构影响、GriTS 变体与 ANLS 字符串相似度边界，金额仍需精确匹配及业务复算。"
+        }
+      ]
+    },
+    {
+      "path": "docs/multimodal/02-vision-document/04-computer-use.md",
+      "disposition": "revised",
+      "summary": "纠正 Computer Use 与视觉定位完全同构的说法：两者共享空间定位基础，但实际行动还要验证当前可操作性、任务语义和权限。",
+      "technical_checks": [
+        {
+          "check": "逐项检查截图缩放、显示缩放、多屏偏移、滚动和旧快照都可能影响坐标；无障碍元素身份不能免除可见性和可用性验证。"
+        },
+        {
+          "check": "检查动作成功与任务后置条件分开，确认绑定到具体动作，超时重试不能重复支付或提交。"
+        },
+        {
+          "check": "保留 OSWorld/WebArena 的环境、预算、人工介入及端到端状态验收限定；未对历史产品发布信息新增事实。"
+        }
+      ]
+    },
+    {
+      "path": "docs/multimodal/03-speech-audio/05-asr-tts-audio-lm.md",
+      "disposition": "revised",
+      "summary": "补明 RVQ 码率公式的 bit/s 单位，并区分采样率、码本索引量与模型预测步数；将 partial hypothesis 的生硬译法改为中间识别结果。",
+      "technical_checks": [
+        {
+          "check": "核对 CTC 先合并相邻重复再去 blank、RNN-T 流式仍受编码器右上下文限制，Whisper 初始 68 万小时配置没有外推到所有后续版本。"
+        },
+        {
+          "check": "核对 RVQ 残差递推与 R=fLlog₂K：每秒帧数乘每帧码本数乘索引位数，忽略熵编码和封装；K 非二次幂时不能直接当固定整数位长。"
+        },
+        {
+          "check": "检查 VALL-E 第一层自回归/其余层非自回归、连续特征与声学/语义 token 的区分，以及 MOS、可懂度和音色相似度不能互代。"
+        }
+      ]
+    },
+    {
+      "path": "docs/multimodal/03-speech-audio/06-realtime-duplex-voice.md",
+      "disposition": "revised",
+      "summary": "将双流标题限定为 Moshi 实例，避免暗示全双工只有这一种实现；定义 VAD，并修复话轮结束与打断意图混为同一判断的问题。",
+      "technical_checks": [
+        {
+          "check": "检查级联 ASR/LLM/TTS 持续监听也可实现全双工，Moshi Inner Monologue 文本不等同于隐藏推理链。"
+        },
+        {
+          "check": "拆分 VAD 语音活动、静音/语义端点的说完判断、助手播放期间的打断意图；分别评价端点误判、误打断和漏打断。"
+        },
+        {
+          "check": "检查延迟按用户端首个可听内容的关键路径统计；打断需要同步响应 ID、播放进度和会话截断，不能回滚已经执行的外部动作。"
+        }
+      ]
+    },
+    {
+      "path": "docs/multimodal/04-generation/07-diffusion-flow-matching-image.md",
+      "disposition": "revised",
+      "summary": "先定义 score 为对数密度梯度；将 Flow Matching 段落改为学习什么、为何不必模拟整条训练轨迹的问答，并明确它也可使用扩散式概率路径。",
+      "technical_checks": [
+        {
+          "check": "核对 DDPM 的累计噪声 ε、α 累乘与 score 比例符号，CFG 的 w=1 对应普通条件预测，双分支预测不是免费加速。"
+        },
+        {
+          "check": "读取 Flow Matching 原论文，确认 simulation-free 条件目标及其概率路径包含 diffusion 作为特例。",
+          "source_urls": [
+            "https://arxiv.org/html/2210.02747v2"
+          ]
+        },
+        {
+          "check": "核对本节噪声 t=0、数据 t=1 与前文 DDPM 时间方向相反，线性条件路径导数为 x−z；边缘场轨迹不必直线，不能保证一步生成。"
+        }
+      ]
+    },
+    {
+      "path": "docs/multimodal/04-generation/08-video-generation.md",
+      "disposition": "retained",
+      "summary": "时间层、时空 patch、长视频漂移与控制条件已经按机制展开；保留固定 Sora 2024 报告边界和完整成本公式。",
+      "technical_checks": [
+        {
+          "check": "核对整除前提下 N=(T′/p_t)(H′/p_h)(W′/p_w)，全 attention 的 O(N²d) 不包含全部网络与采样成本。"
+        },
+        {
+          "check": "检查 Sora 时空 patch 不被用作 Flow Matching 或全部注意力实现的证据；Stable Video Diffusion 论文任务与初期权重范围分开。"
+        },
+        {
+          "check": "检查 FVD 比较需固定采样与特征器，VBench 平滑分数可能奖励静止画面，主体一致性不要求相机运动时像素不变。"
+        }
+      ]
+    },
+    {
+      "path": "docs/multimodal/05-data-training-evaluation/09-multimodal-data-alignment.md",
+      "disposition": "revised",
+      "summary": "将无条件的数据瓶颈标题改为不同目标需要什么数据；修正 LLaVA 合成指令无需人工标注的暗示，明确减少新写对话却复用 COCO 人工描述与框。",
+      "technical_checks": [
+        {
+          "check": "读取 LLaVA 原论文数据构建部分与作者项目页，确认 GPT-4 只看到 captions/boxes 的符号表示、不直接看图，并以 COCO 构建对话、描述和复杂推理样本。",
+          "source_urls": [
+            "https://arxiv.org/html/2304.08485v2",
+            "https://llava-vl.github.io/"
+          ]
+        },
+        {
+          "check": "核对合成数据不取消原标注的来源与偏差，预训练与 SFT 不是图文关联/格式的能力硬分区。"
+        },
+        {
+          "check": "检查同页裁剪、相邻帧按来源分组切分，DPO 偏好对必须使用同媒体同问题，采样条数不能代替 token 与计算配比。"
+        }
+      ]
+    },
+    {
+      "path": "docs/multimodal/05-data-training-evaluation/10-evaluation-safety-serving.md",
+      "disposition": "revised",
+      "summary": "将分数不代表能力的绝对标题改为如何区分能力提升与污染，并先给诊断条件；展开 TTFT、TPOT 与受时延约束的有效吞吐。",
+      "technical_checks": [
+        {
+          "check": "检查基准发布日期不等于素材新颖，扰动后掉分不能单独证明污染；没有将 MMMU/MathVista 当成动态无污染题库。"
+        },
+        {
+          "check": "核对文字贴图分类混淆、间接指令注入与白盒视觉扰动的威胁模型不同；原文未把一类实验推广成任意黑盒必可绕过。"
+        },
+        {
+          "check": "检查固定 C2PA 2.1 的来源声明与事件真实性、水印检测与无水印真实性分开；特征缓存、语言 KV 和 DistServe 文本分离结论的适用范围保留。"
+        }
+      ]
+    }
+  ]
+}

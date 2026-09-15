@@ -4,6 +4,10 @@ description: 区分 Agent 的工作记忆、情景记忆、语义记忆和程序
 
 # 第七章：AI Agent 的记忆机制
 
+用户昨天说过的偏好，Agent 今天为什么又问一遍？先别急着归因于“模型忘了”：信息可能没有写入，也可能写在另一个会话的状态里，或者已经召回却没进入本轮上下文。本章沿着这条链路解释记忆如何起作用。
+
+本章以文档助手为虚构示例；其中的用户、项目、日期以及 API 限流和政策数值用于说明设计，不是作者经历或实测结果。
+
 ## 7.1 先修正“四层记忆”的分类方式
 
 将 Agent 记忆概括为感知记忆、短期记忆、长期记忆和实体记忆，便于快速入门，但它混合了两种不同分类维度：
@@ -54,6 +58,8 @@ flowchart TB
 | State | 任务当前进行到哪里 | 当前步骤、重试次数、等待审批 |
 | Memory | 哪些历史信息未来可能有用 | 用户偏好、过去经验、事实 |
 | Context | 本次模型调用实际看到了什么 | 当前 Prompt、召回记忆、工具结果 |
+
+它们不是三份互不重叠的数据。例如，“报告还缺两个来源”既可以是结构化 State 中的待办，也可以被选入本轮 Context；用户的长期写作偏好则先存于 Memory，需要时再进入 Context。区分它们，是为了明确谁保存、谁更新、谁决定本轮读什么。
 
 它们之间的关系是：
 
@@ -177,7 +183,7 @@ Long-term Memory 保存跨会话、跨任务仍有价值的信息。
 
 ### 7.6.1 Semantic Memory
 
-Semantic Memory 保存事实、概念和规则。这里的 Semantic 是内容类型，不是“必须用语义搜索”的意思。以下限流、期限等数值仅为示例，真实记录必须绑定具体服务、政策版本和生效时间：
+Semantic Memory（语义记忆）保存事实、概念和规则。这里的 Semantic 是内容类型，不是“必须用语义搜索”的意思。限流、期限等事实必须绑定具体服务、政策版本和生效时间：
 
 - 用户主要使用 Java；
 - 某 API 每分钟最多调用 60 次；
@@ -193,7 +199,7 @@ Semantic Memory 保存事实、概念和规则。这里的 Semantic 是内容类
 
 ### 7.6.2 Episodic Memory
 
-Episodic Memory 保存具体经历及其上下文，例如：
+Episodic Memory（情景记忆）保存具体经历及其上下文，例如：
 
 - 某次部署因迁移顺序错误而失败；
 - 上一次处理退款请求时订单已经过期；
@@ -212,7 +218,7 @@ Episodic Memory 保存具体经历及其上下文，例如：
 
 ### 7.6.3 Procedural Memory
 
-Procedural Memory 保存“如何完成一类任务”的方法，例如：
+Procedural Memory（程序性记忆）保存“如何完成一类任务”的方法，例如：
 
 - 发布版本的标准流程；
 - 处理退款的检查顺序；
@@ -234,7 +240,7 @@ Procedural Memory 保存“如何完成一类任务”的方法，例如：
 
 ### 7.6.4 Entity Memory
 
-Entity Memory 保存围绕实体组织的结构化事实和关系，例如：
+Entity Memory（实体记忆）保存围绕实体组织的结构化事实和关系，例如：
 
 ```json
 {
@@ -507,7 +513,7 @@ flowchart TB
 
 ### 7.12.4 任务结束后
 
-任务结束后不是为了继续推理，而是进行：
+任务结束后的检索主要服务于整理记忆，而不是继续生成当前回答。例如，写入新的格式偏好前，先读取同一用户、同一项目的旧偏好，判断这是补充、替代还是一次临时例外。随后可以进行：
 
 - 轨迹总结；
 - 经验提取；
@@ -590,7 +596,7 @@ $$
 - `S_task`：与当前任务的匹配度；
 - `S_trust`：来源可信度。
 
-此式只是启发式排序示意，不是已验证的通用算法。分量要校准到可比较尺度，权重要在任务数据上验证；访问权限、删除状态、适用范围和有效期先作为硬过滤。高相似度不能抵消权限不足，高新鲜度也不能把未验证传闻变成事实。
+此式只是启发式排序示意，不是已验证的通用算法。分量要校准到可比较尺度，权重要在任务数据上验证。访问权限、删除状态和适用范围先作为硬过滤；时间条件则由问题决定：问“当前政策”只选当前有效版本，问“去年政策为何变化”就必须允许读取有权访问的历史版本。高相似度不能抵消权限不足，高新鲜度也不能把未验证传闻变成事实。
 
 不同场景需要不同权重：
 
@@ -638,7 +644,7 @@ flowchart TB
 
 ### 7.16.1 不要直接覆盖历史
 
-建议记录：
+需要追溯事实变化时，直接覆盖旧值会丢掉“当时依据什么作决定”的证据。可在保留政策允许的范围内记录：
 
 - 当前有效值；
 - 生效时间；
@@ -647,16 +653,20 @@ flowchart TB
 - 来源；
 - 替代关系。
 
+版本化不意味着永久保留所有个人数据；删除请求和保留期限仍需覆盖历史版本。
+
 ### 7.16.2 冲突策略
 
 ```mermaid
 flowchart TB
-    NEW[新记忆] --> MATCH{存在同主题记忆?}
+    NEW[新记忆] --> MATCH{存在同主体同属性同作用域记录?}
     MATCH -->|否| ADD[新增]
     MATCH -->|是| SAME{内容一致?}
     SAME -->|是| MERGE[去重并合并来源记录]
     SAME -->|否| AUTH{来源优先级明确?}
-    AUTH -->|是| VERSION[版本化并标记旧值失效]
+    AUTH -->|是| CHECK{生效时间与替代关系明确?}
+    CHECK -->|是| VERSION[按生效时间建立新版本]
+    CHECK -->|否| CONFLICT
     AUTH -->|否| CONFLICT[保留冲突并请求验证]
 ```
 
@@ -718,7 +728,7 @@ flowchart LR
     C --> P[Procedural Skill]
 ```
 
-例如，教学场景中观测到某 API 在并发超过 5 时频繁限流，可以形成候选经验（5 不是通用阈值）：
+例如，轨迹显示某 API 在并发超过 5 时频繁限流，可以先形成候选经验：
 
 > 调用该 API 时默认并发不超过 5。
 
@@ -852,6 +862,8 @@ flowchart TB
 - 来源：用户明确指令；
 - 可信度：高。
 
+这里的“高”指能确认偏好来自该用户的明确表达，不是模型估计的事实概率。还要记录适用项目；不能据此改变同一租户其他用户的格式。
+
 ### 7.22.2 写入
 
 使用关系数据库或 Profile Store 保存结构化偏好，而不是只将整段话 Embedding 后丢进向量库。
@@ -883,8 +895,8 @@ Documentation preference:
 | Write Recall | 应保存的信息是否被保存 |
 | Retrieval Precision | 召回内容中与当前任务相关的比例 |
 | Retrieval Recall | 关键记忆是否被召回 |
-| Task Uplift | 使用记忆后任务成功率提升 |
-| Stale Memory Rate | 召回过期或已失效信息的比例 |
+| Task Uplift | 相对固定基线的任务成功率变化，可能为负 |
+| Stale Memory Rate | 当前状态查询的召回记录中，过期或已被替代版本的比例；历史查询另行统计 |
 | Conflict Rate | 同主题冲突记忆比例 |
 | Context Cost | 记忆占用的 Token 和延迟 |
 | Privacy Violations | 是否错误保存或泄露敏感数据 |
@@ -904,8 +916,8 @@ Documentation preference:
 
 可参考的一手评测：
 
-- [LongMemEval](https://github.com/xiaowu0162/LongMemEval)：信息抽取、跨会话推理、知识更新、时间推理与证据不足时的弃答；需注明原始版或清洗版，不能混报成绩。
-- [LoCoMo](https://github.com/snap-research/locomo)：长对话问答与事件摘要；官方当前发布集为十段对话，包含生成数据，不能据此推断真实用户总体表现。
+- [LongMemEval](https://github.com/xiaowu0162/LongMemEval)：信息抽取、跨会话推理、知识更新、时间推理与证据不足时的弃答；需注明原始版或 2025 年 9 月清洗版，不能混报成绩。弃答题没有应召回的证据位置，不能直接套用普通证据召回率。
+- [LoCoMo](https://github.com/snap-research/locomo)：长对话问答与事件摘要；ACL 2024 发布集 `locomo10.json` 包含十段由生成框架构造并标注的对话，不等同于最初的五十段版本，也不能代表真实用户总体表现。
 - [LongMemEval-V2](https://github.com/xiaowu0162/LongMemEval-V2)：面向 Web Agent 轨迹的状态、流程和环境经验，评估证据问答与查询延迟；这仍不等于实际执行任务的成功率。
 
 业务回归集还应覆盖删除后再检索、权限撤销、同名跨租户实体、错误摘要、过期事实及污染写入；这些不能由普通问答分数替代。
@@ -946,6 +958,8 @@ flowchart TB
     FEEDBACK --> CONSOLIDATE[Update / Consolidate / Forget]
     CONSOLIDATE --> POLICY
 ```
+
+图中有两条主线：写入侧决定哪些观察值得留下，读取侧按当前任务选择证据。反馈可以改变下一次的写入策略，但不能跳过来源、权限与版本核对；这些存储组件也可以按需要删减，而不是全部部署。
 
 ## 7.25 设计检查表
 
@@ -1028,10 +1042,10 @@ Agent 记忆不能只用“四层记忆 + 向量数据库”概括。更完整�
 - [MemGPT: Towards LLMs as Operating Systems](https://arxiv.org/abs/2310.08560)
 - [Generative Agents: Interactive Simulacra of Human Behavior](https://arxiv.org/abs/2304.03442)
 - [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366)
-- [LangGraph: Memory overview](https://docs.langchain.com/oss/python/concepts/memory)
+- [LangGraph: Memory overview](https://docs.langchain.com/oss/python/concepts/memory)（[文档快照 1fa2214](https://github.com/langchain-ai/docs/blob/1fa2214237b7a7506c34a30b394c26023d61bf4b/src/oss/concepts/memory.mdx)，用于区分 thread 与跨 thread 作用域）
 - [OpenAI: Safety in building agents](https://developers.openai.com/api/docs/guides/agent-builder-safety)（引用信任边界原则，不依赖其中的产品默认模型建议）
-- [LongMemEval 论文](https://arxiv.org/abs/2410.10813)与[官方实现](https://github.com/xiaowu0162/LongMemEval)
-- [LoCoMo 论文](https://arxiv.org/abs/2402.17753)与[官方数据](https://github.com/snap-research/locomo)
-- [LongMemEval-V2 官方实现](https://github.com/xiaowu0162/LongMemEval-V2)
+- [LongMemEval 论文](https://arxiv.org/abs/2410.10813)与[官方说明快照 9e0b455](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/README.md)
+- [LoCoMo 论文](https://arxiv.org/abs/2402.17753)与[ACL 2024 发布说明快照 9228632](https://github.com/snap-research/locomo/blob/92286325a40764bee61f77824ddb95233b11c4d6/README.md)
+- [LongMemEval-V2 官方说明快照 2cc8c54](https://github.com/xiaowu0162/LongMemEval-V2/blob/2cc8c540bdb87fe6761629b585e727e1c4704520/README.md)
 
-审校口径：截至 2026-09-08；框架文档为滚动更新，本文不承诺具体版本的默认配置。原创文字与图示：Polo Li，CC BY 4.0。
+资料核对：2026-09-15。框架文档为滚动更新，上述快照固定本文引用的概念与评测说明，不代表已复现其基准结果。

@@ -13,5 +13,3 @@ description: 沿一次分页缺陷修复，学习 Coding Agent 如何组合代�
 运行时背景可先读[工具执行管线](../02-runtime-harness/19-tool-registry-and-execution-pipeline.md)、[权限与沙箱](../02-runtime-harness/20-permissions-sandbox-isolation.md)；产品差异见[第 23 章](../02-runtime-harness/23-tracing-evaluation-cost-and-coding-agent-case-study.md)。
 
 返回 [Agent 相关知识点](../README.md)。
-
-原创文档与图示：Polo Li，CC BY 4.0；引用资料的权利与许可归原作者。

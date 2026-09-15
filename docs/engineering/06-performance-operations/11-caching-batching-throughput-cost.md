@@ -6,7 +6,7 @@ description: 区分答案缓存与前缀缓存，核算批处理、并发与重�
 
 ## 11.1 成本优化的四个杠杆
 
-LLM 应用的成本主要由 token 用量和调用次数决定。四个可独立操作的杠杆:**减少重复调用(缓存)、合并调用(批处理)、换更便宜的模型(路由)、压缩上下文(减少 token)**。这里先看前两个应用层杠杆,路由降本已在[第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.md)讨论,推理引擎内部的量化、KV Cache 等降本手段见 [LLM · 推理与部署](../../llm/03-inference-serving/README.md),不再重复展开。
+对按用量计费的模型 API，token 用量、工具使用和调用次数直接影响费用；自托管还要算算力利用率与运维。常用的四个杠杆是：**减少重复计算（缓存）、把可延迟任务交给异步批处理、换更便宜的模型（路由）、压缩上下文（减少 token）**。这里先看前两个应用层杠杆，路由降本已在[第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.md)讨论，推理引擎内部的量化、KV Cache 等降本手段见 [LLM · 推理与部署](../../llm/03-inference-serving/README.md)。
 
 ```mermaid
 flowchart TB
@@ -24,17 +24,17 @@ flowchart TB
 
 ## 11.3 Prompt Caching:另一种缓存,作用层次不同
 
-**语义缓存跳过整次模型调用,Prompt Caching(如 Anthropic 的 Prompt Caching、OpenAI 的自动 Prompt Caching)是调用照做,但复用已经计算过的前缀部分的 KV,只需要重新计算新增的部分。** 这是[LLM · KV Cache](../../llm/03-inference-serving/14-kv-cache.md)机制在应用层的直接收益。
+**答案缓存命中后可以跳过整次生成；Prompt Caching 则仍然发起调用，只复用已计算的前缀状态。** 后者减少重复的 prefill 计算，未命中的输入和新输出仍要计算，生成时也仍需读取历史 KV 做注意力运算。这是[LLM · KV Cache](../../llm/03-inference-serving/14-kv-cache.md)机制在应用层的直接收益，不是整段上下文此后都不参与推理。
 
 **应用层能做的事是把 Prompt 结构设计成"缓存友好"**:
 
 ```python
 # 缓存友好的结构:固定不变的部分放前面,易变部分放后面
 prompt = (
-    SYSTEM_INSTRUCTIONS      # 长期不变,命中缓存
-    + FEW_SHOT_EXAMPLES      # 较少变化,大概率命中缓存
-    + retrieved_context      # 每次检索结果不同,缓存不命中
-    + user_question          # 每次都不同
+    SYSTEM_INSTRUCTIONS
+    + FEW_SHOT_EXAMPLES
+    + retrieved_context
+    + user_question
 )
 ```
 
@@ -44,7 +44,7 @@ prompt = (
 
 | 场景 | 策略 | 收益 |
 |---|---|---|
-| 用户实时对话 | 不适合等待攒批,牺牲延迟换吞吐不划算 | 无 |
+| 用户实时对话 | 通常不等待应用层长时间攒批；引擎内部仍可在延迟预算内连续批处理 | 是否获益取决于排队时间与吞吐，不等于实时请求不能批处理 |
 | 后台批量任务(摘要、打标签、离线分析) | 使用供应商异步批量 API | OpenAI Batch 官方文档给出相对同步 API 的 50% 折扣和 24 小时处理窗口；这是产品条件，不是批处理通则 |
 
 ```python
@@ -101,7 +101,7 @@ Semaphore 只限制单进程活跃调用，不限制等待队列长度，也不�
 
 ### 11.8.2 拼接 Prompt 时把易变内容放在前面
 
-导致 Prompt Caching 完全无法命中,是最容易被忽视的隐性成本浪费。
+这会缩短可复用的共同前缀；若低于供应商要求的最低长度，就无法命中。不能把任何一次内容变化都说成整段缓存必然失效。
 
 ### 11.8.3 把可以异步处理的任务和实时流量混在一起同步处理
 

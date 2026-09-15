@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import glob
+import json
 import os
 import re
 import string
@@ -187,6 +188,42 @@ for path in glob.glob("docs/**/*.md", recursive=True):
     nav_path = os.path.relpath(path, "docs")
     if nav_path not in mkdocs_config:
         report("mkdocs.yml", f"missing page from navigation: {nav_path}")
+
+review_files = sorted(glob.glob("book/reviews/*.json"))
+if os.path.exists("book/zh-CN/manifest.json") and not review_files:
+    report("book/reviews", "book manuscript requires chapter review records")
+if review_files:
+    reviewed: dict[str, str] = {}
+    chapter_set = set(chapter_files)
+    for path in review_files:
+        try:
+            with open(path, encoding="utf-8") as source:
+                review = json.load(source)
+        except (OSError, json.JSONDecodeError) as error:
+            report(path, f"cannot read chapter review: {error}")
+            continue
+        if not isinstance(review, dict) or not isinstance(review.get("chapters"), list):
+            report(path, "review requires a chapters array")
+            continue
+        for entry in review["chapters"]:
+            if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
+                report(path, "review entry requires a chapter path")
+                continue
+            chapter_path = entry["path"]
+            if chapter_path not in chapter_set:
+                report(path, f"review refers to an unknown chapter: {chapter_path}")
+            if chapter_path in reviewed:
+                report(path, f"duplicate chapter review: {chapter_path}")
+            reviewed[chapter_path] = path
+            if entry.get("disposition") not in ("revised", "retained"):
+                report(path, f"invalid review disposition: {chapter_path}")
+            if not isinstance(entry.get("summary"), str) or not entry["summary"].strip():
+                report(path, f"missing review rationale: {chapter_path}")
+            checks = entry.get("technical_checks")
+            if not isinstance(checks, list) or not checks:
+                report(path, f"missing technical review notes: {chapter_path}")
+    for chapter_path in sorted(chapter_set - reviewed.keys()):
+        report(chapter_path, "missing chapter review record")
 
 
 if issues:

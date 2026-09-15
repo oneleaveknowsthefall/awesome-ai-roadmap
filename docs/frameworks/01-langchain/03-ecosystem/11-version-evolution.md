@@ -102,7 +102,7 @@ flowchart TB
 
 ## 11.6 Pydantic 2 在迁移中的位置
 
-**Python 版本 v0.3 将内部数据模型迁移到 Pydantic 2，并停止使用 Pydantic 1 兼容层。**
+**LangChain 的 Python v0.3 版本将内部数据模型迁移到 Pydantic 2，并停止使用 Pydantic 1 兼容层。**
 
 **这属于重要的迁移背景**，因为工具 Schema、结构化输出和配置对象都依赖 Pydantic。
 

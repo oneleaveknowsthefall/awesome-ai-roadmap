@@ -18,5 +18,3 @@ description: 按循环、上下文、工具、权限、恢复、审批和观测�
 8. [第二十三章：Tracing、评测、成本控制与 Coding Agent Harness 案例](23-tracing-evaluation-cost-and-coding-agent-case-study.md)
 
 返回 [Agent 相关知识点](../README.md)。
-
-原创文档与图示：Polo Li，CC BY 4.0；引用资料的权利归原作者。

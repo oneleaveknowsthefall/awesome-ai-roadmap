@@ -281,6 +281,4 @@ flowchart TD
 - 李博杰，第八章：[多轮信用分配、奖励与在轨蒸馏](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter8.md#L564-L706)，[从问题案例到后训练](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter8.md#L731-L792)。
 - 李博杰，配套实验：[过早结束的 DPO 修复 README](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter8/premature-completion-dpo/README.md)，重点参照数据、评估指标口径与可信根说明。
 
-资料查阅于 2026-09-14，固定提交为 `985a49d35b9f50937f1f757cf25867672991ded7`。本章对机制作原创重述；DPO 结果仅转述 README，未独立复现训练。ReTool、RLVP 等外部轨道只作方法线索，不代表配套书稿已跑通所有轨道。上游仓库采用 [Apache-2.0](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/LICENSE)，第三方材料遵循各自许可。
-
-原创文档与图示：Polo Li，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)；引用资料的权利归原作者。
+资料查阅于 2026-09-14，固定提交为 `985a49d35b9f50937f1f757cf25867672991ded7`。DPO 结果仅转述 README，未独立复现训练；其中候选比较与自由生成的差异不能外推为总体任务完成率提升。RLVP 等方法线索不代表本章完成了相应训练实验。

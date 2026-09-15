@@ -186,9 +186,9 @@ AWQ 与 GPTQ 都需比较质量和实际执行路径。W4A16 在低批量、权�
 
 > 不混淆层次：GPTQ/AWQ 是算法，FP8/NF4 是数值格式，Marlin/CUTLASS 属于执行内核或内核库，GGUF 是容器。AutoAWQ 官方仓库已声明弃用并指向 `llm-compressor`；不要把旧工具安装教程当作算法的当前支持矩阵。
 
-## 15.6 QLoRA 与 NF4：让消费级 GPU 微调成为可能
+## 15.6 QLoRA 如何在冻结的低比特基座上微调？
 
-GPTQ 和 AWQ 解决的是**部署时**的量化。QLoRA 回答的是更激进的问题：**4-bit 量化的模型能不能继续微调？**
+QLoRA 冻结低比特基座，训练附加的高精度 LoRA 参数；它降低基座存储，却不把所有训练计算都变成 4-bit。GPTQ 和 AWQ 主要解决部署时的权重量化，QLoRA 则把量化与适配器训练结合起来。
 
 ### 15.6.1 NF4 是非均匀量化
 
@@ -323,5 +323,3 @@ QLoRA 训练的是适配器，冻结的低比特基座参与前向和梯度传�
 - [GPTQ 作者实现：列顺序、act-order 与分组](https://github.com/IST-DASLab/gptq)
 - [AWQ 原论文：逐通道缩放与搜索](https://arxiv.org/html/2306.00978v5)
 - [PyTorch AO：Quantization-Aware Training](https://docs.pytorch.org/ao/main/workflows/qat.html)
-
-本文原创讲解与示意图：Polo Li，采用 CC BY 4.0。

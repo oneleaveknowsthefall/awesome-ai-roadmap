@@ -4,22 +4,22 @@ description: 将 Agent 循环拆成可恢复状态机，解释停止与成功的
 
 # 第十七章：Agent Loop 与运行时状态机
 
-## 17.1 本章边界：从"控制循环"到"状态机实现"
+## 17.1 为什么要把控制循环写成状态机？
 
-第三章 3.7.1 节已经把 Agent 的控制循环概括为"感知—决策—行动"的往复：模型看当前状态、决定下一步、执行、把结果喂回去。那一节回答的是"谁在决定下一步"（模型 vs 预定义代码）。本章回答的是另一个问题：**harness 具体怎么把这个循环实现成一个可靠运行的状态机**——维护哪些状态、状态之间怎么转移、什么时候停、并发和流式怎么处理、失败了状态机停在哪里。这些是 harness 工程实现的核心，也是第 21、22 章（恢复、暂停）能够成立的前提。
+为了区分“模型还没决定”“工具正在执行”“结果已经收到”和“正在等人批准”。这几个阶段即使展示相同的聊天文本，下一步允许做的事也不同。第三章的“感知—决策—行动”解释谁选择动作；显式状态机则让 Harness 在失败、并发和恢复时仍知道哪些动作已经发生，为第 21、22 章的恢复与暂停提供依据。
 
 ## 17.2 状态机视角：Harness 在维护什么状态
 
-抛开具体框架的类名，任何 Agent Loop 的实现在某一时刻都持有以下最小状态集合：
+不依赖具体框架的类名，可以先用下面一组字段描述循环：
 
 | 状态字段 | 含义 | 谁更新它 |
 |---|---|---|
-| `messages` | 到目前为止的完整对话/事件序列 | Harness，在每次模型调用和工具执行后追加 |
+| `messages` | 当前可用于继续对话的消息，可能包含摘要或历史引用 | Harness，在模型调用和工具执行后更新；完整审计事件可另存 |
 | `turn_index` | 当前是第几轮 | Harness，每完成一次"模型调用→执行"循环递增 |
 | `pending_tool_calls` | 模型本轮请求、尚未执行完的工具调用 | Harness，从模型输出中解析写入，执行完成后清空 |
 | `phase` | 当前处于循环的哪个阶段（见 17.3） | Harness 状态机本身 |
 | `stop_reason` | 循环为什么会结束（正常完成/达到上限/被中断/出错） | Harness，在循环退出时写入 |
-| `budget` | 剩余的轮数/时间/token/成本预算 | Harness，每轮消耗后递减 |
+| `budget` | 剩余的轮数/时间/token/成本预算 | Harness，调用前预留，完成后结算；并发分支共享根预算 |
 
 这是教学用的最小集合，不是所有框架统一的字段规范。生产系统还可能保存结构化计划、验收状态、身份、审批和操作幂等键；运行时应校验依赖、不变量与完成条件，而非只搬运消息和计数。
 
@@ -32,31 +32,32 @@ stateDiagram-v2
     [*] --> Init
     Init --> ModelCall: 装配上下文（18 章）
     ModelCall --> Deciding: 收到模型输出
-    Deciding --> FinalOutput: 无工具调用/无 handoff
+    Deciding --> FinalOutput: 符合输出契约且无待执行调用
     Deciding --> ToolExecution: 请求工具调用
     Deciding --> HandoffSwitch: 请求切换 Agent
     ToolExecution --> PermissionCheck: 每个 Tool Call（20 章）
     PermissionCheck --> ToolRunning: 通过
     PermissionCheck --> Blocked: 拒绝
     PermissionCheck --> Interrupted: 需人工
-    ToolRunning --> ModelCall: 结果写回上下文
+    ToolRunning --> CollectResults: 记录调用结果
+    CollectResults --> ModelCall: 本轮调用均已处理
     HandoffSwitch --> ModelCall: 更新当前 Agent/Input
-    Blocked --> ModelCall: 回写拒绝结果（或按策略终止）
+    Blocked --> CollectResults: 回写拒绝结果（或按策略终止）
     Interrupted --> PermissionCheck: 审批返回，重新校验绑定操作
     Interrupted --> Stopped: 拒绝/过期且不再继续
     Stopped --> [*]
     FinalOutput --> [*]
 ```
 
-这张图里"是否有工具调用"和"是否有 handoff"是两个独立的判定分支，二者都可能同时出现在模型的一次输出里（先执行工具，再决定是否切换 agent），具体优先级由 harness 实现约定，需要在设计文档里显式写清楚，而不是留给隐式假设。
+图中工具分支按一批调用抽象：每个调用分别通过权限判定并记录结果，不能一个工具先返回就丢下其他待完成调用。普通工具请求和 Handoff 也可能出现在同一份模型输出中；是先处理工具、先交接还是拒绝混合输出，要由具体运行时约定，不能从图中的分支顺序推断。无工具调用也不必然是合法最终输出，空响应、截断或格式错误仍需单独处理。
 
 ## 17.4 Loop 的终止条件与保护性上限
 
 状态机必须有明确、可枚举的退出路径，否则"Agent 卡住不停"和"Agent 明明该停却继续跑"都会成为线上事故。至少需要四类终止条件：
 
 - **模型回合结束**：Runner 可把符合输出类型且无工具调用的输出作为 final output；业务是否成功还要由状态断言或验收器判断。拒绝回答、缺少信息的说明也可能结束回合，不能自动记为成功。
-- **轮数上限**：超过 `max_turns` 直接抛出可捕获的异常（如 `MaxTurnsExceeded`），而不是无限循环或静默截断。
-- **预算耗尽**：token/时间/金额预算耗尽，state 中的 `budget` 字段归零即触发终止。
+- **轮数上限**：达到上限后显式返回停止原因或异常，而不是无限循环或静默截断。例如 OpenAI Agents SDK 超过 `max_turns` 抛出 `MaxTurnsExceeded`；不同 SDK 的计数口径和结果载体不能混用。
+- **预算耗尽**：调用前检查剩余 token、时间或金额是否足够，并为在途请求预留消耗；不足以安全发起下一步时就停止，不必等数值恰好归零。
 - **外部中断**：用户取消、上游超时、系统关闭。可协作关闭时保存状态，但进程被强制终止时未必能执行清理代码，所以恢复必须依赖此前已持久化的 checkpoint，不能只靠退出钩子。
 
 第十二章 12.16 节讨论过反思循环的 Stop Controller，第十三章 13.34 节讨论过多 Agent 场景下的取消传播——这两处都是本节"终止条件"在特定场景下的具体化，遵守同一个原则：**终止条件必须是状态机的一等公民，不能是"跑着跑着发现异常就退出"的兜底逻辑**。
@@ -89,7 +90,7 @@ stateDiagram-v2
 | 嵌套/切换 | Subagents（嵌套） | Handoffs（切换 current agent） | 子图（Subgraphs），见 [LangGraph: Subgraphs](https://docs.langchain.com/oss/python/langgraph/use-subgraphs) |
 | 状态可见性 | 通过流式消息（`SystemMessage`/`AssistantMessage`）暴露 | 通过 `RunResult`/`RunResultStreaming` 暴露 | 状态是图上的显式字段，见[第十三章 13.15 节](../04-multi-agent/13-multi-agent-coordination.md) |
 
-三者在"状态机长什么样"这件事上高度收敛——这不是巧合，而是因为 17.2、17.3 节描述的最小状态集合和转移逻辑，本质上是任何可靠 Agent Loop 都绕不开的工程约束，只是不同产品选择了不同的抽象层级暴露给开发者。
+三者都要处理调用、观察、继续与停止，但不共享一份字段规范或完全相同的状态机。对接时应把产品事件映射到自己的任务状态，并核对轮数口径：例如 Claude Agent SDK 的 `max_turns` 按工具使用轮数计数，不能直接把另一 SDK 的数值原样搬来。
 
 ## 17.8 常见错误
 

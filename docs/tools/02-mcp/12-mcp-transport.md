@@ -38,7 +38,7 @@ flowchart TB
 
 原因很朴素：MCP 需要的就是「Client 调用 Server 的方法，Server 返回结果」这类**远程过程调用（RPC）**。
 
-JSON-RPC 2.0 是现成的、足够轻量的 RPC 规范：JSON 易读易调试，任何语言都能实现。Server 是 Python 写的还是 TypeScript 写的，消息格式完全一样，不需要额外的序列化工具（对比 gRPC 要编译 protobuf、Thrift 要生成 stub）。
+JSON-RPC 2.0 是轻量 RPC 规范，JSON 易读易调试，可跨语言实现。相较常见的 gRPC/Protobuf 生成代码流程，它不强制代码生成；这不代表没有 Schema 校验，也不代表 gRPC 只能使用静态生成的客户端。
 
 ### 12.2.2 消息长什么样
 
@@ -86,7 +86,7 @@ Client 启动时把 Server **当作子进程拉起来**，通过进程的标准�
 
 ```mermaid
 sequenceDiagram
-    participant C as MCP Client<br/>(如 Claude Desktop)
+    participant C as Host 内的 MCP Client
     participant OS as 操作系统管道
     participant S as MCP Server<br/>(子进程)
 
@@ -137,9 +137,9 @@ sequenceDiagram
 # 致命错误：print 写的是 stdout
 print(f"正在查询数据库: {sql}")
 
-# 正确：日志走 stderr
+# 日志走 stderr，也避免直接记录完整 SQL
 import sys
-print(f"正在查询数据库: {sql}", file=sys.stderr)
+print("正在执行已授权的数据库查询", file=sys.stderr)
 ```
 
 一个 `print` 调试语句就能让整个 Server 挂掉，而且报错信息通常是「JSON 解析失败」，看不出根因。
@@ -171,7 +171,7 @@ flowchart TB
 
 | 优点 | 代价 |
 |---|---|
-| Server 部署在云端，多 Client 共享同一份 | 多了网络开销，延迟高于 stdio |
+| Server 部署在云端，多 Client 共享同一份 | 增加网络路径，端到端延迟仍取决于后端数据位置与处理时间 |
 | 跨机器访问，团队统一管理工具服务 | 需要处理认证、鉴权 |
 | 不需要每个人本地跑一份 | 需要处理网络中断与重连 |
 
@@ -181,11 +181,11 @@ flowchart TB
 
 以 [2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http)为准：
 
-- 单个 POST 携带单条 JSON-RPC 请求，客户端声明 `Accept: application/json, text/event-stream`，两种响应都必须处理。
+- 每条 JSON-RPC 请求通过独立 POST 发送，客户端声明 `Accept: application/json, text/event-stream`，两种响应都必须处理；请求体使用 `Content-Type: application/json`。传输还定义通知 POST，但本版核心不使用 HTTP 客户端通知，不能发送 JSON-RPC response 来回答 MRTR。
 - 请求带 `MCP-Protocol-Version` 和 `Mcp-Method`；`tools/call`、`prompts/get`、`resources/read` 还必须带 `Mcp-Name`。版本、方法和名称须与消息体一致，不能只检查其中一份。
 - Server 可通过 `inputSchema` 中的 `x-mcp-header` 将指定参数镜像为 `Mcp-Param-*`。客户端需按规范校验与编码；这些头可能进入代理日志，应做敏感信息最小化。头不是独立授权来源。
 - 当前版已移除 GET 接收流、`Mcp-Session-Id` 和 SSE `Last-Event-ID` 重放。列表变化使用 `subscriptions/listen` 的 POST 响应流；调用进度在原请求响应流，不混发到订阅流。
-- HTTP SSE 响应流关闭意味着该请求取消；stdio 使用关联原请求的 `notifications/cancelled`。取消是停止后续工作，不是撤销已提交的业务副作用。
+- 若最终响应尚未收到，HTTP SSE 响应流断开按请求取消处理；最终响应后的正常关闭不是一次失败。stdio 使用关联原请求的 `notifications/cancelled`。取消只要求尽快停止后续工作，不是撤销已提交的业务副作用。
 
 断线后不能假定“重连继续原调用”。重新提交使用新的请求 ID，但写操作要先核对结果或使用业务幂等键。无状态协议也不等于无状态业务：跨调用状态应通过显式 handle 表达，并绑定调用者、租户和有效期。
 
@@ -242,7 +242,7 @@ MCP 的标准 transport 是 stdio 和 Streamable HTTP。WebSocket 可由双方�
 
 ### 12.7.3 把消息格式和传输方式混为一谈
 
-消息格式和传输方式不要混在一起。JSON-RPC 2.0 是消息格式，stdio / Streamable HTTP 是传输方式，两者解耦。切换传输不影响上层逻辑。
+JSON-RPC 2.0 是消息格式，stdio / Streamable HTTP 是传输方式。核心工具语义可以复用，切换传输仍需适配认证、请求头、取消、连接故障与重试策略。
 
 ### 12.7.4 认为 Streamable HTTP 抛弃了 SSE
 

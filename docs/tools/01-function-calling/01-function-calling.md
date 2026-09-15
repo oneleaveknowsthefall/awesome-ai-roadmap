@@ -4,7 +4,7 @@ description: 解释 Function Calling 的工作流程、工具 Schema、模型决
 
 # 第一章：Function Calling 是什么，原理是什么
 
-## 1.1 一句话定位
+## 1.1 模型提出调用，谁来执行
 
 Function Calling 是**让模型通过结构化调用项表达「我想调用哪个函数、参数是什么」的一种接口约定**。本章以 JSON 参数的函数工具为例；tool calling 范围更大，也包括自定义文本工具及平台托管工具。
 
@@ -12,7 +12,7 @@ Function Calling 是**让模型通过结构化调用项表达「我想调用哪�
 
 - **表达，不是执行**。模型输出调用意图，应用或平台工具运行时执行函数、发 HTTP 请求、连数据库；使用托管工具时不一定由你的应用亲自执行；
 - **结构化 JSON，不是自然语言**。这是 Function Calling 相对于「土办法」的核心改进；
-- **一种输出约定**。它是模型层的接口协议，不涉及工具怎么被发现、怎么被分发、怎么跨进程通信——那是 [MCP](../02-mcp/04-what-is-mcp.md) 的事。
+- **一种输出约定**。它是模型与应用之间的接口约定，不规定工具发现、分发或跨进程通信；[MCP](../02-mcp/04-what-is-mcp.md) 是解决这些接入问题的一种协议。
 
 应用应把模型提议、权限批准和实际执行分别记录，不能把其中任一步当成其他步骤已经发生。
 
@@ -36,7 +36,7 @@ if "天气" in reply and ("查" in reply or "看" in reply):
 
 ### 1.2.2 路线二：Prompt 里约定输出格式
 
-进阶一点的做法是在 System Prompt 里写「如果需要调工具，请输出 `ACTION: 工具名(参数)`」。ReAct 论文当年就是这个思路。它比正则好，但有三个绕不过去的问题：
+进阶一点的做法是在 System Prompt 里写「如果需要调工具，请输出 `ACTION: 工具名(参数)`」。ReAct 也采用显式行动文本，但上面不是论文统一规定的语法。这比从任意自然语言猜意图更明确，仍要处理三个问题：
 
 | 问题 | 表现 |
 |---|---|
@@ -89,7 +89,7 @@ flowchart TB
 
 | 角色 | 职责 | 明确不做的事 |
 |---|---|---|
-| 开发者 | 定义工具的名称、描述、参数 Schema | 不预判模型会怎么选 |
+| 开发者 | 定义工具、选择策略与评测样例 | 不能只靠描述保证模型选对 |
 | 模型 | 判断要不要调、调哪个、参数填什么 | **不执行任何代码，不访问网络** |
 | 宿主程序 | 校验调用、执行或拒绝、回填结果 | 不把模型提议当成授权 |
 
@@ -144,7 +144,7 @@ tools = [{
 
 参数描述值得包含格式、示例和范围；接口若只接受规范城市名，还应在服务端做别名归一化及歧义校验。
 
-### 1.4.3 用 enum 把选择题变成判断题
+### 1.4.3 用 enum 限定合法取值
 
 ```python
 # 差：模型可能填 "高"、"HIGH"、"P0"、"urgent"
@@ -176,7 +176,7 @@ sequenceDiagram
     H->>U: 最终答案
 ```
 
-下面是单次查询的教学片段；`registry` 及参数、授权校验由应用实现。示例使用兼容 Chat Completions 的模型，不代表所有新模型支持该接口。
+下面是单次查询的教学片段，不是独立可运行的客户端。`registry` 是应用的工具白名单；`validate_and_authorize` 需由应用实现，检查 Schema、业务参数和当前用户权限，失败时抛出明确错误。示例使用兼容 Chat Completions 的模型，不代表所有新模型支持该接口。
 
 ```python
 import json
@@ -199,6 +199,7 @@ if choice.finish_reason == "tool_calls":
 
     for call in choice.message.tool_calls:
         args = json.loads(call.function.arguments)
+        validate_and_authorize(call.function.name, args)
         result = registry[call.function.name](**args)   # 宿主程序执行
 
         messages.append({
@@ -211,14 +212,23 @@ if choice.finish_reason == "tool_calls":
     final = client.chat.completions.create(
         model="gpt-4o", messages=messages, tools=tools, tool_choice="none"
     )
-    print(final.choices[0].message.content)
+    final_choice = final.choices[0]
+    if final_choice.finish_reason != "stop" or final_choice.message.refusal:
+        raise RuntimeError("最终回答未正常完成或被拒绝")
+    print(final_choice.message.content)
+elif choice.finish_reason == "stop":
+    if choice.message.refusal:
+        raise RuntimeError("请求被模型拒绝")
+    print(choice.message.content)
+else:
+    raise RuntimeError(f"响应未正常完成：{choice.finish_reason}")
 ```
 
 ### 1.5.1 两个容易漏掉的必要步骤
 
 **必须把模型那条 `tool_calls` 消息追加回 messages**。很多人直接跳到追加 `role: "tool"`，结果 API 报 `messages with role 'tool' must be a response to a preceding message with 'tool_calls'`。原因是对话历史必须自洽：先有请求，才能有响应。
 
-**`tool_call_id` 必须一一对应**。并行调用时如果 id 错配，模型会把杭州的天气当成北京的用，而且不会报任何错。
+**`tool_call_id` 必须一一对应**。把两个合法 ID 对应的结果交换，协议校验可能仍通过，模型却可能把杭州的天气当成北京的用；缺失或未知 ID 则可能直接被 API 拒绝。
 
 ### 1.5.2 Chat Completions 的常见 tool_choice 取值
 
@@ -251,17 +261,20 @@ flowchart LR
 
 在三个查询彼此独立、每轮推理耗时均近似为 `T`、不计排队和调度开销的教学模型下：逐次查询加总结约为 `4T + IO₁ + IO₂ + IO₃`，一批并发加总结约为 `2T + max(IO₁, IO₂, IO₃)`。实际收益取决于生成长度、并发限制和 API 延迟。
 
+下面只展示并发调度，输入须已完成解析、参数校验和授权。`validated_calls` 中每项包含 `name` 与 `arguments`，应用另行保留它与原调用 ID 的映射。
+
 ```python
 import asyncio
 
-async def run_all(tool_calls):
+async def run_all(validated_calls):
     tasks = [
-        asyncio.to_thread(registry[c.function.name],
-                          **json.loads(c.function.arguments))
-        for c in tool_calls
+        asyncio.to_thread(registry[c["name"]], **c["arguments"])
+        for c in validated_calls
     ]
     return await asyncio.gather(*tasks, return_exceptions=True)
 ```
+
+`gather` 按输入顺序返回结果，异常也会作为列表项返回；应用必须逐项识别，不能把异常对象序列化成成功结果。这里只示意调度，尚需并发上限与超时；取消等待 `to_thread` 不会强制停止已运行的同步函数，底层 I/O 也要设置超时。
 
 ### 1.6.1 并行的前提是无依赖
 
@@ -312,7 +325,7 @@ Function Calling 只解决了「模型怎么表达调用意图」。它没有解
 
 ### 1.8.5 用异常中断替代错误回填
 
-工具执行失败时直接抛异常，等于放弃了模型自我纠错的机会。把错误结构化地告诉模型，它经常能自己修好参数重试。
+对城市名拼写等可纠正错误，可在适配层回填脱敏的结构化结果，让模型在次数预算内重试。鉴权拒绝和非预期故障则应停止或升级处理；底层使用异常本身不是错误，错误在于丢失失败原因或把失败伪装成成功。
 
 ### 1.8.6 假设所有模型的 Function Calling 行为一致
 
@@ -326,7 +339,7 @@ Function Calling 只解决了「模型怎么表达调用意图」。它没有解
 4. **工具名、描述、Schema 与上下文共同影响选择**，strict 约束格式而非业务正确性；
 5. **两轮只是最小示例**，完整 Agent 需循环处理调用并设置退出条件；
 6. **无依赖查询可以并发**，写操作还要检查冲突、幂等性和部分失败；
-7. **它只解决了表达问题**，工具发现、跨进程、生态标准化由 MCP 等上层协议补齐。
+7. **它只解决了表达问题**，工具发现、跨进程接入可由 MCP 等机制补齐，两者不是强制上下层关系。
 
 
 ## 参考资料

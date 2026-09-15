@@ -10,11 +10,11 @@ description: 为模型与工具调用建立可关联的追踪，明确 TTFT、�
 
 ```mermaid
 flowchart TB
-    ROOT["Trace: 一次用户请求"]
+    ROOT["根 Span: 一次用户请求"]
     ROOT --> S1["Span: 模型调用#1(路由决策)"]
     ROOT --> S2["Span: 工具调用(检索订单)"]
     ROOT --> S3["Span: 模型调用#2(生成回答)"]
-    S3 --> S4["Span: 输出契约校验"]
+    ROOT --> S4["Span: 输出契约校验"]
 
     style ROOT fill:#e8f0fe
 ```
@@ -27,11 +27,11 @@ flowchart TB
 | **指标(Metrics)** | 整体趋势是好是坏(延迟、错误率、token 用量) | Prometheus / Grafana |
 | **追踪(Traces)** | 一次具体请求内部,时间和因果是怎么串起来的 | OpenTelemetry / LangSmith / Arize Phoenix |
 
-三者不能互相替代:指标能告诉你"过去一小时错误率上升了",但要知道"具体是哪一步失败的",必须靠 Trace 下钻到那一次请求的 Span 树。
+指标能告诉你“过去一小时错误率上升了”，关联日志和 Trace 则帮助定位具体失败步骤。此图把模型 Span 限定为模型请求本身；编排层在返回后执行最终校验，因此另建一个请求子 Span。父子关系应反映实际插桩边界，不能只按输出被谁消费来连线。
 
 ## 8.3 GenAI 场景下 Span 该记录什么字段
 
-OpenTelemetry 为生成式 AI 定义了[语义约定](https://opentelemetry.io/docs/specs/semconv/gen-ai/)。核验时该入口已迁移到[独立 GenAI 仓库](https://github.com/open-telemetry/semantic-conventions-genai)，不要把滚动文档当成已稳定的统一接口。实施时固定约定版本和 instrumentation 版本，核对各字段稳定性与供应商支持；下面是需要采集的语义类别，不是可直接复制的标准字段表：
+OpenTelemetry 的生成式 AI [语义约定](https://github.com/open-telemetry/semantic-conventions-genai)提供跨实现的字段含义，但不能把滚动文档当成已稳定的统一接口。实施时固定约定版本和 instrumentation 版本，核对各字段稳定性与供应商支持；下面是需要采集的语义类别，不是可直接复制的标准字段表：
 
 | 字段类别 | 示例 |
 |---|---|
@@ -126,7 +126,10 @@ Trace 堆积如山但没有形成 p99 延迟、错误率这类可以设阈值告
 
 ## 参考资料
 
+原 GenAI 文档入口已迁移至独立仓库，旧入口不再维护；本次于 2026-09-15 核对迁移说明。
+
 - [OpenTelemetry: Semantic conventions for generative AI systems](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
+- [OpenTelemetry: GenAI semantic conventions repository](https://github.com/open-telemetry/semantic-conventions-genai)
 - [Google SRE Book: Monitoring Distributed Systems](https://sre.google/sre-book/monitoring-distributed-systems/)
 - [LangSmith Observability](https://docs.langchain.com/langsmith/observability)
 - [Arize Phoenix: Tracing](https://docs.arize.com/phoenix/tracing/llm-traces)
