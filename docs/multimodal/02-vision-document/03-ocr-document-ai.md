@@ -6,7 +6,7 @@ description: 解释 OCR、版面感知与 OCR-free 文档理解的区别，梳�
 
 > RAG 场景下"文档解析该选 OCR 管线还是页面截图检索"的工程决策见 [RAG · 文档解析 第 3.5 节](../../rag/02-ingestion-indexing/03-document-parsing.md)；本章聚焦 OCR/Document AI **模型本身**的架构演进、坐标输出方式与评测指标，两章互为补充，不重复展开对方的内容。
 
-## 3.1 从"识别文字"到"理解文档结构"
+## 3.1 OCR 识别出文字后，为什么还不能直接理解文档？
 
 经典 OCR 管线包含**文字检测**与**文字识别**，但检测框加字符串只解决文字定位和转写，不保证扫描页面的阅读顺序或结构正确。发票、合同、表单、财报还需要判断哪一行是标题、哪一列是金额、哪个值对应哪个标签。Document AI 的目标因此从文字转写扩展到键值对、表格和版面结构；数字 PDF 已有可靠文字层时，也应先评估直接提取，而非默认重新 OCR。
 
@@ -41,9 +41,11 @@ OCR-free 消除了独立 OCR 接口的误差传递，却仍可能漏字、抄错
 |---|---|
 | Azure AI Document Intelligence | 提供预置模型（发票、收据、身份证件）与可训练的自定义抽取模型 |
 | Google Document AI | 提供表单解析器、发票解析器等专用处理器（Processor） |
-| Amazon Textract | 提供文字检测、表单键值对提取、表格提取的独立 API |
+| Amazon Textract | 提供文字检测与文档分析 API；表单和表格可在同一次文档分析请求中选择 |
 
 选型还取决于语言与地区格式支持、数据驻留、日志保留、页数限制、吞吐和单页成本。即使使用预置模型，也应按字段风险校准置信度阈值：低置信度转人工，高置信度的金额仍做合计、币种、日期等业务约束校验。阈值需要在独立验证集上估计漏检与复核成本，不能把模型置信度直接当作经过校准的正确率。
+
+例如 Textract 的同步 `AnalyzeDocument` 通过 `FeatureTypes` 同时选择 `FORMS`、`TABLES` 等分析类型，返回块及其关系；异步分析使用 `StartDocumentAnalysis`。不要把不同结构任务误认为必须分别调用独立接口。
 
 ## 3.7 评测：分层次衡量，不要只看一个总分
 
@@ -53,7 +55,7 @@ OCR-free 消除了独立 OCR 接口的误差传递，却仍可能漏字、抄错
 | 版面结构 | 阅读顺序准确率、区域分类 F1 | 衡量段落、标题、页眉页脚等区域划分是否正确 |
 | 表格结构与内容 | TEDS、GriTS，注明变体 | 标准 TEDS 含文字影响；结构、位置、内容应区分 |
 | 键值抽取 | 字段级 Precision/Recall/F1 | 衡量"发票金额""开票日期"等字段是否抽对且抽全 |
-| 端到端文档问答 | DocVQA 一类基准的 ANLS | 衡量结合版面、文字、视觉的综合问答能力 |
+| 端到端文档问答 | ANLS（平均归一化 Levenshtein 相似度） | DocVQA 一类基准用答案字符串相似度评价问答结果 |
 
 CER/WER 低不代表下游任务可用：大量正文识别正确，也可能掩盖金额的一位数字错误。ANLS 允许一定字符串编辑差异，不适合作为金额正确的唯一标准。应固定日期、空格、金额格式的归一化规则，再分别报告关键字段精确匹配和整份文档全部关键字段正确的比例。
 
@@ -95,3 +97,4 @@ CER/WER 低不代表下游任务可用：大量正文识别正确，也可能掩
 - [Azure Document Intelligence：准确率与置信度](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept/accuracy-confidence?view=doc-intel-4.0.0)
 - [Google Cloud Document AI 官方文档](https://cloud.google.com/document-ai/docs/overview)
 - [Amazon Textract 官方文档](https://docs.aws.amazon.com/textract/latest/dg/what-is.html)
+- [Amazon Textract：AnalyzeDocument 与 FeatureTypes](https://docs.aws.amazon.com/textract/latest/APIReference/API_AnalyzeDocument.html)

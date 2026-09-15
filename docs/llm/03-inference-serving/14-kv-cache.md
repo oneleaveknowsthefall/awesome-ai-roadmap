@@ -4,7 +4,9 @@ description: 推导因果注意力的 KV 复用条件、prefill 与 decode 复�
 
 # 第十四章：KV Cache 与 Prompt Caching
 
-## 14.1 先区分缓存的对象与复用范围
+## 14.1 KV Cache、Prompt Caching 与答案缓存有什么区别？
+
+KV Cache 在生成步骤之间复用历史状态，Prompt Caching 将前缀复用扩展到不同请求，答案缓存则直接返回已有答案。三者省掉的计算不同，失效条件也不同。
 
 | 概念 | 复用范围 | 缓存什么 |
 |---|---|---|
@@ -36,6 +38,8 @@ $$
 \mathrm{Attention}(Q,K,V)=
 \mathrm{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
 $$
+
+公式省略了掩码：prefill 的每个查询只能读取自身及更早的位置，并且要排除 padding；单 token decode 则通常已经只向该查询提供可见的历史与当前 K/V。不能因为用了缓存就省掉所有场景下的掩码检查。
 
 - **Prefill**：并行处理整个 prompt，逐层建立 K/V，用最后位置的 logits 采样第一个输出 token。
 - **Decode**：把上一步采得的 token 送入各层；计算它自己的 Q/K/V，将新 K/V 追加到缓存，Q 读取历史和**当前位置自身**的 K/V，再产生下一 token 的 logits。
@@ -119,7 +123,7 @@ flowchart TB
 
 ## 14.6 API 行为：显式和自动不是厂商的永久标签
 
-以下根据 2026-09-08 核对的官方文档与 SDK 描述。产品规则会变化，应把模型、接口和计费版本一起记录。
+同一厂商也可能同时提供显式边界和自动缓存。产品规则会变化，应把模型、接口和计费版本一起记录，以下仅说明参考资料所列接口的行为。
 
 ### 14.6.1 Claude：内容块断点，也有自动断点
 
@@ -238,4 +242,4 @@ KV Cache 的依据是因果前缀状态不变；收益是避免历史重算，�
 - [KIVI 原论文](https://arxiv.org/html/2402.02750v2)
 - [vLLM：Automatic Prefix Caching 设计](https://docs.vllm.ai/en/stable/design/prefix_caching/)
 
-本文原创讲解与示意图：Polo Li，采用 CC BY 4.0。
+接口资料核对范围：2026-09-08 的官方文档与 SDK；OpenAI 缓存指南另于 2026-09-15 复核。示例没有发起计费请求，不代表一次真实缓存命中结果。

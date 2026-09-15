@@ -54,7 +54,7 @@ $$
 
 ### 13.2.2 T=0 与极限
 
-T=0 会使公式除零；部分 API 将 `temperature=0` 特判为贪心。Transformers 通常通过 `do_sample=False` 选择贪心，而不是把零传给要求正温度的 TemperatureLogitsWarper。
+T=0 会使公式除零；部分 API 将 `temperature=0` 特判为贪心。在本节讨论的基本解码设置中，Transformers 用 `num_beams=1` 且 `do_sample=False` 选择贪心；若保持不采样而将束宽设为大于 1，则使用束搜索。不要把零传给要求正温度的 TemperatureLogitsWarper，也不要把“关闭采样”直接等同于“关闭搜索”。
 
 当正温度趋近 0 且最大 logit 唯一时，概率集中到该 token；若有多个并列最大值，数学极限会在它们之间分配概率，不等同于某个实现的固定并列值选择。
 
@@ -152,7 +152,6 @@ Temperature 改概率比，Top-K 限制候选数，Top-P 限制累计概率质�
 
 - [The Curious Case of Neural Text Degeneration](https://arxiv.org/abs/1904.09751)
 - [Transformers：Generation Utilities，含 Temperature/TopK/TopP LogitsWarper](https://huggingface.co/docs/transformers/main/en/internal/generation_utils)
+- [Transformers v4.56.2：贪心、采样与束搜索的配置条件](https://huggingface.co/docs/transformers/v4.56.2/en/generation_strategies)
 - [Qwen3-30B-A3B 官方模型卡与采样建议](https://huggingface.co/Qwen/Qwen3-30B-A3B)
 - [vLLM：Batch Invariance](https://docs.vllm.ai/en/stable/features/batch_invariance/)
-
-本文原创讲解与示意图：Polo Li，采用 CC BY 4.0。

@@ -4,7 +4,9 @@ description: 分开计算训练、prefill 和 decode 的注意力开销，比较
 
 # 第三章：MHA 的局限与 MQA、GQA、Flash Attention
 
-## 3.1 先区分三种开销
+## 3.1 注意力的瓶颈，在训练和生成时一样吗？
+
+不一样。训练和 prefill 同时处理许多查询位置；带缓存的 decode 通常每步只增加一个查询，瓶颈更可能转向权重与历史 K/V 的读取。先区分阶段，才能判断该改模型结构还是算子实现。
 
 | 场景 | 全注意力的主要计算 | 主要存储问题 |
 |---|---|---|
@@ -113,7 +115,7 @@ $$
 
 原论文的 IO 分析以片上容量和头维度为变量，不能把容量简单写成「块大小 M」后宣称任意实现固定减少 M 倍 IO。A100 的显存带宽随型号而异，片上带宽也不是把单个 SM 容量和全芯片带宽拼成一个固定 13 倍结论。
 
-**版本范围**：FlashAttention-2 改进并行与工作划分，FlashAttention-3 面向 Hopper；截至 2026-09-08 核实的官方仓库还列有采用 CuTeDSL、面向 Hopper/Blackwell 的 FlashAttention-4。这里不是框架默认后端列表，实际可用性要同时核对 GPU、数据类型、head dimension、mask、库与框架版本。
+**版本范围**：FlashAttention-2 改进并行与工作划分，FlashAttention-3 面向 Hopper；参考资料所列官方仓库快照还列有采用 CuTeDSL、面向 Hopper/Blackwell 的 FlashAttention-4。这里不是框架默认后端列表，实际可用性要同时核对 GPU、数据类型、head dimension、mask、库与框架版本。
 
 ## 3.6 结构与实现可以组合，但不是任意互换
 
