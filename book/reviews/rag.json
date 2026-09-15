@@ -1,0 +1,345 @@
+{
+  "scope": "rag",
+  "chapters": [
+    {
+      "path": "docs/rag/01-foundations/01-what-is-rag.md",
+      "disposition": "revised",
+      "summary": "修正把知识冻结画成幻觉唯一根因的图示，区分预训练目标、后训练拒答与外部证据；澄清建库与请求关键路径、成对评分与API调用次数，以及单轮检索的统计和多跳边界。",
+      "technical_checks": [
+        "核对原始RAG论文的参数记忆、非参数记忆与微调设定，保留RAG并不等于不训练的说明。",
+        "检查Query/Document兼容契约与章节后文一致；不同权重双塔不被误判为必然不兼容。",
+        "百万候选意味着百万文本对评分，不等于百万次串行API调用；图示与总结不再把多因素幻觉归为一个根因。"
+      ],
+      "source_urls": [
+        "https://arxiv.org/abs/2005.11401"
+      ]
+    },
+    {
+      "path": "docs/rag/01-foundations/02-rag-finetune-longcontext.md",
+      "disposition": "revised",
+      "summary": "将固定高低成本和首Token排名改为资源与失败模式比较；纠正权限过滤或频繁更新必然选择RAG的决策分支，保留长上下文授权和缓存基线，限定Top-K实验结论。",
+      "technical_checks": [
+        "核读Chroma Context Rot研究的词面检索、语义关联和干扰设置，保留模型与任务边界，不声称每多一个Token都会退化。",
+        "核对Anthropic博客比较5、10、20块的实验描述，将无法定位出处的固定5–10块退化阈值移除。",
+        "检查长上下文可携带引用并在输入前授权，流程图、对比表与正文结论保持一致；训练更新不再被简化为每条事实都完整重训。"
+      ],
+      "source_urls": [
+        "https://research.trychroma.com/context-rot",
+        "https://www.anthropic.com/engineering/contextual-retrieval"
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/03-document-parsing.md",
+      "disposition": "revised",
+      "summary": "拆窄解析路线表，修正视觉检索必然需要GPU匹配和固定存储劣势的表述；补充清洗不能删除版本、保密标记、续页表头及许可声明，质量筛查按文档类型解释。",
+      "technical_checks": [
+        "核对ColPali直接编码页面图像、输出多向量并采用后期交互的路线，区分页面编码、近邻匹配和多模态生成。",
+        "检查文本长度/文件大小与罕见字符只能作为筛查信号，图片密集材料和专业符号不能自动判错。",
+        "保留Tagged PDF、VLM生成失真、原件回链、结构化全表统计和缺失ACL默认不可见的有效基础内容。"
+      ],
+      "source_urls": [
+        "https://arxiv.org/abs/2407.01449"
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/04-chunking-strategy.md",
+      "disposition": "revised",
+      "summary": "将必须切分改为按输入和检索需求选择；纠正单向量是主题算术平均、overlap保证完整语义的说法；补齐超预算表格和代码的结构化拆分办法，保留粒度评测深度。",
+      "technical_checks": [
+        "核对Qwen3-Embedding-0.6B模型卡32k窗口与示例max_length配置的区别，保留按实际tokenizer、指令和服务预算检查截断的说明。",
+        "以长证据跨度和远距离定义为反例检查overlap保证，明确其只能降低局部截断风险。",
+        "检查切分比较固定原文证据标签和上下文Token预算；Prompt预算不再仅等于K乘块大小。",
+        "H2 4.1标题改变，未发现本仓库指向旧RAG锚点的Markdown引用。"
+      ],
+      "source_urls": [
+        "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+        "https://arxiv.org/abs/2312.06648"
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/05-semantic-truncation.md",
+      "disposition": "revised",
+      "summary": "区分命中后扩展阅读材料与建库时补足表示；解释Late Chunking的编码后池化、双向注意力及窗口边界，补充跨块派生表示的权限和更新依赖。",
+      "technical_checks": [
+        "核对Anthropic 2024博客中的5.7%、3.7%、2.9%、1.9%，35%/49%/67%为相对下降；程序复算取整，保留1−Recall@20与150重排到20的口径。",
+        "核对每百万文档Token 1.02美元对应历史价格和800/8000/50/100 Token假设，不将其改写为当前报价。",
+        "核读Late Chunking原始团队说明：先得Token表示再按边界池化，不能由长窗口单向量API推定可实现；因果掩码不保证每个Token看到全文。",
+        "检查父块ACL与去重、命题回链原文、上下文说明和向量继承全部来源限制的边界。"
+      ],
+      "source_urls": [
+        "https://www.anthropic.com/engineering/contextual-retrieval",
+        "https://jina.ai/news/late-chunking-in-long-context-embedding-models/",
+        "https://arxiv.org/html/2409.04701v3",
+        "https://arxiv.org/abs/2312.06648"
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/06-embedding-principles.md",
+      "disposition": "revised",
+      "summary": "更正GloVe并非预测上下文、SBERT并非只使用对比损失；区分无监督SimCSE与监督变体，去掉多向量必然更准和固定架构排名，保留双塔与交互机制。",
+      "technical_checks": [
+        "核读Stanford GloVe原始项目说明：全局词共现统计与加权最小二乘目标，而非Word2Vec的CBOW/Skip-gram目标。",
+        "核读Sentence-BERT原论文第3节的classification、regression和triplet目标，区分架构与损失函数。",
+        "检查两端非零单位向量下点积、余弦和平方欧氏距离排序等价的前提，并保留ANN/量化候选差异。",
+        "检查ColPali页面多向量与文本Token多向量的关系；图示不再预设精度顺序或串行调用次数。"
+      ],
+      "source_urls": [
+        "https://nlp.stanford.edu/projects/glove/",
+        "https://arxiv.org/html/1908.10084v1",
+        "https://arxiv.org/abs/2407.01449"
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/07-embedding-selection.md",
+      "disposition": "revised",
+      "summary": "纠正把整个MTEB家族概括为短文本、英语榜单；移除固定样本量充分性和完整维度必然最高精度的断言，明确文档编码改变与Query侧兼容调整的不同迁移成本。",
+      "technical_checks": [
+        "核对MMTEB原论文已包含长文档、代码和多语言任务，比较对象改为实际子榜与数据分布。",
+        "核对Qwen3-Embedding-0.6B的可配置输出维度与模型契约，保留MRL降维后归一化和实测要求。",
+        "检查原始向量载荷与维度线性关系不被误写为完整ANN延迟线性关系。",
+        "保留BM25对照、原文span标签、划分防泄漏、假负例与域外回归集；不把Query侧训练写成永久全库重建。"
+      ],
+      "source_urls": [
+        "https://arxiv.org/abs/2502.13595",
+        "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B"
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/08-vector-database.md",
+      "disposition": "revised",
+      "summary": "区分ANN算法与独立向量数据库，补全HNSW底层候选扩展、DiskANN缓存内存和PQ子空间码本机制；将固定压缩倍数表改为可计算载荷口径。",
+      "technical_checks": [
+        "核读pgvector v0.8.0固定版本README，确认iterative scans在过滤后结果不足时继续扫描且受max_scan_tuples/max_probes预算限制。",
+        "核对hnswlib v0.8.0的底层邻接容量和候选搜索结构，避免将所有层概括为唯一贪心路径。",
+        "按float32原始载荷推导int8约4倍、1bit约32倍及PQ的4d字节对mb/8字节；码本、原向量副本与图另算。",
+        "保留精确近邻不等于业务真值、删除回收依实现以及过滤子集精确基线；H2 8.1旧锚点无仓内入链。"
+      ],
+      "source_urls": [
+        "https://github.com/pgvector/pgvector/blob/v0.8.0/README.md",
+        "https://github.com/nmslib/hnswlib/blob/v0.8.0/hnswlib/hnswalg.h"
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/09-vectordb-production.md",
+      "disposition": "revised",
+      "summary": "保留容量公式但明确8字节内部ID是假设，并对照4字节实现；修正构建参数和在线参数边界、重建峰值及示例延迟不能推出真实瓶颈的结论。",
+      "technical_checks": [
+        "程序复算150万×1024×4=6.144GB；150万×32×2×8=0.768GB，4字节内部ID对应0.384GB；区分GB与GiB。",
+        "核读hnswlib v0.8.0的unsigned int内部ID、maxM0=M×2和邻接载荷组成，未把局部载荷当总内存。",
+        "核对pgvector构建/插入受ef_construction影响，说明修改后续插入参数不等于重建已有图。",
+        "检查ANN Recall与业务Recall、同请求trace分位数、写入确认/可见性/索引就绪的区分，去掉MRL固定轻微损失和分片线性扩展承诺。"
+      ],
+      "source_urls": [
+        "https://github.com/nmslib/hnswlib/blob/v0.8.0/hnswlib/hnswalg.h",
+        "https://github.com/pgvector/pgvector/blob/v0.8.0/README.md"
+      ]
+    },
+    {
+      "path": "docs/rag/03-retrieval/10-online-pipeline.md",
+      "disposition": "revised",
+      "summary": "把证据充分性闸门前移到生成前，生成后增加真正的发布检查；修正硬截断、首Token与流式输出的关系，补齐缓存表示契约和降级路径的授权约束。",
+      "technical_checks": [
+        "逐步追踪流程图：无证据在生成前停止，实际主张及引用在生成后验证，检索故障不伪装成知识缺失。",
+        "核对长上下文位置效应只支持评测排序策略，不支持对所有模型固定首尾排序。",
+        "检查Query向量缓存需要完整编码输入及模型、前缀、维度等配置，结果/答案缓存需要权限和证据版本。",
+        "检查reranker失效时不能把裸分阈值套到粗排，原文回退仍受ACL、版本和引用约束；10.7.1旧标题锚点无仓内入链。"
+      ],
+      "source_urls": [
+        "https://research.trychroma.com/context-rot",
+        "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B"
+      ]
+    },
+    {
+      "path": "docs/rag/03-retrieval/11-retrieval-paradigms.md",
+      "disposition": "revised",
+      "summary": "让稀疏检索定义包含学习式词项扩展，补充BM25实现差异；更正后期交互等于精确词项匹配、Rerank必然不可预计算的混淆。",
+      "technical_checks": [
+        "核对Lucene 9.12 BM25Similarity的IDF为log(1+(N−df+0.5)/(df+0.5))，区分其他历史IDF变体可能为负。",
+        "核读ELSER官方文档：v2可部署且推荐英语资料，扩展词是学习到的关联而非简单同义词表；保留与SPLADE的区别。",
+        "检查后期交互、cross-encoder是架构而Rerank是阶段，MaxSim也可用于候选重排。",
+        "保留数值、否定、日期、权限应落实为可验证约束的说明，未把BM25上线路径定为必需。"
+      ],
+      "source_urls": [
+        "https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/search/similarities/BM25Similarity.html",
+        "https://www.elastic.co/docs/explore-analyze/machine-learning/nlp/ml-nlp-elser",
+        "https://arxiv.org/abs/2407.01449"
+      ]
+    },
+    {
+      "path": "docs/rag/03-retrieval/12-query-rewriting.md",
+      "disposition": "revised",
+      "summary": "补充歧义指代的澄清与历史可信度；区分有依赖的多跳步骤、可并行分支和固定工作流，拆窄五列表并移除每种方法固定一次调用的假设。",
+      "technical_checks": [
+        "核读HyDE原论文的无标签检索、假想文档与无监督编码器设定，保留假想文档不是证据及域外可能带偏的边界。",
+        "核对Adaptive-RAG原论文按复杂度在不检索、单轮和迭代检索间分类选择，未把固定两步查询强称为Agent。",
+        "按数据依赖检查CEO→母校案例：未知中间值需等待，已知实体或结构化关联不必固定两轮。",
+        "检查原Query兜底、实体/数字/否定保持、路由不能产生新授权；组合改写按实际调用图消融。"
+      ],
+      "source_urls": [
+        "https://arxiv.org/abs/2212.10496",
+        "https://arxiv.org/abs/2403.14403"
+      ]
+    },
+    {
+      "path": "docs/rag/03-retrieval/13-hybrid-retrieval-rerank.md",
+      "disposition": "revised",
+      "summary": "限定BM25和余弦分数范围，不把多路视为必然正确；拆窄带未经测量延迟的模型表，补充重排降级校准和语义去重不可抹去数字、否定与版本差异。",
+      "technical_checks": [
+        "逐项核对RRF排名从1开始、未入窗口贡献0、k不是最终Top-K；程序验证等权且k=60时两路前十贡献超过单路第一。",
+        "核对Lucene IDF实现，BM25不再写成所有实现都非负或固定0到几十的范围。",
+        "检查成对评分、listwise同窗口比较、候选遗漏和位置偏置；不由服务系列名推断架构或固定耗时。",
+        "检查候选外证据不能靠重排找回，粗排降级必须有独立校准与ACL/版本/引用闸门。"
+      ],
+      "source_urls": [
+        "https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/search/similarities/BM25Similarity.html",
+        "https://www.anthropic.com/engineering/contextual-retrieval"
+      ]
+    },
+    {
+      "path": "docs/rag/03-retrieval/14-retrieval-optimization.md",
+      "disposition": "revised",
+      "summary": "把固定投入产出排名改成失败样例到验证动作的对应关系；补充诊断前确认授权、发布和过滤计划，修正各层完全独立以及生成安全最后再补的暗示。",
+      "technical_checks": [
+        "按候选、重排、最终Prompt和生成结果追踪证据，保留人工完整证据对照实验与多跳完整证据组。",
+        "核对pgvector过滤/可见性边界，合法ACL过滤不作为应优化掉的漏召回，Top-50/Top-5明确为示例。",
+        "检查结构恢复、混合召回、父子扩展和重排都有实际维护成本，来源时效先匹配查询时刻而非总选最新。",
+        "ACL、拒答和引用要求在第一版落实，不以优化顺序延后安全要求。"
+      ],
+      "source_urls": [
+        "https://github.com/pgvector/pgvector/blob/v0.8.0/README.md",
+        "https://www.anthropic.com/engineering/contextual-retrieval"
+      ]
+    },
+    {
+      "path": "docs/rag/04-advanced/15-advanced-rag-paradigms.md",
+      "disposition": "revised",
+      "summary": "将代际与成熟度断言改为控制机制和新增成本；补讲Adaptive-RAG分类器，并解释RAPTOR软聚类可让同一片段参与多个摘要，增加多轮工具的权限边界。",
+      "technical_checks": [
+        "核读RAPTOR原论文软聚类说明，图示增加共享叶节点，不再暗示唯一父节点；保留tree traversal与collapsed tree两种检索。",
+        "核对Adaptive-RAG小模型分类器与自动标签来源，区分不检索、单轮和迭代路径。",
+        "保留Self-RAG反思标记需要训练、Corrective RAG与CRAG Benchmark不同、提示近似不等于论文复现的边界。",
+        "检查Agentic RAG轮次、Token、时间和无新增证据停止条件，工具选择不授予新权限。"
+      ],
+      "source_urls": [
+        "https://arxiv.org/html/2401.18059v1",
+        "https://arxiv.org/abs/2403.14403"
+      ]
+    },
+    {
+      "path": "docs/rag/04-advanced/16-graphrag.md",
+      "disposition": "revised",
+      "summary": "保留Standard/Fast、Local/Global/DRIFT/Basic和增量更新边界，补充Fast默认英语配置、图报告的跨权限派生风险与主题摘要不能证明统计比例；将过宽成本表改成两类成本账。",
+      "technical_checks": [
+        "核读微软索引方法文档：Standard使用LLM抽取与汇总，Fast用名词短语及共现关系，默认NLP配置主要适合英语。",
+        "核读官方CLI的standard-update/fast-update和查询模式选项，不把可运行更新等同于任意修改、删除、撤权都同步正确。",
+        "核读Local Search的实体描述嵌入入口、关系/报告/文本组合和预算过滤，不写成固定1–3跳算法。",
+        "检查最大供应商需要采购范围、金额和时间，社区报告不能直接推出全量比例，派生报告ACL应覆盖全部来源。",
+        "在线资料访问日期集中于参考资料，未声明验证具体安装版本的生产更新行为。"
+      ],
+      "source_urls": [
+        "https://microsoft.github.io/graphrag/index/methods/",
+        "https://microsoft.github.io/graphrag/cli/",
+        "https://microsoft.github.io/graphrag/query/local_search/"
+      ]
+    },
+    {
+      "path": "docs/rag/05-generation-evaluation/17-generation-hallucination.md",
+      "disposition": "revised",
+      "summary": "为拒答图补上主张引用发布闸门，改写四种防线的配合而非固定效果和优先级；保留历史版本与当前权限的区别，修正文题与答案不对应的常见错误段。",
+      "technical_checks": [
+        "核对Ragas Faithfulness以检索上下文支持回答主张为目标，不能当事实正确认证，也不能把无主张输出自动计满分。",
+        "检查上海/北京及日期引用反例、实际引用片段联合支持、引用完整性和Top-K未命中不证明知识不存在。",
+        "检查高风险主张应先校验后发布，离线抽样不能收回已经展示的错误；无权证据不进入生成。",
+        "17.7标题改变，未发现仓内指向旧锚点的Markdown引用。"
+      ],
+      "source_urls": [
+        "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/"
+      ]
+    },
+    {
+      "path": "docs/rag/05-generation-evaluation/18-rag-evaluation.md",
+      "disposition": "revised",
+      "summary": "补充Context Precision与Answer Relevancy的计算机制及collections/legacy变体，区分程序断言与关键词出现；强调反馈进入开发回归集而不污染冻结测试集。",
+      "technical_checks": [
+        "核读Ragas官方Context Precision/Recall/Faithfulness/Relevancy页面，确认ContextUtilization与LLMContextPrecisionWithoutReference使用生成回答；ContextRecall需要reference。",
+        "核对Context Precision按相关块位置的Precision@k聚合及返回相关块分母，Answer Relevancy反向生问题再比较嵌入的代理性质。",
+        "检查Hit、Recall、Precision、MRR/NDCG无相关证据样本、等价证据组、ANN与业务真值、拒答混淆口径；不把空主张或失败样本静默删去。",
+        "保留成对评测、分组bootstrap、人工校准、引用蕴含、版本时效和反馈选择偏差；换Judge不自动消除偏置。"
+      ],
+      "source_urls": [
+        "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_precision/",
+        "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_recall/",
+        "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/",
+        "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/answer_relevance/"
+      ]
+    },
+    {
+      "path": "docs/rag/06-operations-security/19-dynamic-update.md",
+      "disposition": "revised",
+      "summary": "让发布图与manifest/集合alias/文档版本的粒度一致，明确删除撤权先阻断且回滚不恢复访问；纠正分索引彻底隔离、软删必占ef名额和过期文档一律清理等断言。",
+      "technical_checks": [
+        "核对pgvector写入、过滤与迭代搜索语义，保留未建ANN索引的精确缓冲路径可查询的边界。",
+        "核读hnswlib删除检查和候选处理，区分遍历被删节点、候选队列和实际召回损失，不以算法名推断统一行为。",
+        "检查跨向量/BM25/原文快照一致性、幂等乱序事件、显式历史对比和当前授权独立生效。",
+        "区分用户成员关系与资源ACL，稳定部门标签不必随每次人员变动重写所有块；删除处置按适用保留政策核验全部副本及备份恢复清单。"
+      ],
+      "source_urls": [
+        "https://github.com/pgvector/pgvector/blob/v0.8.0/README.md",
+        "https://github.com/nmslib/hnswlib/blob/v0.8.0/hnswlib/hnswalg.h"
+      ]
+    },
+    {
+      "path": "docs/rag/06-operations-security/20-rag-challenges-security.md",
+      "disposition": "revised",
+      "summary": "限定PoisonedRAG结论的威胁模型，补充可信来源标签和独立证据判定；澄清ASR分母与攻击目标，移除全拒答必然零攻击成功和风险成倍增加的无依据表述。",
+      "technical_checks": [
+        "核读PoisonedRAG论文摘要：攻击者可向知识库注入少量目标文本，结果属于特定实验设置，不是任意生产库保证成功。",
+        "检查ASR须报告攻击目标、请求/目标问题分母与尝试预算，错误回答类攻击和拒绝服务/资源消耗类目标不能混为一谈。",
+        "保留间接注入、Prompt分隔不构成安全边界、确定性授权和数据流出口控制；清洗不自动可信化材料。",
+        "检查上线对账覆盖ACL、删除和有效期，而不只是内容哈希；正常任务效用与攻击效果成对报告。"
+      ],
+      "source_urls": [
+        "https://arxiv.org/abs/2402.07867"
+      ]
+    },
+    {
+      "path": "docs/rag/04-advanced/21-multimodal-rag.md",
+      "disposition": "revised",
+      "summary": "保留多表示、原件证据与跨模态融合主线，拆窄表示表；限定OCR/ASR置信度可用性，区分生成前证据检查和生成后实际主张验证，补充IoU含义。",
+      "technical_checks": [
+        "核对ColPali的页面多向量与后期交互，核对RAG-Anything arXiv 2510.12323标题、作者和多模态双图/混合检索摘要，来源链接未误配。",
+        "检查MaxSim朴素复杂度O(mnd)、几何定位不等于事实支持，以及图表单位/坐标轴/图例和读数误差。",
+        "保留同维向量不能任意跨空间比较、关键帧遗漏、派生副本ACL与删除、媒体注入不是可信指令的边界。",
+        "未把不同OCR/ASR接口或VLM自报置信度视为统一校准概率。"
+      ],
+      "source_urls": [
+        "https://arxiv.org/abs/2407.01449",
+        "https://arxiv.org/abs/2510.12323"
+      ]
+    },
+    {
+      "path": "docs/rag/07-structured-queries/22-text-to-sql.md",
+      "disposition": "revised",
+      "summary": "完整保留8订单、9明细及原DDL/查询，拆成窄屏可读的数据展示；补充SQLite类型亲和性和STRICT版本边界。保留李博杰及ERP来源归属，将通用Polo Li/许可页尾交书末集中处理。",
+      "technical_checks": [
+        "从修订后的Markdown表重建8订单/9明细，逐字段与1ccb8ac基线相等；两段SQL代码与基线逐字相等。",
+        "用Python标准库sqlite3实际执行文中DDL和查询，并用独立Python按上海本地日期与订单粒度计算：C1=(2,10,7000)，C2=(1,2,4000)。",
+        "七个错误查询变体均被固定结果捕获：漏联合租户键、右端点包含、左端点排除、漏客户范围、漏租户、纳入取消单、纳入全发单。",
+        "实测空结果、SUM无输入返回NULL、SUM(DISTINCT)把同额两单8000变4000、关联后O101两行、缺失发货量被拒绝、普通INTEGER列接受0.5及纽约夏令时日历窗口23小时。",
+        "核读SQLite类型、STRICT自3.37.0起、聚合、authorizer与函数安全文档；保留只读共享文件不能租户隔离、LIMIT不限制扫描、参数化不保护SQL结构。",
+        "核读上游固定提交985a49d的book/chapter5.md、agent.py和demo.py，确认书中PostgreSQL要求与运行示例SQLite的区别、cur.execute和独立参考比较；未运行上游模型程序、未把SQL验收称为模型准确率或生产沙箱验证。"
+      ],
+      "source_urls": [
+        "https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md",
+        "https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/agent.py",
+        "https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py",
+        "https://www.sqlite.org/datatype3.html",
+        "https://www.sqlite.org/stricttables.html",
+        "https://www.sqlite.org/lang_aggfunc.html",
+        "https://www.sqlite.org/security.html",
+        "https://www.sqlite.org/c3ref/set_authorizer.html",
+        "https://www.sqlite.org/appfunc.html#security_implications"
+      ]
+    }
+  ]
+}
