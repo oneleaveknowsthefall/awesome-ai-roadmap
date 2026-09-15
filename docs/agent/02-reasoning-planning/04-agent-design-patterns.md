@@ -82,7 +82,7 @@ Runtime 执行 Tool，并将真实结果或错误返回给模型。模型基于�
 
 > **Observe → Decide → Act → Observe**
 
-这些记录支持检查与追溯，但不等于模型内部计算的完整解释；推理文本的忠实性问题见[第五章](05-agent-reasoning-methods.md#553-不要把完整思维链当作可靠解释)。
+这些记录支持检查与追溯，但不等于模型内部计算的完整解释；推理文本的忠实性问题见[第五章](05-agent-reasoning-methods.md) §5.5.3。
 
 ### 4.2.3 ReAct 的决策形式
 

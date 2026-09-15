@@ -11,6 +11,17 @@
 - Keep source-access notes in the references. Retain qualifications that change a technical conclusion, but do not turn the main text into an audit log.
 - Never present fictional projects as the author's experience or suggest that readers claim them as real work.
 
+## Book manuscript
+
+- Maintain a Simplified Chinese source manuscript for an AI engineering interview book. An English edition is planned; do not translate or convert to Traditional Chinese without an explicit request.
+- Organize explanations around meaningful questions, followed by a direct answer, reasoning, examples, and relevant limitations. Keep the sequence readable from beginning to end; do not mechanically turn every heading into a question.
+- Preserve passages that already read naturally. Change them only for a factual error, a real structural problem, or a concrete reading obstacle; do not expand the scope into AI infrastructure.
+- Keep chapter paths and stable identifiers independent of localized titles. The book manifest defines reading order; topic and module indexes remain useful for the website.
+- Keep technical chapters free of repeated author signatures and copyright or license boilerplate. Centralize original attribution and rights information in the book's closing matter and repository license. Preserve source citations and required third-party notices.
+- Do not invent acknowledgments, endorsements, ISBNs, publication history, or contributors. Keep author-facing placeholders out of the assembled reader manuscript.
+- Retain Mermaid and LaTeX as source formats, with prose that explains their meaning. A Markdown manuscript is not an upload-ready Kindle book: final export needs static figures and formulas, navigable contents, and device preview.
+- Verify KDP's current language and content requirements before release. Do not label Simplified Chinese as another language or describe AI-generated text, images, or translations as merely AI-assisted.
+
 ## Documentation format
 
 - Group chapters by topic and module under lowercase English directory names, using `docs/<topic>/<NN-module>/NN-chapter.md`.
@@ -37,11 +48,11 @@
 - Keep descriptions factual and readable; do not repeat keyword variants.
 - Add FAQ sections only for recurring reader questions, and keep every marked-up answer visible on the page.
 - Use `scripts/mkdocs_hooks.py` and `overrides/main.html` for site-wide metadata and structured data instead of copying HTML into chapters.
-- Attribute original documentation and diagrams to Polo Li under CC BY 4.0.
+- Attribute original documentation and diagrams to Polo Li under CC BY 4.0 in centralized project and book notices, not repeated chapter footers.
 
 ## Publishing
 
 - Update the module `README.md`, topic `README.md`, root indexes, and `mkdocs.yml` navigation when adding, moving, or removing a chapter.
 - Run `python3 scripts/check_docs.py`, `npm run check:mermaid`, and `.venv/bin/mkdocs build --strict` before publishing.
-- Commit completed documentation directly and push it to the remote `main` branch.
-- Do not create a pull request unless the user explicitly asks for one.
+- Submit manuscript revisions as a pull request for the user to merge. Do not push these changes to `main`, merge the PR, or publish the book on the user's behalf.
+- Only use direct publication when the user explicitly requests it.

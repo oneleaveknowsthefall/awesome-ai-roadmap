@@ -106,8 +106,6 @@ extra_css:
 hooks:
   - scripts/mkdocs_hooks.py
 
-copyright: 文档内容采用 CC BY 4.0 许可，由 Polo Li 维护
-
 extra:
   author:
     name: Polo Li
@@ -122,6 +120,13 @@ extra:
 
 nav:
   - 首页: README.md
+  - 中文书稿:
+      - 阅读目录: book/README.md
+      - 扉页: book/title-page.md
+      - 前言: book/preface.md
+      - 阅读说明: book/how-to-read.md
+      - 致谢: book/acknowledgments.md
+      - 书末说明: book/colophon.md
   - 关于:
       - 作者与项目: about.md
       - 编辑、引用与纠错规范: editorial-policy.md
