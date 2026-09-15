@@ -1,0 +1,456 @@
+{
+  "scope": "docs/frameworks/**",
+  "chapters": [
+    {
+      "path": "docs/frameworks/01-langchain/01-foundations/01-agent-frameworks.md",
+      "disposition": "revised",
+      "summary": "完整通读后保留从业务难点选择框架、再用故障场景比较的主线；补明 LlamaIndex 元数据过滤不自动提供身份认证和租户授权。",
+      "technical_checks": [
+        {
+          "check": "框架分层与标准工具审批",
+          "result": "LangChain Agent 使用 LangGraph 运行能力；标准工具审批可以配置中间件，不需要仅因审批需求就重写状态图。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/langchain/human-in-the-loop"
+          ]
+        },
+        {
+          "check": "概览与数据章节的一致性",
+          "result": "逐段对照第 7、14、15 章，保留数据、模型集成与流程控制的侧重点，不把检索过滤等同于访问控制。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/01-foundations/02-chain-and-lcel.md",
+      "disposition": "revised",
+      "summary": "保留 Runnable 组合、并行费用与重试范围解释；重画选型图，使确定性长流程也能选择 LangGraph，标准 Agent 审批不再被导向必须下沉；结尾分清 Runnable 协议、Chain 数据流与 LCEL 组合表达。",
+      "technical_checks": [
+        {
+          "check": "协议与编排层次",
+          "result": "核对本章代码中的 RunnableSequence、RunnableParallel、invoke/batch/stream 及后续章节用法；组合方式不自动修复类型或保证端到端流式。",
+          "source_urls": []
+        },
+        {
+          "check": "选型图与持久化、审批能力",
+          "result": "官方中间件文档明确需要 checkpointer 和 thread_id；修正原图将这些需求直接等同于手写 LangGraph 的暗示。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/langchain/human-in-the-loop"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/01-foundations/03-langchain-architecture.md",
+      "disposition": "revised",
+      "summary": "保留四层架构及消息到工具的调用链；把正文和总结统一为标准审批可用中间件、跨调用恢复必须另配检查点，避免读者把编译图当成默认已持久化。",
+      "technical_checks": [
+        {
+          "check": "create_agent 的运行与持久化前提",
+          "result": "对照官方事件流与审批文档，编译图提供运行能力，但配置 checkpointer 与 thread_id 才能跨调用恢复。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/langchain/event-streaming",
+            "https://docs.langchain.com/oss/python/langchain/human-in-the-loop"
+          ]
+        },
+        {
+          "check": "State、Context、Store 的可信边界",
+          "result": "完整核对第 3、5、6 章的一致性，保留 Context 的可信性来自认证边界、State 可能含不可信内容、namespace 不替代授权的限定。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/02-agent-building/04-build-agent.md",
+      "disposition": "revised",
+      "summary": "保留七步工程顺序；一次说明虚构订单与占位服务，把横向七步图改为纵向；修正 namespace、隐藏工具和 Prompt 的安全措辞，不夸大无幂等时必然重复执行。",
+      "technical_checks": [
+        {
+          "check": "结构化输出策略及失败结果",
+          "result": "官方文档确认直接传类型会选择 ProviderStrategy/ToolStrategy，JSON Schema 字典须显式包入策略，业务工具与结构化输出组合需模型支持；未运行模型 API。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/langchain/structured-output"
+          ]
+        },
+        {
+          "check": "审批恢复接线",
+          "result": "确认 checkpointer、同一 thread_id 和按请求顺序提供 decisions 的条件；模型 needs_human 字段不承担授权。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/langchain/human-in-the-loop"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/02-agent-building/05-tool-registration.md",
+      "disposition": "revised",
+      "summary": "保留四种工具定义方式与错误分类；拆开长接线代码，标明固定订单返回值；去掉把当前状态统称可信参数的说法，区分 Context 类型声明、数据传入、身份认证和输出脱敏；审批按风险配置，不代替幂等。",
+      "technical_checks": [
+        {
+          "check": "模型参数与运行依赖",
+          "result": "逐行核对 save_locale/get_locale 的参数、namespace 与 create_agent/context 接线；ToolRuntime 注解不构造已认证身份，工具结果仍可能泄漏隐藏依赖。",
+          "source_urls": []
+        },
+        {
+          "check": "工具副作用与审批",
+          "result": "对照第四章审批和第十章重放语义，人工确认不能确保恰好一次执行；明确幂等与按风险配置审批的不同职责。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/langchain/human-in-the-loop"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/02-agent-building/06-memory.md",
+      "disposition": "revised",
+      "summary": "主体保留：作用域、消息裁剪与物理删除、长期记忆治理已讲清机制和失败边界；仅修正结尾将 namespace 写成防串户保证、将检查点写成不失忆保证的过度概括。",
+      "technical_checks": [
+        {
+          "check": "线程状态与跨线程记忆",
+          "result": "完整核对同一 thread_id 示例、InMemorySaver 的进程边界、Store 接线以及第 5 章身份注入示例，未将内存实现描述为持久后端。",
+          "source_urls": []
+        },
+        {
+          "check": "裁剪、删除和授权的层次",
+          "result": "保留请求裁剪不减少存储、RemoveMessage 不清除历史 checkpoint、用户记忆不能覆盖安全策略等限定；总结改为服务端授权负责隔离。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/03-ecosystem/07-langchain-vs-llamaindex.md",
+      "disposition": "retained",
+      "summary": "完整通读后保留。正文已从接口适配与数据链路两个难点展开，组合示例紧接 source_nodes 丢失、重复生成与嵌套重试成本，既有直接回答也有反例，无需为改标题而改写。",
+      "technical_checks": [
+        {
+          "check": "Query Engine 工具边界",
+          "result": "逐行检查 str(query_engine.query(...)) 与紧随其后的限制说明；代码没有被宣称为保留引用元数据的生产实现，并提供 Retriever 直接返回证据的替代方案。",
+          "source_urls": []
+        },
+        {
+          "check": "职责侧重点而非排他功能",
+          "result": "与第 1、9、14、15 章交叉核对，保留两框架都能做 Agent/RAG、标准审批不必手写图、组合须证明独立收益的限定。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/langchain/human-in-the-loop"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/03-ecosystem/08-langchain4j.md",
+      "disposition": "revised",
+      "summary": "保留独立 JVM 框架、AI Services、memory/history 与 Guardrails 的解释；把 Java 长示例拆成接口、工具、检索器、装配四段，修正排查图中的检索与模型输入顺序，并说明图不是所有校验的执行时序。",
+      "technical_checks": [
+        {
+          "check": "Guardrails 执行阶段与适用范围",
+          "result": "官方文档仍标为 experimental，限 AI Services；Input Guardrail 在 RAG 后、模型调用前，不能用其拒绝结果证明检索未发生。",
+          "source_urls": [
+            "https://docs.langchain4j.dev/tutorials/guardrails"
+          ]
+        },
+        {
+          "check": "代码装配和记忆边界",
+          "result": "拆分保持原 Java 片段次序与对象连接；保留 provider/JDK 前提、minScore 非概率、ChatMemoryStore 只存记忆窗口和同一 MemoryId 并发风险。未编译 Java 或调用模型。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/04-langgraph/09-langchain-vs-langgraph.md",
+      "disposition": "retained",
+      "summary": "完整通读后保留。章节已按高层循环、middleware、图拓扑、状态合并与恢复粒度递进；组合片段明确字符串路由不承担安全策略，reducer、共享状态和依赖树限定充分。",
+      "technical_checks": [
+        {
+          "check": "标准审批的决策类型",
+          "result": "官方现行文档确认 approve/edit/reject/respond 四类；正文提到人工直接回复有依据，不误按早期三类接口删除。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/langchain/human-in-the-loop"
+          ]
+        },
+        {
+          "check": "v3 流式投影",
+          "result": "官方事件流文档确认 stream_events(version=\"v3\") 及状态、工具、子图投影；保留与第 10 章分工，未将旧 v2 事件字典与 v3 混用。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/langchain/event-streaming"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md",
+      "disposition": "revised",
+      "summary": "保留 super-step、重放、pending writes、子图与流式脱敏机制；修正 reducer 禁止覆盖和短任务可随意重试的暗示。采购示例改用严格正整数人民币分，保留业务审批版本，审批载荷显示金额；将长代码按职责拆开，一次交代虚构与内存限制。",
+      "technical_checks": [
+        {
+          "check": "节点容错的版本和顺序",
+          "result": "官方文档确认 timeout/error_handler 需要 langgraph>=1.2、timeout 仅支持 async 节点、max_attempts 含首次尝试；保留预算与取消不等价的说明。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/langgraph/fault-tolerance",
+            "https://github.com/langchain-ai/langgraph/tree/1.2.0"
+          ]
+        },
+        {
+          "check": "采购状态、金额与审批绑定",
+          "result": "核对 normalize_request 不再用浮点 round 或重置版本，amount_minor 与预算客户端片段一致，多起点边等待两项检查，恢复决定校验申请与版本。单独执行预算边界 2 例与预算/合规/审批布尔组合 8 例，均符合预期；未连接预算、认证、合规或采购服务，未运行完整 LangGraph 审批流程。",
+          "source_urls": []
+        },
+        {
+          "check": "事件流白名单示例",
+          "result": "确认 v3 stream.values 为状态快照投影；白名单字段内容仍需受控，完整输出后的校验无法撤回已发送 token。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/langchain/event-streaming"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/03-ecosystem/11-version-evolution.md",
+      "disposition": "revised",
+      "summary": "完整通读后保留拆包、Runnable、LangGraph 与 v1 Agent 四个演进节点，以及旧检查点兼容风险；只把“Python 版本 v0.3”改为“LangChain 的 Python v0.3 版本”，避免误读为解释器版本。",
+      "technical_checks": [
+        {
+          "check": "特定功能的最低版本",
+          "result": "复核 model profile 读取需 langchain>=1.1、ProviderStrategy(strict=...) 需 >=1.2、LangGraph 节点 timeout/error_handler 需 >=1.2；未把这些条件提升为整章代码的统一补丁版本。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/langchain/structured-output",
+            "https://docs.langchain.com/oss/python/langgraph/fault-tolerance"
+          ]
+        },
+        {
+          "check": "流式代际与持久状态迁移",
+          "result": "确认现行 v3 是类型化运行投影，保留不可与旧 v2 事件字典混用及旧 checkpoint 不随依赖回滚自动回滚的解释。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/langchain/event-streaming"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/05-production/12-deep-research.md",
+      "disposition": "revised",
+      "summary": "保留研究 Brief、证据链、串并行与停止预算。补明子 Agent 隔离的是消息上下文，默认 State backend 文件可以共享；修正 FilesystemBackend 的 root_dir 被误当访问限制，写明 virtual_mode 默认及 shell 可绕过文件工具限制。",
+      "technical_checks": [
+        {
+          "check": "文件后端默认值与共享范围",
+          "result": "官方 Backends 文档明确 virtual_mode=False 时 root_dir 不提供路径安全；State backend 文件可由 supervisor 与 subagents 共享；LocalShellBackend 的 shell 不受虚拟文件路径限制。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/deepagents/backends"
+          ]
+        },
+        {
+          "check": "同步委派与研究质量",
+          "result": "官方同步子 Agent 页面确认主调用等待且只接收最终结果；正文保留串行研究也成立、链接存在不等于引用支持结论、多来源转载不构成交叉验证。",
+          "source_urls": [
+            "https://docs.langchain.com/oss/python/deepagents/subagents"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/05-production/13-langsmith-production-loop.md",
+      "disposition": "retained",
+      "summary": "完整通读后保留。章节已从一次失败如何形成可复现评测展开，区分诊断、审计与 judge 采样；没有把示例脱敏函数假称为已接线，也没有把平均分提升或创建 experiment 当成发布保证。",
+      "technical_checks": [
+        {
+          "check": "采集和脱敏接线",
+          "result": "逐行核对 HMAC metadata 与工具日志投影示例及其限制说明，保留 helper 不自动接入 tracing、metadata/附件/嵌套工具需另审、伪名仍可关联个人数据的边界。",
+          "source_urls": []
+        },
+        {
+          "check": "统计与发布门禁",
+          "result": "核对数据切分、同题重复运行、缓存随机性、定向采样总体偏差及 CI/CD 门禁职责；这些机制解释完整，无需套用统一问答模板。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/02-llamaindex/14-data-index-abstractions.md",
+      "disposition": "revised",
+      "summary": "把首节改为私有数据为何不能直接交给模型，并先回答解析、定位与检索结构问题；图中“第一性问题”改为常用切入点，避免排他产品定义。其余数据机制保留，移除通用作者许可页尾。",
+      "technical_checks": [
+        {
+          "check": "摄取、索引和存储责任",
+          "result": "完整核对 Document/Node、转换缓存与 docstore 更新策略、SummaryIndex 默认全量而非永远全量、StorageContext 不承担远程存储原子备份等限定。",
+          "source_urls": []
+        },
+        {
+          "check": "示例前提和增量更新",
+          "result": "逐行检查 raw_text、Embedding 凭据、稳定文档 ID、embed_dim=1536 的示例前提；正文已区分文档未变与切分/模型变化后的重建需求，未宣称执行数据库示例。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/02-llamaindex/15-query-engine-workflows.md",
+      "disposition": "revised",
+      "summary": "正文完整通读后原样保留，仅移除通用作者许可页尾。查询路由、Event/step、共享 Context、并发更新和至少一次恢复已逐层解释，装配片段也明确依赖与旧导入边界。",
+      "technical_checks": [
+        {
+          "check": "事件连接与状态",
+          "result": "核对 RetrieveEvent 同时携带 query 和 nodes，synthesize 传入两者；新增同类型消费者不会自动串行插入 rerank，事件模型不等于无共享状态。",
+          "source_urls": []
+        },
+        {
+          "check": "序列化与恢复",
+          "result": "核对 Context.to_dict、快照保存责任、未完成步骤重跑及报销幂等反例；保留序列化、持久化和恰好一次副作用的区别。未安装或运行 LlamaIndex API。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/03-dspy/16-declarative-programming-model.md",
+      "disposition": "revised",
+      "summary": "保留 Signature、Adapter、Module 和普通 Python Program 的递进；纠正“代码长导致优化器难定位”的泛化说法，改为检查 predictor 是否可发现、是否产生可用轨迹和评价信号；移除通用作者许可页尾。",
+      "technical_checks": [
+        {
+          "check": "可优化对象与轨迹",
+          "result": "官方 GEPA 文档按 predictor 取得子轨迹并反思指令，与普通 Python 控制流不是同一优化层；代码长度不决定 predictor 是否进入优化。",
+          "source_urls": [
+            "https://dspy.ai/api/optimizers/GEPA/overview/"
+          ]
+        },
+        {
+          "check": "结构、类型和运行状态",
+          "result": "核对检索依赖注入、date 字符串不证明日期有效、编译产物不等于会话记忆，以及 CoT 显式 reasoning 不代表访问隐藏思维。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/03-dspy/17-compiler-and-optimizers.md",
+      "disposition": "revised",
+      "summary": "保留指标、搜索空间、预算与独立测试集的主线；总结不再写成搜索必得最优实现，明确预算内寻找候选与泛化收益不保证；移除通用作者许可页尾，保留 DSPy/GEPA 论文作者归属。",
+      "technical_checks": [
+        {
+          "check": "GEPA 反馈契约",
+          "result": "官方 API 确认 pred_name、pred_trace 等反馈参数，允许标量或含 score/feedback 的结果，支持反思模型与预算配置；未声称调用优化器或复现论文成绩。",
+          "source_urls": [
+            "https://dspy.ai/api/optimizers/GEPA/overview/"
+          ]
+        },
+        {
+          "check": "数学目标与验收",
+          "result": "公式保留为抽象最大化目标；正文和总结均说明搜索受预算限制、验证集参与选择后不能当独立测试集。LaTeX 源公式未改动。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/04-semantic-kernel/18-kernel-plugin-planner.md",
+      "disposition": "revised",
+      "summary": "保留 Kernel 调用链、Plugin 与 Filter 机制；Planner 标题改成与自动函数调用的关系，图中不再按一两步决定治理要求；结尾回到具体调用排查。版本访问说明移至参考资料并固定官方仓库提交，移除通用页尾。",
+      "technical_checks": [
+        {
+          "check": "MAF 后继及 1.0 声明",
+          "result": "读取 Semantic Kernel 官方 README 固定提交 ca40aa7，确认独立后继与 production-ready 1.0 声明；不将其扩展为所有 SDK/实验包均稳定。",
+          "source_urls": [
+            "https://github.com/microsoft/semantic-kernel/blob/ca40aa7226531d28a721d0ca0e451d0aaf86dafc/README.md"
+          ]
+        },
+        {
+          "check": "调用、规划与治理",
+          "result": "逐段检查 Kernel 不是模型推理引擎、Plugin 注册不自动授权、Filter 可被直接业务调用绕过，以及单次有副作用动作也需要业务控制。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/04-semantic-kernel/19-process-and-agent-framework.md",
+      "disposition": "revised",
+      "summary": "保留三个同名对象的区分和历史 SK 装配代码，不强改成 MAF。将访问日期、旧公告 Preview 措辞与当前发布声明的解释集中在参考资料，正文明确最低支持承诺不是确定 EOL；移除通用页尾。",
+      "technical_checks": [
+        {
+          "check": "SK 实验性与 MAF 语言覆盖",
+          "result": "官方 Process/Agent Orchestration 页面仍标 experimental；MAF 概览列 .NET/Python/Go 且 Go 为 public preview，不能推出所有语言功能对等。",
+          "source_urls": [
+            "https://learn.microsoft.com/en-us/semantic-kernel/frameworks/process/process-framework",
+            "https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/agent-orchestration/",
+            "https://learn.microsoft.com/en-us/agent-framework/overview/"
+          ]
+        },
+        {
+          "check": "支持政策与发布时间层次",
+          "result": "对照 SK 固定 README 的 MAF 1.0 声明和旧过渡公告：后者承诺至少支持到 MAF GA 后一年，但仍含当时 Preview 文字，不应拿来覆盖后续发布状态。",
+          "source_urls": [
+            "https://github.com/microsoft/semantic-kernel/blob/ca40aa7226531d28a721d0ca0e451d0aaf86dafc/README.md",
+            "https://devblogs.microsoft.com/agent-framework/semantic-kernel-and-microsoft-agent-framework/"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/05-lightweight-agent-frameworks/20-autogen-and-crewai.md",
+      "disposition": "revised",
+      "summary": "保留 Core/AgentChat 与 Crew/Flow 两条路线、顺序任务和终止条件的边界；将 GroupChat 旧代际术语标题改为 Team 轮询策略，维护状态来源固定提交并把核对日期移入参考资料，移除通用页尾。",
+      "technical_checks": [
+        {
+          "check": "AutoGen 维护状态",
+          "result": "读取官方 README 固定提交 027ecf0，确认不再接收新功能、社区管理及新用户采用 MAF 的建议；没有推导存量代码立即失效。",
+          "source_urls": [
+            "https://github.com/microsoft/autogen/blob/027ecf0a379bcc1d09956d46d12d44a3ad9cee14/README.md"
+          ]
+        },
+        {
+          "check": "代码代际与执行保证",
+          "result": "核对示例使用 autogen_agentchat 的 RoundRobinGroupChat 而非 0.2 GroupChat；CrewAI 对象不能复用 AutoGen 对象，Flow 启动步骤未覆盖 kickoff，消息上限不代表任务完成。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/05-lightweight-agent-frameworks/21-pydanticai-and-decision-matrix.md",
+      "disposition": "revised",
+      "summary": "保留类型校验、依赖注入、有限重试与持久执行的解释；将六列矩阵按状态、恢复、工具与运维拆为窄表，保留五框架和六个原比较维度；总结不再夸称重新定义 Agent 开发，移除通用页尾。",
+      "technical_checks": [
+        {
+          "check": "类型与运行结果边界",
+          "result": "逐行核对 output_type、deps_type、RunContext、retries=2 与 result.output；保留 run_sync 不可用于已有事件循环、类型合法不代表事实正确的说明。未调用 PydanticAI 模型 API。",
+          "source_urls": []
+        },
+        {
+          "check": "矩阵信息保真",
+          "result": "新表逐项保留核心抽象、状态、恢复、工具、观测和迁移负担；message_history 与 durable execution 仍分开，未把第三方持久引擎集成写成零运维。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/06-selection-portability/22-cross-framework-technical-taxonomy.md",
+      "disposition": "revised",
+      "summary": "保留四组工程维度和统一故障验收场景；改正持久化单独决定恢复的开头，明确还需运行时解释状态；补明 OpenTelemetry GenAI/Agent spans 的 Development 状态，将版本核对说明留在参考资料并移除通用页尾。",
+      "technical_checks": [
+        {
+          "check": "OpenTelemetry GenAI 稳定性",
+          "result": "读取官方 GenAI 总体 README 与 Agent spans 文档，均标 Development；OTLP 接入不保证 span、token 和业务标签语义一致。",
+          "source_urls": [
+            "https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/README.md",
+            "https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md"
+          ]
+        },
+        {
+          "check": "跨框架恢复和工具契约",
+          "result": "对照已通读的第 6、10、15、19、20、21 章，保留序列化、落盘、恢复、幂等、业务事务五层区别及工具注册与执行语义不等价的限制。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/frameworks/06-selection-portability/23-lockin-and-portable-architecture.md",
+      "disposition": "revised",
+      "summary": "修正六边形架构图的依赖方向为适配器依赖领域接口；选型图分开 .NET/JVM，补回标准 LangChain Agent 候选，避免任意强技术栈约束都指向 MAF。总结保留小系统受控切换例外，移除通用页尾，保留 Fowler/Cockburn 来源归属。",
+      "technical_checks": [
+        {
+          "check": "依赖方向与业务可移植性",
+          "result": "将图与本节“业务核心不依赖框架”的文字逐项对照；适配器同时依赖领域接口和运行时，核心不反向导入适配器。保留编排实现可不同、业务规则与评测资产需独立的取舍。",
+          "source_urls": []
+        },
+        {
+          "check": "语言选择、迁移和副作用",
+          "result": "对照第 8、19、20、21 章；MAF 概览不能证明 JVM 有直接迁移目标，影子运行不可双写，活跃任务需排空或受控重入，灰度切流不自动撤销外部操作。",
+          "source_urls": [
+            "https://learn.microsoft.com/en-us/agent-framework/overview/"
+          ]
+        }
+      ]
+    }
+  ]
+}

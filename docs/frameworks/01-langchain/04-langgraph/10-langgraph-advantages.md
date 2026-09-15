@@ -34,7 +34,7 @@ description: 解释 LangGraph 的 super-step、reducer、检查点、中断重�
 | **State** | 一张不断补充的**申请单** |
 | **Node** | 预算检查、合规检查等**办事窗口** |
 | **Edge** | 规定材料**下一步送到哪里** |
-| **Reducer** | 预算和合规同时往申请单写结果时，**规定如何合并**，谁也不能覆盖谁 |
+| **Reducer** | 多个窗口写同一字段时，规定追加、去重或替换等合并规则；不是自动禁止覆盖 |
 
 **两个高级原语**：
 
@@ -86,7 +86,7 @@ LangGraph 同时提供 `StateGraph` 和 **Functional API**。两者**共享同�
 
 ## 10.4 流程跨小时后如何继续
 
-**一个 Agent 运行几十秒，进程挂了可以让用户重试。**
+只读短任务失败后，整段重试有时可以接受；即使只运行几秒，只要已经执行付款或发信，也不能无条件重跑。
 
 **可如果它要运行几小时**，期间已经查了数据库、调用了外部服务，还在等审批——**重新从第一步开始就不只是浪费 token，还可能重复发邮件、重复创建订单**。
 
@@ -183,7 +183,7 @@ from langgraph.types import RetryPolicy, TimeoutPolicy
 async def check_budget(state: PurchaseState) -> dict:
     # API 自己的超时比整个节点更细；不要在 async 节点直接调用阻塞客户端。
     async with asyncio.timeout(10):
-        approved = await budget_client.check(state["amount"])
+        approved = await budget_client.check(state["amount_minor"])
     return {"budget_ok": approved}
 
 builder.add_node(
@@ -198,6 +198,8 @@ builder.add_node(
 ```
 
 > `max_attempts` 包含第一次尝试。节点级 timeout/error handler 是 LangGraph 1.2 的能力；若受限于更旧版本，应在异步节点中用 `asyncio.timeout()`（或调用方超时）实现限制，而不是假设 `timeout=` 会生效。
+
+这里假定预算客户端接收人民币分，`PurchaseState` 见 10.10 节；真实服务若使用其他金额契约，应在适配层显式转换。
 
 超时不等于远端操作已取消：`asyncio.to_thread` 能避免阻塞事件循环，但协程取消后底层线程或已发出的 HTTP 请求可能仍在执行。需要 SDK 自身的网络 deadline，以及对「结果未知」的查询/对账路径；否则超时重试仍可能重复产生副作用。三次尝试的总耗时还包含三次单次超时与退避，不能把 `run_timeout=30` 解释为整个任务最多 30 秒。
 
@@ -317,7 +319,9 @@ def stream_public_progress(agent, inputs: dict, config: dict):
 
 **采购 Agent**：申请提交后并行做预算检查和合规检查，两个结果齐了才进入人工审批，通过才调用采购系统，拒绝则结束。
 
-> **模型可以帮助理解材料，但顺序与权限不能交给模型自由发挥。**
+这是一个虚构的人民币采购流程，金额以分为单位，预算上限设为 10 万元；预算、合规和采购服务均为占位实现。内存检查点与审批账本只演示单进程串行调用，没有实现 Web 认证、跨重启持久化或并发事务。
+
+先声明申请、审批决定和执行状态。申请版本由业务服务随已提交材料提供，不能在每次运行时重置为 1。
 
 ```python
 from typing import Literal, TypedDict
@@ -327,8 +331,14 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
+class PurchaseRequest(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid")
+    request_id: str = Field(min_length=1)
+    approval_version: int = Field(ge=1)
+    amount_minor: int = Field(gt=0)
+
 class ApprovalDecision(BaseModel):
-    # strict=True 拒绝 "false"、1 等隐式布尔值；extra="forbid" 拒绝意外字段。
+    # 严格校验拒绝字符串版本号等隐式转换，也拒绝未声明字段。
     model_config = ConfigDict(strict=True, extra="forbid")
     request_id: str = Field(min_length=1)
     approval_version: int = Field(ge=1)
@@ -340,14 +350,17 @@ class PurchaseState(TypedDict, total=False):
     # request_id 也可作为外部采购接口的幂等键
     request_id: str
     approval_version: int
-    amount: float
+    amount_minor: int
     budget_ok: bool
     compliance_ok: bool
     approved: bool
     approval_decision_id: str
     result: str
+```
 
-# 教学用内存账本；生产中使用事务表和唯一键 (request_id, approval_version)。
+同一申请版本只接受一份决定，相同载荷的重试返回原决定，冲突载荷报错。下面的字典用于说明规则，生产应由数据库唯一键和事务实现这个原子操作。
+
+```python
 approval_ledger: dict[tuple[str, int], ApprovalDecision] = {}
 
 def record_decision_once(decision: ApprovalDecision) -> ApprovalDecision:
@@ -361,23 +374,32 @@ def record_decision_once(decision: ApprovalDecision) -> ApprovalDecision:
     raise ValueError("该任务版本已作出不可覆盖的审批决定")
 
 def normalize_request(state: PurchaseState) -> dict:
-    # 真实项目应在这里完成字段校验和权限检查
-    return {"amount": round(state["amount"], 2), "approval_version": 1}
+    request = PurchaseRequest.model_validate({
+        "request_id": state["request_id"],
+        "approval_version": state["approval_version"],
+        "amount_minor": state["amount_minor"],
+    })
+    return request.model_dump()
 
 def check_budget(state: PurchaseState) -> dict:
     # 该节点可以替换为预算系统查询，并配置重试与超时
-    return {"budget_ok": state["amount"] <= 100_000}
+    return {"budget_ok": state["amount_minor"] <= 10_000_000}
 
 def check_compliance(state: PurchaseState) -> dict:
     # 与预算检查写入不同字段，因此两个节点可以安全并行
     return {"compliance_ok": True}
+```
 
+两项检查完成后才请求审批。恢复载荷必须匹配申请和版本，人工同意也不能覆盖预算或合规的硬性拒绝。
+
+```python
 def human_review(state: PurchaseState) -> dict:
     # 暂停流程，将两项检查结果交给审核系统
     raw_decision = interrupt(
         {
             "request_id": state["request_id"],
             "approval_version": state["approval_version"],
+            "amount_minor": state["amount_minor"],
             "budget_ok": state["budget_ok"],
             "compliance_ok": state["compliance_ok"],
         }
@@ -406,7 +428,11 @@ def execute_purchase(state: PurchaseState) -> dict:
 def reject_purchase(state: PurchaseState) -> dict:
     # 拒绝路径不触发外部采购副作用
     return {"result": "采购申请未通过"}
+```
 
+用多起点边表达「两项检查都已完成」，而不是让任意一个分支先触发审批：
+
+```python
 builder = StateGraph(PurchaseState)
 builder.add_node("normalize", normalize_request)
 builder.add_node("budget", check_budget)
@@ -429,7 +455,11 @@ builder.add_edge("reject", END)
 
 # 内存检查点仅用于示例，生产环境应替换为数据库后端
 graph = builder.compile(checkpointer=InMemorySaver())
+```
 
+恢复入口只接受认证层确认的审核员身份。调用它之前，服务端还要验证线程归属、审批权限、当前材料版本与决定有效期。
+
+```python
 def resume_from_authenticated_reviewer(
     reviewer_id: str, client_payload: dict, config: dict
 ) -> dict:
@@ -438,9 +468,9 @@ def resume_from_authenticated_reviewer(
     return graph.invoke(Command(resume=server_payload), config=config)
 ```
 
-> 示例内存账本只演示单进程、串行执行，不保证跨重启、跨 worker 或并发一致性。生产实现应以服务端持久化唯一约束和事务写入审批决定，检查同一幂等键的载荷是否一致，审计审批身份和时间，并以 `request_id`（或等价业务幂等键）调用采购系统；恢复、超时重试和重复点击都不得执行第二次。人工批准只满足该审批环节，不能覆盖权限、预算或合规硬约束。
+生产实现应以持久化唯一约束和事务写入审批决定，检查同一幂等键的载荷是否一致，审计审批身份和时间，并以 `request_id`（或等价业务幂等键）调用采购系统；恢复、超时重试和重复点击都不得执行第二次。首次调用与恢复必须使用相同 `thread_id`，且该线程只能处理获授权的申请。
 
-示例没有连接真实预算、合规和采购服务，也没有实现 Web 认证，不可直接作为支付系统使用。生产金额宜使用最小货币单位整数或受控 Decimal，而不是用浮点 `round` 实现财务规则；审批版本应绑定已提交材料，材料变化就生成新版本，不沿用旧批准。
+材料变化后应生成新审批版本，让新版本重新经过检查与审批，不能只更新金额而保留旧 `approved`。多币种系统还需币种与精度规则；这里的整数金额只处理固定为人民币分的情况。
 
 ## 10.11 常见错误
 

@@ -111,7 +111,7 @@ Prompt 搜索不能保证突破能力瓶颈；但 DSPy 也有权重优化器，�
 
 ## 17.7 本章总结
 
-1. **DSPy 编译可以理解为指标驱动的自动搜索**：给定 `Program`、数据集和评估指标，优化器搜索能让指标最优的具体实现；
+1. **DSPy 编译可以理解为指标驱动的自动搜索**：给定 `Program`、数据集和评估指标，在预算内寻找更好的候选，不保证全局最优或测试集收益；
 2. **优化器按搜索对象与反馈选择，而不是按名称升级**：自举示例、联合指令/示例搜索、反思优化和权重训练有不同成本；
 3. **编译产物通常保持调用接口**，上线仍需检查模型配置、延迟、费用和回归质量；
 4. **优化器与可观测性平台互补**，前者搜索候选，后者提供实验和运行证据；
@@ -127,5 +127,3 @@ Prompt 搜索不能保证突破能力瓶颈；但 DSPy 也有权重优化器，�
 - [DSPy 论文：Khattab et al., "DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines"](https://arxiv.org/abs/2310.03714)
 - [GEPA 论文：Agrawal et al., "GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning"](https://arxiv.org/abs/2507.19457)
 - [LangSmith 官方文档](https://docs.smith.langchain.com/)
-
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

@@ -4,9 +4,9 @@ description: "比较 AutoGen 消息运行时、CrewAI 任务与流程、Pydantic
 
 # 框架与编排 · 轻量级 Agent 框架：AutoGen、CrewAI 与 PydanticAI
 
-这里保留「轻量级」目录名称以维持导航，但它不是严格的技术分类：AutoGen 有消息运行时，CrewAI 有 Crew 与 Flow，PydanticAI 也有多 Agent 和持久执行集成，不能据此断言只适合原型或单次调用。
+「轻量级」是阅读分组，不是严格的技术分类：AutoGen 有消息运行时，CrewAI 有 Crew 与 Flow，PydanticAI 也有多 Agent 和持久执行集成，不能据此断言只适合原型或单次调用。
 
-截至 2026-09-08，[AutoGen 官方仓库](https://github.com/microsoft/autogen) 已明确进入维护模式，并建议新用户采用 Microsoft Agent Framework。本模块既讲存量抽象，也修正新项目选型边界；角色数量、类型校验与运行可靠性应分别评估。
+AutoGen 已进入维护模式，官方建议新用户采用 Microsoft Agent Framework，版本来源见第二十章参考资料。本模块同时讨论存量抽象与新项目选型；角色数量、类型校验与运行可靠性应分别评估。
 
 ## 章节
 
@@ -29,5 +29,3 @@ flowchart LR
 - 如果正在选型、不确定用哪个，可直接看第二十一章的决策矩阵，再跳转 [框架选型与可移植架构](../06-selection-portability/README.md) 看跨全部框架的统一对照。
 
 返回 [AI 框架与编排 相关知识点](../README.md)。
-
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

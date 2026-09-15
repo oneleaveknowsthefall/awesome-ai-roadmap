@@ -152,7 +152,7 @@ LangGraph 把流程建模为 **State + Node + Edge**：
 
 ### 3.7.1 两者不是二选一
 
-LangChain 提供高层组件和标准 Agent 架构，LangGraph 提供底层执行能力。简单 Agent 直接用 `create_agent`；只有流程需要复杂分支、并行、审批或精细状态控制时，才需要直接编写 LangGraph。
+LangChain 提供高层组件和标准 Agent 架构，LangGraph 提供底层执行能力。标准 Agent 直接用 `create_agent`，工具审批可由中间件接入；当业务分支、并行汇合或恢复边界超出标准循环的表达范围时，再直接编写 LangGraph。
 
 ## 3.8 旧版 Chain 还能用吗
 
@@ -164,7 +164,7 @@ LangChain 提供高层组件和标准 Agent 架构，LangGraph 提供底层执�
 |---|---|
 | 固定的 Prompt、Model、Parser 流程 | **Runnable + LCEL** |
 | 标准模型与工具循环 | **`create_agent`** |
-| 复杂分支、并行、暂停恢复和人工审批 | **直接使用 LangGraph** |
+| 超出标准循环的业务分支、并行汇合或审批流程 | **直接使用 LangGraph** |
 | 维护旧式 Chain 项目 | `langchain-classic` 后渐进迁移 |
 
 ## 3.9 常见错误
@@ -183,7 +183,7 @@ LangChain 提供高层组件和标准 Agent 架构，LangGraph 提供底层执�
 
 ### 3.9.4 以为 `create_agent` 返回的是普通函数
 
-**它返回的是编译后的 LangGraph 图**，这正是它能保存状态、流式输出进度的原因。
+**它返回的是编译后的 LangGraph 图**，可以流式输出进度；跨调用保存与恢复状态仍需配置 checkpointer 和 `thread_id`。
 
 ### 3.9.5 把所有数据都塞进消息或 Prompt
 
@@ -209,7 +209,7 @@ LangChain 提供高层组件和标准 Agent 架构，LangGraph 提供底层执�
 4. **Tool 统一「谁执行什么」**：模型只提意图，执行与权限校验留在应用程序；
 5. **Runnable 统一「怎么执行」**：invoke、异步、批处理、流式；
 6. **Agent loop 是模型与工具间可重复多轮的循环**，`tool_call_id` 保证多工具结果能对上原请求；
-7. **`create_agent` 返回编译后的 LangGraph 图**，因此能保存状态、输出进度、决定执行边；
+7. **`create_agent` 返回编译后的 LangGraph 图**，可输出进度并控制执行边；跨调用恢复还需 checkpointer 与 `thread_id`；
 8. **数据三分**：State（可变）、Context（不变可信依赖）、Store（跨线程持久）；
 9. **Middleware 是模型和工具调用前后的扩展点**，覆盖动态提示词、权限、审批、重试、摘要、校验；
 10. **LangGraph 用 State + Node + Edge 建模**，检查点支撑中断恢复与人工介入；

@@ -6,7 +6,7 @@ description: "区分 SK Process、SK Agent Orchestration 与独立 Microsoft Age
 
 ## 19.1 先分清三个容易重名的对象
 
-旧 SK 文档中的 Agent Framework 不是独立的 Microsoft Agent Framework。按 2026-09-08 可访问官方资料，应分开理解：
+旧 SK 文档中的 Agent Framework 不是独立的 Microsoft Agent Framework。需要分开理解三个对象：
 
 - **SK Process Framework**：以 Step/Event 组织业务流程；官方概览仍标为 experimental；
 - **SK Agent Framework / Agent Orchestration**：SK 包内的 Agent 抽象及协作层。Agent 不只用于多智能体；Agent Orchestration 概览仍标为 experimental，不能把这个标记扩展成「所有 SK API 都实验性」；
@@ -74,7 +74,7 @@ Group chat 与 AutoGen Team 有可比之处，但不等于 CrewAI Crew：顺序�
 
 ## 19.4 发布与支持状态：不能沿用旧预览结论
 
-SK 提供 C#、Python、Java SDK，但不保证所有 Process/Agent 功能对等；例如本次访问的 SK Agent Orchestration 文档明确 Java 尚不支持。MAF 的当前概览列出 .NET、Python、Go，不能据此推导 SK Java 有直接迁移目标。
+SK 提供 C#、Python、Java SDK，但不保证所有 Process/Agent 功能对等；例如 SK Agent Orchestration 文档明确 Java 尚不支持。MAF 的概览列出 .NET、Python、Go，不能据此推导 SK Java 有直接迁移目标。
 
 | 场景 | 需要评估的问题 |
 |---|---|
@@ -83,7 +83,7 @@ SK 提供 C#、Python、Java SDK，但不保证所有 Process/Agent 功能对等
 | 使用 SK 实验性 Process/Orchestration | 独立审查其兼容性；核心包的稳定版本不覆盖所有实验接口 |
 | 有长期支持要求 | 查具体发布及支持政策，不能把“1.x”解释为永远没有破坏性变更 |
 
-微软过渡公告说明：SK v1.x 继续处理关键 bug、安全问题及部分既有功能，主要新功能转向 MAF，并承诺至少支持到 MAF GA 后一年。该公告同时保留了发布当时「MAF 仍在 Preview」的描述；状态判断应结合现行仓库的 1.0 说明，而不是照抄旧公告。这里不推算 SK 的精确终止支持日期，未找到单独的确定 EOL 通告。
+微软过渡公告说明：SK v1.x 继续处理关键 bug、安全问题及部分既有功能，主要新功能转向 MAF，并承诺至少支持到 MAF GA 后一年。这是最低支持承诺，不是精确的终止支持日期；维护计划仍需跟踪单独的支持政策和 EOL 公告。
 
 ## 19.5 迁移不是换一个包名
 
@@ -134,10 +134,10 @@ SK Process、SK Agent Orchestration 与 MAF 有不同包和执行语义。可以
 - [Semantic Kernel: Agent Framework 概述](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/)
 - [Semantic Kernel: Agent Orchestration](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/agent-orchestration/)
 - [Semantic Kernel: Group Chat 完整运行时示例](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/agent-orchestration/group-chat)
-- [Semantic Kernel 官方仓库的 MAF 1.0 说明](https://github.com/microsoft/semantic-kernel)
+- [Semantic Kernel 官方仓库的 MAF 1.0 说明（固定提交）](https://github.com/microsoft/semantic-kernel/blob/ca40aa7226531d28a721d0ca0e451d0aaf86dafc/README.md)
 - [Microsoft Agent Framework 概览](https://learn.microsoft.com/en-us/agent-framework/overview/)
 - [SK → MAF 迁移指南](https://learn.microsoft.com/en-us/agent-framework/migration-guide/from-semantic-kernel/)
 - [微软：Semantic Kernel 与 MAF 支持过渡公告](https://devblogs.microsoft.com/agent-framework/semantic-kernel-and-microsoft-agent-framework/)
 - [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
 
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。
+版本说明：MAF 1.0、Go public preview、SK Process/Orchestration 实验性标记和过渡公告于 2026-09-15 复核。过渡公告保留了发布当时「MAF 仍在 Preview」的描述，不能用它覆盖后续 1.0 发布声明，也不能据此推算 SK 的精确 EOL。

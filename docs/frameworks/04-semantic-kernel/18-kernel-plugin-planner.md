@@ -8,7 +8,7 @@ description: "解释 Semantic Kernel 的 Kernel 调用链、Plugin、自动函�
 
 Semantic Kernel（SK）把模型服务、函数、依赖注入和调用过滤器组合起来，适合说明 AI 如何接入既有 C#、Python 或 Java 应用。它也能做 Agent 和多智能体编排，不能仅把它视为模型适配器，或以「企业/研究」划线排除其他框架。
 
-**截至 2026-09-08 核对，官方仓库已将 Microsoft Agent Framework（MAF）列为 SK 的后继，并说明 MAF 1.0 是生产可用发布。** 本章保留 SK 核心概念用于维护存量项目；新 Agent 项目应同时评估 MAF，不要把 SK 旧文档里的 “Agent Framework” 与独立的 Microsoft Agent Framework 混为一谈。支持范围与迁移边界见第十九章。
+**Microsoft Agent Framework（MAF）是 SK 的独立后继，官方已将 MAF 1.0 列为生产可用发布。** 本章保留 SK 核心概念用于维护存量项目；新 Agent 项目应同时评估 MAF，不要把 SK 旧文档里的 “Agent Framework” 与独立的 Microsoft Agent Framework 混为一谈。支持范围与迁移边界见第十九章。
 
 ## 18.2 `Kernel`：服务容器，也是调用链的协调入口
 
@@ -41,7 +41,7 @@ class OrderPlugin:
 
 向模型开放为工具时，两者都可呈现为函数名、描述和参数 Schema；实现中可能是模型调用，也可能是数据库查询。Plugin 是函数分组，既能供模型选择，也能由应用直接调用。模型只提出调用意图，应用负责执行、鉴权、校验参数与返回结果。
 
-## 18.4 Planner：从「手写编排」到「模型自动规划」
+## 18.4 Planner 与自动函数调用是什么关系
 
 早期版本使用 Stepwise 等 Planner。当前官方 Planning 文档以**自动函数调用循环**为主要路径：向模型给出可用工具，执行其请求，把结果写回历史，再继续直到结束或达到限制。维护旧 Planner 要看具体包的弃用/迁移说明，不应把旧类当作新项目默认 API。
 
@@ -49,9 +49,9 @@ class OrderPlugin:
 
 ```mermaid
 flowchart TB
-    G["业务目标"] --> D{"流程复杂度"}
-    D -->|"简单、一两步"| M["直接用模型的 Function Calling 自动选择 Plugin"]
-    D -->|"有审批/事务/恢复要求"| PF["显式工作流<br/>核对 SK 实验包或 MAF Workflows"]
+    G["业务目标"] --> D{"标准工具循环能否表达<br/>所需业务控制?"}
+    D -->|"能：开放但有界的工具选择"| M["用 Function Calling 选择 Plugin<br/>应用执行并限制预算"]
+    D -->|"不能：审批顺序或恢复边界独立"| PF["显式工作流<br/>核对 SK 实验包或 MAF Workflows"]
 ```
 
 这与 [LangChain 生态 · 第九章](../01-langchain/04-langgraph/09-langchain-vs-langgraph.md) 的判断类似，但触发因素不是单纯的步骤数：即使只有一次转账，也需要明确权限与审批；即使有多轮只读搜索，也可能用受预算限制的函数调用循环。
@@ -103,7 +103,7 @@ Filter 的价值不只是记录日志，还包括在函数调用前做权限校�
 4. **当前主要规划路径是自动函数调用**，可靠审批与恢复仍需显式设计；
 5. **Filter 提供治理插入点，不自动提供合规或恰好一次执行保证**。
 
-可以把 Semantic Kernel 看作一层企业接入中间件：它不把重点放在 Agent 玩法的丰富度上，而是放在 AI 能力如何进入既有代码库、依赖注入体系和合规审计流程。
+维护 SK 项目时，可以顺着一次调用排查：Kernel 从哪里取得模型服务，Plugin 如何注册函数，自动调用何时执行工具，Filter 又在哪个位置生效。接入既有代码并不等于已经完成授权、审计和可靠恢复，这些边界仍要逐项设计。
 
 ## 参考资料
 
@@ -112,6 +112,6 @@ Filter 的价值不只是记录日志，还包括在函数调用前做权限校�
 - [Semantic Kernel: Plugins 概念](https://learn.microsoft.com/en-us/semantic-kernel/concepts/plugins/)
 - [Semantic Kernel: Planning 概念](https://learn.microsoft.com/en-us/semantic-kernel/concepts/planning)
 - [Semantic Kernel: Filters 概念](https://learn.microsoft.com/en-us/semantic-kernel/concepts/enterprise-readiness/filters)
-- [Semantic Kernel 官方仓库与后继框架说明](https://github.com/microsoft/semantic-kernel)
+- [Semantic Kernel 官方仓库与后继框架说明（固定提交）](https://github.com/microsoft/semantic-kernel/blob/ca40aa7226531d28a721d0ca0e451d0aaf86dafc/README.md)
 
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。
+版本说明：MAF 后继关系与 1.0 发布声明于 2026-09-15 复核；该声明不覆盖全部语言和实验性扩展，具体边界见第十九章。

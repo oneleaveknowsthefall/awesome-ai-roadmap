@@ -4,18 +4,20 @@ description: "解释 LlamaIndex 的 Document、Node、摄取缓存和索引存�
 
 # 第十四章：LlamaIndex 的数据与索引抽象
 
-## 14.1 先看问题定义：不是「工具怎么调度」，而是「数据怎么变上下文」
+## 14.1 私有数据为什么不能直接交给模型
 
-[LangChain 生态](../01-langchain/README.md) 的主要抽象是 Model / Message / Tool 的统一接口，重点放在模型如何稳定地调用工具。LlamaIndex 把问题放在更上游：模型默认并不了解私有数据，而这些数据也不是天然可检索的，因此更关注如何把 PDF、数据库、工单系统里的内容加工成模型可用的高质量上下文。
+私有数据通常既不在模型的已知知识里，也没有整理成可检索、可溯源的上下文。PDF 中的表格、数据库记录和工单正文需要先解析、定位并建立检索结构，不能只把文件路径交给模型。
+
+LlamaIndex 的常用切入点就是这条数据加工链路；[LangChain 生态](../01-langchain/README.md) 则更强调 Model / Message / Tool 的统一接口，以及模型如何调用工具。
 
 两者有大量能力重叠，也可以分工互补；这里比较的是常用抽象的侧重点，不是「LlamaIndex 只能做 RAG」或「LangChain 不擅长数据处理」的产品边界。
 
 ```mermaid
 flowchart TB
-    subgraph LC["LangChain 的第一性问题"]
+    subgraph LC["LangChain 的常用切入点"]
         L1["模型和工具太多<br/>怎么统一接口、可靠调度"]
     end
-    subgraph LI["LlamaIndex 的第一性问题"]
+    subgraph LI["LlamaIndex 的常用切入点"]
         I1["私有数据零散、格式各异<br/>怎么变成高质量上下文"]
     end
     L1 -.互补.-> I1
@@ -149,5 +151,3 @@ index = VectorStoreIndex(nodes, storage_context=storage_context)
 - [LlamaIndex: 各索引的默认与可选检索方式](https://developers.llamaindex.ai/python/framework/module_guides/indexing/index_guide/)
 - [LlamaIndex: Property Graph Index](https://developers.llamaindex.ai/python/framework/module_guides/indexing/lpg_index_guide/)
 - [LlamaIndex: Storage 概念](https://developers.llamaindex.ai/python/framework/module_guides/storing/)
-
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

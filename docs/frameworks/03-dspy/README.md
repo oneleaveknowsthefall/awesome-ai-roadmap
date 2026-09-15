@@ -32,5 +32,3 @@ flowchart LR
 - 结合 [官方优化器指南](https://dspy.ai/diving-deeper/choosing-an-optimizer/) 阅读：为什么 GEPA 需要有意义的反馈、验证集为何不能充当最终测试集、编译后每次推理是否更贵，比记住优化器名称更重要。
 
 返回 [AI 框架与编排 相关知识点](../README.md)。
-
-原文与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权。

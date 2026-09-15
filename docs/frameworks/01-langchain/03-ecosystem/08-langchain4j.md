@@ -80,7 +80,11 @@ interface SupportAssistant {
     SupportReply chat(@MemoryId String conversationId,
                       @UserMessage String question);
 }
+```
 
+接口说明输入输出，工具对象则把模型请求接到既有订单服务。订单号来自模型，订单归属和操作权限仍由服务端核验。
+
+```java
 final class OrderTools {
 
     private final OrderService orderService;
@@ -96,7 +100,11 @@ final class OrderTools {
         return orderService.findStatus(orderId);
     }
 }
+```
 
+知识库检索器独立配置。检索前应执行文档访问控制，不能等答案生成后才隐藏无权查看的内容。
+
+```java
 // 向量库中的文档应已在离线流程完成切分、向量化和写入
 ContentRetriever retriever = EmbeddingStoreContentRetriever.builder()
         .embeddingStore(embeddingStore)
@@ -104,7 +112,11 @@ ContentRetriever retriever = EmbeddingStoreContentRetriever.builder()
         .maxResults(5)
         .minScore(0.75)
         .build();
+```
 
+最后把模型、工具、检索器和记忆窗口交给 AI Service 代理：
+
+```java
 SupportAssistant assistant = AiServices.builder(SupportAssistant.class)
         .chatModel(chatModel)
         .tools(new OrderTools(orderService))
@@ -220,12 +232,12 @@ LangChain4j 通过 `@Tool` 暴露对象方法，也支持运行时提供工具�
 
 ```mermaid
 flowchart LR
-    A["送给模型的消息"] --> B["Retriever 找回了什么"] --> C["Tool 的参数与结果"] --> D["输入输出校验是否拦住异常内容"]
+    A["Retriever 找回了什么"] --> B["送给模型的消息"] --> C["Tool 的参数与结果"] --> D["输入输出校验是否拦住异常内容"]
 
     style A fill:#e8f0fe
 ```
 
-`ChatModelListener` 观察的是模型请求、响应和错误，不会自动成为 Retriever、Tool 和审批等全链路的 span。整次调用还需 AI Service 事件或应用级 instrumentation，并关联同一个 trace ID；Spring Boot 或 Quarkus 集成能帮助接入团队已有的指标与追踪系统。
+图中列的是排查线索，校验可能分布在多个阶段，并非统一在最后执行。`ChatModelListener` 观察的是模型请求、响应和错误，不会自动成为 Retriever、Tool 和审批等全链路的 span。整次调用还需 AI Service 事件或应用级 instrumentation，并关联同一个 trace ID；Spring Boot 或 Quarkus 集成能帮助接入团队已有的指标与追踪系统。
 
 ### 8.8.1 Guardrails 的两条边界
 
