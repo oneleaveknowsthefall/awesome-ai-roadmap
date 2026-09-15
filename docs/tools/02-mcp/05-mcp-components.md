@@ -127,7 +127,7 @@ Tools、Resources、Prompts 的分类不是安全等级。Host 控制暴露与�
 
 ### 5.3.3 InputRequiredResult 的往返模式
 
-当前消息方向仍是 Client request → Server response。需要 Client 输入时，Server 暂停当前处理并返回输入需求：
+这种模式称为 **MRTR（Multi Round-Trip Requests，多轮往返请求）**。消息方向仍是 Client request → Server response；需要 Client 输入时，Server 返回输入需求，结束这一轮响应，Client 随后补齐输入再发起新请求，不要求服务端一直挂起原来的调用栈：
 
 ```mermaid
 sequenceDiagram
@@ -171,7 +171,7 @@ flowchart TB
 | Server 形态 | 本地子进程 | 独立 HTTP 服务 |
 | 通信通道 | 操作系统管道（stdin/stdout） | HTTP POST |
 | 延迟 | 无网络往返，但仍有序列化与调度 | 取决于部署、网络及服务处理 |
-| 多 Client 共享 | 不支持，每个 Host 起一份 | 支持 |
+| 多 Client 共享 | 标准子进程管道通常由一个 Client 独占；后端服务仍可共享 | 独立服务可接受多个 Client |
 | 认证 | 凭据一般由环境或受控配置提供；进程隔离另行落实 | 协议授权为可选；受保护 HTTP 服务采用相应 OAuth 规范 |
 | 典型用途 | 文件系统、本地 Git、本地数据库 | 团队共享服务、SaaS 工具 |
 
@@ -230,7 +230,7 @@ sequenceDiagram
 
 ### 5.6.3 把 Host 的职责安到 Client 上
 
-授权、安全策略、生命周期管理都在 Host。Client 只是管道。
+Host 负责应用级策略与生命周期决策；Client 负责落实协议连接、版本与能力处理，也可能实现 OAuth 流程。把 Client 看成没有校验职责的字节管道，会漏掉协议和认证检查。
 
 ### 5.6.4 只知道三类 Server 能力，不知道输入需求
 

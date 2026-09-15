@@ -1,0 +1,355 @@
+{
+  "scope": "docs/tools/**",
+  "baseline": "1ccb8ac",
+  "reviewed_at": "2026-09-15",
+  "method": "完整阅读15章正文、代码片段、图表、常见错误与参考资料，以及主题和5个模块索引；逐章检查前后矛盾、术语、版本边界、示例前提和跨章关系，并对存在疑点的协议及产品事实核对一级来源。",
+  "chapters": [
+    {
+      "path": "docs/tools/01-function-calling/01-function-calling.md",
+      "disposition": "revised",
+      "summary": "保留调用闭环及并行时延分析，明确ReAct示意语法和厂商API边界；单批调用片段补入应用校验授权入口、直接回答及异常结束分支；并发片段改为接收已验证参数，说明异常结果、线程取消与业务幂等边界。",
+      "technical_checks": [
+        {
+          "check": "Chat Completions的tool_calls/tool_call_id与Responses的function_call/call_id不能混用；工具调用项是提议，不是执行凭证。",
+          "source_urls": ["https://developers.openai.com/api/docs/guides/function-calling"]
+        },
+        {
+          "check": "单批示例第二次请求使用tool_choice=none收尾；首次auto路径可以不调用工具，截断、拒绝或异常结束不能静默跳过。",
+          "source_urls": ["https://developers.openai.com/api/docs/guides/function-calling"]
+        },
+        {
+          "check": "gather按输入顺序返回且return_exceptions不会自行处理业务错误；取消to_thread的等待不保证同步I/O停止。保留4T与2T的限定算术模型，不冒充测量结果。",
+          "source_urls": ["https://docs.python.org/3/library/asyncio-task.html"]
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/01-function-calling/02-tool-learning.md",
+      "disposition": "revised",
+      "summary": "去除SFT第一阶段/RL第三阶段造成的必经顺序暗示；将数据覆盖、执行奖励和教师错误传播的绝对断言改为条件性结论；区分ToolRL的细粒度奖励、ReTool代码交互，以及ToolBench与API-Bank的评测环境。",
+      "technical_checks": [
+        {
+          "check": "assistant-only loss是一种配方，不代表所有训练都屏蔽工具文本；SFT、偏好优化与RL都可能影响选择和规划，PPO clipping与参考模型KL约束保持区分。",
+          "source_urls": ["https://arxiv.org/abs/2203.02155", "https://arxiv.org/abs/1707.06347"]
+        },
+        {
+          "check": "读取两篇论文正文引言：ToolRL研究奖励类型、粒度与工具选择应用；ReTool把沙箱代码解释器纳入推理rollout。不能统称为真实API成功码奖励或据此推断闭源模型训练配方。",
+          "source_urls": ["https://arxiv.org/html/2504.13958v1", "https://arxiv.org/html/2504.11536v1"]
+        },
+        {
+          "check": "API-Bank论文说明可运行评测系统及规划、检索、调用三个维度，不等于直接连接生产API；执行验证应在隔离或模拟环境避免真实副作用。",
+          "source_urls": ["https://aclanthology.org/2023.emnlp-main.187/"]
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/01-function-calling/03-tool-schema-design.md",
+      "disposition": "revised",
+      "summary": "限定OpenAI strict规则而不推广到全部工具协议；修正list命名、扁平化、工具数量与粒度的绝对说法；统一错误处理正文与总结，保留分页、上下文成本和回归用例细节。",
+      "technical_checks": [
+        {
+          "check": "官方指南确认strict每层object禁额外属性、属性全部required；业务可选字段需nullable且enum同时允许null。省略strict时Responses归一化/回退与Chat Completions默认非strict的区别保留。",
+          "source_urls": ["https://developers.openai.com/api/docs/guides/function-calling", "https://developers.openai.com/api/docs/guides/structured-outputs"]
+        },
+        {
+          "check": "工具初始数量少于20是软建议；示例和动态筛选都须实测，不应保证工具增加就降低准确率。150 token乘工具数与轮数是累计输入算例，不是单轮窗口大小。",
+          "source_urls": ["https://developers.openai.com/api/docs/guides/function-calling"]
+        },
+        {
+          "check": "嵌套真实对象不应为扁平而扁平；工具合并需兼顾授权、事务和恢复。可纠正业务异常与需上报的故障分开处理，hint不强制也不授予权限。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/02-mcp/04-what-is-mcp.md",
+      "disposition": "revised",
+      "summary": "保留MCP 2026-07-28基准及历史版本表，移走正文审计式核查叙述；收紧USB类比和实现成本断言，补全JSONC示意中的工具定义，并明确旧初始化回退需要dual-era支持。",
+      "technical_checks": [
+        {
+          "check": "官方版本页仍将2026-07-28列为Current；变更页确认无初始化核心、每请求版本/能力元数据、server/discover、resultType、列表缓存字段及弃用/扩展状态。",
+          "source_urls": ["https://modelcontextprotocol.io/specification/versioning", "https://modelcontextprotocol.io/specification/2026-07-28/changelog"]
+        },
+        {
+          "check": "兼容矩阵区分Modern、Legacy、Dual-era；现代专用SDK不自动具备initialize回退。tools/list仅发现已知Server能力，不是互联网服务搜索。",
+          "source_urls": ["https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning"]
+        },
+        {
+          "check": "Host/Client/Server不是模型内部层级，独立连接不是沙箱；Tools/Resources/Prompts按控制路径而非副作用划分。FastMCP参数生成Schema与docstring生成描述分别说明。",
+          "source_urls": ["https://modelcontextprotocol.io/specification/2026-07-28/architecture"]
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/02-mcp/05-mcp-components.md",
+      "disposition": "revised",
+      "summary": "展开MRTR术语，说明输入需求结束本轮响应而非必须挂起原调用栈；保留订阅确认、输入映射与requestState校验细节；修正Client只是管道和stdio不能共享任何后端的过度概括。",
+      "technical_checks": [
+        {
+          "check": "MRTR要求输入响应键对应inputRequests，原样携回存在的requestState，并用新JSON-RPC ID重发原请求；首轮已结束，不要求共享服务端调用栈。",
+          "source_urls": ["https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr"]
+        },
+        {
+          "check": "Sampling、Roots、Logging弃用未移除；旧Server主动JSON-RPC request不能混入2026-07-28的MRTR流程。每请求能力声明和订阅流与请求级通知的区分保留。",
+          "source_urls": ["https://modelcontextprotocol.io/specification/2026-07-28/changelog", "https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http"]
+        },
+        {
+          "check": "Host做策略决策，Client落实协议和认证流程，Server复核对象权限；stdio管道通常独占不意味着其后端数据库或服务不能共享。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/02-mcp/06-mcp-vs-function-calling.md",
+      "disposition": "revised",
+      "summary": "修正图中Host等于Client的标注；选型从代码行数和Agent标签改为复用契约、运维责任及跨Host互操作；统一发现、模型Schema转换、SDK装饰器及维护责任的边界。",
+      "technical_checks": [
+        {
+          "check": "MCP不要求Function Calling；FC也不限定本地执行。模型Schema桥接需处理JSON Schema 2020-12与厂商strict子集差异，不能静默删约束。",
+          "source_urls": ["https://modelcontextprotocol.io/specification/2026-07-28/changelog", "https://developers.openai.com/api/docs/guides/function-calling"]
+        },
+        {
+          "check": "MCP复用不免除客户端认证、模型桥接和兼容测试；工具复杂度和团队人数不能独立构成采用MCP的协议性条件。",
+          "source_urls": ["https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning"]
+        },
+        {
+          "check": "工具装饰器生成输入Schema与描述；resource装饰器注册可读取资源而非自动生成模型工具。db、format_orders及启动配置继续明确为应用需补齐的教学片段。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/01-function-calling/07-reasoning-models-and-tools.md",
+      "disposition": "revised",
+      "summary": "历史小节改为如何表述接口限制，不再让Structured Outputs缺失暗示Function Calling必然缺失；区分ReTool与ToolRL研究内容，保留推理状态回传、KV Cache重建与接口适配链。",
+      "technical_checks": [
+        {
+          "check": "OpenAI Function Calling指南仍要求工具往返保留reasoning项，并注明GPT-6 Astra工具调用使用Responses；未因此升级章节内其他示例型号。",
+          "source_urls": ["https://developers.openai.com/api/docs/guides/function-calling"]
+        },
+        {
+          "check": "保留API会话历史与KV Cache区别：工具等待不要求占住同一GPU，历史可重建；不能从某Host的FC适配失败推导MCP协议不可用。",
+          "source_urls": []
+        },
+        {
+          "check": "联合工具训练不是所有推理产品的统一配方；ToolRL奖励研究与ReTool沙箱代码交互已按论文正文区分，未用动态模型页倒推预览期全部能力。",
+          "source_urls": ["https://arxiv.org/html/2504.13958v1", "https://arxiv.org/html/2504.11536v1"]
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/03-skills/08-what-is-skill.md",
+      "disposition": "revised",
+      "summary": "保留开放格式字段、渐进加载与脚本安全内容，修正常见错误中将可选脚本/资源说成必需的矛盾；说明漏加载也会影响任务，核查提交与日期移至参考资料。",
+      "technical_checks": [
+        {
+          "check": "官方格式要求SKILL.md、name和description；scripts/references/assets均可选，allowed-tools仍为实验性，metadata.version不是格式版本。",
+          "source_urls": ["https://agentskills.io/specification"]
+        },
+        {
+          "check": "官方给出约100 token元数据、正文少于5000 token及主文件少于500行的组织建议；保留其建议性质，不包装为固定消耗或硬限制。",
+          "source_urls": ["https://agentskills.io/specification"]
+        },
+        {
+          "check": "Anthropic发布页保留2025年12月18日开放标准更新说明；开放文件格式不等于无运行环境依赖，也不保证任意宿主的自动触发与权限行为一致。",
+          "source_urls": ["https://www.anthropic.com/news/skills"]
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/03-skills/09-skill-vs-mcp.md",
+      "disposition": "revised",
+      "summary": "开头表格将MCP从服务进程纠正为通信协议，移除重复记忆口号；外部能力接入表与图标明MCP只是可选实现；统一为Host按Skill编排，修正可选资源的说法。",
+      "technical_checks": [
+        {
+          "check": "Skill内容格式与MCP通信契约不同；Skill脚本可以通过其他受控API访问外部系统，不强制依赖MCP。",
+          "source_urls": ["https://agentskills.io/specification", "https://modelcontextprotocol.io/specification/2026-07-28/architecture"]
+        },
+        {
+          "check": "发现MCP工具不等于全量注入模型，Skill元数据也有成本；两者按实际输入与路由召回评估而非按文件夹/Server数量比较。",
+          "source_urls": ["https://agentskills.io/specification", "https://modelcontextprotocol.io/specification/2026-07-28/server/tools"]
+        },
+        {
+          "check": "保留业务强制规则应在服务端执行的边界；get_pull_request_diff与search_past_incidents为示意工具名，不声称当前GitHub Server提供这些原样接口。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/03-skills/10-fc-skill-mcp.md",
+      "disposition": "revised",
+      "summary": "去除发布时间造成的层层依赖暗示；销售分析图补入查询授权与代码执行限制，图后解释失败与部分数据；统一工具发现不自动进入上下文、Host承担编排及小项目也可需要复用的结论。",
+      "technical_checks": [
+        {
+          "check": "三者分别处理模型输出、能力互操作与流程知识，不存在任一缺失就无法运行的强制技术栈。",
+          "source_urls": ["https://developers.openai.com/api/docs/guides/function-calling", "https://agentskills.io/specification", "https://modelcontextprotocol.io/specification/2026-07-28/architecture"]
+        },
+        {
+          "check": "Sales教学时序中SQL和Python执行前需实际权限/隔离检查；取数失败不能继续生成结论，部分日期覆盖和因果假设不能伪装成完整业务结果。",
+          "source_urls": []
+        },
+        {
+          "check": "MCP版本、Skill格式与模型API版本分别管理，工具发现结果经Host筛选后才成为模型上下文；保留纯写作Skill无需外部工具的反例。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/04-agent-communication/11-a2a-protocol.md",
+      "disposition": "revised",
+      "summary": "将版本核查日志移入参考资料，保留v1.0.1固定基准；补清returnImmediately默认阻塞至终态或中断态，说明与规范概述的来源冲突；收紧单Agent上下文必满、A2A等于微服务和按对端是否为模型硬分协议的断言。",
+      "technical_checks": [
+        {
+          "check": "实际读取v1.0.1发布记录、规范及a2a.proto：supportedInterfaces、protocolBinding/protocolVersion、securityRequirements及AgentCard能力字段匹配；Agent软件version与协议Major.Minor分开。",
+          "source_urls": ["https://github.com/a2aproject/A2A/releases/tag/v1.0.1", "https://github.com/a2aproject/A2A/blob/v1.0.1/specification/a2a.proto"]
+        },
+        {
+          "check": "Proto SendMessageConfiguration.return_immediately默认false，等到terminal/interrupted再返回，true才立即返回Task；规范概述的MUST return immediately与执行模式定义不一致，正文按字段定义说明并在参考资料保留冲突提示。",
+          "source_urls": ["https://github.com/a2aproject/A2A/blob/v1.0.1/specification/a2a.proto", "https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md"]
+        },
+        {
+          "check": "核对TASK_STATE_*终态、SubscribeToTask首条快照、Artifact append/lastChunk；断流不等于取消，取消不回滚。1.0方法名、缺省0.3兼容及HTTP优先application/a2a+json保留。",
+          "source_urls": ["https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md", "https://github.com/a2aproject/A2A/blob/v1.0.1/specification/a2a.proto"]
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/02-mcp/12-mcp-transport.md",
+      "disposition": "revised",
+      "summary": "保留两代传输演进与必需请求头细节，补清HTTP请求/通知及MRTR区别；取消限定为未完成响应断开，避免把正常收尾当失败；纠正切换传输不影响上层逻辑及HTTP必然更慢的说法，日志示例不再泄露完整SQL。",
+      "technical_checks": [
+        {
+          "check": "2026-07-28 Streamable HTTP单POST端点、Accept双类型、MCP-Protocol-Version/Mcp-Method/Mcp-Name镜像及x-mcp-header要求已对照固定版正文；核心不使用HTTP客户端通知回答MRTR。",
+          "source_urls": ["https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http"]
+        },
+        {
+          "check": "本版移除GET流、Mcp-Session-Id和Last-Event-ID重放；未完成SSE断开为取消，正常最终响应收尾不应报失败，业务副作用不自动撤销。",
+          "source_urls": ["https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http", "https://modelcontextprotocol.io/specification/2026-07-28/changelog"]
+        },
+        {
+          "check": "stdio与HTTP在认证、取消、故障恢复上有差异；Modern错误不能直接当Legacy降级信号，必须有dual-era兼容实现。WebSocket仍是自定义而非标准MCP transport。",
+          "source_urls": ["https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning"]
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/05-transport-gateway/13-sse-websocket-webrtc.md",
+      "disposition": "revised",
+      "summary": "纠正HTTP/2/3 WebSocket扩展CONNECT后整条TCP不再HTTP的误述；展开NACK/FEC/PLC并去除语音重传灾难化结论；取消与延迟表述加条件，压缩超宽对比表，修复失效的OpenAI WebRTC参考地址。",
+      "technical_checks": [
+        {
+          "check": "SSE格式不等于EventSource；GET限制属于浏览器API，POST响应也可承载SSE，HTTP/3不依赖TCP，事件chunk与模型token不一一对应。",
+          "source_urls": ["https://html.spec.whatwg.org/multipage/server-sent-events.html", "https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http"]
+        },
+        {
+          "check": "RFC 9220明确HTTP/3 WebSocket位于单个扩展CONNECT流，并非接管整条TCP；媒体丢包恢复与DataChannel可靠性区分，ICE不是严格串行三级降级。",
+          "source_urls": ["https://www.rfc-editor.org/rfc/rfc9220", "https://www.rfc-editor.org/rfc/rfc8834", "https://www.rfc-editor.org/rfc/rfc8831", "https://www.rfc-editor.org/rfc/rfc8445"]
+        },
+        {
+          "check": "旧realtime-webrtc指南返回404；从OpenAI官方llms.txt定位voice-webrtc并读取Realtime部分，确认浏览器推荐WebRTC、HTTP交换SDP、DataChannel事件及后端长期Key边界，不引入GPT-Live端点或新型号。",
+          "source_urls": ["https://developers.openai.com/llms.txt", "https://developers.openai.com/api/docs/guides/voice-webrtc?api=realtime"]
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/05-transport-gateway/14-llm-gateway.md",
+      "disposition": "revised",
+      "summary": "客户端示例改用环境变量和有效messages；补入上游托管工具副作用及用量重复计数风险；缓存图先定权限分区，修正距离/相似度阈值方向，收紧产品赞誉与Prompt绝不能托管在网关等绝对结论。",
+      "technical_checks": [
+        {
+          "check": "接口兼容包含工具ID、Schema、推理项和流式事件，不只HTTP成功；未收到本地调用项也不证明上游托管工具尚未执行，故障转移不能盲目重放。",
+          "source_urls": ["https://developers.openai.com/api/docs/guides/function-calling"]
+        },
+        {
+          "check": "语义缓存先限定租户/权限/时间/版本，再检索候选；提高相似度门槛与提高最大距离门槛方向相反，个性化与强实时查询不得仅凭文本近似复用。",
+          "source_urls": ["https://www.rfc-editor.org/rfc/rfc9111"]
+        },
+        {
+          "check": "reasoning可能是输出token子项，失败尝试也可能收费；多副本网关仍需预算一致性和凭据隔离。Prompt托管是产品能力选择，不应与业务决策紧耦合；未给各网关新增版本/性能保证。",
+          "source_urls": []
+        }
+      ]
+    },
+    {
+      "path": "docs/tools/02-mcp/15-tool-protocol-security.md",
+      "disposition": "revised",
+      "summary": "保留OAuth草案/RFC、SSRF、工具投毒及审计细节；纠正转发令牌会扩大audience字段的说法，解释混淆代理；补入审批与具体参数、身份、有效期绑定及不可回滚操作的补偿边界。",
+      "technical_checks": [
+        {
+          "check": "固定MCP授权页引用OAuth 2.1 draft-13和Client ID Metadata Documents草案，不把它们写成RFC；DCR弃用兼容、HTTP/stdio范围和PKCE/resource/issuer检查保留。",
+          "source_urls": ["https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization"]
+        },
+        {
+          "check": "正常向目标资源服务器携带token与禁止passthrough分开；转发不会改写aud，问题是接受错误受众或滥用代理权限；对象级授权与审批绑定不能依赖模型声明。",
+          "source_urls": ["https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization"]
+        },
+        {
+          "check": "A2A AgentCard和AgentSkill均可有securityRequirements；能力声明不是信任证明。MCP HTTP Origin检查、schema解析入口和日志最小化等原有控制保留。",
+          "source_urls": ["https://github.com/a2aproject/A2A/blob/v1.0.1/specification/a2a.proto", "https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http"]
+        }
+      ]
+    }
+  ],
+  "indexes": [
+    {
+      "path": "docs/tools/README.md",
+      "disposition": "revised",
+      "summary": "完整阅读主题索引；改用固定协议基准，保留5个模块与FAQ入口；集中一条教学案例说明，删除Polo Li/CC BY通用重复页尾。阅读顺序不另行扩充。"
+    },
+    {
+      "path": "docs/tools/01-function-calling/README.md",
+      "disposition": "retained",
+      "summary": "完整阅读，4章链接和章名一致；模型API各自适配及格式/业务/授权三层区分准确，无重复署名页尾。"
+    },
+    {
+      "path": "docs/tools/02-mcp/README.md",
+      "disposition": "retained",
+      "summary": "完整阅读，5章链接完整；2026-07-28与旧会话模型、弃用能力与Tasks扩展的界限与正文一致，无需修改。"
+    },
+    {
+      "path": "docs/tools/03-skills/README.md",
+      "disposition": "retained",
+      "summary": "完整阅读，3章链接完整；宿主行为、文件格式、脚本环境与非强制状态机的区别清楚，无需修改。"
+    },
+    {
+      "path": "docs/tools/04-agent-communication/README.md",
+      "disposition": "retained",
+      "summary": "完整阅读，章节链接正确；v1.0.1发布版与线上1.0、旧方法名兼容范围说明准确，无需修改。"
+    },
+    {
+      "path": "docs/tools/05-transport-gateway/README.md",
+      "disposition": "retained",
+      "summary": "完整阅读，2章链接完整；事件格式/浏览器API/底层传输与接口/能力兼容的区别准确，无需修改。"
+    }
+  ],
+  "heading_changes": [
+    {"path": "docs/tools/01-function-calling/01-function-calling.md", "from": "1.1 一句话定位", "to": "1.1 模型提出调用，谁来执行"},
+    {"path": "docs/tools/01-function-calling/01-function-calling.md", "from": "1.4.3 用 enum 把选择题变成判断题", "to": "1.4.3 用 enum 限定合法取值"},
+    {"path": "docs/tools/01-function-calling/02-tool-learning.md", "from": "2.2 第一阶段：SFT 教会「怎么调」", "to": "2.2 用 SFT 学习工具调用轨迹"},
+    {"path": "docs/tools/01-function-calling/02-tool-learning.md", "from": "2.4 第三阶段：用反馈建立边界感", "to": "2.4 用反馈优化选择与调用边界"},
+    {"path": "docs/tools/01-function-calling/03-tool-schema-design.md", "from": "3.5.2 工具变多，准确率会下降", "to": "3.5.2 工具变多时，如何控制选择混淆"},
+    {"path": "docs/tools/01-function-calling/07-reasoning-models-and-tools.md", "from": "7.5 历史事实：哪些模型确实不支持", "to": "7.5 历史接口限制应如何表述"},
+    {"path": "docs/tools/05-transport-gateway/13-sse-websocket-webrtc.md", "from": "13.6.2 为什么 TCP 重传对语音是灾难", "to": "13.6.2 TCP 重传何时会拖慢实时语音"}
+  ],
+  "cross_scope_impacts": [
+    "路径、章号、H1和章节数量不变，无根索引或mkdocs导航改动需要。",
+    "上述7处H2/H3自动锚点随标题变化；仓库Markdown/YAML/JSON搜索未发现指向这些tools标题的片段链接，无跨范围引用待修复。外部书签不在仓库可验证范围。",
+    "通用署名与CC BY页尾仅在主题索引发现并移除，交由父会话集中书末说明；技术文献与第三方作者归属保留，未发现需要另行保留的代码内第三方许可声明。"
+  ],
+  "validation": {
+    "coverage": "15章和6个索引路径全覆盖；15个H1及全部编号不变；7处改名与记录一致。",
+    "snippet_syntax": "20个Python、4个JSON和3个JSONC代码块通过语法解析；省略应用依赖的片段未声称独立可运行。",
+    "snippet_behavior": "使用内存桩覆盖第一章9条单批调用分支及1个并发部分失败场景，没有向外部API发请求。",
+    "repository_checks": [
+      "python3 scripts/check_docs.py：143章，0问题",
+      "npm run check:mermaid：485图，0失败",
+      ".venv/bin/mkdocs build --strict：通过",
+      "git diff --check：通过"
+    ]
+  },
+  "limitations": [
+    "代码片段用于解释接口或应用集成，未向付费模型API发送请求、未部署真实MCP/A2A服务，不宣称已有生产效果。",
+    "本次未改数学公式，未执行GitHub/Wiki页面或最终电子书排版预览；本地文档构建不代表出版成品。",
+    "A2A固定标签内部的立即返回措辞冲突已据Proto字段定义处理并注明来源边界；OpenAI早期o1发布页访问返回403，未据此新增历史能力断言。"
+  ]
+}

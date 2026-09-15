@@ -6,13 +6,15 @@ description: 解释 Function Calling、MCP、Agent Skill、A2A 和传输网关�
 
 本主题位于协议与接口层，解释模型如何调用工具、MCP 如何标准化能力接入、Skill 如何组织知识、Agent 如何跨系统通信，以及传输与网关如何落地。
 
+> 贯穿示例设定为一个给团队接入查询、分析和审查能力的演示应用；天气、订单、销售和调研数据，以及订单 A1001、517 条记录等数值均为教学设定，不是作者项目经历。协议版本和引用研究另按文献说明。
+
 ## 版本与阅读边界
 
-本轮核查日期为 **2026-09-08**。MCP 官方版本页将 **2026-07-28** 标为 Current；A2A 仓库最新发布为 **v1.0.1**，线上协议标识仍为 `1.0`，官网 `latest` 页面尚标 v1.0.0。Agent Skills 是持续维护的开放文件格式，本次按官方规范及仓库提交核查，不凭发布日期编造版本号。
+本主题固定采用 **MCP 2026-07-28** 和 **A2A v1.0.1** 发布规范；A2A 线上协议标识为 `1.0`，不含补丁号。Agent Skills 是持续维护的开放文件格式，内容包的 `metadata.version` 不等于格式规范版本。具体来源与核查边界放在对应章节的参考资料中。
 
 - [MCP 版本状态](https://modelcontextprotocol.io/specification/versioning)与 [2026-07-28 变更](https://modelcontextprotocol.io/specification/2026-07-28/changelog)
 - [A2A v1.0.1 发布](https://github.com/a2aproject/A2A/releases/tag/v1.0.1)与[固定版本规范](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)
-- [Agent Skills 格式规范](https://agentskills.io/specification)与[本次核查提交](https://github.com/agentskills/agentskills/tree/69ef37e9424c0a7ea9dd2293b559e43ec8176379)
+- [Agent Skills 格式规范](https://agentskills.io/specification)与[固定历史提交](https://github.com/agentskills/agentskills/tree/69ef37e9424c0a7ea9dd2293b559e43ec8176379)
 
 协议发布、SDK 支持和某个产品的启用范围是三件事。图中的箭头表示可组合的接入路径，不表示 MCP 依赖 Function Calling，或 Skill 必须通过 MCP 执行。学习时先画出调用者、执行者和授权检查点，再检查超时、重试、部分失败及版本不兼容时的行为。
 
@@ -55,5 +57,3 @@ flowchart TB
 Skill 组织完成任务所需的知识和步骤，MCP 连接工具、资源与提示模板，A2A 用于不同 Agent 系统之间的任务协作。三者处于不同层次，可以组合使用。
 
 返回[文档主题索引](../README.md)。
-
-本主题原创文字与图示：Polo Li，按 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 授权；引用规范与第三方资料归原作者。

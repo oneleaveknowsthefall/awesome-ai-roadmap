@@ -4,11 +4,11 @@ description: 解释 A2A 协议中的 Agent Card、任务生命周期、消息与
 
 # 第十一章：A2A 协议
 
-**版本基准（2026-09-08 核查）**：官网 `latest` 仍标 v1.0.0，但官方仓库最新 Release 是 [v1.0.1](https://github.com/a2aproject/A2A/releases/tag/v1.0.1)。本章按该发布标签的[规范正文](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)和 [`specification/a2a.proto`](https://github.com/a2aproject/A2A/blob/v1.0.1/specification/a2a.proto)核对；线上 `A2A-Version` 为 `1.0`，不含补丁号。协议规范、SDK 版本、Agent 软件版本三者不同。
+本章固定采用 **A2A v1.0.1 发布规范**；线上 `A2A-Version` 为 `1.0`，不含补丁号。协议规范、SDK 版本、Agent 软件版本三者不同。
 
 ## 11.1 单个 Agent 的三个天花板
 
-一个 Agent 可以近似看成 **一个 LLM + 一组工具 + 一段上下文窗口**。这三个维度各有上限：
+先看一个由 **单个 LLM、一组工具和一段活动上下文**构成的 Agent。这里是讨论拆分动机的简化实现，不是 Agent 的通用定义。它可能受以下限制：
 
 | 维度 | 上限表现 |
 |---|---|
@@ -18,7 +18,7 @@ description: 解释 A2A 协议中的 Agent Card、任务生命周期、消息与
 
 举个具体任务：**「做一份 AI 编程工具的竞品分析报告，要有行业趋势、技术对比、商业模式分析和 SWOT」**。
 
-单 Agent 做这件事的问题是：搜索结果和草稿会把上下文撑满，等写到 SWOT 时，前面的行业趋势分析早已被挤出有效注意力范围；而且市场调研和技术分析需要不同的知识侧重。
+如果不断把搜索结果与草稿全量追加进上下文，写到 SWOT（优势、劣势、机会、威胁）分析时，早期证据可能已被截断或难以有效利用。可以先做检索、摘要和外部存储；市场与技术任务能够独立推进时，再评估拆成多个 Agent 的收益。
 
 ### 11.1.1 多 Agent 在上下文层面的真正收益
 
@@ -112,7 +112,7 @@ Agent Card 是 JSON 能力声明。部署可通过配置、目录或 `/.well-kno
 
 新加一个 Agent 后，支持相同发现机制的调用方可以读取其 Agent Card 并考虑调用它；是否自动接纳仍应经过信任、认证和策略检查。
 
-这和 MCP 的 `tools/list` 自动发现是同一个思路——[第四章](../02-mcp/04-what-is-mcp.md) 里说过，「自动发现」才是标准化协议真正的价值所在。
+这与 MCP 从已知 Server 调用 `tools/list` 的思路相近：通过元数据减少能力清单的硬编码。发现只是互操作的一部分，不能替代共同的数据模型、版本处理和认证。
 
 ## 11.3 Task 是 A2A 的一等公民
 
@@ -151,9 +151,9 @@ state "TASK_STATE_REJECTED" as rejected
 
 ### 11.3.1 为什么需要这么完整的状态机
 
-因为 **A2A 是专门为长时间任务设计的**。
+因为 **A2A 需要支持跨多轮交互、可能长时间运行的任务**，同时也允许简单请求直接返回 Message。
 
-竞品分析可能跨多个工具或人工环节；支持后台处理可以让调用方不必一直阻塞，但同步等待仍是一种合法实现选择。
+竞品分析可能跨多个工具或人工环节。`SendMessage` 的 `configuration.returnImmediately` 默认为 `false`：返回 Task 时，等待到终态或需要输入、认证的中断态；设为 `true` 才在创建任务后立即返回，由调用方继续跟踪。这个选项不改变直接返回 Message 的交互，也不控制流式操作。
 
 调用方可通过三种机制跟踪任务：
 
@@ -173,7 +173,7 @@ state "TASK_STATE_REJECTED" as rejected
 
 ## 11.4 架构本质：Agent 的微服务化
 
-有后端经验的话，A2A 会很眼熟——**它就是 Agent 世界里的微服务架构**：
+有后端经验的话，可以用微服务架构理解 A2A 的独立部署和黑盒契约。但 **A2A 是互操作协议，不等于完整的微服务架构**；注册、持久化、调度和容灾仍需系统实现：
 
 | 微服务 | A2A |
 |---|---|
@@ -251,7 +251,7 @@ flowchart TB
 
 ### 11.7.1 把 A2A 当成 MCP 的竞品
 
-这是最容易混淆的点。两者面向的对象完全不同——一个连工具，一个连 Agent。它们互补，而且经常同时出现。
+两者常分别用于能力接入和跨系统委托，但不是按“对端有没有模型”硬分。Agent 可包装成 MCP 工具，A2A 后端也可执行确定性流程；应比较工具契约与任务生命周期是否符合需求。
 
 ### 11.7.2 只把 A2A 当成一种 HTTP API
 
@@ -259,7 +259,7 @@ A2A 定义的是跨实现共享的数据模型、任务生命周期、发现和�
 
 ### 11.7.3 忽略 Task 状态机的设计动机
 
-状态机不是为了把协议做得完整好看，而是因为 A2A 专门面向**长时间异步任务**。如果调用天然就是同步阻塞，确实用不上这么细的状态管理。
+状态机用来表达处理中、需要输入、需要认证及各类终态。同步等待不等于不需要状态管理：等待期间仍可能要求澄清或取消；只有无需任务跟踪的简单交互，才可直接返回 Message。
 
 ### 11.7.4 把 A2A 的 skill 和 Agent Skill 混为一谈
 
@@ -286,6 +286,8 @@ A2A 定义的是跨实现共享的数据模型、任务生命周期、发现和�
 
 ## 参考资料
 
+- 来源核对：2026-09-15 读取 v1.0.1 发布记录、规范和 Proto 定义。该标签内规范页仍有“Latest Released Version 1.0.0”的旧提示；Send Message 概述中的立即返回措辞，也与执行模式小节和 Proto 的默认阻塞定义不一致。本章按后两处明确的 `return_immediately` 字段定义说明，线上 JSON 使用 `returnImmediately`。
+- [A2A v1.0.1 发布记录](https://github.com/a2aproject/A2A/releases/tag/v1.0.1)
 - [A2A 协议官网](https://a2a-protocol.org/)
 - [A2A v1.0.1 发布规范](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)
 - [A2A v1.0.1 规范数据定义](https://github.com/a2aproject/A2A/blob/v1.0.1/specification/a2a.proto)

@@ -48,7 +48,7 @@ flowchart LR
 
 ## 4.3 MCP 的核心思路：把 M×N 变成 M+N
 
-MCP 的类比是 **USB**。USB 出现之前，鼠标一个接口、键盘一个接口、打印机又是另一个。USB 之后，设备厂商只需要做一次适配，就能插进全世界所有电脑。
+可以把 MCP 类比为 **USB 这样的通用接口**：参与方遵守共同约定，就能减少专用适配。不过 USB 仍有驱动、版本和设备能力差异，MCP 也一样。
 
 MCP 为「AI 接工具」定了同一种标准：
 
@@ -147,20 +147,26 @@ MCP 的消息格式是 JSON-RPC 2.0——一种用 JSON 表达「远程函数调
 {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
 
 // 响应
-{"jsonrpc": "2.0", "id": 1, "result": {"tools": [{"name": "create_issue", ...}]}}
+{"jsonrpc": "2.0", "id": 1, "result": {"tools": [
+  {"name": "create_issue", "inputSchema": {
+    "type": "object",
+    "properties": {"title": {"type": "string"}, "body": {"type": "string"}},
+    "required": ["title"]
+  }}
+]}}
 
 // 请求：调用某个工具
 {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
  "params": {"name": "create_issue", "arguments": {"title": "Bug", "body": "..."}}}
 ```
 
-选 JSON-RPC 而不是二进制协议或 REST，理由很实际：易读易调试、语言无关、任何语言都能十几行代码实现一个最小客户端。这直接降低了生态的实现门槛。
+JSON-RPC 使用可读的 JSON 和统一的请求、结果、错误结构，便于跨语言调试。但解析几条 JSON 只是起点，完整 Client 还要处理版本、能力、授权、取消和故障恢复；不能用教学代码行数衡量实现成本。
 
 传输方式（stdio / Streamable HTTP）的细节见 [第十二章](12-mcp-transport.md)。
 
 ## 4.7 生命周期与版本兼容
 
-本次于 **2026-09-08** 核查[官方版本页](https://modelcontextprotocol.io/specification/versioning)，其将 **2026-07-28** 标为 Current，而非仅依据日期猜测最新。此版改为无状态、请求自包含：每个请求携带协议版本与 Client capabilities；Server 必须实现 `server/discover`，Client 可选调用。旧版 `initialize` 属于兼容路径，不是当前核心握手。
+本章固定采用 **2026-07-28** 规范。此版改为无状态、请求自包含：每个请求携带协议版本与 Client capabilities；Server 必须实现 `server/discover`，Client 可选调用。旧版 `initialize` 属于兼容路径，不是本版核心握手。
 
 官方将 Current 定义为“ready for use”，仍可接收向后兼容修改；Draft 是尚未可供使用的修订，Final 则指不再修改的历史版本。因此这里的 Current 既不是草案，也不意味着规范已冻结。
 
@@ -178,7 +184,7 @@ MCP 的消息格式是 JSON-RPC 2.0——一种用 JSON 表达「远程函数调
 
 新规范中，请求通过 `_meta.io.modelcontextprotocol/*` 携带协议版本和 Client capabilities。Client 可先调用 `server/discover` 获取 Server 支持的版本与能力，也可直接发起带元数据的业务请求。需要持续通知时，Client 显式建立 subscription；需要模型或用户补充输入时，Server 在响应中返回 `InputRequiredResult`，Client 补齐输入后重发原请求。
 
-与旧版 Server 互操作时，SDK 可按兼容矩阵回退到 `initialize`、`notifications/initialized` 和连接级 session。应用必须区分“当前协议语义”和“兼容旧端点”，不能把旧握手继续写成所有 MCP 调用的必经步骤。
+与旧版 Server 互操作时，只有明确支持新旧两代协议的实现（dual-era）才能按兼容矩阵回退到 `initialize`、`notifications/initialized` 和旧版会话语义。现代协议专用 SDK 不一定具备这条路径，不能把旧握手继续写成所有 MCP 调用的必经步骤。
 
 2026-07-28 所有结果还要求 `resultType`；读取与列表结果有 `ttlMs`、`cacheScope`。Sampling、Roots、Logging 已 **Deprecated**，仍保留兼容但新实现不应再采用；Tasks 已移到 `io.modelcontextprotocol/tasks` 官方可选扩展。扩展、草案 SEP 和核心协议不是同一发布层级，详见[变更记录](https://modelcontextprotocol.io/specification/2026-07-28/changelog)。
 
@@ -206,7 +212,7 @@ if __name__ == "__main__":
     mcp.run()
 ```
 
-函数签名和 docstring 会被自动转成 JSON Schema。一个新技术如果上手成本高，设计再好也推不开。
+这里的工具参数类型用于生成输入 JSON Schema，docstring 用于工具描述。SDK 省去了部分报文构造，但不代替业务权限检查和部署配置。
 
 **工具接入可复用**。要区分官方维护、社区实现和归档示例。旧 `@modelcontextprotocol/server-github` 已归档，GitHub 官方实现是 [github/github-mcp-server](https://github.com/github/github-mcp-server)。下面用本地自有 Server 示意宿主配置，而不是安装归档包：
 
@@ -263,6 +269,9 @@ Client 是 Host 内的协议连接器，不是安全沙箱。Host 控制用户�
 
 ## 参考资料
 
+- 版本状态核对：2026-09-15 复核下列固定版变更与兼容说明；采用固定协议基准，不将动态页面的“最新”当作 SDK 已支持的证明。
+- [MCP 版本状态](https://modelcontextprotocol.io/specification/versioning)
+- [MCP 2026-07-28 变更记录](https://modelcontextprotocol.io/specification/2026-07-28/changelog)
 - [Model Context Protocol 官方文档](https://modelcontextprotocol.io/docs/getting-started/intro)
 - [MCP 规范 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)
 - [MCP 版本兼容说明](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning)

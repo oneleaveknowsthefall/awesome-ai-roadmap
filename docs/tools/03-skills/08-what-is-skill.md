@@ -18,7 +18,7 @@ description: 解释 Agent Skill 的文件结构、触发条件、渐进披露和
 
 一个 Skill 就是**一个文件夹**：
 
-这里指 [Agent Skills 开放格式](https://agentskills.io/specification)，不是所有产品中同名的 “skill” 功能。本次于 2026-09-08 核查官方规范及仓库提交 `69ef37e9424c0a7ea9dd2293b559e43ec8176379`；规范页未给出独立的语义版本号，不能把 Skill 自身的 `metadata.version` 当规范版本。
+这里指 **Agent Skills 开放文件格式**，不是所有产品中同名的 “skill” 功能。Skill 自身的 `metadata.version` 是内容维护者填写的元数据，不能当作格式规范的版本号。
 
 ```
 code-review/                  # 文件夹名就是 Skill 标识
@@ -100,7 +100,7 @@ flowchart TB
 
 类比是**新员工入职手册**：你第一天不会把整本手册从头读完，而是先扫一眼目录，知道有「报销流程」「请假制度」这些章节。等真要报销了，再翻开那一章仔细看。
 
-深层原因是 **context window 是 Agent 最宝贵的资源**。全量塞进去不只是浪费 token，更严重的是**注意力被稀释**——真正有用的任务信息淹没在一堆无关指令里，输出质量反而下降。
+上下文窗口有容量限制。无关指令会占据本可留给任务证据的空间，也可能干扰模型选择；按需加载能减少这部分输入，但若路由漏掉了必要 Skill，任务质量同样会下降。
 
 这一点和 [Agent 的上下文压缩](../../agent/03-memory-context/10-agent-memory-compression.md) 是同一个思路：不是能塞多少就塞多少，而是让模型在恰当的时候只看到恰当的东西。
 
@@ -156,7 +156,7 @@ Slash Command 是交互入口，Skill 是内容格式。一个宿主完全可以
 ```markdown
 ## 第二步：安全检查
 先运行 scripts/check_security.py 拿到静态扫描结果，
-再针对脚本标记的可疑位置做人工语义分析。
+再结合调用上下文分析可疑位置；高风险结论交由人工复核。
 ```
 
 这里更像一种工程分工：**能确定性完成的部分交给代码，需要判断的部分交给模型**。Skill 刚好提供了把两者放在一起的载体。
@@ -177,15 +177,15 @@ Agent Skills 是 Anthropic 在 2025 年 10 月推出的，最初只覆盖 Claude
 
 ### 8.7.1 把 Skill 说成「高级 Prompt 模板」
 
-这是最常见的降格。Skill 是一个**完整的目录**，包含指令、可执行脚本、参考文档、输出模板，而且能被 Agent 自动发现和按需加载。说成 Prompt 模板，等于丢掉了它最有价值的两部分：可执行资源和渐进式加载。
+Skill 的最小形态可以只有 `SKILL.md`，正文也可以是一段写作规范。与普通 Prompt 的区别是约定了目录入口、发现元数据和按需加载方式，并可附带脚本、参考文档或模板；这些附加文件并非必需。
 
 ### 8.7.2 说不出渐进式加载的三层
 
-这是 Skill 最核心的设计，也是最能体现「context 工程」理解的点。三层是：只读元数据 → 匹配时加载指令 → 用到时才取资源。
+三层是：先读元数据 → 匹配时加载指令 → 用到时才取资源。解释时还应说明每层由宿主如何触发，以及漏加载、重复加载和资源缺失时怎么办。
 
 ### 8.7.3 把 Skill 和 Tool 当成竞争关系
 
-Tool 提供能力，Skill 提供方法。一个 Skill 的执行过程中大概率要调用若干个 Tool。两者互补。
+Tool 提供可调用能力，Skill 组织方法与材料。一个分析 Skill 可以指导工具使用，纯写作 Skill 也可以只约束文风；是否调用工具不是格式规定。
 
 ### 8.7.4 description 写得太宽泛
 
@@ -212,6 +212,7 @@ Tool 提供能力，Skill 提供方法。一个 Skill 的执行过程中大概�
 
 ## 参考资料
 
+- 格式核查保留原有固定提交 `69ef37e9424c0a7ea9dd2293b559e43ec8176379` 作为历史基准，并于 2026-09-15 复核官方格式页中的必填字段、实验性字段和加载建议；官方页没有独立的语义版本号。
 - [Anthropic: Introducing Agent Skills](https://www.anthropic.com/news/skills)
 - [Anthropic: Equipping Agents for the Real World with Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
 - [Agent Skills 规范](https://agentskills.io/specification)
