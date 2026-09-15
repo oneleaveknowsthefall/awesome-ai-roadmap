@@ -46,6 +46,8 @@ def route_by_complexity(task_type: str) -> str:
 
 某些任务(代码生成、多步推理)只有少数模型能稳定完成,路由策略需要维护一张「模型-能力」映射表,而不是简单的成本阈值判断。这张表本身要跟随[第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)的评测结果持续更新——模型能力会随供应商升级而变化。
 
+能力映射还要覆盖推理档位。对推理模型,同一个模型在不同 effort 档位下的成功率、延迟和成本差距,可能大于换一档模型的差距,路由键应当是「模型 × 档位」而不只是模型名:简单任务走低档位或非推理模型,高难任务升档,是否升档由第 7 章的评测数据决定,不由单次请求的难度自报决定。回退时也要先区分动作:同模型降档保留接口与推理上下文,换模型则按新候选重新走契约校验与预算,跨供应商切换时推理状态通常不可迁移——OpenAI 文档说明 reasoning 项只能在同一模型族内复用,不能指望换一家后续写质量不变。OpenAI 同时说明推理 token 按输出 token 计费并占用上下文窗口,成本核算要把这部分不可见用量计入,否则账单归因会漏掉最大的一块。
+
 ### 3.2.3 灰度路由
 
 发布新 Prompt 或切换模型版本时,按用户 ID 哈希或请求比例分流一部分流量到新版本,这是[第 10 章](../05-release-pipeline/10-llm-cicd-canary-ab.md)灰度发布的路由层实现基础。
@@ -89,6 +91,7 @@ fallback_chain:
 | 触发路由的策略名称 | 区分是成本路由、能力路由还是灰度路由 |
 | 是否发生了回退,回退了几层 | 判断某个供应商是否持续不稳定 |
 | 端到端延迟(含回退耗时) | 回退会显著拉长尾延迟,需要单独监控 |
+| 推理档位与 reasoning token 用量 | 排查「模型没换、账单和延迟却上涨」,不可见推理用量要单独归因 |
 
 这些字段是[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md) Trace 数据模型的一部分。
 
@@ -126,6 +129,7 @@ fallback_chain:
 ## 参考资料
 
 - [LiteLLM: Routing](https://docs.litellm.ai/docs/routing)
+- [OpenAI: Reasoning models](https://platform.openai.com/docs/guides/reasoning)
 - [Amazon Bedrock: Model routing (intelligent prompt routing)](https://docs.aws.amazon.com/bedrock/latest/userguide/intelligent-prompt-routing.html)
 - [Martin Fowler: CanaryRelease](https://martinfowler.com/bliki/CanaryRelease.html)
 - [Netflix Tech Blog: Fault Tolerance in a High Volume, Distributed System](https://netflixtechblog.com/fault-tolerance-in-a-high-volume-distributed-system-91ab4faae74a)

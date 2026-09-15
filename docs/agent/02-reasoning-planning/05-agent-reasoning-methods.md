@@ -665,6 +665,10 @@ $$
 
 [推理时计算分配研究](https://arxiv.org/abs/2408.03314)显示，顺序修订与并行搜索的相对收益随题目难度改变。这个结论支持测量后路由，而不是仅凭模型自报“有信心”缩减预算；更高风险时应先加强验收和审批，并非自动加大搜索树。
 
+预算的四个分量在工程上有不同的旋钮，其中 $T$ 的控制接口最成熟：OpenAI 用 `reasoning.effort` 档位，支持的取值随模型而变，语义是指导思考投入而非精确 token 上限；Anthropic 用 `thinking.budget_tokens` 数字预算，是必须小于 `max_tokens` 的目标值；开源侧的 s1 用 budget forcing，在解码侧强制收尾或追加 "Wait" 延长思考。这些都是推理时配置，调整不需要重训模型，但升档与增加候选 $N$ 花的是不同位置的钱，不能互相替代；改动后都要按 §5.22 的口径在同预算下重新评测。
+
+隐藏推理还带来两条边界。一是审计：API 不暴露原始推理文本，最多提供摘要或加密项，而摘要不是推理本身；按[第 14 章 §14.7.1](../05-production/14-agent-evaluation.md)的红线，不得保存或要求模型暴露隐藏 Thought，验收只能依赖工具调用、可见输出与状态变化。二是计费：OpenAI 说明 reasoning token 按输出 token 计费并占用上下文窗口， $T$ 的开销必须进入成本核算和落库字段，否则“答案很短”会被误读为“这次调用很便宜”。
+
 ## 5.18 Adaptive Reasoning：按难度分配预算
 
 Adaptive Reasoning 先估计任务难度或置信度，再选择推理策略：
@@ -893,5 +897,8 @@ LLM Judge 仍可能偏置、被欺骗或与生成器共享盲点。
 - [Let's Verify Step by Step](https://arxiv.org/abs/2305.20050)
 - [DeepSeek-R1](https://arxiv.org/abs/2501.12948)
 - [Scaling LLM Test-Time Compute Optimally can be More Effective than Scaling Model Parameters](https://arxiv.org/abs/2408.03314)
+- [s1: Simple test-time scaling](https://arxiv.org/abs/2501.19393)
 - [OpenAI: Reasoning best practices](https://developers.openai.com/api/docs/guides/reasoning-best-practices)
+- [OpenAI: Reasoning models](https://platform.openai.com/docs/guides/reasoning)
+- [Anthropic: Extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking)
 - [Python 3.13: decimal — 精度、舍入与十进制计算](https://docs.python.org/3.13/library/decimal.html)

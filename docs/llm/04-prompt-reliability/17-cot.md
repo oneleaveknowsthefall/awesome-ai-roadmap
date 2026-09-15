@@ -157,6 +157,18 @@ flowchart LR
 | 有证据约束的多步推导 | 事实召回与当前信息查询 |
 | 需要中间结论可核查的场景 | 对延迟极敏感的场景 |
 
+### 17.6.7 推理预算由谁控制
+
+训练得到的推理模型把「想多久」变成了可调参数，但控制位置不止一种，语义也不同：
+
+| 控制方式 | 形态 | 语义 |
+|---|---|---|
+| 推理档位（如 OpenAI `reasoning.effort`） | 离散档位，支持的取值随模型而变 | 指导模型投入多少思考，不是精确的 token 上限 |
+| 数字预算（如 Anthropic `thinking.budget_tokens`） | 具体 token 数，有下限且必须小于 `max_tokens` | 思考预算的目标值而非硬顶，须给最终回答留出空间 |
+| Budget forcing（s1 论文） | 到预算强制收尾，或在结尾追加 "Wait" 延长 | 在解码侧截断或拉长推理过程，属于外部干预 |
+
+三点容易混淆。第一，预算与采样是两个旋钮：effort 决定投入多少顺序计算，温度决定候选 token 的选择分布，提高 effort 不等于增加多样性。第二，预算过低和过高都会出错：难题可能在推理中途被截断，简单题多花 token 却不提质——对 o1 类模型 overthinking 的研究正是针对后一种情况，是否加大预算应由对照实验决定。第三，截断发生在推理阶段时可能没有任何可见输出：OpenAI 的文档说明，达到 `max_output_tokens` 时响应状态为 `incomplete`，输入与推理 token 照常计费，因此预算应按「推理 + 可见输出」合计预留，而不是只按答案长度估计。
+
 ## 17.7 常见错误
 
 ### 17.7.1 说不出 CoT 为什么有效的底层机制
@@ -206,4 +218,8 @@ CoT 是线性生成中间步骤；规划还涉及状态、行动约束、搜索�
 - [Tree of Thoughts: Deliberate Problem Solving with Large Language Models](https://arxiv.org/abs/2305.10601)
 - [Towards Understanding Chain-of-Thought Prompting: An Empirical Study of What Matters](https://arxiv.org/abs/2212.10001)
 - [Measuring Faithfulness in Chain-of-Thought Reasoning](https://arxiv.org/abs/2307.13702)
+- [s1: Simple test-time scaling](https://arxiv.org/abs/2501.19393)
+- [Do NOT Think That Much for 2+3=? On the Overthinking of o1-Like LLMs](https://arxiv.org/abs/2412.21187)
 - [OpenAI: Reasoning best practices](https://developers.openai.com/api/docs/guides/reasoning-best-practices)
+- [OpenAI: Reasoning models](https://platform.openai.com/docs/guides/reasoning)
+- [Anthropic: Extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking)
