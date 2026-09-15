@@ -13,5 +13,3 @@ description: 从最小 LLM Agent 循环到系统架构，区分模型、工具�
 3. [第三章：Tools、Skills、Agents、Workflows 与 AGENTS.md](03-agentic-building-blocks.md)
 
 返回 [Agent 相关知识点](../README.md)。
-
-原创文档与图示：Polo Li，CC BY 4.0；引用资料的权利归原作者。

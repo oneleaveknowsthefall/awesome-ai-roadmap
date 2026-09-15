@@ -35,7 +35,7 @@ flowchart LR
 
 如果没有新的证据或评价标准，让同一个模型重复生成可能只会得到另一个同样不可靠的答案。
 
-这里的 Reflection 是控制机制的统称，不是一种统一算法。Self-Refine、Reflexion 和训练过的自纠错模型分别改变当前候选、尝试间的上下文、模型参数；名称相似不意味着学习机制相同。
+这里的 Reflection 是控制机制的统称，不是一种统一算法。Self-Refine 修改当前候选，Reflexion 在尝试之间保留语言反馈；专门训练自纠错能力的方法则在训练阶段更新参数。已经训练好的自纠错模型在回答当前问题时，通常仍不更新权重，不能把这几种机制都叫作“边运行边学习”。
 
 ## 12.2 为什么需要反思
 
@@ -72,7 +72,7 @@ flowchart LR
     V -->|否| R[修改查询并重试]
 ```
 
-就能降低错误复合。
+就有机会在错误进入后续分析前拦住它；前提是验证器确实检查了来源和相关性，而不只是检查搜索接口是否返回成功。
 
 ### 12.2.3 改善一次难以完成的高质量输出
 
@@ -117,16 +117,15 @@ flowchart LR
 
 ## 12.4 Verifier 的优先级
 
-当多种反馈可用时，通常优先：
+先问“这条要求能用什么证据判定”，再决定由谁检查，而不是给所有验证器排一个固定名次：
 
-1. 真实环境结果；
-2. 编译器、测试和约束求解器；
-3. Schema 与确定性规则；
-4. 权威数据源；
-5. 人工审核；
-6. 专用 Reward Model；
-7. 独立 LLM Judge；
-8. 同一模型自我评价。
+| 要判定的要求 | 优先采用的证据 | 仍需补充的检查 |
+|---|---|---|
+| 工具是否完成写入 | 目标系统的业务状态与操作回执 | 对象、版本、重复副作用 |
+| 代码是否满足已知行为 | 编译器、测试、约束求解器 | 未覆盖需求与回归风险 |
+| 格式是否符合契约 | Schema 与确定性规则 | 字段内容是否真实、合法 |
+| 事实是否有依据 | 可追溯的权威数据源 | 时效、适用范围与来源冲突 |
+| 表述是否清晰、方案是否适用 | 领域人工审核或经校准的模型评价 | 评分一致性与证据覆盖 |
 
 ```mermaid
 flowchart TB
@@ -138,7 +137,7 @@ flowchart TB
 
 语言模型评价适合处理难以完全形式化的质量维度，但不应替代可用的客观验证。
 
-上面不是无条件的证据排名。HTTP 200 可能只代表受理，真实系统也可能返回过期状态；编译通过不保证业务正确，生成测试也可能写错预期值。选择验证器时要说明它验证了什么、漏掉什么，以及失败时能否阻止交付。对不可逆动作，审批必须在执行前，事后反思不能补回缺失的授权。
+HTTP 200 可能只代表受理，真实系统也可能返回过期状态；编译通过不保证业务正确，生成测试也可能写错预期值。选择验证器时要说明它验证了什么、漏掉什么，以及失败时能否阻止交付。对不可逆动作，审批必须在执行前，事后反思不能补回缺失的授权。
 
 ## 12.5 反思的四种触发粒度
 
@@ -180,7 +179,7 @@ flowchart LR
 - API 是否返回成功状态；
 - 代码是否通过编译；
 - 数据是否满足 Schema；
-- 高风险操作是否经过审批。
+- 高风险操作执行前，审批是否有效并绑定当前参数。
 
 ### 12.6.2 优势
 
@@ -226,7 +225,7 @@ flowchart LR
     V -->|否| FIX[Repair Affected Stage]
 ```
 
-这种做法的成本低于逐步检查，也比只看最终结果更容易尽早发现偏差。
+这种做法减少了检查次数，但不保证总成本一定更低：阶段末才发现错误时，可能要重做更多步骤。它通常比只看最终结果更容易尽早发现偏差，前提是阶段有清晰产物，可以整体验收和修复。
 
 适合：
 
@@ -334,7 +333,7 @@ flowchart TB
 
 - Tool 返回错误；
 - 输出不符合 Schema；
-- 置信度低；
+- 经校准的置信信号较低，或缺少必需证据；
 - 多个来源冲突；
 - 重复调用同一 Tool；
 - 计划偏离目标；
@@ -368,13 +367,17 @@ flowchart TB
     G[Generator / Executor] --> A[Artifact + Trace]
     A --> V[Verifier / Critic]
     V --> F[Structured Feedback]
-    F --> R[Refiner]
+    F --> S{Stop Controller}
+    S -->|允许修订| R[Refiner]
     R --> G
-    V --> S[Stop Controller]
     S -->|Pass| DONE[Finish]
     S -->|Budget Exhausted| PARTIAL[Report Incomplete]
-    F --> MW[Optional Memory Writer]
+    S -->|需人工判断| HUMAN[Human Review]
+    DONE --> MV[Validate Reusable Experience]
+    MV -->|通过| MW[Optional Memory Writer]
 ```
+
+Stop Controller 先判断是否允许继续，再调用 Refiner，避免停止信号发出后仍触发修订。原始反馈可以留作任务内诊断记录；写入长期记忆的是经过验证、带适用范围的经验，不是所有 Critic 意见。
 
 ## 12.13 区分 Evaluate 与 Refine 的职责
 
@@ -417,7 +420,7 @@ flowchart TB
 
 ### 12.14.1 原始任务与成功标准
 
-Critic 必须知道什么才算完成。
+Critic 必须知道什么才算完成。把成功条件拆成可检查的评价标准（Rubric），并说明哪些是不可被其他优点抵消的硬性要求。
 
 ### 12.14.2 具体检查维度
 
@@ -524,9 +527,9 @@ $$
 \Delta_r\le\epsilon
 $$
 
-可以判定优化已经停滞。
+可以触发“没有可测改善”的停止策略，不必继续消耗预算。
 
-前提是各轮使用可比较的评分尺度，且分数差异大于 Judge 的随机波动。应保存候选与验证记录，不能简单交付“最后一版”：修订可能让原本正确的部分回归。阈值未达标或存在硬性失败时，停止表示未完成或转人工，而不是成功。
+前提是各轮使用可比较的评分尺度，并按 Judge 的随机波动设置容差；单次小分差不足以证明真实质量没有变化。应保存候选与验证记录，不能简单交付“最后一版”：修订可能让原本正确的部分回归。阈值未达标或存在硬性失败时，停止表示未完成或转人工，而不是成功。
 
 ### 12.16.1 如何确定最大轮数
 
@@ -559,7 +562,7 @@ C_{eval,r}
 \right)
 $$
 
-成本还包括：
+这里把定位问题的 Evaluate、修改候选的 Refine、修订后的 Verify 分开计费；如果一次检查同时承担两个职责，不应重复计算。每阶段还应计入它消耗的：
 
 - Tool 执行；
 - 测试；
@@ -814,7 +817,7 @@ LATS（Language Agent Tree Search）将：
 - Value Evaluation；
 - Reflection；
 
-结合在同一个基于 MCTS 的搜索过程。Selection 在探索与利用之间取舍，Expansion 生成动作，模拟／环境执行得到反馈，价值估计与回报再回传到树节点；这不是神经网络梯度回传，原方法不靠在线微调更新 LLM 参数。
+结合在同一个基于蒙特卡洛树搜索（MCTS）的过程中。Selection 在继续探索访问较少的分支与利用已有高价值分支之间取舍，Expansion 生成动作，模拟轨迹（rollout）或环境执行得到反馈，价值估计与回报再回传到树节点；这不是神经网络梯度回传，原方法不靠在线微调更新 LLM 参数。
 
 ```mermaid
 flowchart TB
@@ -932,6 +935,8 @@ LLM 负责：
 目标：
 
 > 修复一个导致空输入崩溃的函数。
+
+先用空列表复现 `IndexError`，再查看失败位置。如果异常来自直接访问首元素，下一步也不应立刻决定“空输入返回 0”：要先查函数契约，确认应返回空结果、抛出约定异常，还是采用默认值。反思负责提出根因与修复假设，测试负责检查这个假设是否满足需求。
 
 ```mermaid
 flowchart TB
@@ -1211,9 +1216,9 @@ Self-Refine、Reflexion、Critic Agent、Debate 和 LATS 提供的是不同深�
 ## 参考资料
 
 - [Self-Refine: Iterative Refinement with Self-Feedback](https://arxiv.org/abs/2303.17651)
-- [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366)
-- [Language Agent Tree Search Unifies Reasoning, Acting, and Planning](https://arxiv.org/abs/2310.04406)
+- [Reflexion: Language Agents with Verbal Reinforcement Learning（v4）](https://arxiv.org/abs/2303.11366v4)
+- [Language Agent Tree Search Unifies Reasoning, Acting, and Planning（v3）](https://arxiv.org/abs/2310.04406v3)
 - [Improving Factuality and Reasoning in Language Models through Multiagent Debate](https://arxiv.org/abs/2305.14325)
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
 - [Large Language Models Cannot Self-Correct Reasoning Yet](https://arxiv.org/abs/2310.01798)
-- [Training Language Models to Self-Correct via Reinforcement Learning（SCoRe）](https://arxiv.org/abs/2409.12917)
+- [Training Language Models to Self-Correct via Reinforcement Learning（SCoRe，v1）](https://arxiv.org/abs/2409.12917v1)

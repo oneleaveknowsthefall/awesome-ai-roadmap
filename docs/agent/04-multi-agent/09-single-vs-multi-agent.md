@@ -4,7 +4,9 @@ description: 比较 Single-Agent 与 Multi-Agent 系统在上下文隔离、专�
 
 # 第九章：Single-Agent 与 Multi-Agent 系统
 
-本章以 2026-09-08 为资料核验截止日。这里按执行单元是否拥有局部决策循环区分单、多 Agent；不同论文和框架的命名并不完全一致。选型时应说明控制权、上下文和工具边界，而不是只报 Agent 数量。
+一个 Agent 忙不过来，就应该拆成多个吗？不一定。只有拆出的部分可以独立推进，且隔离、专业化或并行的收益超过交接与验证成本，增加 Agent 才有意义。本章先明确什么算独立决策，再讨论如何拆、怎样协作以及怎样证明拆分值得。
+
+这里按执行单元是否拥有局部决策循环区分单、多 Agent；不同论文和框架的命名并不完全一致。本章的竞品调研、消息字段、日期和假设数值为教学示例，不是作者项目经历。
 
 ## 9.1 什么是 Single-Agent
 
@@ -18,7 +20,7 @@ Single-Agent 指系统中只有一个主要的动态决策主体。它可以：
 
 判断是否为 Single-Agent 的关键，不是模型调用次数，而是：
 
-> **是否只有一个 Agent 持有主要目标、状态和下一步决策权。**
+> **除主 Agent 外，被调用的执行单元是否还会依据自己的观察，自主决定下一步动作。**
 
 ```mermaid
 flowchart TB
@@ -31,6 +33,8 @@ flowchart TB
 ```
 
 一个 Agent 使用十个 Tool，仍然可以是 Single-Agent。
+
+但“以 Tool 接口暴露”不代表内部一定没有 Agent：若搜索服务只执行给定查询或固定流程，它是普通工具；若它由模型根据每轮结果决定继续搜什么、何时停止，再交付结果，按本章口径就是一个被委派的子 Agent。主 Agent 仍然持有全局目标，并不妨碍整体成为 Multi-Agent。
 
 ## 9.2 什么是 Multi-Agent
 
@@ -62,7 +66,7 @@ flowchart TB
 
 ## 9.3 不要把多角色 Prompt 当成完整 Multi-Agent
 
-以下系统不一定是真正的 Multi-Agent：
+按本章的局部决策循环判据，以下设计本身不足以构成 Multi-Agent：
 
 - 同一个 Agent 依次使用“研究员”“写作者”Prompt；
 - 一个 Workflow 并行调用三次无状态 LLM；
@@ -77,7 +81,7 @@ flowchart TB
 - Workflow；
 - Tool Orchestration。
 
-只有当多个执行单元具有相对独立的状态、目标或策略，并通过明确协议协调时，才更适合称为 Multi-Agent。
+只有当多个执行单元各自保有局部状态，并能根据观察决定后续动作，再通过明确协议协调时，本章才将其归为 Multi-Agent。这是为了讨论控制与失败边界，不是否认其他文献对“多 Agent”的较宽定义。
 
 ## 9.4 Single-Agent 的真实能力边界
 
@@ -346,7 +350,7 @@ flowchart LR
     PW --> M[Multi-Agent]
 ```
 
-推荐顺序：
+如果尚不清楚瓶颈在哪里，可以按以下顺序排查；已知流程固定时可直接采用 Workflow：
 
 1. 先优化单次调用；
 2. 增加 Tools 和检索；
@@ -460,6 +464,8 @@ flowchart LR
 - 每个 Agent 只负责一个阶段；
 - 下一步通常不由 Agent 自由选择。
 
+这里固定的是**阶段之间**的路由，阶段内部仍可有自主搜索、写作或核验循环。如果每个阶段都只是一次固定 LLM 调用，那就是普通 LLM Workflow，不必因为阶段名里有 Agent 就归为多 Agent。
+
 适合：
 
 - 阶段固定；
@@ -506,7 +512,7 @@ flowchart TB
 
 需要版本控制、租约、原子更新和来源追踪。
 
-应区分两类冲突：两个 Worker 覆盖同一字段是存储并发问题，用事务、CAS 或单写者控制；两份报告对同一事实得出相反结论是语义冲突，需要查证来源、时间和适用条件。CAS 能防止丢失更新，不能证明报告正确；多数 Agent 同意也不能代替事实验证。
+应区分两类冲突：两个 Worker 覆盖同一字段是存储并发问题，用事务、CAS（比较版本后原子更新）或单写者控制；两份报告对同一事实得出相反结论是语义冲突，需要查证来源、时间和适用条件。正确处理 CAS 失败才能避免丢失更新，不能重试时直接强制覆盖；它也不能证明报告正确，多数 Agent 同意更不能代替事实验证。
 
 ## 9.15 Peer-to-Peer 架构
 
@@ -598,14 +604,19 @@ flowchart TB
 
 Agent 之间不应依赖自由文本聊天作为唯一协议。
 
+下面分别给出请求、成功结果和阻塞结果的形状；后两者是不同执行结果的示例，不是要求同一次尝试依次返回两种状态。
+
 ### 9.17.1 Task Message
 
 ```json
 {
   "task_id": "research-a",
+  "attempt_id": "research-a-attempt-1",
+  "input_version": 1,
   "goal": "调研竞品 A 最近六个月的更新",
   "inputs": {
-    "time_range": "6 months"
+    "published_from": "2026-02-28T00:00:00Z",
+    "published_before": "2026-08-28T00:00:00Z"
   },
   "success_criteria": [
     "至少两个独立来源",
@@ -621,11 +632,14 @@ Agent 之间不应依赖自由文本聊天作为唯一协议。
 ```json
 {
   "task_id": "research-a",
+  "attempt_id": "research-a-attempt-1",
+  "input_version": 1,
   "status": "completed",
   "artifact_uri": "artifact://research-a.json",
   "summary": "发现三个主要产品更新",
   "validation": {
     "source_count": 4,
+    "independent_source_count": 2,
     "passed": true
   }
 }
@@ -636,6 +650,8 @@ Agent 之间不应依赖自由文本聊天作为唯一协议。
 ```json
 {
   "task_id": "research-a",
+  "attempt_id": "research-a-attempt-1",
+  "input_version": 1,
   "status": "blocked",
   "error": {
     "code": "SOURCE_UNAVAILABLE",
@@ -647,7 +663,9 @@ Agent 之间不应依赖自由文本聊天作为唯一协议。
 
 结构化消息可以支持调度、重试和监控。
 
-以上是应用自定义示例，不是 A2A 的标准报文；日期和数量仅为示意。实际任务还要固定查询起止日期、输入版本、`attempt_id` 和验收规则。`completed` 表示执行方报告完成，`validation.passed` 也只是其声明，最终成功必须由 Runtime 记录验证结果；不可把 Worker 自评直接当作全局验收。
+以上是应用自定义示例，不是 A2A 的标准报文。起止日期固定查询范围，`task_id` 标识逻辑任务，`attempt_id` 区分重试，`input_version` 防止旧需求下的结果混入新任务。Runtime 接收结果时应核对当前尝试与输入版本；仅按 `task_id` 覆盖会接纳已经取消的旧执行结果。
+
+`completed` 表示执行方报告完成，`validation.passed` 也只是其声明。验收者仍需读取 Artifact，核对来源是否独立、日期是否落在范围内；四个转载链接可能只有一个原始来源。最终成功应由 Runtime 在验证后记录，而不是直接复制 Worker 的自评。
 
 ## 9.18 A2A 与 Agent Card
 
@@ -674,14 +692,15 @@ sequenceDiagram
 
     O->>R: 读取 Agent Card
     R-->>O: 返回 Skills 与连接信息
-    O->>R: 提交 Task
+    O->>R: 发送消息并请求处理
+    R-->>O: 返回 Task（本例采用任务路径）
     R-->>O: 状态更新
     R-->>O: 返回 Artifact
 ```
 
-A2A 标准化通信，但不会自动解决任务分解、信任、费用、冲突和全局调度。
+A2A 标准化通信，但不会自动解决任务分解、信任、费用、冲突和全局调度。图中展示的是服务端返回 Task 后跟踪状态的路径；简单请求也可以直接返回 Message，并非每次通信都必然创建 Task。
 
-截至 2026-09-08，官网 `latest` 仍标 v1.0.0，但官方仓库最新正式 Release 为 [v1.0.1](https://github.com/a2aproject/A2A/releases/tag/v1.0.1)，线上协议标识为 `1.0`。应按发布标签的规范及双方支持的 binding 对接，而不是只看网站的 latest。Agent Card 是能力声明，不是能力测评或授权凭据；跨组织调用仍需验证服务身份，并单独约定超时、费用和结果验收。
+本节固定讨论 [A2A v1.0.1](https://github.com/a2aproject/A2A/releases/tag/v1.0.1)，对应线上协议版本标识 `1.0`。实际接入时要选择双方支持的 binding，即协议在 JSON-RPC、HTTP/REST 或 gRPC 上的具体映射，不能把应用自定义 JSON 直接当作标准报文。Agent Card 是能力声明，不是能力测评或授权凭据；跨组织调用仍需验证服务身份，并单独约定超时、费用和结果验收。
 
 ## 9.19 Shared Memory 设计
 
@@ -773,7 +792,7 @@ flowchart TB
 
 ### 9.21.2 去中心化架构
 
-需要额外设计：
+去中心化时，没有一个天然的节点负责收拢失败，需要明确由谁落实：
 
 - Failure Detector；
 - Task Lease 过期；
@@ -781,6 +800,10 @@ flowchart TB
 - Leader 或 Result Owner；
 - 最终一致性；
 - 消息重放。
+
+这些机制也适用于中心化系统的远程 Worker。尤其不能把“租约到期”理解成“旧 Worker 已停止”：网络分区后，旧执行者可能仍在工作。任务账本可签发递增的 fencing token（隔离令牌），由接收写入的存储或业务服务拒绝旧代次；只在调度器里记一个到期时间，挡不住旧进程继续写。
+
+副作用还需单独处理。发信已成功但结果回包丢失时，换 Worker 重试可能再次发信；应让同一逻辑操作跨重试使用同一幂等键，或先查询外部状态再决定。停止等待、请求取消、确认停止以及撤销已发生的操作，是四件不同的事。
 
 ## 9.22 错误会如何复合
 
@@ -1031,6 +1054,10 @@ flowchart TB
 
 这些应由 Runtime 或 Workflow 控制。
 
+例如，A 的研究 Agent 按“功能正式可用日”记录时间，B 却按“博客发布日”记录；两份报告各自格式正确，合并后仍会得出错误的先后顺序。编排者应在分发前统一时间口径，并要求每条更新带来源和状态。若搜索中发现 A 的结论依赖 B 的产品分类，应先共享这一接口约定，而不是让两个 Agent 各自猜，再交给 Writer 消除矛盾。
+
+Fact-check 返回缺口后，可以只重开受影响的研究任务，不必重跑所有来源；但图中的回退也要受最大尝试次数和预算限制。超过限制时交付已验证的部分与明确缺口，不能无限循环直到核验 Agent 说“通过”。
+
 ## 9.29 Single-Agent 与 Multi-Agent 对比
 
 | 维度 | Single-Agent | Multi-Agent |
@@ -1063,6 +1090,8 @@ flowchart TB
     T -->|否| O[Orchestrator / Hierarchical]
     T -->|是| P[Hybrid / Peer-to-Peer]
 ```
+
+这棵树从已测量的 Single-Agent 基线开始排查，不要求纯规则或固定 Workflow 任务先上 Agent。无论走哪条分支，最后都要回到同一组任务上测质量、总成本和延迟；图里的“可接受”是业务约束，不是模型自行打分。
 
 ## 9.31 评估 Multi-Agent 是否值得
 
@@ -1172,9 +1201,13 @@ Multi-Agent 值得引入的前提是边界可定义、输出可验收；上下�
 
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
 - [Anthropic: How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system)
-- [Cognition: Don't Build Multi-Agents](https://cognition.ai/blog/dont-build-multi-agents)
+- [Cognition: Don't Build Multi-Agents](https://cognition.com/blog/dont-build-multi-agents)
 - [Why Do Multi-Agent LLM Systems Fail? (MAST)](https://arxiv.org/abs/2503.13657)
 - [Agent2Agent (A2A) v1.0.1 Specification](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)
 - [Raft：作者维护的算法与论文入口](https://raft.github.io/)
+- [etcd v3.5：revision、条件事务与租约](https://etcd.io/docs/v3.5/learning/api/)
+- [Martin Kleppmann：How to do distributed locking（2016）](https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html)（引用进程暂停、租约与 fencing token 的分析，不将其 Redis 版本结论推广到当前产品）
 - [AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation](https://arxiv.org/abs/2308.08155)
 - [CAMEL: Communicative Agents for Mind Exploration of Large Language Model Society](https://arxiv.org/abs/2303.17760)
+
+资料核对：2026-09-15。Anthropic 与 Cognition 的对照限于文中所述的 2025 年系统和模型；未复现其内部评测。A2A 按 v1.0.1 发布标签核对，不以文档页顶部残留的 `Latest Released Version 1.0.0` 文案替代版本依据。

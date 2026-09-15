@@ -17,5 +17,3 @@ description: 从 Agent 失败归因和决策前缀出发，组织监督、偏好
 - [Agent 评估](../05-production/14-agent-evaluation.md)：任务结果、行为约束和运行成本。
 
 返回 [Agent 相关知识点](../README.md)。
-
-原创文档与图示：Polo Li，CC BY 4.0；引用资料的权利归原作者。

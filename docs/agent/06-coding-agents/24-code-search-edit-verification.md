@@ -235,8 +235,6 @@ print("旧错误已复现；6 个函数级样例满足预期")
 ## 参考资料与来源边界
 
 - 李博杰（Bojie Li），《深入理解 AI Agent：设计原理与工程实践》[第五章相关段落](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md#L227-L307)：用于搜索类别、编辑格式与即时反馈的讨论。固定提交 `985a49d35b9f50937f1f757cf25867672991ded7`，查阅于 2026-09-14。
-- 同提交 [`edit_tool.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/coding-agent/tools/edit_tool.py)：用于匹配与写后检查的讨论。上游仓库按 [Apache-2.0](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/LICENSE) 发布，第三方内容保留原许可；本章未搬运其实现或配图。
+- 同提交 [`edit_tool.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/coding-agent/tools/edit_tool.py)：用于匹配与写后检查的讨论，尤其是先写文件、后检查且不自动回滚的执行顺序。
 - [Language Server Protocol 3.17](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/)：定义、引用、调用层级与位置编码机制。查阅于 2026-09-14。
 - [Python `ast.parse` 文档](https://docs.python.org/3/library/ast.html#ast.parse)：解析 AST 与完整编译检查的边界。查阅于 2026-09-14。
-
-原创中文说明、案例、示例与图示：Polo Li，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)；引用资料的权利与许可归原作者。

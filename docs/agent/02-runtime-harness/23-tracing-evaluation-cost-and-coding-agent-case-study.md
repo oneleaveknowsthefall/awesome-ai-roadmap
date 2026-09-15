@@ -4,34 +4,38 @@ description: 用 Trace 关联模型、工具、审批与恢复，区分开发中
 
 # 第二十三章：Tracing、评测、成本控制与 Coding Agent Harness 案例
 
-## 23.1 本章边界：运行时可观测性，不是任务评测指标本身
+## 23.1 最终答案相同，为什么还要记录执行过程？
 
-第十四章讨论的是"如何评估 Agent 的任务完成质量"——用什么 benchmark、什么指标判定一次运行算不算成功。本章讨论的是更底层的问题：**harness 如何把每一次模型调用、工具执行、权限判定、中断恢复都记录下来**，使得第十四章的评测、生产环境的故障排查、以及本章新增的成本核算，都能建立在同一份可靠的运行时记录之上。没有这一层，评测只能看到"输入/输出"这一个黑盒切面,看不到过程中发生了什么。
+因为同一个“已完成”，可能来自真实通过、重复重试后勉强成功，也可能只是模型误报。仅保存输入和答案，无法区分工具失败、权限拦截与模型决策错误。第十四章决定任务如何验收，本章让 Harness 记录调用、审批、恢复和费用，使结论能追溯到实际发生的操作。
 
 ## 23.2 Trace 的结构：Span、Session、Turn
 
-可观测性数据通常按层级组织：一个 **Session**（一次完整的 Agent 会话）包含若干 **Turn**（第 17 章定义的一轮循环），每个 Turn 内部又包含若干 **Span**（一次模型调用、一次工具执行、一次权限判定各自对应一个 Span）。这个层级结构直接映射到第 17 章的状态机——状态机每发生一次状态转移，理论上都可以对应产生一个 Span，这也是为什么可观测性子系统被放在本模块而不是第十四章：它是运行时状态机的伴生产物，而不是独立的评测逻辑。
+可以按 Session、任务、Turn 组织业务记录，但不要把它们当作 OpenTelemetry 的固定层级。**Session** 是应用会话，可能包含多项任务；**Turn** 在本模块指一次模型决策与相应工具处理；**Trace** 用相关联的 **Span** 描述一次运行经过的操作，Span 有起止时间。模型调用、工具执行适合各建 Span，瞬时状态转移则可以记为 Span event，而不是每次变化都新建 Span。
 
 ```mermaid
 flowchart TB
-    SESS["Session<br/>一次完整任务"]
+    SESS["Session<br/>可含多项任务"]
+    RUN["任务的一次运行<br/>可映射到一个 Trace"]
     T1["Turn 1"]
     T2["Turn 2"]
     S1["Span: 模型调用"]
     S2["Span: 工具执行"]
     S3["Span: 权限判定"]
-    SESS --> T1
-    SESS --> T2
+    SESS --> RUN
+    RUN --> T1
+    RUN --> T2
     T1 --> S1
     T1 --> S2
     T1 --> S3
 ```
 
+这张图展示业务关联，不要求每个方框都对应一个 Span。一次长任务暂停后，恢复运行可以产生新 Trace，再用任务 ID、操作 ID 与 Span links 关联；无需让一个 Span 为等待审批持续开放几天。
+
 ## 23.3 OpenTelemetry GenAI 语义约定
 
-截至 2026-09-08，[OpenTelemetry GenAI 语义约定](https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/README.md)仍标记为 **Development**，不能笼统宣称字段已稳定。可复用其模型、Agent、工具与 MCP 字段，但应固定语义约定及 instrumentation 版本，并验证后端映射；自定义审批规则字段另设命名空间。
+[所引用版本的 OpenTelemetry GenAI 语义约定](https://github.com/open-telemetry/semantic-conventions-genai/blob/0c87594975195608dc91b3f702e250a7b240c151/docs/gen-ai/README.md)仍标记为 **Development**，不能笼统宣称字段已稳定。可复用其模型、Agent、工具与 MCP 字段，但应固定语义约定及 instrumentation 版本，并验证后端映射；自定义审批规则字段另设命名空间。
 
-模型 Span 记录模型版本、Token 和延迟；工具 Span 记录工具身份、执行状态与耗时；审批 Span 关联规则及审批记录。内容采集应默认最小化，参数、结果、用户信息与密钥需要脱敏和访问控制；不要为“完整 Trace”记录隐藏思维链。跨进程恢复和长审批可通过 trace links、任务 ID 与操作 ID 关联，不一定把几天任务塞进一个永不结束的 Span。
+模型 Span 记录模型版本、Token 和延迟；工具 Span 记录工具身份、执行状态与耗时；审批 Span 关联规则及审批记录。内容采集应默认最小化，参数、结果、用户信息与密钥需要脱敏和访问控制；不要为“完整 Trace”记录隐藏思维链。
 
 ## 23.4 成本核算：计费单元与归属
 
@@ -78,7 +82,7 @@ GitHub Copilot cloud agent（原 Coding Agent）的官方文档描述了 GitHub 
 
 ### 23.7.4 三者的共性与差异
 
-三个系统在"循环怎么跑"这件事上高度收敛（都是"模型决策 → 工具执行 → 结果回写 → 重复"），差异主要体现在**部署形态**（本地库 vs 云端一次性环境）和**权限/审批模型的默认姿态**（本地工具默认更倾向频繁询问，云端一次性环境默认更倾向在预设的隔离边界内自动运行,减少对人类的实时打扰）。这印证了 16.6 节的结论：harness 对上层暴露的是能力开关，循环内核的设计原则是共通的工程约束，不因产品形态而改变。
+这些系统都要处理“模型决策 → 工具执行 → 结果回写”，但部署形态不能替代权限分析。本地 CLI 可以在明确授权下自动执行，云端任务也可能等待审批；默认行为取决于产品、版本和配置。比较时逐项核对可见工具、授权顺序、沙箱资源、恢复接口与审计记录，不由“本地”或“云端”推断其安全保证。
 
 ## 23.8 常见错误
 
@@ -95,6 +99,7 @@ Trace 需要关联运行、工具、审批和恢复，但内容采集不能越�
 ## 参考资料
 
 - [OpenTelemetry: Generative AI Semantic Conventions](https://github.com/open-telemetry/semantic-conventions-genai)
+- [OpenTelemetry: Traces](https://opentelemetry.io/docs/concepts/signals/traces/)：Span、Span event、上下文传播与 Span links。
 - [Claude Agent SDK: How the agent loop works](https://code.claude.com/docs/en/agent-sdk/agent-loop)
 - [OpenAI Agents SDK: Running agents](https://openai.github.io/openai-agents-python/running_agents/)
 - [OpenAI Agents SDK: Guardrails](https://openai.github.io/openai-agents-python/guardrails/)
@@ -102,3 +107,5 @@ Trace 需要关联运行、工具、审批和恢复，但内容采集不能越�
 - [GitHub Docs: Configure the development environment for Copilot cloud agent](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/customize-the-agent-environment)
 - [Simon Willison: Designing agentic loops](https://simonwillison.net/2025/Sep/30/designing-agentic-loops/)
 - [Anthropic: How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system)
+
+GenAI 语义约定固定在提交 `0c87594975195608dc91b3f702e250a7b240c151`，查阅于 2026-09-15；产品接口以本章所引官方文档为边界，不据此推断未公开的内部实现。

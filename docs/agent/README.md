@@ -37,6 +37,8 @@ flowchart TB
     P --> T[失败归因与后训练]
 ```
 
+图中的依赖从基础概念走向执行与协作：规划决定尝试什么，记忆提供可用信息，Harness 负责实际执行。评估与安全约束这些过程；代码任务和后训练则分别追问“改动是否正确”和“反复出现的策略错误怎样改善”。
+
 协议细节不在本主题重复展开：工具接入见 [Tools · MCP](../tools/02-mcp/README.md)，跨 Agent 互操作见 [Tools · Agent 通信](../tools/04-agent-communication/README.md)。
 
 ## 阅读建议

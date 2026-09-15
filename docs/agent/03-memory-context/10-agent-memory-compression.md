@@ -8,6 +8,8 @@ description: 比较窗口裁剪、摘要、结构化抽取与外部化，说明�
 
 ## 10.1 为什么需要记忆压缩
 
+上下文太长时，能不能直接总结一下再继续？可以，但要先区分两类信息：精确状态不能靠自由摘要维持，历史叙述则可以在保留证据入口的前提下压缩。例如，“付款结果未知，不要重试”应留在状态与约束中，不能变成一句“付款遇到问题”。
+
 Agent 在长任务中会持续产生：
 
 - 用户与模型消息；
@@ -18,11 +20,11 @@ Agent 在长任务中会持续产生：
 - 中间结论；
 - 错误与重试记录。
 
-如果将所有内容不断追加到 Context，会导致：
+如果将所有内容不断追加到 Context，可能遇到：
 
 - 超出模型 Context Window；
 - 输入 Token 成本增加；
-- Prefill 延迟上升；
+- Prefill（生成前处理输入）的开销增加，实际延迟还取决于缓存和服务实现；
 - 关键信息被噪音稀释；
 - 模型更难找到当前目标；
 - 旧错误和无关信息持续影响后续决策。
@@ -138,7 +140,7 @@ flowchart LR
 
 保留当前阶段的详细记录，将已完成阶段移出活跃窗口。
 
-这种方式比简单按轮数截断更符合 Agent 任务结构。
+如果阶段之间的交接边界清楚，这比按轮数截断更容易保留完整过程。不过，“阶段完成”不代表其中证据再也无用；下一阶段依赖的结论、失败路径和来源仍要保留或能按需取回。
 
 ### 10.3.2 不能被普通窗口淘汰的信息
 
@@ -401,6 +403,7 @@ Agent：明白，后续直接提交到 main。
 
 ```json
 {
+  "subject": "user-42",
   "repository": "example/knowledge-base",
   "publishing_preference": {
     "target_branch": "main",
@@ -444,7 +447,7 @@ Agent：明白，后续直接提交到 main。
 ```json
 {
   "decision": "Use GitHub-Flavored Markdown",
-  "reason": "GitHub and DeepWiki can render it directly",
+  "reason": "章节需要标题、列表、链接和代码块",
   "status": "active"
 }
 ```
@@ -496,7 +499,12 @@ flowchart TB
     SPLIT --> WIN[Keep Recent Sliding Window]
     SUM --> PACK[Context Packing]
     WIN --> PACK[Context Packing]
+    PIN -->|有效约束| PACK
+    STR -->|核对后的状态| PACK
+    EXT -->|Artifact 引用| PACK
 ```
+
+图中的并行入口很重要：当前约束、结构化状态与 Artifact 引用直接参与装箱，不必先经过历史摘要器。历史摘要负责补充背景，不能成为恢复精确状态的唯一来源。
 
 一种常见 Context 结构是：
 
@@ -703,6 +711,8 @@ $$
 
 上式是预算分账示意：先确定该模型 API 的容量口径，再分配输入、输出与安全余量。某些推理模型还将推理 Token 计入输出额度或共享窗口；工具 Schema、图片/音频表示、消息封装也会消耗容量。应以实际 tokenizer 或服务端计数为准，不能按字符数估计后当作硬保证。
 
+`B_total` 是实际分配的预算，不必等于模型公布的最大窗口；未分配的容量用于计数误差和恢复余量。计入工具 Schema 等开销后若必需内容仍装不下，应分阶段执行，而不是继续压缩精确 ID 或未决状态来凑长度。
+
 设压缩触发阈值时，应预留最大可接受工具结果和下一轮输出，而不采用通用的“使用到某个百分比再压缩”。工具结果无上限时，应先限制、分页或外部化，避免一条响应挤爆窗口。
 
 预算应随任务阶段动态调整。例如：
@@ -727,7 +737,7 @@ sequenceDiagram
     M->>C: 缓存稳定前缀计算
     A->>M: Same Prefix + Another Suffix
     C-->>M: 复用前缀计算
-    M-->>A: 更低 Prefill 成本或延迟
+    M-->>A: 命中时可减少重复 Prefill 开销
 ```
 
 适合缓存：
@@ -744,10 +754,10 @@ sequenceDiagram
 |---|---|---|
 | 优化层次 | 信息层 | 计算层 |
 | 核心问题 | 带哪些信息进入 Context | 重复 Context 如何少算一次 |
-| 是否减少 Context 长度 | 是 | 通常否 |
+| 是否减少 Context 长度 | 目标是减少；需实测，结构化后也可能更长 | 否 |
 | 是否改变信息内容 | 可能改变或删除 | 不改变 |
-| 是否释放 Context Window | 是 | 否 |
-| 是否降低重复 Prefill 成本 | 间接 | 是 |
+| 是否释放 Context Window | 只有实际减少输入 Token 时才释放 | 否 |
+| 是否降低重复 Prefill 成本 | 可能间接降低，需计入压缩本身成本 | 命中时可降低重复计算，总费用取决于写入和读取规则 |
 | 是否解决噪音问题 | 可能减少噪音，也可能误删证据 | 否 |
 
 这里最容易被误解的是：
@@ -777,6 +787,8 @@ flowchart LR
 - 当前任务状态：需要压缩和动态更新；
 - 旧对话：需要摘要或过滤；
 - 大型 Artifact：需要外部化和按需检索。
+
+不要只比较“本轮输入少了多少”。如果摘要花费超过后续调用节省的费用，或频繁重写摘要使稳定前缀失效，总成本反而可能上升。可以先测一次压缩的成本，再看剩余任务预计会复用多少轮；任务快结束时，简单裁剪往往更值得作为对照。
 
 ## 10.17 Prompt Caching 的限制
 
@@ -813,9 +825,14 @@ Prompt Caching 是模型服务对应用暴露的跨请求复用能力，底层�
 
 ### 10.18.1 服务端 Compaction 也不等于 Prompt Cache
 
-截至本章审校时，[OpenAI Responses 的 Compaction](https://developers.openai.com/api/docs/guides/compaction)支持返回不透明的加密 compaction item，供后续请求继续使用。这是缩减后续 Context 的服务能力，不是仅复用前缀计算，也不能假定其内部就是可读的自然语言摘要。
+[OpenAI Responses 的 Compaction](https://developers.openai.com/api/docs/guides/compaction)会产生不透明的加密 compaction item，供后续请求继续使用。这是缩减后续 Context 的服务能力，不是仅复用前缀计算，也不能假定其内部就是可读的自然语言摘要。
 
-应用应按 API 协议传递该 item，不解析或手工改写其内容；模型支持范围及服务端状态保留选项需查当前文档。它不能替代应用自己的任务状态、事实来源、权限及删除管理，也不能当成跨供应商可移植的审计记录。
+要区分两条接口路径：
+
+- **显式调用 `/responses/compact`**：提交的窗口必须仍能装入所用模型。返回值是新的完整压缩窗口，除了 compaction item，还可能保留其他消息；应整体作为后续请求的基础，不能只取出加密 item 就丢弃其余输出。
+- **在 `/responses` 中启用服务端自动压缩**：由服务端按配置阈值触发。无状态数组续接和 `previous_response_id` 续接有不同的历史传递规则，不能混用手工裁剪逻辑。
+
+应用不应解析或改写加密 item；模型支持范围及服务端状态保留选项需查对应接口文档。这两种方式都不能替代应用自己的任务状态、事实来源、权限及删除管理，也不能当成跨供应商可移植的审计记录。
 
 ## 10.19 压缩质量怎么评估
 
@@ -825,7 +842,9 @@ $$
 CR=1-\frac{L_{after}}{L_{before}}
 $$
 
-这里将 `CR` 定义为 Token 减少率，其他资料可能将压缩比定义为 `L_before / L_after`，报告时必须注明口径。应使用同一 tokenizer、相同内容边界；外部化后只统计 URI 的 Token，却遗漏再读取的费用，会夸大节省。
+这里将 `CR` 定义为 Token 减少率，要求 `L_before` 为正；若摘要或 JSON 比原文更长，`CR` 会为负，不能把它报告成节省。其他资料可能将压缩比定义为 `L_before / L_after`，报告时必须注明口径。
+
+计数应使用同一 tokenizer、相同内容边界。这个指标只描述当前上下文缩短了多少；若要声称端到端节省，还必须计入摘要生成、外部化后重新读取和额外模型调用的费用。
 
 压缩比例高不代表质量高。如果关键约束被删除，再短也没有价值。
 
@@ -934,7 +953,7 @@ Agent 能否从压缩后的 Context 和外部 State：
 
 ### 10.21.5 压缩后删除所有原始数据
 
-导致无法审计、验证或重新生成摘要。
+如果后续仍需精确取证，却只留下有损摘要，就无法审计、验证或重新生成。但这不是无限保留原文的理由；应按合法用途设定保留期，到期后清理原文及派生数据，并明确哪些恢复能力随之结束。
 
 ### 10.21.6 把 Prompt Caching 当作扩展窗口
 
@@ -1057,8 +1076,8 @@ Prompt Caching 与这些方法位于不同层次：
 - [OpenAI Prompt Caching](https://developers.openai.com/api/docs/guides/prompt-caching)
 - [OpenAI Compaction](https://developers.openai.com/api/docs/guides/compaction)
 - [LangGraph Memory](https://docs.langchain.com/oss/python/langgraph/add-memory)
-- [LoCoMo 官方数据与评测](https://github.com/snap-research/locomo)
-- [LongMemEval 官方实现](https://github.com/xiaowu0162/LongMemEval)
-- [LongMemEval-V2 官方实现](https://github.com/xiaowu0162/LongMemEval-V2)
+- [LoCoMo 官方发布说明快照 9228632](https://github.com/snap-research/locomo/blob/92286325a40764bee61f77824ddb95233b11c4d6/README.md)（ACL 2024 的 `locomo10.json`）
+- [LongMemEval 官方说明快照 9e0b455](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/README.md)（区分原始版与 2025 年 9 月清洗版）
+- [LongMemEval-V2 官方说明快照 2cc8c54](https://github.com/xiaowu0162/LongMemEval-V2/blob/2cc8c540bdb87fe6761629b585e727e1c4704520/README.md)
 
-审校口径：截至 2026-09-08。API 文档滚动更新；本文不固定缓存价格、阈值或保留时间。Anthropic 缓存文档本次访问受地域限制，未据此新增具体参数结论。原创文字与图示：Polo Li，CC BY 4.0。
+资料核对：2026-09-15。OpenAI 缓存与 Compaction 引用的是 Responses API 滚动文档，不承诺跨模型或跨版本相同的价格、阈值与历史传递规则；本次未实测服务端接口。Anthropic 缓存条目保留为补充阅读，未据此新增具体参数结论。

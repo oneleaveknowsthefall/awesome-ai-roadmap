@@ -4,9 +4,9 @@ description: 准确定义 Agent Harness 与 Runtime，比较 Model、Agent、Wor
 
 # 第十六章：Agent Harness 的定义、边界与分层
 
-## 16.1 问题背景：模型变强之后，短板在哪里
+## 16.1 模型能调用工具，为什么还需要 Harness？
 
-第一章到第十五章讨论的是"Agent 应该怎么想、怎么记、怎么和别的 Agent 协作、怎么评估、怎么防护"。这些都假设了一个前提：有一个东西持续地把模型的输出接回来、把工具的结果喂回去、决定什么时候停、出错了怎么办、要不要问人。这个东西通常不出现在"Agent 设计模式"的讨论里，但它是所有讨论能够成立的地基——业界把它称为 **runtime** 或 **harness**。
+因为模型生成工具请求，不等于请求已经被安全、可靠地执行。工具超时后该不该重试、写文件前要不要审批、进程重启后从哪里继续，都需要模型之外的执行宿主处理。这个宿主通常称为 **Runtime** 或 **Harness**；第一章到第十五章讨论的推理、记忆和协作，都要通过它与外部系统交互。
 
 同一个模型配上不同的 harness，可以用于终端编码、云端异步任务或客服。除了模型能力，循环调度、上下文、工具、隔离与恢复也影响可靠性。第 16–23 章展开这一层，补足第二章 2.12 节对 Runtime 与 Guardrails 的介绍。
 
@@ -20,7 +20,7 @@ description: 准确定义 Agent Harness 与 Runtime，比较 Model、Agent、Wor
 
 ### 16.2.2 Agent
 
-Agent 是"模型 + 工具 + 循环"这三者的组合，其中模型动态决定循环执行多少轮、调用哪些工具、什么时候停（[Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) 给出的定义是：workflow 用预定义代码路径编排模型和工具，agent 则是模型自己动态指挥这个过程）。Agent 是一种**控制关系**：谁在决定下一步——是模型还是预先写好的代码。第三章 3.7 节已经从"控制循环"的角度定义过这一点，本章在这个定义之上继续往下拆分执行这个控制循环所需要的基础设施。
+本主题讨论的 LLM Agent 是"模型 + 工具 + 循环"这三者的组合：模型在运行时允许的动作和预算内，动态选择下一步工具调用或提出结束（[Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)区分了预定义代码路径的 workflow 与由模型动态指挥的 agent）。模型并不独占控制权，Harness 仍可因权限、验收或预算而拒绝动作、要求继续或停止任务。Agent 在这里描述一种**控制关系**，不是说系统的每一个决定都交给模型。
 
 ### 16.2.3 Workflow
 
@@ -42,15 +42,15 @@ Control Plane 负责跨实例的配置、资源调度、策略与治理，Runtim
 
 ## 16.3 分层视图：从 Model 到 Control Plane
 
-六个术语不是并列关系，而是自下而上的分层——下层为上层提供能力，上层约束下层的使用方式：
+六个术语回答不同的问题：模型提供什么能力，谁选择下一步，谁执行和治理。它们可以画成职责关系，但不是严格的上下六层：
 
 ```mermaid
 flowchart TB
-    M["Model<br/>无状态的下一 token / 工具调用预测器"]
-    A["Agent<br/>模型动态决定循环与工具调用"]
-    W["Workflow<br/>预定义控制流，模型只填充节点"]
+    M["Model<br/>根据有效输入生成内容与工具请求"]
+    A["Agent<br/>模型在约束内动态选择下一步"]
+    W["Workflow<br/>代码约束控制结构，节点可含 Agent"]
     H["Runtime / Harness<br/>驱动循环执行的运行时基础设施"]
-    F["Framework<br/>开发时的编排抽象（LangGraph / Agents SDK 等）"]
+    F["Framework<br/>API 与编排抽象，也可提供运行时"]
     C["Control Plane<br/>跨会话的配置、调度与治理"]
 
     M --> A
@@ -59,6 +59,7 @@ flowchart TB
     W --> H
     F -. 生成/封装 .-> A
     F -. 生成/封装 .-> W
+    F -. 可提供 .-> H
     H --> C
 ```
 
@@ -70,7 +71,7 @@ Agent 和 Workflow 都需要执行宿主，区别主要在于谁决定下一步�
 
 1. **区分策略与执行。** CoT 提示是推理策略；经典 ToT 通常由外部程序多次调用模型、评分和搜索，不是一次模型调用内部的能力。选择候选属于策略，调度、预算和保存搜索状态属于运行时，两者会交叉。
 2. **是否需要在没有模型参与的情况下也能运行。** 权限校验、超时熔断、checkpoint 写入即使模型完全不参与也要执行，这是 Harness 职责；任务分解、反思批评需要模型参与，属于 Agent 层。
-3. **是否需要在进程重启后仍然成立。** 会话能否在崩溃后从中断点恢复，是 Harness 的职责边界；模型"记不记得"某个事实、要不要检索记忆，是记忆系统（第七、八、十章）的职责。
+3. **区分恢复保证与记忆使用。** 会话能否在崩溃后恢复，由 Harness 和持久化设施保证；要保留、检索哪些经验，由记忆策略决定。长期记忆同样要跨进程存在，因此“需要持久化”不是把所有记忆能力都归入 Harness 的充分条件。
 
 ## 16.5 Harness 的七类子系统（本模块地图）
 
@@ -101,7 +102,7 @@ flowchart LR
 
 **GitHub Copilot Coding Agent** 则把 harness 落地为一次性的、隔离的 GitHub Actions 运行：模型驱动的循环运行在"由 GitHub Actions 提供的一次性开发环境"里，开发者可以用 `copilot-setup-steps.yml` 预装依赖、切换 Runner 规格、启用 LFS，但不能改写循环本身的调度逻辑（[GitHub Docs: Configure the development environment for Copilot cloud agent](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/customize-the-agent-environment)）。这里能清楚看到 harness（一次性环境 + 循环调度）和 control plane（组织级 Runner 与防火墙配置，见 20.8 节）的分工。
 
-两个案例的共同点：**harness 对上层暴露的是"能力开关"，而不是循环内部的实现细节**——开发者配置权限模式、超时、Runner，但不会（也不需要）重新实现"下一步该不该继续调用工具"这件事。
+这两个产品都让开发者通过配置和扩展点复用已有循环，不必从零实现调度。但这不是 Harness 的定义限制：自建 Harness 或使用显式图编排时，开发者仍可能直接定义下一步如何选择、何时停止。
 
 ## 16.7 常见混淆与误区
 

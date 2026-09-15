@@ -4,7 +4,9 @@ description: 解释 Multi-Agent 的协作、路由、交接与共享状态，分
 
 # 第十三章：Multi-Agent 协作、路由与动态切换
 
-本章资料核验截至 2026-09-08。除明确标注框架或协议的部分外，JSON 均为应用层契约示例，字段名、数量和日期不是标准要求。讨论协作时需同时说明：模型提议什么、Runtime 强制什么、存储系统承诺什么。
+把任务交给多个 Agent 后，最难的往往不是“各自能不能做”，而是“结果如何接起来，出了错谁决定下一步”。本章从协作拓扑出发，逐步讨论消息、共享状态、路由和控制权转移。
+
+除明确标注框架或协议的部分外，JSON 均为应用层契约示例，字段名、数量和日期不是标准要求。讨论协作时需同时说明：模型提议什么、Runtime 强制什么、存储系统承诺什么。
 
 ## 13.1 问题的本质
 
@@ -57,7 +59,9 @@ Agent 按预定义顺序依次执行：
 flowchart LR
     R[Research Agent] --> W[Writer Agent]
     W --> V[Reviewer Agent]
-    V --> P[Publisher]
+    V --> G{验收与发布授权通过?}
+    G -->|是| P[Publisher]
+    G -->|否| RWORK[修订或停止]
 ```
 
 ### 13.3.1 适用场景
@@ -759,11 +763,14 @@ flowchart TB
     H -->|是| STATIC[Static Route]
     H -->|否| RULE{Rule Match?}
     RULE -->|是| STATIC
+    STATIC --> CHECK{Policy and Validation Pass?}
     RULE -->|否| LLM[LLM Router within Allowlist]
-    LLM --> CONF{Policy and Validation Pass?}
-    CONF -->|是| TARGET[Target Agent]
-    CONF -->|否| SAFE[Safe Stop / Human / Orchestrator]
+    LLM --> CHECK
+    CHECK -->|是| TARGET[Target Agent]
+    CHECK -->|否| SAFE[Safe Stop / Human / Orchestrator]
 ```
+
+静态路由也必须经过授权、参数和预算检查；“路径预先写好”不等于当前请求获得了执行许可。
 
 需要修正一个常见说法：
 
@@ -839,7 +846,7 @@ sequenceDiagram
 
 Swarm 是 OpenAI 早期用于展示 Handoff 的教育性、实验性框架。
 
-当前应以 OpenAI Agents SDK 作为工程参考。Agents SDK 是 Swarm 的 production-ready upgrade，并支持：
+对于这一技术路线，OpenAI 官方建议从 Swarm 迁移至 Agents SDK，并将后者称为 production-ready upgrade。SDK 支持：
 
 - Agents；
 - Agents as Tools；
@@ -1023,7 +1030,7 @@ A2A 为独立 Agent 系统提供：
 
 它允许 Agent 在不了解彼此内部 Memory、Tools 和实现细节的情况下协作。
 
-本轮按 [v1.0.1 发布标签的规范](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)对照，GitHub [Release 发布时间为 2026-05-28](https://github.com/a2aproject/A2A/releases/tag/v1.0.1)；官网 latest 仍标 v1.0.0，不能据此否认后续发布。线上协议版本为 `1.0`，与规范补丁号、SDK 和 Agent 软件版本分开。对接时固定 binding，不能混用旧字段或 RPC 名。Streaming、Push Notification 等还要检查能力声明；发送 Message 可以返回 Task 或直接返回 Message，不是每次调用都创建任务。
+以 [v1.0.1 发布标签的规范](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)为例，线上协议版本为 `1.0`，与规范补丁号、SDK 和 Agent 软件版本分开。对接时固定协议绑定（binding），不能混用旧字段或 RPC 名。Streaming、Push Notification 等还要检查能力声明；发送 Message 可以返回 Task 或直接返回 Message，不是每次调用都创建任务。
 
 ```mermaid
 sequenceDiagram
@@ -1032,9 +1039,14 @@ sequenceDiagram
 
     C->>S: Get Agent Card
     S-->>C: Capabilities + Auth
-    C->>S: Send Message / Create Task
-    S-->>C: Task Status
-    S-->>C: Artifact or Stream
+    C->>S: Send Message
+    alt 返回任务
+        S-->>C: Task + 当前状态与可用产物
+        C->>S: 查询进度或按能力订阅
+        S-->>C: 后续状态与产物
+    else 直接回复
+        S-->>C: Message
+    end
 ```
 
 A2A 解决互操作协议，不替代：
@@ -1238,15 +1250,18 @@ flowchart TB
     G[User Goal] --> O[Coding Orchestrator]
     O --> E[Explore Agent]
     E --> A[Architecture Artifact]
-    A --> O
-    O --> C[Coding Agent]
+    A --> C[Coding Agent]
     C --> D[Patch Artifact]
-    D --> R[Review Agent]
+    D --> TEST{必需测试通过?}
+    TEST -->|否，返回失败证据| C
+    TEST -->|是| R[Review Agent]
     R --> V{Pass?}
-    V -->|否| C
-    V -->|是| O
-    O --> G
+    V -->|否，返回有效 Finding| C
+    V -->|是| ACCEPT[Orchestrator 最终验收]
+    ACCEPT --> DONE[交付结果]
 ```
+
+图中先探索接口和依赖，再生成补丁；测试与审查各有失败出口。Orchestrator 管理整个流程，审查通过后进入最终验收，不是回到用户目标重新启动一轮探索。超预算、缺少权限或无法修复时则停止并报告未完成项。
 
 推荐：
 
@@ -1303,10 +1318,11 @@ flowchart TB
     EVENTS --> STATE[Materialized State]
     STATE -.Progress hints.-> ROUTER
     ART --> VERIFY[Verifier]
-    VERIFY --> JOIN[Result Aggregator]
+    VERIFY -->|验收通过| JOIN[Result Aggregator]
+    VERIFY -->|失败或证据不足| WF
     JOIN --> WF
 
-    ROUTER -->|Handoff| SPECIAL[Specialist Agent]
+    LEDGER -->|获准 Handoff| SPECIAL[Specialist Agent]
     ROUTER -->|Unresolved or Invalid Route| HUMAN[Human Review]
 
     WF -.Trace.-> OBS[Observability]
@@ -1474,6 +1490,8 @@ Multi-Agent 协作要把通信、状态、路由、控制权转移、可靠性�
 Handoff 适合让专业 Agent 接管后续交互；Delegation 则把子任务结果交回原调用方。动态路由需要候选集、权限、预算和退出条件约束，模型自报置信度不能替代授权或验收。账本共识决定状态如何提交，证据验证决定业务结论是否可信；异步进度投影和多数 Agent 的意见都不能替代这两层保证。
 
 ## 参考资料
+
+框架行为按 2026-09-15 可访问的官方文档核对；实际部署仍需锁定 SDK 版本。A2A [v1.0.1 Release](https://github.com/a2aproject/A2A/releases/tag/v1.0.1)发布于 2026-05-28，但该标签中的规范页提示仍写 v1.0.0；本章按发布标签而非页面的 latest 提示确定规范版本。
 
 - [LangGraph Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api)
 - [LangGraph：并行状态更新错误](https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE)

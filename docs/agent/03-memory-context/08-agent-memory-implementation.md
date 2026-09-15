@@ -8,7 +8,9 @@ description: 说明 Agent 记忆的持久化作用域、写入一致性、混合
 
 ## 8.1 工程问题范围
 
-把概念落到系统实现，主要会碰到这六个问题：
+记忆已经写进数据库，为什么下次回答仍没用上？落盘只是第一步：写入作用域要正确，索引要跟上版本，读取要命中这条记录，最后还要把它放进模型真正收到的上下文。实现时应把这些边界分别测清楚，而不是只检查数据库里“有没有一行”。
+
+把这条链路展开，主要会碰到六个问题：
 
 1. 短期记忆如何实现？
 2. 长期记忆如何存储？
@@ -52,7 +54,7 @@ Embedding 和向量数据库非常重要，但它们不是所有长期记忆的�
 | “A 属于哪个团队，团队依赖哪些服务？” | Knowledge Graph |
 | “找到包含精确错误码 E0421 的记录” | Keyword / Full-text Search |
 
-向量检索擅长语义相似，关键词检索擅长精确字符串，结构化查询擅长事实、条件和权限。
+向量检索适合寻找相似表述；关键词或全文检索适合保留词面线索；结构化查询适合按 ID、字段和条件精确读取。全文索引仍受分词器和字段配置影响，不天然等价于字符串精确匹配。权限则是所有查询方式都必须执行的约束，不是选了 SQL 才需要做。
 
 这些方式可以组合，但不是必选套餐。只有少量偏好的助手可先用关系表；精确错误码检索可先用全文索引；只有检索失败样本证明需要语义或关系查询时，再加入相应组件。
 
@@ -238,6 +240,8 @@ flowchart LR
 6. 历史摘要；
 7. 可选参考信息。
 
+这是容量紧张时的装入次序，不是指令权限排序。用户偏好与历史摘要即使被提前装入，也不能获得系统指令的权限。具体任务还会改变证据优先级：正在核对付款时，权威支付状态应优先于过去相似订单的经验。
+
 ### 8.5.2 Context Compaction
 
 当上下文接近限制时，可以：
@@ -312,7 +316,7 @@ flowchart TB
 - 精确短语；
 - 稀有关键词。
 
-Embedding 可能把语义相近内容排在前面，却漏掉精确标识符。Full-text Search 可以弥补这一问题。
+Embedding 可能把语义相近内容排在前面，却漏掉精确标识符。全文索引可补充词面召回，但需要测试连字符、大小写、数字和中文分词。例如 `E0421` 与 `E-0421` 是否同一错误码，应由业务定义；要求完全相等的订单 ID，宜使用保留原值的字段索引或数据库等值查询。
 
 ### 8.6.4 Knowledge Graph
 
@@ -413,7 +417,7 @@ flowchart TB
 
 ### 8.9.1 Raw Event
 
-粒度最细，例如一次 Tool Call 或一条消息。
+按原始事件保存，例如一次 Tool Call 或一条消息。事件是采集边界，不一定是长度最小的记忆单元；一条消息仍可能包含多个独立事实。
 
 适合：
 
@@ -469,6 +473,8 @@ flowchart TB
 ```
 
 适合精确查询、版本化和冲突处理。
+
+这里仅展示事实三元组；真正落库还要带租户、项目作用域、来源事件和有效时间。否则两个项目中不同的格式偏好会被误当成同一事实的更新。
 
 ### 8.9.5 Task Summary
 
@@ -675,9 +681,13 @@ $$
 - 不会跨租户串数据；
 - 最终一致性可接受。
 
-典型做法是主库事务同时写记忆版本和 outbox 事件，后台消费者幂等更新向量、全文索引；索引不是事实的唯一主副本。查询命中后按主库版本和状态复核，过滤旧索引中的失效或删除记录。若索引落后，要么走主库直读或临时覆盖层，要么明确返回“尚未索引”，不能声称写入后立即可被语义召回。
+典型做法是主库事务同时写记忆版本和 outbox 事件。Outbox 是待投递事件表：事务提交后，后台消费者读取事件，更新向量和全文索引，再确认处理位点。这样可以重试投递，但消费者仍需处理重复和乱序；索引不是事实的唯一主副本。
 
-删除采用 tombstone 或删除代次：后台任务提交前再次确认记录及所属用户没有更新的删除标记，防止“先删后异步重建”。请求“记住这个偏好”若要求本轮确认成功，应等待主记录可靠提交，而不是只把任务放入进程内队列。
+例如版本 3 的索引任务先完成，版本 2 后完成，普通 `upsert` 会把索引倒退。可按记录串行消费，或在索引写入时比较版本并拒绝旧事件。查询命中后仍要按主库版本和状态复核；若索引落后，可走主库直读或临时覆盖层。没有这些回退能力时，只能说明尚未具备语义检索可见性，不能把“主库已提交”说成“任意查询都能找到”。
+
+删除可用 tombstone（删除标记）或递增删除代次记录。只在后台任务提交前查询一次删除状态不够：查询之后仍可能发生删除。主库对派生记忆的提交要原子校验源版本与删除代次；索引侧还要拒绝乱序旧写，并在返回结果前复核主库状态。删除流程应追踪尚未清理的派生副本，避免已经排队的整理任务把数据重新写回。
+
+请求“记住这个偏好”若要求本轮确认成功，应等待主记录可靠提交，而不是只把任务放入进程内队列。
 
 ## 8.14 Memory Retrieval Pipeline
 
@@ -756,7 +766,7 @@ BM25、余弦相似度及新鲜度的尺度不同，不能未经校准直接求�
 
 ### 8.14.4 Reranking
 
-初次检索应追求 Recall，Reranker 再提高 Precision。
+初次检索先在授权范围内获得足够的候选，再由 Reranker 尝试提高靠前结果的相关性。它无法找回未被召回的记录，也可能把必要反例排到预算之外；应分别测候选召回率、重排后证据覆盖率和最终答案，而不是默认多一道重排一定更好。
 
 Reranker 可以考虑：
 
@@ -891,12 +901,14 @@ $$
 
 时间权重可以影响检索排序，但不应替代有效期和版本管理。
 
+这里 `Δt` 为非负时间间隔，`λ` 为非负衰减系数，时间单位必须一致。应先选定按事件时间还是事实生效时间计算，不能每次读取后刷新时间，把旧证据变成“最新记忆”。
+
 不同记忆使用不同策略：
 
 | 记忆 | 推荐策略 |
 |---|---|
 | 临时搜索结果 | 快速衰减或 TTL |
-| 用户明确偏好 | 版本化，直到用户修改 |
+| 用户明确偏好 | 在授权保留期内版本化，变更或删除后停止使用旧值 |
 | 产品价格 | 明确有效时间并定期刷新 |
 | 合规记录 | 按政策保留，不自动衰减删除 |
 | 相似案例 | 时间与环境匹配；同时保留失败经验，避免只奖成功 |
@@ -990,12 +1002,17 @@ flowchart LR
 
 ### 8.22.1 Working Memory
 
-当前任务立即记录：
+先把用户说过的偏好记入当前状态，不把它直接转换为一次发布动作：
 
 ```json
 {
-  "goal_constraint": "push directly to main",
-  "prohibited_action": "create pull request"
+  "user_id": "user-42",
+  "scope": "repo:example/knowledge-base",
+  "publishing_preference": {
+    "branch": "main",
+    "create_pull_request": false
+  },
+  "source_event_id": "event-example"
 }
 ```
 
@@ -1006,7 +1023,7 @@ flowchart LR
 - 明确用户偏好；
 - 跨任务偏好候选，仍需确认适用范围；
 - 与当前仓库相关；
-- 高可信来源。
+- 来源能确认是该用户的明确表达，不等于该用户有权修改仓库政策。
 
 ### 8.22.3 Long-term Storage
 
@@ -1015,8 +1032,9 @@ flowchart LR
 ```json
 {
   "tenant_id": "tenant-example",
-  "subject": "repo:example/knowledge-base",
-  "predicate": "publishing_strategy",
+  "subject": "user-42",
+  "scope": "repo:example/knowledge-base",
+  "predicate": "publishing_preference",
   "object": {
     "branch": "main",
     "create_pull_request": false
@@ -1024,22 +1042,24 @@ flowchart LR
   "source": "explicit_user_instruction",
   "source_event_id": "event-example",
   "verification_status": "user_stated",
+  "valid_from": "2026-08-28T16:00:00+08:00",
+  "valid_until": null,
   "version": 1,
   "status": "active"
 }
 ```
 
-这里关系数据库便于精确读取和版本更新，但存储类型不保证内容正确，也不替代执行授权。
+这里关系数据库便于精确读取和版本更新，但存储类型不保证内容正确，也不替代执行授权。尤其不能只按仓库保存这条记录：这是 `user-42` 在该仓库内的偏好，不是该仓库所有成员必须遵守的发布策略。团队政策应另存于有审核来源的配置中。
 
 ### 8.22.4 Next-task Retrieval
 
-下次修改该仓库时，按仓库 ID 精确查询发布策略，在执行 Git 操作前加载。
+下次修改该仓库时，在服务端确认身份后，按 `(tenant_id, user_id, scope, predicate)` 查询该用户的有效偏好。换成另一位用户，不应自动继承此记录。
 
 同时核对所属租户、当前任务要求和仓库保护规则；若本次要求“不要提交”，不执行发布，也不把临时要求误写成永久偏好。
 
 ### 8.22.5 Update
 
-如果用户以后明确永久改为必须走 PR，则创建新版本，使同一作用域旧偏好失效；只针对本次任务的要求不自动改写长期记录。
+如果同一用户以后明确永久改为必须走 PR，则创建新版本，使该用户在同一作用域的旧偏好失效；只针对本次任务的要求不自动改写长期记录。一个直接的回归测试是：用户 A 更新偏好后，A 在本仓库的读取结果改变，用户 B 以及 A 在其他仓库的结果都不变。
 
 ## 8.23 推荐的实现接口
 
@@ -1058,7 +1078,7 @@ load_checkpoint(task_id)
 ```text
 propose_memory(candidate)
 validate_memory(candidate)
-upsert_fact(subject, predicate, value, provenance)
+upsert_fact(scope, subject, predicate, value, provenance, expected_version)
 store_episode(episode)
 search_memory(query, filters, limit)
 invalidate_memory(memory_id, reason)
@@ -1242,10 +1262,12 @@ flowchart TB
 - [MemGPT: Towards LLMs as Operating Systems](https://arxiv.org/abs/2310.08560)
 - [Generative Agents: Interactive Simulacra of Human Behavior](https://arxiv.org/abs/2304.03442)
 - [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366)
-- [LangGraph: Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)
+- [LangGraph: Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)（[文档快照 3edafc8](https://github.com/langchain-ai/docs/blob/3edafc8c187b52be4e2196cd0955dda4a7592cba/src/oss/langgraph/persistence.mdx)）
 - [LangGraph: Checkpointers](https://docs.langchain.com/oss/python/langgraph/checkpointers)
-- [LangGraph: Memory overview](https://docs.langchain.com/oss/python/concepts/memory)
-- [LongMemEval 官方实现](https://github.com/xiaowu0162/LongMemEval)
-- [LongMemEval-V2 官方实现](https://github.com/xiaowu0162/LongMemEval-V2)
+- [LangGraph: Memory overview](https://docs.langchain.com/oss/python/concepts/memory)（[文档快照 1fa2214](https://github.com/langchain-ai/docs/blob/1fa2214237b7a7506c34a30b394c26023d61bf4b/src/oss/concepts/memory.mdx)）
+- [AWS Prescriptive Guidance：Transactional outbox pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)（用于说明双写、重复投递与顺序问题，不代表任意队列具备端到端 exactly-once）
+- [etcd v3.5：事务比较与 revision](https://etcd.io/docs/v3.5/learning/api/)（一个支持原子条件更新的具体实现；其他数据库需核对各自保证）
+- [LongMemEval 官方说明快照 9e0b455](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/README.md)（区分原始版与 2025 年 9 月清洗版）
+- [LongMemEval-V2 官方说明快照 2cc8c54](https://github.com/xiaowu0162/LongMemEval-V2/blob/2cc8c540bdb87fe6761629b585e727e1c4704520/README.md)
 
-审校口径：截至 2026-09-08；一致性、幂等和删除方案是设计建议，并非框架自动保证。原创文字与图示：Polo Li，CC BY 4.0。
+资料核对：2026-09-15；一致性、幂等和删除方案是设计建议，并非上述框架或任意向量库自动提供的保证。

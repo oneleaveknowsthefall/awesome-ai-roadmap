@@ -19,5 +19,3 @@ description: 区分模型推理、推理时搜索、任务调度与反馈修订�
 5. [第十二章：Agent 的反思、验证与自我改进](12-agent-reflection.md)
 
 返回 [Agent 相关知识点](../README.md)。
-
-本模块原创文档与示意图：Polo Li，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)；引用研究归原作者所有。

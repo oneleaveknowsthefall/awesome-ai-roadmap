@@ -6,11 +6,11 @@ description: 从大模型的知识、状态和行动限制出发定义 AI Agent�
 
 ## 1.1 普通大模型的三类局限
 
-大语言模型擅长理解和生成文本，但单独使用时仍存在三个重要局限。
+模型已经能写邮件、分析订单，为什么还需要 Agent？因为“生成处理方案”和“把任务办完”之间，还隔着事实获取、状态保存和动作执行。单独的模型推理不会自动完成这三件事。
 
 ### 1.1.1 知识冻结
 
-模型的参数知识主要来自训练数据，无法天然感知训练结束后发生的新事件。若要获得实时信息，必须接入搜索引擎、数据库或 RAG 系统。
+模型的参数知识主要来自训练数据，无法天然感知训练结束后发生的新事件。新信息必须由输入或外部系统提供，例如用户补充材料，或应用查询搜索引擎、数据库和 RAG 系统。接入检索也不等于获得实时事实：知识库是否更新、数据何时采集，仍需单独确认。
 
 ### 1.1.2 缺少持续状态
 
@@ -61,7 +61,7 @@ $$
 - $M_t$：可用记忆；
 - $H_t$：此前的执行历史。
 
-Agent 根据当前状态制定计划并选择动作：
+Agent 根据当前状态选择动作。若把决策过程显式拆成规划和行动两步，可以写成：
 
 $$
 P_t=\mathrm{Plan}(S_t)
@@ -71,19 +71,19 @@ $$
 A_t=\mathrm{Act}(S_t,P_t)
 $$
 
-动作改变外部环境，产生新的观察：
+执行动作后，环境返回新的观察。用 $E_t$ 表示环境真实状态；同一个动作在不同状态下可能得到不同结果，只读查询也不一定改变业务状态：
 
 $$
-O_{t+1}=\mathrm{Environment}(A_t)
+(E_{t+1},O_{t+1})\sim\mathrm{Environment}(\cdot\mid E_t,A_t)
 $$
 
 随后，Agent 更新自身状态并进入下一轮循环：
 
 $$
-S_{t+1}=\mathrm{Update}(S_t,O_{t+1})
+S_{t+1}=\mathrm{Update}(S_t,A_t,O_{t+1})
 $$
 
-直到目标完成、达到资源限制，或者需要人工介入。
+直到目标完成、达到资源限制，或者需要人工介入。这里的 $S_t$ 是 Agent 保存的记录，不是环境的完整真相；例如“请求已受理”不能直接记成“邮件已送达”。
 
 ## 1.3 Agent 的三大核心能力
 
@@ -103,7 +103,7 @@ Agent 可以使用的工具包括：
 
 > **LLM + Tools → 可执行能力**
 
-大模型负责理解目标、选择工具和生成参数，工具负责真正改变外部世界。
+大模型负责理解目标、选择工具和生成参数，运行时校验请求并调用工具；工具负责查询信息或产生外部副作用。用户要求“先写一封邮件让我看”，只授权了草稿生成，并没有授权发送。模型即使生成了发送请求，执行层也应拦住它。
 
 ### 1.3.2 记忆机制（Memory）
 
@@ -136,7 +136,7 @@ Agent 可以使用的工具包括：
 
 ### 1.3.3 多步推理与自我纠错
 
-Agent 能够把复杂目标拆解为多个步骤，并根据执行反馈调整策略：
+Agent 可以尝试把复杂目标拆解为多个步骤，并根据执行反馈调整策略：
 
 > **执行 → 反馈 → 分析 → 调整 → 重试**
 
@@ -147,10 +147,10 @@ Agent 能够把复杂目标拆解为多个步骤，并根据执行反馈调整�
 - 代码执行失败时，分析异常并修正代码；
 - 当前方案不可行时，重新规划任务路径。
 
-这也是 Agent 与固定自动化脚本的重要区别：
+固定自动化脚本也能重试、分支和根据反馈调整，因此不能仅凭“有反馈循环”判断它是不是 LLM Agent。更有用的区别是下一步策略由谁决定：
 
-- **自动化脚本 = 预设流程**
-- **Agent = 目标驱动 + 动态决策 + 反馈调整**
+- **固定自动化脚本**：由开发者预先编码转移规则；
+- **LLM Agent**：允许模型在目标、权限和预算范围内动态选择行动。
 
 不过，自我纠错并不意味着 Agent 一定能解决问题。实际系统仍需设置最大重试次数、权限边界、资源预算和人工确认机制。
 
@@ -209,12 +209,12 @@ Google 在 2025 年 4 月推出了 A2A。2025 年 6 月，A2A 项目进入 Linux
 
 如果说 MCP 解决的是“Agent 如何调用外部工具”，那么 A2A 解决的就是“Agent 如何发现并与另一个 Agent 协作”。
 
-A2A 中的重要概念包括：
+以 A2A 0.3.0 的核心对象为例：
 
 - **Agent Card**：描述 Agent 的身份、能力、技能、服务地址和认证要求；
 - **Task**：需要协作完成的任务及其生命周期；
 - **Message**：Agent 之间交换的消息；
-- **Artifact**：Agent 执行任务后产生的结构化结果。
+- **Artifact**：任务产生的交付物，可由文本、文件或结构化数据等内容部分组成。
 
 > Agent Card 更像一份“能力名片”，而“正在做什么”和执行进度主要由 Task 等对象表达。
 
@@ -225,10 +225,12 @@ sequenceDiagram
 
     A->>B: 读取 Agent Card
     B-->>A: 返回能力与协作方式
-    A->>B: 创建并委派 Task
-    B-->>A: 返回状态或中间结果
-    B-->>A: 返回最终 Artifact
+    A->>B: 发送任务请求消息
+    B-->>A: 返回 Task 及当前状态
+    B-->>A: 按所选交互方式返回后续状态与 Artifact
 ```
+
+图中展示需要持续跟踪的任务。A2A 0.3.0 的消息发送也允许直接返回 Message，不是每次交互都必须创建 Task；具体消息字段和传输方式应按双方实现的版本核对。
 
 ## 1.7 MCP 与 A2A 的关系
 
@@ -268,3 +270,5 @@ MCP 让每个 Agent 能够方便地“伸手拿工具”，A2A 则让多个 Agen
 - [MCP joins the Agentic AI Foundation](https://blog.modelcontextprotocol.io/posts/2025-12-09-mcp-joins-agentic-ai-foundation/)
 - [Linux Foundation: Agent2Agent Protocol Project](https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents)
 - [A2A Protocol Specification](https://a2a-protocol.org/latest/specification/)
+- [A2A Protocol Specification 0.3.0：核心对象与消息发送](https://a2a-protocol.org/v0.3.0/specification/)
+- [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
