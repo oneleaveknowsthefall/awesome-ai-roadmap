@@ -159,15 +159,21 @@ flowchart LR
 
 ### 17.6.7 推理预算由谁控制
 
-训练得到的推理模型把「想多久」变成了可调参数，但控制位置不止一种，语义也不同：
+想让模型多想一会儿，先要看它提供哪种控制方式。推理预算不是所有模型共用的一个参数：
 
 | 控制方式 | 形态 | 语义 |
 |---|---|---|
 | 推理档位（如 OpenAI `reasoning.effort`） | 离散档位，支持的取值随模型而变 | 指导模型投入多少思考，不是精确的 token 上限 |
-| 数字预算（如 Anthropic `thinking.budget_tokens`） | 具体 token 数，有下限且必须小于 `max_tokens` | 思考预算的目标值而非硬顶，须给最终回答留出空间 |
-| Budget forcing（s1 论文） | 到预算强制收尾，或在结尾追加 "Wait" 延长 | 在解码侧截断或拉长推理过程，属于外部干预 |
+| 手动数字预算（如 Claude `thinking.budget_tokens`） | 支持手动 extended thinking 的模型/接口，以 token 数配置 | 设定思考预算，不是整次调用的总输出上限 |
+| Budget forcing（s1 论文） | 在解码时强制结束思考，或延迟结束并追加 `Wait` | 训练后的解码干预，不是普通的 effort 档位 |
 
-三点容易混淆。第一，预算与采样是两个旋钮：effort 决定投入多少顺序计算，采样参数（若具体模型与 API 支持，如温度）决定候选 token 的选择分布，提高 effort 不等于增加多样性。第二，预算过低和过高都会出错：难题可能在推理中途被截断，简单题多花 token 却不提质——对 o1 类模型 overthinking 的研究正是针对后一种情况，是否加大预算应由对照实验决定。第三，截断发生在推理阶段时可能没有任何可见输出：OpenAI 的文档说明，达到 `max_output_tokens` 时响应状态为 `incomplete`，输入与推理 token 照常计费，因此预算应按「推理 + 可见输出」合计预留，而不是只按答案长度估计。
+Claude 常规手动模式要求 `budget_tokens` 至少为 1024，且小于 `max_tokens`，为回答留出空间。但不能把这条规则照搬到所有模式：Amazon Bedrock 文档明确说明，在受支持的 interleaved thinking 工具调用模式中，思考预算可以超过 `max_tokens`。使用其他入口时，要查对应模型和模式的要求。
+
+有些 Claude 模型支持 adaptive thinking，由模型决定思考投入，再通过它支持的 effort 选项调节。配置前看目标模型的文档，不要把手动预算参数直接搬过去。
+
+预算与温度也不是一回事。effort 引导思考投入；温度影响候选 token 的采样分布，而且推理模型未必允许调整温度。提高 effort 不等于增加采样多样性，也不保证答案更好。简单题可能只多花了 token；是否值得升档，要在相同任务集上比较正确率、用量和延迟。
+
+effort 的引导作用还要与总输出上限分开。OpenAI Responses API 的 `max_output_tokens` 涵盖推理、可见输出和不可见的格式化 token，不能只按答案长度设置。若在推理阶段就耗尽这个额度，响应可能一个可见 token 都没有，状态为 `incomplete`，`incomplete_details.reason` 为 `max_output_tokens`，输入与已生成的推理 token 仍会计费。降低 effort 并不等于把推理从中间截断。
 
 ## 17.7 常见错误
 
@@ -221,5 +227,6 @@ CoT 是线性生成中间步骤；规划还涉及状态、行动约束、搜索�
 - [s1: Simple test-time scaling](https://arxiv.org/abs/2501.19393)
 - [Do NOT Think That Much for 2+3=? On the Overthinking of o1-Like LLMs](https://arxiv.org/abs/2412.21187)
 - [OpenAI: Reasoning best practices](https://developers.openai.com/api/docs/guides/reasoning-best-practices)
-- [OpenAI: Reasoning models](https://platform.openai.com/docs/guides/reasoning)
-- [Anthropic: Extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking)
+- [OpenAI: Reasoning models](https://developers.openai.com/api/docs/guides/reasoning)
+- [Anthropic Python SDK: 手动 thinking 配置](https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/thinking_config_enabled_param.py)
+- [Amazon Bedrock: Extended thinking](https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-extended-thinking.html)（包含 Bedrock 上的手动预算规则、interleaved thinking 例外及模型差异，不代表所有 Claude 入口行为相同）

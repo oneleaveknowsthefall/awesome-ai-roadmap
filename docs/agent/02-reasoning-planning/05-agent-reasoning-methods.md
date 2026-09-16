@@ -665,9 +665,13 @@ $$
 
 [推理时计算分配研究](https://arxiv.org/abs/2408.03314)显示，顺序修订与并行搜索的相对收益随题目难度改变。这个结论支持测量后路由，而不是仅凭模型自报“有信心”缩减预算；更高风险时应先加强验收和审批，并非自动加大搜索树。
 
-预算的四个分量在工程上有不同的旋钮，其中 $T$ 的控制接口最成熟：OpenAI 用 `reasoning.effort` 档位，支持的取值随模型而变，语义是指导思考投入而非精确 token 上限；Anthropic 用 `thinking.budget_tokens` 数字预算，是必须小于 `max_tokens` 的目标值；开源侧的 s1 用 budget forcing，在解码侧强制收尾或追加 "Wait" 延长思考。这些都是推理时配置，调整不需要重训模型，但升档与增加候选 $N$ 花的是不同位置的钱，不能互相替代；改动后都要按 §5.22 的口径在同预算下重新评测。
+运行时要决定的是：让一个候选多想一会儿，还是多生成几个候选再挑选。增加单次思考预算 `T` 与增加候选数 `N` 不是同一件事；前者给一条路径更多思考空间，后者还需要比较和验证候选。具体控制接口见 [LLM 第 17 章 §17.6.7](../../llm/04-prompt-reliability/17-cot.md)。选择哪种方案，应按 §5.22 的方法固定总预算，把验证开销也算进去，再比较任务成功率与延迟。
 
-隐藏推理还带来两条边界。一是审计：各提供方对推理内容的暴露方式不同——Anthropic 的响应可包含 thinking 块，OpenAI 不提供原始推理文本、最多返回摘要或加密 reasoning 项——但无论返回哪种形态，可见内容都不等于完整内部推理；按[第 14 章 §14.7.1](../05-production/14-agent-evaluation.md)的红线，不得保存或要求模型暴露隐藏 Thought，验收只能依赖工具调用、可见输出与状态变化。二是计费：OpenAI 说明 reasoning token 按输出 token 计费并占用上下文窗口， $T$ 的开销必须进入成本核算和落库字段，否则“答案很短”会被误读为“这次调用很便宜”。
+工具调用前后的状态不能随意丢弃。OpenAI 不公开原始 CoT；Claude 返回的 thinking 内容可能是完整文本，也可能是摘要，取决于模型版本和接口。为继续工具调用，应保留并原样传回协议要求的 reasoning/thinking 状态项，包括不透明项。
+
+保留这些协议数据，不等于把推理正文写进普通审计日志，更不能把它当作可靠证据。审计按[第 14 章 §14.7.1](../05-production/14-agent-evaluation.md)依靠工具调用、可见观察、状态变化和专门生成且允许记录的简短理由，不要求模型暴露接口未公开的私有推理。
+
+答案只有一句话，不代表这次调用便宜。OpenAI 的 reasoning token 按输出 token 计费，也占用上下文窗口，核算 `T` 的实际开销时不能漏掉这部分用量。
 
 ## 5.18 Adaptive Reasoning：按难度分配预算
 
@@ -899,6 +903,6 @@ LLM Judge 仍可能偏置、被欺骗或与生成器共享盲点。
 - [Scaling LLM Test-Time Compute Optimally can be More Effective than Scaling Model Parameters](https://arxiv.org/abs/2408.03314)
 - [s1: Simple test-time scaling](https://arxiv.org/abs/2501.19393)
 - [OpenAI: Reasoning best practices](https://developers.openai.com/api/docs/guides/reasoning-best-practices)
-- [OpenAI: Reasoning models](https://platform.openai.com/docs/guides/reasoning)
-- [Anthropic: Extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking)
+- [OpenAI: Reasoning models](https://developers.openai.com/api/docs/guides/reasoning)
+- [Amazon Bedrock: Extended thinking](https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-extended-thinking.html)（thinking 返回形式与工具调用时的状态回传要求）
 - [Python 3.13: decimal — 精度、舍入与十进制计算](https://docs.python.org/3.13/library/decimal.html)

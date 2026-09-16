@@ -39,7 +39,11 @@ flowchart TB
 
 OpenAI 的 [Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs) 可用于结构化回答，也可用于严格工具调用。**先检查响应状态和拒绝信号，再解析完整对象**：拒绝可能不符合业务 Schema，长度上限或中断可能留下不完整输出，未支持的 Schema 则可能在请求时被拒绝。约束解码不保证金额、币种或业务事实正确；可验证的语义应在运行时核对，离线评测衡量剩余错误率。
 
-使用推理模型时,这张契约表还要加三条注意。第一,Schema 只约束最终可见输出,隐藏推理 token 不受其约束,不能由「输出合法」反推「推理过程受控」。第二,输出预算要按「推理 + 可见输出」合计预留:OpenAI 说明达到 `max_output_tokens` 时返回 `incomplete`,可能在推理阶段就耗尽预算、一个可见 token 都没有;Anthropic 则要求 `thinking.budget_tokens` 小于 `max_tokens`,给最终回答留空间。第三,判定顺序不变但归因多一层:先看状态、拒绝与截断,再做解析和 Schema 校验;若截断发生在推理阶段,失败因更可能是预算配置而非格式错误,按 5.5 节原样重试同一配置可能再次截断,修复动作是增加合计输出预算或调整输入长度,而不是把原样重试当作解法。
+换成推理模型，这个顺序仍然适用。Schema 约束的是可见输出的结构，不能由「输出合法」反推内部推理受控。
+
+没有答案也不一定是格式出了错。OpenAI Responses API 返回 `incomplete` 时，先查 `incomplete_details.reason`。若值为 `max_output_tokens`，说明生成触及了 token 限制，但还要结合实际用量和上下文余量，判断是输出额度不够，还是生成过程中用尽了上下文空间。确认后再决定增加输出额度、精简输入或拆分任务，并守住剩余费用和时限。按 5.5 节原样重试可能再次截断，不应当作默认解决办法。
+
+预留多少输出空间，要按 API 对总用量的定义计算，而不是只估算 JSON 的长度。OpenAI 的 `max_output_tokens` 还包含推理和不可见的格式化 token；Claude 的手动预算规则及不同模式的例外，见 [LLM 第 17 章 §17.6.7](../../llm/04-prompt-reliability/17-cot.md)。
 
 ## 5.3 用 Schema 做双重校验:生成时约束 + 接收后再验证
 
@@ -141,8 +145,7 @@ def parse_with_repair(raw_text: str, schema: type, max_repairs: int = 1):
 ## 参考资料
 
 - [OpenAI: Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs)
-- [OpenAI: Reasoning models](https://platform.openai.com/docs/guides/reasoning)
-- [Anthropic: Extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking)
+- [OpenAI: Reasoning models](https://developers.openai.com/api/docs/guides/reasoning)
 - [OpenAI: Function calling](https://platform.openai.com/docs/guides/function-calling)
 - [Anthropic: Tool use with Claude](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)
 - [JSON Schema Specification](https://json-schema.org/specification)

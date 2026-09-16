@@ -46,7 +46,11 @@ def route_by_complexity(task_type: str) -> str:
 
 某些任务(代码生成、多步推理)只有少数模型能稳定完成,路由策略需要维护一张「模型-能力」映射表,而不是简单的成本阈值判断。这张表本身要跟随[第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)的评测结果持续更新——模型能力会随供应商升级而变化。
 
-能力映射还要覆盖推理档位。对推理模型,同一个模型在不同 effort 档位下的成功率、延迟和成本差距,可能大于换一档模型的差距,路由键应当是「模型 × 档位」而不只是模型名:简单任务走低档位或非推理模型,高难任务升档,是否升档由第 7 章的评测数据决定,不由单次请求的难度自报决定。回退时也要先区分动作:同模型降档保留接口形态,但上一轮的推理上下文不会自动带入新请求——只有显式携带且提供方支持的 reasoning 项才能续接,OpenAI 文档说明 reasoning 项只能在同一模型族内复用,且需通过 `previous_response_id` 或回放输出项显式传递;换模型则按新候选重新走契约校验与预算,跨供应商切换时不能指望续写质量不变。OpenAI 同时说明推理 token 按输出 token 计费并占用上下文窗口,成本核算要把这部分不可见用量计入,否则账单归因会漏掉最大的一块。
+能力映射还要覆盖推理档位。同一个模型换了 effort 档位，成功率、延迟和成本都可能变化，因此应把「模型 × 档位」作为路由候选。简单任务可以比较低档位与非推理模型，高难任务再考虑升档；选择要有第 7 章的评测数据支持，不能只凭模型对这一次请求的难度自报。
+
+模型名没变，也不等于上一轮的推理会自动接上。OpenAI 的 reasoning 项只能在兼容的同一模型族内复用，还要确认当前模式支持，并通过 `previous_response_id` 或完整重放会话输出项显式传递状态。同模型降档也要满足这些条件。请求失败后，若没有收到可用状态，也没有可引用的已保存响应，就不能把重试当作从中断处续跑。
+
+换模型时，应按新候选重新检查输出契约和剩余预算；跨供应商切换尤其不能假定内部推理状态可以通用。每次尝试都要记录档位和实际用量：OpenAI 的推理 token 按输出 token 计费，也占用上下文窗口，只看可见答案长度会低估开销。
 
 ### 3.2.3 灰度路由
 
@@ -91,7 +95,9 @@ fallback_chain:
 | 触发路由的策略名称 | 区分是成本路由、能力路由还是灰度路由 |
 | 是否发生了回退,回退了几层 | 判断某个供应商是否持续不稳定 |
 | 端到端延迟(含回退耗时) | 回退会显著拉长尾延迟,需要单独监控 |
-| 推理档位与 reasoning token 用量 | 排查「模型没换、账单和延迟却上涨」;该字段通常已包含在总输出 token 内,只作归因拆分,不能与总输出相加重复计费,口径见 [Tools · LLM 网关](../../tools/05-transport-gateway/14-llm-gateway.md) |
+| 推理档位与 reasoning token 用量 | 排查「模型没换、账单和延迟却上涨」 |
+
+OpenAI 返回的 `reasoning_tokens` 已包含在 `output_tokens` 中，只用于拆分用量，不能再与总输出相加。其他供应商要按各自的 `usage` 定义映射，不能套用同一套账单计算规则。网关侧的用量记录见 [Tools · LLM 网关](../../tools/05-transport-gateway/14-llm-gateway.md)。
 
 这些字段是[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md) Trace 数据模型的一部分。
 
@@ -129,7 +135,7 @@ fallback_chain:
 ## 参考资料
 
 - [LiteLLM: Routing](https://docs.litellm.ai/docs/routing)
-- [OpenAI: Reasoning models](https://platform.openai.com/docs/guides/reasoning)
+- [OpenAI: Reasoning models](https://developers.openai.com/api/docs/guides/reasoning)
 - [Amazon Bedrock: Model routing (intelligent prompt routing)](https://docs.aws.amazon.com/bedrock/latest/userguide/intelligent-prompt-routing.html)
 - [Martin Fowler: CanaryRelease](https://martinfowler.com/bliki/CanaryRelease.html)
 - [Netflix Tech Blog: Fault Tolerance in a High Volume, Distributed System](https://netflixtechblog.com/fault-tolerance-in-a-high-volume-distributed-system-91ab4faae74a)
