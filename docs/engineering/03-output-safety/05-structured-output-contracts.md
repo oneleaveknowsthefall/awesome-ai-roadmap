@@ -39,6 +39,12 @@ flowchart TB
 
 OpenAI 的 [Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs) 可用于结构化回答，也可用于严格工具调用。**先检查响应状态和拒绝信号，再解析完整对象**：拒绝可能不符合业务 Schema，长度上限或中断可能留下不完整输出，未支持的 Schema 则可能在请求时被拒绝。约束解码不保证金额、币种或业务事实正确；可验证的语义应在运行时核对，离线评测衡量剩余错误率。
 
+换成推理模型，这个顺序仍然适用。Schema 约束的是可见输出的结构，不能由「输出合法」反推内部推理受控。
+
+没有答案也不一定是格式出了错。OpenAI Responses API 返回 `incomplete` 时，先查 `incomplete_details.reason`。若值为 `max_output_tokens`，说明生成触及了 token 限制，但还要结合实际用量和上下文余量，判断是输出额度不够，还是生成过程中用尽了上下文空间。确认后再决定增加输出额度、精简输入或拆分任务，并守住剩余费用和时限。按 5.5 节原样重试可能再次截断，不应当作默认解决办法。
+
+预留多少输出空间，要按 API 对总用量的定义计算，而不是只估算 JSON 的长度。OpenAI 的 `max_output_tokens` 还包含推理和不可见的格式化 token；Claude 的手动预算规则及不同模式的例外，见 [LLM 第 17 章 §17.6.7](../../llm/04-prompt-reliability/17-cot.md)。
+
 ## 5.3 用 Schema 做双重校验:生成时约束 + 接收后再验证
 
 即使使用了约束解码,**接收端仍然应该做一次独立的 Schema 校验**,不能假设生成端一定生效:
@@ -139,6 +145,7 @@ def parse_with_repair(raw_text: str, schema: type, max_repairs: int = 1):
 ## 参考资料
 
 - [OpenAI: Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs)
+- [OpenAI: Reasoning models](https://developers.openai.com/api/docs/guides/reasoning)
 - [OpenAI: Function calling](https://platform.openai.com/docs/guides/function-calling)
 - [Anthropic: Tool use with Claude](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)
 - [JSON Schema Specification](https://json-schema.org/specification)
