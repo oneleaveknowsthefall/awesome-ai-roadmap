@@ -74,7 +74,7 @@ flowchart TB
 | 框架实现 | 框架与编排 | LangChain、LangGraph、LlamaIndex、DSPy、Semantic Kernel、轻量 Agent 框架与迁移 | 23 | [进入框架与编排](frameworks/README.md) |
 | 生产工程 | AI Engineering | LLMOps、网关与回退、评测、可观测性、CI/CD、SLO、成本与数据飞轮 | 13 | [进入 AI Engineering](engineering/README.md) |
 | 安全治理 | AI 安全与治理 | 威胁建模、Prompt 攻击、供应链、隐私、执行隔离、红队、治理与审计 | 10 | [进入 AI 安全与治理](safety/README.md) |
-| 现场交付 | FDE | 需求发现、评测验收、系统集成、生产交付，以及范围变更、PoC、项目记忆与交接经验 | 2 | [进入 FDE](fde/README.md) |
+| 现场交付 | FDE | 需求发现、产品协作、评测验收、系统集成与交付，以及范围变更、PoC、项目记忆与交接经验 | 2 | [进入 FDE](fde/README.md) |
 
 ## 主题之间的关系
 
