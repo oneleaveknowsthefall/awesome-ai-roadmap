@@ -1,0 +1,57 @@
+body {
+  font-family: sans-serif;
+  line-height: 1.65;
+  margin: 0 5%;
+  overflow-wrap: break-word;
+}
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.35;
+  break-after: avoid;
+}
+h1 { font-size: 1.7em; }
+h2 { font-size: 1.4em; }
+h3 { font-size: 1.2em; }
+a { text-decoration: underline; }
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  font-size: 0.8em;
+  line-height: 1.4;
+  border: 1px solid #888;
+  padding: 0.6em;
+}
+code { font-family: monospace; }
+:not(pre) > code { overflow-wrap: anywhere; }
+table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  font-size: 0.85em;
+  line-height: 1.5;
+}
+th, td {
+  border: 1px solid #888;
+  padding: 0.3em;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+blockquote {
+  margin: 1em 0;
+  padding-left: 0.8em;
+  border-left: 0.2em solid #888;
+}
+img { max-width: 100%; height: auto; }
+.diagram, .display-math { text-align: center; margin: 1em 0; }
+.diagram img, .display-math img {
+  background: white;
+  padding: 0.2em;
+}
+img.inline-math {
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+  background: white;
+}
+.formula-link { text-decoration: none; }
+.figure-link { font-size: 0.8em; }

@@ -1,0 +1,82 @@
+name: Build EPUB
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "book/**"
+      - "scripts/build_book.py"
+      - "scripts/build_epub.py"
+      - "scripts/install_epub_tools.py"
+      - "scripts/tests/**"
+      - ".github/workflows/epub.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "book/**"
+      - "scripts/build_book.py"
+      - "scripts/build_epub.py"
+      - "scripts/install_epub_tools.py"
+      - "scripts/tests/**"
+      - ".github/workflows/epub.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: epub-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  epub:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # Only this disposable runner opts out; local Chromium keeps its sandbox.
+      EPUB_NO_SANDBOX: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: book/epub/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install pinned export tools
+        run: |
+          python3 scripts/install_epub_tools.py
+          npm ci --prefix book/epub --no-audit --no-fund
+      - name: Regression tests, including real local rendering
+        run: |
+          python3 -B -m unittest discover -s scripts/tests -p 'test_*.py'
+          npm test --prefix book/epub
+          python3 -B scripts/tests/epub_integration.py
+      - name: Export and validate all 143 chapters
+        run: python3 scripts/build_epub.py
+      - name: Narrow-screen EPUB reading regression
+        run: npm run test:layout --prefix book/epub
+      - name: Download EPUB and validation records
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-engineering-interview-zh-CN-epub
+          path: |
+            book/zh-CN/generated/epub/*.epub
+            book/zh-CN/generated/epub/build.json
+            book/zh-CN/generated/epub/manuscript.build.json
+            book/zh-CN/generated/epub/render.json
+            book/zh-CN/generated/epub/epubcheck.json
+            book/zh-CN/generated/epub/epubcheck.txt
+            book/zh-CN/generated/epub/layout.json
+          if-no-files-found: error
+          retention-days: 90

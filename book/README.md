@@ -1,6 +1,6 @@
 # 中文书稿维护与出版
 
-这里面向作者和维护者，不是读者正文。读者入口是 [`docs/book/README.md`](../docs/book/README.md)。当前交付物是**中文简体 Markdown 母稿**，不是可以上传 KDP 的成品 EPUB，也不自动生成英文或转换繁体。
+这里面向作者和维护者，不是读者正文。读者入口是 [`docs/book/README.md`](../docs/book/README.md)。同一份**中文简体 Markdown 母稿**现在同时支持网站与可重排 EPUB3；导出不改写正文、不自动生成英文或转换繁体。EPUB 可供离线阅读和审稿，但不代表当前简体稿具备 KDP 上架资格。
 
 ## 一份正文，两种阅读方式
 
@@ -68,9 +68,74 @@ manifest 校验检查全部 `docs/**/NN-*.md` 知识章恰好出现一次；新�
 
 翻译启动前，再建立以稳定概念 ID 为键的术语表，至少记录中文写法、英文首选词、保留缩写、语义备注和首次出现的章 ID。像“记忆”“上下文”“状态”“检索”“工具执行”这些容易混用的词，要先确定语境，再统一译法。保留产品名、API 标识符和必要版本限定；不通过统一译名掩盖原本不同的概念。本阶段不生成英文章节或假装已经做完术语审定。
 
+## EPUB 导出与下载
+
+网站继续走 `.github/workflows/docs.yml`；电子书走独立的 [Build EPUB](https://github.com/zongyangbigpolo/awesome-ai-roadmap/actions/workflows/epub.yml)。PR、影响书稿的 main 更新和手动运行都会生成完整电子书。导出流程只有仓库读取权限，不发 Release、不部署网站、不上传 KDP；导出依赖或格式检查失败不会阻塞原有网站部署。
+
+日常改稿仍然只改原来的 Markdown、只提一个 PR；PR 阶段检查网站并生成 EPUB 预览，合并后两个工作流各自构建。无需另开“EPUB 内容 PR”，也不手工维护或提交 `.epub`。独立的是构建流程，不是正文来源。
+
+在成功运行的 **Artifacts** 中下载 `ai-engineering-interview-zh-CN-epub`，解压得到 `ai-engineering-interview-zh-CN.epub`、`build.json`、母稿哈希记录、静态渲染记录和 EPUBCheck 报告。GitHub 下载工件通常需要登录。保留期为 90 天（仓库或组织策略可能进一步缩短）；过期后，有 Actions 操作权限的维护者可选 **Run workflow** 重建。无需把生成文件提交进 Git。
+
+### 本地安装与一条命令导出
+
+完整导出支持 macOS 的 arm64、x64，以及 Linux x64；需要 Python 3.10+、Node.js 22 和单独安装的 Java 17+。安装脚本不改全局 PATH、不替用户安装 Java，不接触主工作树。Windows 可使用 x64 Linux 环境运行。虽然固定的 Pandoc 归档另含 Linux arm64，当前 Puppeteer 配套 Chromium 不支持该平台，因此不能据此宣称完整导出支持 Linux arm64；请使用 x64 runner。
+
+```bash
+# 首次安装，或固定依赖版本发生变化时运行
+python3 scripts/install_epub_tools.py
+npm ci --prefix book/epub
+
+# 日常导出：包含全书组装、静态渲染、打包、链接审计和 EPUBCheck
+python3 scripts/build_epub.py
+
+# 可选：独立输出目录；只能替换本工具已有的输出，不能覆盖源文件
+python3 scripts/build_epub.py --output /tmp/ai-engineering-epub
+```
+
+默认文件在 `book/zh-CN/generated/epub/ai-engineering-interview-zh-CN.epub`。目录内还保留中间母稿、`rendered/` PNG 和构建记录，便于人工审稿。只有全部检查通过才替换上次成功输出；缺工具、资源丢失、未知公式、渲染错误或写入失败都会报错，不降级成缺图版本。
+
+Pandoc **3.6.4**、EPUBCheck **5.2.1** 下载到 `book/epub/.tools/`，按 [`epub/tools.json`](epub/tools.json) 固定的完整归档 SHA-256 校验后解包。校验值来自官方 GitHub Release 的 HTTPS 下载，不冒充上游签名。Node 依赖单独锁在 `book/epub/package-lock.json`：Mermaid **11.12.0**、MathJax **3.2.2**、Puppeteer **24.15.0**、Noto Sans SC **5.2.5**；Chromium 放在该目录的 `.cache/puppeteer/`，普通网站的 `npm ci` 不会安装它们。首次安装需要联网获取工具和字体，书稿转换不发送到任何远程渲染服务。
+
+Linux 若缺 Chromium 系统库，按 [Puppeteer 的运行环境说明](https://pptr.dev/troubleshooting) 安装对应发行版依赖；不要用关闭沙箱掩盖缺库。本地默认启用浏览器沙箱，只有独立、可丢弃的 CI runner 显式设置 `EPUB_NO_SANDBOX=1`。
+
+### 导出如何保留阅读内容
+
+导出复用 `scripts/build_book.py` 的 manifest 校验、次序、稳定 ID、链接与署名处理，然后由 Pandoc 解析 Markdown AST。代码围栏、行内代码和缩进代码不是公式；示例代码中的 Mermaid 不会被当成真正插图。独立的源分段计数与 AST 图/公式计数必须一致，遇到超出当前支持子集的结构要补充转换与回归测试，不能直接放宽计数。
+
+每个知识章、篇页和前后附页分别生成 XHTML，线性 spine 顺序来自 manifest。保留原扉页，不使用 Pandoc 自动扉页；母稿的正文目录换成单一的 EPUB 原生导航目录。篇内原章号不变，稳定章/节 ID 移交给标题；打包后按真实 XHTML ID 与资源哈希修正跨文件链接，并逐条检查目标是否存在。参考资料仍可点击联网访问，**正文、图和公式本身不依赖网络**。
+
+Mermaid 与 LaTeX 仅在导出时转成带替代文本的 PNG，网站源继续保留原语法。本地浏览器加载隔离安装的渲染器与中文字体，禁止访问外部地址；单个浏览器批量绘制并按内容、渲染器与 lockfile 缓存。图片使用两倍像素密度和白色背景，避免深色阅读模式下透明黑字消失；行内公式按 `em` 设首选宽度，受到单元格或段落宽度约束时等比缩放，不撑宽页面。点公式图片可进入独立的完整公式页并返回原位置，原始像素不减少。中文字体用于生成图片，不锁定电子书正文字体。
+
+源文件中的普通图片目前支持本地 PNG/JPEG/GIF。远程图片、带依赖的 SVG、Mermaid 内嵌图片/图标和交互链接需要先做显式的离线静态转换；当前导出会拒绝这些输入，不替作者联网抓取或静默删除。
+
+正文只保留概览与“查看大图与细节”链接；非线性的独立图页放完整原图与有重叠的局部图，局部按从左到右、从上到下阅读，不裁掉超出屏幕的内容。每次出现的图都有自己的详情页，返回链接精确回到正文中的此图，跨章复用的 PNG 仍只打包一份。图页不混入章目录或连续阅读 spine，局部图不重复堆在正文。超出渲染器明确尺寸/面积上限会失败，要求主动调整图，而不是悄悄丢图或缩成不可读缩略图。代码只通过 CSS 视觉换行，不向代码内容插入换行符；表格按窄屏折行，但宽表、大图和公式仍需在实际设备查看。
+
+EPUB 专用 CSS 位于 `book/epub/epub.css`，不会覆盖站点样式。本次不生成封面、不编造 ISBN 或出版社；书目作者沿用 Polo Li，许可仍集中在书末。生成文件使用真实的 `zh-CN`，将来英文导出要先有对应英文母稿与语言支持，不能只修改 metadata。
+
+### 回归与验收边界
+
+```bash
+# 网站也可运行：这些单元测试不需要导出工具或浏览器
+python3 -B -m unittest discover -s scripts/tests -p 'test_*.py'
+
+# EPUB 专用：实际启动浏览器，验证中文图、公式、缓存和错误路径
+npm test --prefix book/epub
+python3 -B scripts/tests/epub_integration.py
+
+# 完整 143 章实际导出及格式校验，不是两页样例或跳过式测试
+python3 scripts/build_epub.py
+npm run test:layout --prefix book/epub
+```
+
+`build.json` 区分图/公式的**出现次数**、去重渲染数、局部图和实际打包资产数，并记录字节数、SHA-256、章数、篇数、spine、内部链接检查及工具版本。`manuscript.build.json` 记录每个源文件与资产哈希；`render.json` 可定位 PNG 及尺寸；`epubcheck.json` / `.txt` 保留官方校验结果。完整导出还检查 mimetype、OPF、语言、导航、所有内部片段、资源完整性、脚本与远程依赖。图/公式无错误、EPUBCheck 无错误和警告后才发布工件。
+
+浏览器排版回归使用实际 EPUB 的代表页（包括量化章节的公式表格），检查 375px 宽度下 16/24/32px 字号、页面无横向溢出、公式纵横比、代码未裁剪及完整公式页的返回链接，生成带 EPUB 哈希和逐页测量值的 `layout.json`，CI 一并附上。这仍不等于人工排版验收；还要在电子书阅读器与 Kindle Previewer 查看中文字体、窄屏代码/表格、不同字号、横竖屏、深色模式以及全部图和公式。导出记录会明确保留“未进行 Kindle Previewer 人工验收”和“未声称 KDP 接收”。
+
 ## 出版限制与人工决策
 
-以下是作者操作说明，核对日期为 **2026-09-15**。平台规则会变化，上架前须重新查阅原始页面。
+以下是作者操作说明。EPUB 格式与语言支持核对日期为 **2026-09-18**；其他出版条款保留 **2026-09-15** 的核对记录。平台规则会变化，上架前须重新查阅原始页面。
+
+**格式支持、预览验收与发行资格是三件事。** KDP 的 [Supported eBook Formats](https://kdp.amazon.com/en_US/help/topic/G200634390) 接受符合 Kindle Publishing Guidelines 的 EPUB，并建议上传前用 Kindle Previewer 检查。通过 EPUBCheck 只说明文件满足其检查的 EPUB 规范，不说明视觉排版已验收，更不说明 KDP 已接受该书或其语言。
 
 **语言资格尚未满足。** KDP 的 [Book Supported Languages](https://kdp.amazon.com/en_US/help/topic/G200673300) 只列出 `Chinese (Traditional) (eBook only)`，未列简体中文。官方说明不支持语言的电子书可能被移除。因此继续维护简体母稿，但不能把本稿称为当前可直接上架的 KDP 书，也不能虚报成其他语言绕过限制。后续英文出版是另一阶段；不要未经作者决定偷偷转为繁体。
 
@@ -80,8 +145,8 @@ manifest 校验检查全部 `docs/**/NN-*.md` 知识章恰好出现一次；新�
 
 **保留权利边界。** 作者可以商业出版自己的原创内容，但不能撤销已授予的 CC BY 4.0 许可。第三方论文、代码、截图、商标和引用各有其权利与许可，须根据最终实际用法复核；不能因原仓库开放就把全部引用视为可任意重印。集中许可页不代替第三方要求的具体署名、通知或授权。
 
-## 到可上传电子书还差什么
+## 到可发行电子书还差什么
 
-先完成全部章节的简体审校并冻结一版，再处理插图、公式和可重排版式。当前 Markdown 母稿保留 Mermaid 和 LaTeX 源码；Kindle 不会因此自动得到可读图形或数学排版。后续需把 Mermaid 转成适合设备显示的静态图，为公式选择并验证可读的表示，补充必要的替代文本，确认资产权利并打包本地资源。
+先完成全部章节审校并冻结一版。当前导出已经处理静态插图、公式、原生导航和可重排打包，但仍需人工确认图中文字、公式含义、替代文本、宽表与代码在目标设备上的阅读效果，并复核资产权利。
 
-然后制作可重排 EPUB，检查导航目录、篇章跳转、图表宽度、代码换行、字体和无障碍信息。用 Kindle Previewer 检查不同屏幕、字号和横竖屏；公式与图表还要人工逐页看，不能仅凭结构校验成功。完成封面、书目资料、真实致谢和权利复核后，再根据实际出版语言及 AI 使用情况填写 KDP 后台。没有获得的 ISBN、出版社、出版年次或贡献者姓名，不应为凑齐页面而编造。
+用 Kindle Previewer 检查不同屏幕、字号和横竖屏；公式与图表还要人工逐页看，不能仅凭结构校验成功。具备平台支持的真实语言稿、完成封面、书目资料、真实致谢和权利复核后，再根据实际出版语言及 AI 使用情况填写 KDP 后台。没有获得的 ISBN、出版社、出版年次或贡献者姓名，不应为凑齐页面而编造。

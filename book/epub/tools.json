@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "provenance": {
+    "verified_on": "2026-09-18",
+    "method": "SHA-256 calculated from each complete official GitHub release asset downloaded over HTTPS. These releases did not publish asset digests in the GitHub release API or separate checksum assets. These are repository-pinned checksums, not upstream signatures.",
+    "release_pages": [
+      "https://github.com/jgm/pandoc/releases/tag/3.6.4",
+      "https://github.com/w3c/epubcheck/releases/tag/v5.2.1"
+    ]
+  },
+  "pandoc": {
+    "version": "3.6.4",
+    "executable": ".tools/pandoc/bin/pandoc",
+    "platforms": {
+      "macos-arm64": {
+        "url": "https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-arm64-macOS.zip",
+        "sha256": "88af17f1885afacb25f70ce4c8c44428feb6da860b6cf690e30da77998456c7f",
+        "size": 36441871,
+        "format": "zip",
+        "root": "pandoc-3.6.4-arm64"
+      },
+      "macos-x64": {
+        "url": "https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-x86_64-macOS.zip",
+        "sha256": "35789fb4afc61266b954035059820dd546b10d8f05fef36a8deadffaedffc2b8",
+        "size": 22356871,
+        "format": "zip",
+        "root": "pandoc-3.6.4-x86_64"
+      },
+      "linux-x64": {
+        "url": "https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-linux-amd64.tar.gz",
+        "sha256": "5def6e1ff535e397becce292ee97767a947306150b9fb1488003b67ac3417c5e",
+        "size": 32917495,
+        "format": "tar.gz",
+        "root": "pandoc-3.6.4"
+      },
+      "linux-arm64": {
+        "url": "https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-linux-arm64.tar.gz",
+        "sha256": "ad5cf63fe0420388d9ec513f02d03e061477b786d11a328164dce8ad7387b8bd",
+        "size": 35685198,
+        "format": "tar.gz",
+        "root": "pandoc-3.6.4"
+      }
+    }
+  },
+  "epubcheck": {
+    "version": "5.2.1",
+    "jar": ".tools/epubcheck/epubcheck.jar",
+    "runtime": "Java must be installed separately; JAVA_HOME or java on PATH is used.",
+    "artifact": {
+      "url": "https://github.com/w3c/epubcheck/releases/download/v5.2.1/epubcheck-5.2.1.zip",
+      "sha256": "0532f6291faa2bb729dd253f958868a2a57dbd2c32f881a97c7c980c5940309e",
+      "size": 31821963,
+      "format": "zip",
+      "root": "epubcheck-5.2.1"
+    }
+  }
+}
