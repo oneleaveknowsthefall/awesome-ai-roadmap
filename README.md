@@ -2,7 +2,11 @@
 
 这是一份面向 AI 工程面试准备的中文知识图谱，覆盖模型原理、应用开发和生产治理。每个主题既解释概念，也讨论选型条件、失败场景和工程取舍，方便从基础问答深入到系统设计。文档按“主题 → 子模块 → 章节”组织，通过 MkDocs Material 发布为可搜索的 Wiki。
 
-从头阅读可进入[中文书稿目录](docs/book/README.md)，依次阅读前言、九篇正文和书末附页。网站与书稿共用章节源文件；书稿组装和后续出版准备见[维护说明](book/README.md)。
+从头阅读可进入[中文书稿目录](docs/book/README.md)，依次阅读前言、九篇正文和书末附页。网站与电子书共用章节源文件，在线阅读照旧。
+
+日常修改中文正文只需提交**一个 PR**：PR 会检查网站并预览 EPUB，合并后分别更新网站与 EPUB 下载工件。不必为两种格式各改一份稿，也不提交生成的 `.epub`；流程不会自动上传 KDP。
+
+**下载 EPUB：** 打开 [Build EPUB 工作流](https://github.com/zongyangbigpolo/awesome-ai-roadmap/actions/workflows/epub.yml)，选择成功的运行，在 Artifacts 中下载 `ai-engineering-interview-zh-CN-epub`，解压即可得到 `.epub` 和校验记录。工件保留 90 天；过期后维护者可点 **Run workflow** 重建。依赖安装后，本地一条命令 `python3 scripts/build_epub.py` 也能导出，详见[维护说明](book/README.md#epub-导出与下载)。当前输出真实的简体中文 EPUB，供离线阅读、审稿；**格式有效不等于具备 KDP 上架资格**。
 
 **在线 Wiki：** <https://zongyangbigpolo.github.io/awesome-ai-roadmap/>
 
