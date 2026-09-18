@@ -24,6 +24,29 @@ flowchart TB
 
 这是一种常见顺序，不是跨框架标准。重复惩罚、语法掩码、最小长度、`min_p` 等处理也可能参与。迁移服务时应检查实际的 logits processor / sampler 链，而不能只比较同名参数。
 
+```python
+import torch
+
+
+def sample_next(logits, temperature=1.0, top_k=0, top_p=1.0):
+    # logits: (V,) 单个位置的原始分数，按上图顺序依次处理
+    logits = logits / temperature  # 只改变相对概率，不改变排序
+    if top_k > 0:
+        kth = logits.topk(min(top_k, logits.size(-1))).values[-1]
+        # 概率并列时，这种写法会保留多于 K 个候选
+        logits = logits.masked_fill(logits < kth, float("-inf"))
+    probs = logits.softmax(dim=-1)
+    if top_p < 1.0:
+        order = probs.argsort(descending=True)
+        # 不含自身的前缀累计概率：以它为判据，跨过阈值的那一项会被保留
+        exclusive = probs[order].cumsum(dim=-1) - probs[order]
+        probs = probs.clone()
+        probs[order[exclusive >= top_p]] = 0.0
+    probs = probs / probs.sum()  # 截断后重新归一化，再按概率采样
+    return torch.multinomial(probs, num_samples=1)
+```
+
+
 ## 13.2 Temperature：概率比怎样变化
 
 仅讨论正温度 T：

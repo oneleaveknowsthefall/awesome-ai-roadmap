@@ -51,6 +51,28 @@ $$
 
 上述非对称公式假设非零范围且需要让零可表示；实践通常把 0 纳入校准范围。退化的常量范围须单独处理，不能让 scale 为零。量化误差有两类：范围内的舍入误差，以及超出范围后被截断的 clipping 误差。缩小范围能细化刻度，却可能增加截断误差。
 
+```python
+def quantize_uint4(x, x_min, x_max):
+    """非对称 4-bit 无符号量化，返回整数、scale 与 zero point。"""
+    q_min, q_max = 0, 15
+    s = (x_max - x_min) / (q_max - q_min)
+    # zero point 让实数 0 落在整数格点上
+    z = min(max(q_min - round(x_min / s), q_min), q_max)
+    q = min(max(round(x / s) + z, q_min), q_max)  # 超出范围即产生截断误差
+    return q, s, z
+
+
+def dequantize_uint4(q, s, z):
+    return s * (q - z)
+
+
+def quantize_int4(x, absmax):
+    """对称有符号量化：q 取 [-8, 7]，zero point 恒为 0。"""
+    s = absmax / 7
+    return min(max(round(x / s), -8), 7), s
+```
+
+
 ### 15.2.1 对称与非对称
 
 | 风格 | 假设 | 适合 |
