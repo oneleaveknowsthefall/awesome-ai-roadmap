@@ -241,6 +241,85 @@ else:
 
 把 `tool_choice` 锁定到某个工具时，Function Calling 实际上就在充当**结构化输出**接口。这是 Structured Output / JSON Mode 出现之前的通行做法，现在仍然被大量代码沿用。
 
+### 1.5.3 Responses API 的等价调用流程
+
+Responses API 同样遵循「模型提出调用 → 宿主执行 → 回填结果 → 模型回答」的流程，但**工具定义、调用项和结果回填的结构都不同，不能只换一个 endpoint**。Chat Completions 把调用放在 assistant 消息的 `tool_calls` 中；Responses 则把消息、函数调用等作为不同类型的项，放在 `response.output` 列表中。
+
+两种接口的关键字段可以这样对应：
+
+| 含义 | Chat Completions | Responses API |
+|---|---|---|
+| Python SDK 入口 | `client.chat.completions.create(...)` | `client.responses.create(...)` |
+| 本例的对话输入 | `messages` | `input`，包含消息或工具结果等项 |
+| function tool 定义 | `{"type": "function", "function": {...}}` | `{"type": "function", "name": ..., "description": ..., "parameters": ...}` |
+| 查找函数调用 | `choices[0].message.tool_calls` | 遍历 `response.output`，筛选 `type == "function_call"` |
+| 函数名与 JSON 参数字符串 | `call.function.name`、`call.function.arguments` | `call.name`、`call.arguments` |
+| 调用与结果的关联 | 调用的 `id` → 结果的 `tool_call_id` | 调用的 `call_id` → 结果的 `call_id` |
+| 回填工具结果 | `role: "tool"` 消息，结果放在 `content` | `type: "function_call_output"` 项，结果放在 `output` |
+| 读取文本回答 | `choices[0].message.content` | `response.output_text`（SDK 汇总文本的便捷属性） |
+
+Responses 的 function tool schema 是**扁平结构**：`name`、`description`、`parameters`、`strict` 与 `type` 同级，没有外层 `function` 对象；这不表示 `parameters` 内部不能定义嵌套对象。
+
+下面沿用 1.4 节的 `tools` 定义，以及前文由应用实现的 `registry` 和 `validate_and_authorize`，仍是单批查询的教学片段。显式设置 `strict=False`，保留原例中 `unit` 可选的语义；若开启严格模式，需要同时调整 Schema，不能只改这个开关。
+
+```python
+import json
+from openai import OpenAI
+
+client = OpenAI()
+weather = tools[0]["function"]  # 读取前文 Chat Completions 的工具定义
+responses_tools = [{
+    "type": "function",
+    "name": weather["name"],
+    "description": weather["description"],
+    "parameters": weather["parameters"],
+    "strict": False,
+}]
+input_items = [{"role": "user", "content": "北京今天天气怎么样？"}]
+
+
+def check_response(response):
+    if response.status != "completed":
+        raise RuntimeError(f"响应未正常完成：{response.status}")
+    for item in response.output:
+        if item.type == "message":
+            if any(part.type == "refusal" for part in item.content):
+                raise RuntimeError("请求被模型拒绝")
+
+
+# 第一轮：从 output 中收集所有函数调用，不能假设第一项就是调用
+response = client.responses.create(
+    model="gpt-4o", input=input_items, tools=responses_tools, tool_choice="auto"
+)
+check_response(response)
+calls = [item for item in response.output if item.type == "function_call"]
+
+if calls:
+    input_items.extend(response.output)  # 先保留完整输出，再追加工具结果
+    for call in calls:
+        args = json.loads(call.arguments)
+        validate_and_authorize(call.name, args)
+        result = registry[call.name](**args)
+        input_items.append({
+            "type": "function_call_output",
+            "call_id": call.call_id,  # 对应调用的 call_id，不是该项的 id
+            "output": json.dumps(result, ensure_ascii=False),
+        })
+
+    # 与前例一样，第二轮禁止继续调用工具，收尾生成回答
+    response = client.responses.create(
+        model="gpt-4o", input=input_items,
+        tools=responses_tools, tool_choice="none",
+    )
+    check_response(response)
+
+print(response.output_text)
+```
+
+这里手动维护 `input_items`，所以必须把第一轮完整的 `response.output` 带回下一轮；若换用推理模型，随调用返回的 `reasoning` 项也应保留，不能只摘出 `function_call`。另一种方式是通过 `previous_response_id=response.id` 关联上一轮，再在 `input` 中提交本轮工具结果；本例采用前一种方式。
+
+**`call_id` 负责把结果配回具体调用**。即使同一函数被调用两次，也要分别回填，不能只按函数名关联。判断是否需要执行函数，应检查 `function_call` 项；`status == "completed"` 只说明这次响应已完成，不代表整个任务已完成，也不替代 Chat Completions 的 `finish_reason`。本例处理零个或多个调用，但只执行一批；需要多步工具协作时，仍要增加有轮数和时间预算的循环。
+
 ## 1.6 并行工具调用
 
 `tool_calls` 是数组而不是单个对象，这是一个刻意的设计。
@@ -345,6 +424,7 @@ Function Calling 只解决了「模型怎么表达调用意图」。它没有解
 ## 参考资料
 
 - [OpenAI: Function Calling 指南（2026-09-08 核查）](https://developers.openai.com/api/docs/guides/function-calling)
+- [OpenAI: Responses API 迁移指南（本节字段与示例于 2026-09-16 对照此页及 Function Calling 指南核查）](https://developers.openai.com/api/docs/guides/migrate-to-responses)
 - [OpenAI: 2023 年 Function Calling 发布](https://openai.com/index/function-calling-and-other-api-updates/)
 - [Anthropic: Tool Use with Claude](https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview)
 - [Anthropic: Writing Effective Tools for Agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
