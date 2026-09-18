@@ -54,6 +54,7 @@ class EpubIntegration(unittest.TestCase):
         self.assertEqual(report["occurrences"], {"inline": 1, "display": 1, "mermaid": 2})
         self.assertEqual(report["unique_rendered"]["mermaid"], 1)
         self.assertEqual(report["nonlinear_figure_documents"], 2)
+        self.assertEqual(report["nonlinear_formula_documents"], 2)
         self.assertNotIn("diagram-detail", report["image_occurrences"])
         self.assertGreater(report["supplemental_image_occurrences"]["diagram-detail"], 0)
         filename = output / (epub.BOOK_NAME + ".epub")
@@ -64,7 +65,7 @@ class EpubIntegration(unittest.TestCase):
         origin = {}
         for name, tree in trees.items():
             for node in tree.iter():
-                if node.get("id", "").startswith("figure-"):
+                if node.get("id", "").startswith(("figure-", "formula-")):
                     origin[node.get("id")] = name
             if "/text/" in name:
                 self.assertFalse(tree.findall(".//h:img[@class='diagram-detail']", epub.NS))
@@ -74,7 +75,8 @@ class EpubIntegration(unittest.TestCase):
                 link = tree.find(".//h:a", epub.NS)
                 target, fragment = epub.package_target(name, link.get("href"))
                 self.assertEqual(origin[fragment], target)
-                return_targets.append(target)
+                if "/figure-" in name:
+                    return_targets.append(target)
         self.assertEqual(len(set(return_targets)), 2, "shared PNG must return to the right chapter")
         code = "\n".join(node.text or "" for tree in trees.values()
                          for node in tree.findall(".//h:code", epub.NS))

@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test render.test.mjs"
+    "test": "node --test render.test.mjs",
+    "test:layout": "node --test layout.test.mjs"
   },
   "dependencies": {
     "@fontsource/noto-sans-sc": "5.2.5",

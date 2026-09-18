@@ -64,6 +64,8 @@ jobs:
           python3 -B scripts/tests/epub_integration.py
       - name: Export and validate all 143 chapters
         run: python3 scripts/build_epub.py
+      - name: Narrow-screen EPUB reading regression
+        run: npm run test:layout --prefix book/epub
       - name: Download EPUB and validation records
         uses: actions/upload-artifact@v4
         with:
@@ -75,5 +77,6 @@ jobs:
             book/zh-CN/generated/epub/render.json
             book/zh-CN/generated/epub/epubcheck.json
             book/zh-CN/generated/epub/epubcheck.txt
+            book/zh-CN/generated/epub/layout.json
           if-no-files-found: error
           retention-days: 90

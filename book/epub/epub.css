@@ -25,6 +25,7 @@ code { font-family: monospace; }
 :not(pre) > code { overflow-wrap: anywhere; }
 table {
   border-collapse: collapse;
+  table-layout: fixed;
   width: 100%;
   font-size: 0.85em;
   line-height: 1.5;
@@ -47,8 +48,10 @@ img { max-width: 100%; height: auto; }
   padding: 0.2em;
 }
 img.inline-math {
-  max-width: none;
+  max-width: 100%;
+  height: auto;
   vertical-align: middle;
   background: white;
 }
+.formula-link { text-decoration: none; }
 .figure-link { font-size: 0.8em; }

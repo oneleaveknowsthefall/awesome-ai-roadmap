@@ -207,25 +207,32 @@ def prepare_ast(ast, book, directory):
 def apply_images(ast, rendered):
     assets = {item["key"]: item for item in rendered["results"]}
     figure_number = 0
+    formula_number = 0
 
     def image(item, label, classes, inline=False):
-        pairs = [("style", f"width:{item['width'] / 20:.2f}em; "
-                           f"height:{item['height'] / 20:.2f}em;")] if inline else []
+        pairs = [("style", f"width:{item['width'] / 20:.2f}em;")] if inline else []
         return {"t": "Image", "c": [attr(classes, pairs), [string(label)],
                                   ["rendered/" + item["file"], ""]]}
 
     def transform(value):
-        nonlocal figure_number
+        nonlocal figure_number, formula_number
         if isinstance(value, dict):
             key = value.get("_render")
             if key:
                 item = assets[key]
                 source = value["c"][1]
-                if item["kind"] == "inline":
-                    return image(item, "公式：" + source, ["inline-math"], True)
-                if item["kind"] == "display":
-                    return {"t": "Span", "c": [attr(["display-math"]),
-                                               [image(item, "公式：" + source, ["display-math"])]]}
+                if item["kind"] in ("inline", "display"):
+                    formula_number += 1
+                    inline = item["kind"] == "inline"
+                    classes = ["inline-math" if inline else "display-math"]
+                    return {"t": "Span", "c": [
+                        [f"formula-{formula_number}", ["formula"] + classes, []],
+                        [{"t": "Link", "c": [
+                            attr(["formula-link"]),
+                            [image(item, "公式：" + source, classes, inline)],
+                            ["rendered/" + item["file"], "查看完整公式"],
+                        ]}],
+                    ]}
                 label = value["_heading"] + "：流程或结构示意图"
                 figure_number += 1
                 blocks = [{"t": "Para", "c": [image(item, label, ["diagram"])]},
@@ -323,20 +330,23 @@ def repair_links(path, resource_hashes=None, book=None):
             if target.endswith(".png") and target in entries:
                 # EPUB hyperlinks must target content documents, not bare PNGs.
                 container = parents.get(element)
-                while container is not None and "diagram" not in container.get("class", "").split():
+                while container is not None and not (
+                        {"diagram", "formula"} & set(container.get("class", "").split())):
                     container = parents.get(container)
                 require(container is not None and container.get("id"),
-                        "linked image must belong to an identified diagram")
+                        "linked image must belong to an identified diagram or formula")
                 origin_id = container.get("id")
+                is_formula = "formula" in container.get("class", "").split()
                 figure = "EPUB/figures/" + origin_id + ".xhtml"
                 if figure not in figures:
                     images = tree.findall(".//h:img", NS)
                     alt = next((image.get("alt") for image in images
                                 if package_target(name, image.get("src"))[0] == target), "完整示意图")
+                    visible_title = "完整公式" if is_formula else alt
                     figure_tree = ET.Element(f"{{{XHTML}}}html", {
                         "lang": "zh-CN", "{http://www.w3.org/XML/1998/namespace}lang": "zh-CN"})
                     head = ET.SubElement(figure_tree, f"{{{XHTML}}}head")
-                    ET.SubElement(head, f"{{{XHTML}}}title").text = alt
+                    ET.SubElement(head, f"{{{XHTML}}}title").text = visible_title
                     for link in tree.findall("h:head/h:link", NS):
                         if link.get("rel") == "stylesheet":
                             stylesheet, _ = package_target(name, link.get("href"))
@@ -347,11 +357,11 @@ def repair_links(path, resource_hashes=None, book=None):
                     body = ET.SubElement(figure_tree, f"{{{XHTML}}}body")
                     ET.SubElement(body, f"{{{XHTML}}}a", {
                         "href": posixpath.relpath(name, "EPUB/figures") + "#" + origin_id,
-                    }).text = "返回正文中的此图"
-                    ET.SubElement(body, f"{{{XHTML}}}p").text = alt
+                    }).text = "返回正文中的此公式" if is_formula else "返回正文中的此图"
+                    ET.SubElement(body, f"{{{XHTML}}}p").text = visible_title
                     ET.SubElement(body, f"{{{XHTML}}}img", {
                         "src": posixpath.relpath(target, "EPUB/figures"), "alt": alt,
-                        "class": "diagram",
+                        "class": "full-formula" if is_formula else "diagram",
                     })
                     details = next((child for child in container
                                     if "diagram-details" in child.get("class", "").split()), None)
@@ -470,7 +480,7 @@ def audit_epub(path, book, occurrences=None):
                 require(element.get("alt", "").strip(), f"image lacks alternative text: {name}")
                 classes = element.get("class", "").split()
                 kind = next((c for c in classes if c in
-                             {"inline-math", "display-math", "diagram", "diagram-detail"}), "source")
+                             {"inline-math", "display-math", "diagram", "diagram-detail", "full-formula"}), "source")
                 (images if name in spine else supplemental_images)[kind] += 1
         for node in tree.findall(".//h:code", NS):
             require("mermaid" not in node.get("class", "").split(), "unconverted Mermaid code")
@@ -510,7 +520,8 @@ def audit_epub(path, book, occurrences=None):
     return {
         "chapters": book.manifest["chapter_count"], "parts": len(book.parts),
         "spine_documents": len(spine), "xhtml_documents": len(trees),
-        "nonlinear_figure_documents": len(all_spine) - len(spine),
+        "nonlinear_figure_documents": sum("/figures/figure-" in name for name in all_spine),
+        "nonlinear_formula_documents": sum("/figures/formula-" in name for name in all_spine),
         "internal_links_and_resources": len(links), "image_occurrences": dict(images),
         "supplemental_image_occurrences": dict(supplemental_images),
         "packaged_image_assets": sum(name.endswith(".png") for name in entries),
