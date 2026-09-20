@@ -1,0 +1,1364 @@
+{
+  "scope": "docs/rag/**",
+  "source_commit": "be53fedaedfb28da181db8e95f41bf91100621c4",
+  "pages": [
+    {
+      "path": "docs/rag/01-foundations/01-what-is-rag.md",
+      "zh_path": "docs/rag/01-foundations/01-what-is-rag.zh.md",
+      "kind": "chapter",
+      "source_sha256": "e7138a1df19b9a3a666165f1821cc7548874765b0477fce45d469413c03c2d92",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2005.11401",
+          "scope": "Attempted to inspect the original RAG paper's training and parametric/non-parametric memory claims.",
+          "access_limitations": "The web_fetch extraction returned only the title. No substantive claim was verified from this response; the HTML paper was fetched separately."
+        },
+        {
+          "url": "https://arxiv.org/html/2005.11401",
+          "scope": "Read the introduction and Figure 1 caption confirming combined parametric and non-parametric memory, joint learning of the retriever and generator, and replacement of external memory for knowledge updates.",
+          "access_limitations": "web_fetch exposed the introduction, not a complete experimental reproduction. No model was trained or evaluated."
+        },
+        {
+          "url": "https://arxiv.org/html/2004.04906",
+          "scope": "Read the introduction and directly fetched full HTML passages from Section 3 confirming two independent BERT encoders, offline passage encoding/indexing, query-time question encoding, and learning a shared dot-product retrieval space.",
+          "access_limitations": "The first web_fetch extraction exposed only the introduction; Python urllib was then used to inspect encoder and inference passages from the full HTML. Results were not reproduced."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/contextual-retrieval",
+          "scope": "Checked offline chunking/embedding/indexing, runtime vector and BM25 retrieval, candidate reranking, and the stated latency/cost tradeoff rather than treating reranking as a universal accuracy guarantee.",
+          "access_limitations": "Vendor-reported experimental results and implementation guidance, not independent validation. Linked appendices and cookbook examples were not fetched."
+        }
+      ],
+      "notes": [
+        "Sources accessed on 2026-09-20. The full original was read and copied with cp before translation; the companion bytes were compared directly with git show at be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Preserved all 13 numbered headings, four Mermaid diagrams and their topology, all tables, examples, numbered summary items, and original link targets; English H1 uses Chapter 1.",
+        "Translated process-level recall wording as retrieval, reserving recall for the metric; rendered rough ranking as first-stage ranking and fine ranking as reranking.",
+        "Kept the compatible query/document encoder contract, distinct weights, representation-version requirements, and the exception that a verified compatible query-only change need not trigger document re-embedding.",
+        "Distinguished authorization decisions from filtering and retained the restrictions on caches, citations, and tools; preserved the fact that retrieval alone does not change model weights.",
+        "No executable code or LaTeX formulas occur in this chapter; all fenced blocks are Mermaid. No material was summarized away or updated to a newer API.",
+        "The cited survey and best-practices paper were retained but not fetched in this review.",
+        "Scoped structural checks and git diff --check passed. After the agent's initial missing-jsdom failure, the coordinating session restored the declared dependencies and successfully parsed all 14 diagrams across both foundation editions."
+      ]
+    },
+    {
+      "path": "docs/rag/01-foundations/02-rag-finetune-longcontext.md",
+      "zh_path": "docs/rag/01-foundations/02-rag-finetune-longcontext.zh.md",
+      "kind": "chapter",
+      "source_sha256": "0192539e371f5eb59640156bebd10b0012de3fcc7c4660160cdc917c4a372f11",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2307.03172",
+          "scope": "Checked the U-shaped positional effect, studied models and tasks, limitations of extended windows, and the distinction between key-value retrieval and multi-document QA.",
+          "access_limitations": "Read the extracted introduction and initial figure material, not all appendices or experimental artifacts. Historical findings were not generalized to all current models."
+        },
+        {
+          "url": "https://research.trychroma.com/context-rot",
+          "scope": "Checked the distinction between classical lexical needle retrieval and semantic matching, the controlled input-length experiments, distractors versus unrelated content, and nonuniform/model-specific degradation.",
+          "access_limitations": "Redirected to https://www.trychroma.com/research/context-rot. The first 15000 characters were reviewed, covering methodology and the beginning of the detailed experiments; later per-model results were not all read or reproduced."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/contextual-retrieval",
+          "scope": "Verified the reported comparison of 5, 10, and 20 chunks, the statement that 20 performed best in that setup, the caution about distracting information, and the small-corpus/prompt-caching alternative.",
+          "access_limitations": "The article was read, but its linked appendix PDF was not fetched and the vendor's experiments were not reproduced. No current price or context-window recommendation was added."
+        },
+        {
+          "url": "https://arxiv.org/html/2406.13121",
+          "scope": "Checked LOFT's corpus-in-context comparison with retrieval, RAG, and SQL, including cases matching specialized models and weaknesses in complex multi-hop compositional reasoning.",
+          "access_limitations": "The extracted introduction was reviewed, not all benchmark tables. The translation preserves the conditional conclusion rather than claiming long context cannot replace retrieval in any task."
+        },
+        {
+          "url": "https://arxiv.org/html/2410.05983",
+          "scope": "Checked the nonmonotonic effect of adding retrieved passages, hard-negative distraction, retrieval reordering, and implicit versus explicit relevance fine-tuning.",
+          "access_limitations": "The extracted introduction was reviewed. It supports noise-robust fine-tuning but does not by itself establish abstention training."
+        },
+        {
+          "url": "https://arxiv.org/html/2406.15319",
+          "scope": "Checked whole-document/grouped-document retrieval units, a long-context reader, and the motivation for reducing fragmentation without putting the entire corpus in context.",
+          "access_limitations": "The introduction from the HTML rendering of v3 was read; numerical benchmark results were not reproduced or added to the chapter."
+        },
+        {
+          "url": "https://arxiv.org/html/2403.10131",
+          "scope": "Read Section 3 on RAFT data construction, positive/distractor documents, and examples that deliberately omit the golden document while retaining the target answer.",
+          "access_limitations": "The fetched rendering exposes Section 3 and associated examples from v2. This verifies distractor-aware training, not abstention when evidence is absent."
+        }
+      ],
+      "notes": [
+        "Sources accessed on 2026-09-20. The Chinese companion was copied byte-for-byte before translation; the parent subsequently approved the precise Section 2.8 correction listed in approved_zh_patches. source_sha256 continues to identify the original baseline bytes.",
+        "Preserved all 22 numbered headings, three Mermaid diagrams and their topology, cost comparisons, examples, qualifications, and reference URLs; English H1 uses Chapter 2.",
+        "Kept knowledge acquisition through fine-tuning distinct from reliable per-record updates, revocation, auditability, and document-level authorization.",
+        "Preserved the conditional nature of long-context results and the explicit statement that input-length degradation is not a universal monotonic law.",
+        "Preserved 5/10/20 chunk values and the absence of a universal optimal K; did not replace the documented findings with present-day model or pricing claims.",
+        "Parent-approved accuracy correction in Section 2.8: separated distractor-aware RAG training from separately designed and evaluated evidence-insufficiency abstention training. Explained the checked RAFT method's omitted-golden-document/retained-answer examples without claiming they teach abstention. Applied the same narrow correction in Chinese and English; no new paper or section was added.",
+        "No executable code or LaTeX formulas occur in this chapter. Internal links still target ordinary .md pages; no Chinese fragments were carried over.",
+        "Scoped structural checks and git diff --check passed. The coordinating session subsequently resolved the missing-jsdom prerequisite and parsed both foundation editions successfully; no browser-rendering claim is made."
+      ],
+      "approved_zh_patches": [
+        {
+          "section": "2.8",
+          "before": "还有一种把两者揉在一起的思路：**针对 RAG 场景微调模型**，专门训练它在给定材料中区分有用信息与干扰信息，并在材料不足时拒答。这类方法能同时改善「被干扰内容带偏」和「材料不足仍硬答」这两个 RAG 固有失败模式。\n",
+          "after": "还有一种把两者结合的思路：**针对 RAG 场景微调模型**，设计抗干扰样本，训练它区分给定材料中的有用信息与干扰信息。若任务要求答案必须有材料依据，还应单独设计并评估证据不足时的拒答训练。两者不能混为一种已被证明的能力：所引 RAFT 的训练包含移除正确文档但仍保留目标答案的样本，鼓励模型利用参数知识回答，不能据此认定它已学会在缺少证据时拒答。\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        }
+      ]
+    },
+    {
+      "path": "docs/rag/01-foundations/README.md",
+      "zh_path": "docs/rag/01-foundations/README.zh.md",
+      "kind": "index",
+      "source_sha256": "314b8180de2397c34e93caaca9bbf713f8a9a65b1837d1376cb4ab100179f413",
+      "references_checked": [],
+      "notes": [
+        "Translated the module title, description, introductory sentence, chapter names, and return link into English.",
+        "Maintained chapter order and normal .md targets for Chapters 1 and 2 and ../README.md; no heading fragments were introduced.",
+        "The cp-created Chinese index remains exactly equal to baseline commit be53fedaedfb28da181db8e95f41bf91100621c4, including its original links, for the parent's later link migration.",
+        "All 14 source lines retain their structural counterparts; scoped link and whitespace checks passed."
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/03-document-parsing.md",
+      "zh_path": "docs/rag/02-ingestion-indexing/03-document-parsing.zh.md",
+      "kind": "chapter",
+      "source_sha256": "b74515eb10382b25aa174d8e7cf251001dc2df23d0f70c42110ebe0f3972511e",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2407.01449",
+          "scope": "Confirmed the identity of the cited ColPali paper; used its full HTML version below for technical checks.",
+          "access_limitations": "The web_fetch text extractor returned only the paper title, not its abstract or body."
+        },
+        {
+          "url": "https://arxiv.org/html/2407.01449v6",
+          "scope": "Checked page-image multi-vector embeddings, late-interaction matching, omission of the OCR/layout ingestion stages, and Section 5.2's storage comparison. The paper stores one vector per image patch plus six text tokens and reports 257.5 KB per page for its stated representation; this supports the chapter's qualified storage warning rather than a universal multiplier.",
+          "access_limitations": "web_fetch selected Appendix A.2 rather than the main body; urllib fetched the full HTML successfully and relevant abstract, method, and Section 5.2 passages were inspected. Checked v6, dated 28 February 2025; no benchmarks or GPU timing experiments were rerun."
+        },
+        {
+          "url": "https://qdrant.tech/documentation/manage-data/payload/",
+          "scope": "Checked that payloads are metadata stored alongside vectors and that set_payload can update selected payload fields without supplying or recomputing vectors. Distinguished metadata filtering from application authorization.",
+          "access_limitations": "The returned excerpt covered payload types and update/set/overwrite/clear operations and was truncated later in the delete-keys examples. No live database was used, and payload indexing performance was not benchmarked."
+        },
+        {
+          "url": "https://arxiv.org/abs/2412.15262",
+          "scope": "Confirmed the identity of the cited LLM-assisted ingestion paper; used its full HTML below for mechanism checks.",
+          "access_limitations": "The web_fetch text extractor returned only the paper title."
+        },
+        {
+          "url": "https://arxiv.org/html/2412.15262",
+          "scope": "Read Sections II.1, II.2, and IV.1: FAST library extraction, multimodal LLM parsing, dedicated OCR, page snapshots, Markdown assembly, metadata extraction, structured table/header/image nodes, and observed differences between exact-word extraction and reading-order reconstruction.",
+          "access_limitations": "Full HTML was accessible through urllib. The cited work combines outputs through an assembler; it is not empirical proof that the chapter's particular rule-to-layout-to-VLM fallback sequence is universally optimal. The paper's downstream faithfulness discussion does not quantify fabricated content during VLM transcription."
+        }
+      ],
+      "notes": [
+        "Copied the original with cp before editing. The Chinese companion remains byte-identical to be53fedaedfb28da181db8e95f41bf91100621c4, including every link; the recorded SHA-256 was computed from those baseline bytes.",
+        "Translated every numbered section, table, list, and both Mermaid diagrams. Graph IDs, edges, node shapes, and graph directions are unchanged; longer English labels use line breaks.",
+        "Preserved the Chinese row-expansion and contract-average query examples and supplied English glosses. Kept the distinction between table localization, row-level evidence, and full-table computation.",
+        "Preserved fail-closed handling of missing authorization, the distinction between content vectors and metadata indexes, and the fact that metadata backfills do not necessarily require re-embedding.",
+        "No confirmed numerical source error was found in the checks performed. The cited general RAG survey was not fetched; the chapter's absolute rhetorical statements about unrecoverable preprocessing errors were translated rather than expanded into new empirical claims.",
+        "Validated identical numbered-heading hierarchy, fenced-block languages, Mermaid topology, table-row counts, external and internal link targets, and unchanged display-math blocks (none are present). There are no executable code samples in this chapter.",
+        "The local Mermaid checker initially failed because jsdom was absent. The byte-identical checker in the known parent checkout, using its already-installed dependencies, passed against this ingestion module: diagrams=36, failures=0. No dependencies or unowned repository files were modified; global documentation/build checks remain with the parent."
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/04-chunking-strategy.md",
+      "zh_path": "docs/rag/02-ingestion-indexing/04-chunking-strategy.zh.md",
+      "kind": "chapter",
+      "source_sha256": "ab882c711d8344a93799efdcde18946b3a32ab4d7aa895668c400be3689c7edd",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2407.01219",
+          "scope": "Read Sections 3.2.1 and 3.2.2 and Tables 3 and 4. The paper varies chunk sizes 128–2048 with overlap fixed at 20 tokens on the first 60 pages of lyft_2021 and approximately 170 generated queries; its small-to-big/sliding-window experiment uses 175-token children and 512-token larger chunks. This supports task-specific chunk-size and context-expansion evaluation, not a universal ranking of size, overlap, and semantic boundaries.",
+          "access_limitations": "web_fetch selected Appendix A.6; full HTML was subsequently read through urllib. The accessible document identifies itself as v1, 1 July 2024. Its chunking section does not directly compare embedding-similarity semantic boundary splitting with fixed/recursive splitting."
+        },
+        {
+          "url": "https://arxiv.org/html/2407.01219v3",
+          "scope": "Attempted a version-specific HTML route while obtaining the cited paper's chunking experiment.",
+          "access_limitations": "HTTP 404. Claims were checked against the accessible unversioned HTML, which identifies itself as v1, rather than attributing results to v3."
+        },
+        {
+          "url": "https://arxiv.org/abs/2312.06648",
+          "scope": "Confirmed the identity of Dense X Retrieval; used the full HTML below to distinguish propositions from similarity-based semantic splitting.",
+          "access_limitations": "The web_fetch extractor returned only the paper title."
+        },
+        {
+          "url": "https://arxiv.org/html/2312.06648v2",
+          "scope": "Read the introduction's definition of propositions as concise, self-contained atomic factoids and the comparison of passage, sentence, and proposition retrieval. Checked that the reported improvements concern Wikipedia/open-domain QA and fixed input-token budgets, not every corpus or every semantic chunker.",
+          "access_limitations": "The fetched passage covers the introduction and its reported results; experiments and the full FactoidWiki generation pipeline were not rerun."
+        },
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+          "scope": "Checked the advertised 32k context length and the Transformers example using max_length=8192 with truncation=True. This directly supports the distinction between the model's advertised capacity and an application's actual tokenizer limit.",
+          "access_limitations": "Read the public model card and example code only; did not download weights, run inference, or replace the chapter's stated model with a newer API."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/contextual-retrieval",
+          "scope": "Checked the implementation warning that chunk size, chunk boundary, and overlap all affect retrieval, and the recommendation to evaluate on the application's own use case.",
+          "access_limitations": "Vendor engineering results, not a peer-reviewed controlled ablation of all chunking algorithms; no independent replication was performed."
+        }
+      ],
+      "notes": [
+        "Copied the original with cp before editing and verified the initial copy against baseline be53fedaedfb28da181db8e95f41bf91100621c4. The parent subsequently approved the Section 4.3/4.7.2 corrections and the repeated hypothetical example in Section 4.2.1, recorded in approved_zh_patches; all Chinese links and other source bytes remain unchanged.",
+        "Preserved all parameter ranges: 500–1000, 200–500, 800–1500 tokens, 10%–20% overlap, 32k model context, and the explicit warning against assuming 512 universally. Preserved 100 and 5000 as Chinese-character counts, not English-word counts.",
+        "Synchronized the repeated Chinese anaphora example with the parent-approved amount-versus-proportion correction in Section 5.3.3, including its English explanation. Retrieval is not mislabeled as the recall metric; the recall-improves/answer-worsens counterexample remains intact.",
+        "Parent-approved accuracy correction: the checked Best Practices size/expansion experiments and Dense X proposition comparisons do not establish broad claims that semantic boundary splitting is costly with inconsistent gains. Sections 4.3 and 4.7.2 now frame this as engineering guidance: measure added preprocessing work and compare against tuned fixed or recursive baselines on the target query set. Both editions were corrected; no unsupported study or new numeric result was introduced.",
+        "The numerical starting points remain recommendations, not claimed experimental optima. The source's fixed-budget comparisons and warning that one vector is not an arithmetic average of topics were preserved.",
+        "The general RAG survey was not fetched. All numbered headings, table-row counts, fenced-block languages, Mermaid IDs/edges/shapes, inline API literals, and link destinations were checked against the source. No display formulas or executable code samples occur here.",
+        "Existing Mermaid validation passed for the ingestion module (36 diagrams, zero failures) using the byte-identical parent-checkout runner and existing dependencies after the local runner reported missing jsdom. No package installation or out-of-scope repository edit was made."
+      ],
+      "approved_zh_patches": [
+        {
+          "section": "4.2.1",
+          "before": "> 「该比例不得超过前款规定的上限。」\n",
+          "after": "> 「该金额不得超过前款规定的上限。」\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        },
+        {
+          "section": "4.2.1",
+          "before": "这段话单独存在时缺少关键语境：「该比例」是什么？「前款」是哪一款？即使命中，也不足以回答具体比例和适用条件，需要回到原文补齐依据。\n",
+          "after": "这段话单独存在时缺少关键语境：「该金额」是什么？「前款」是哪一款？即使命中，也不足以回答具体金额和适用条件，需要回到原文补齐依据。\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        },
+        {
+          "section": "4.3",
+          "before": "## 4.3 一个反直觉但重要的实证结论\n",
+          "after": "## 4.3 先建立基线，再验证复杂切分\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        },
+        {
+          "section": "4.3",
+          "before": "**但系统性的对比实验给出了不同的结论：**\n",
+          "after": "**更稳妥的工程判断是：**\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        },
+        {
+          "section": "4.3",
+          "before": "> **块大小、重叠和边界策略需要一起做消融；现有实验不能证明某个因素在所有任务上都“远大于”其他因素。**\n",
+          "after": "> **在目标查询集上，对块大小、重叠和边界策略一起做消融；不能仅凭算法更复杂，就认定它在所有任务上都更好。**\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        },
+        {
+          "section": "4.3",
+          "before": "这个结论在工程上的含义很直接：\n",
+          "after": "这个判断在工程上的含义很直接：\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        },
+        {
+          "section": "4.7.2",
+          "before": "有实证表明它成本高、收益不稳定。应该先把 size 和 overlap 调好。\n",
+          "after": "部分语义切分方法会增加预处理开销。先建立并调好固定或递归切分的 size 和 overlap 基线，再在目标查询集上比较检索、生成质量与成本，确认额外复杂度是否值得。\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        }
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/05-semantic-truncation.md",
+      "zh_path": "docs/rag/02-ingestion-indexing/05-semantic-truncation.zh.md",
+      "kind": "chapter",
+      "source_sha256": "bd0a928c5199ebb3ff87fbe8afed611de7fabedd19469c4d77a6a2fc814c5cb9",
+      "references_checked": [
+        {
+          "url": "https://www.anthropic.com/engineering/contextual-retrieval",
+          "scope": "Checked prepending explanations before both embedding and BM25 indexing; the Gemini Text 004/domain-specific 1−Recall@20 metric; 5.7%, 3.7%, 2.9%, and 1.9% failure rates; 35%, 49%, and 67% relative reductions; reranking 150 candidates to 20; and the historical $1.02 per million document tokens with 800-token chunks, 8k-token documents, 50-token instructions, 100-token explanations, and caching.",
+          "access_limitations": "Read the vendor blog, not an independent peer-reviewed replication. The chapter's 2024 cost example remains historical; no current pricing claim or end-to-end answer-error interpretation was introduced. Appendix II was not separately fetched."
+        },
+        {
+          "url": "https://arxiv.org/abs/2409.04701",
+          "scope": "Confirmed the identity of the Late Chunking paper; used v3 HTML below for mechanism checks.",
+          "access_limitations": "The web_fetch extractor returned only the paper title."
+        },
+        {
+          "url": "https://arxiv.org/html/2409.04701v3",
+          "scope": "Read Section 3 and Algorithm 1: encode the full text or the portion that fits first, obtain token-level representations, map chunk boundaries to tokens, and pool each chunk afterward. Checked the long-document segmentation algorithm and the use of jina-embeddings-v2-small.",
+          "access_limitations": "web_fetch selected the long-document algorithm; urllib successfully fetched full HTML for the method. No embedding experiments were rerun. Bidirectional architecture was additionally verified against the model's official card below."
+        },
+        {
+          "url": "https://jina.ai/news/late-chunking-in-long-context-embedding-models/",
+          "scope": "Checked that late chunking moves pooling after transformer encoding rather than eliminating boundaries, requires token vectors, and is limited by the encoding window. Read the naive-versus-late comparison and linked model identification.",
+          "access_limitations": "Vendor exposition and reported evaluation, not an independent replication. Did not import the blog's informal claim that independent chunk embeddings are statistically i.i.d.; that claim is absent from the manuscript."
+        },
+        {
+          "url": "https://jina.ai/news/jina-ai-launches-worlds-first-open-source-8k-text-embedding-rivaling-openai",
+          "scope": "Followed a link in the already-cited Jina late-chunking article to verify the underlying long-context encoder.",
+          "access_limitations": "HTTP 404. Used the official model card linked by the same article instead."
+        },
+        {
+          "url": "https://huggingface.co/jinaai/jina-embeddings-v2-small-en",
+          "scope": "Verified the official model card's JinaBERT architecture, symmetric bidirectional ALiBi, 8192-token sequence length, and mean-pooling/token-output examples. This supports the chapter's distinction between bidirectional context and causal-only attention.",
+          "access_limitations": "Read-only inspection of the official card reached from the cited Jina article; no model download or inference. The supplementary verification URL was recorded here without changing the manuscript's reference destinations."
+        },
+        {
+          "url": "https://arxiv.org/abs/2312.06648",
+          "scope": "Confirmed the Dense X Retrieval paper identity; the v2 HTML below supplied the proposition-retrieval evidence.",
+          "access_limitations": "The web_fetch extractor returned only the paper title."
+        },
+        {
+          "url": "https://arxiv.org/html/2312.06648v2",
+          "scope": "Checked the meaning of self-contained propositions, the distinction from sentences and 100-word passages, and reported open-domain QA/retrieval gains under limited input budgets.",
+          "access_limitations": "Read the introduction's methods summary and results; did not rerun FactoidWiki generation, verification, retrieval, or downstream QA."
+        },
+        {
+          "url": "https://arxiv.org/html/2407.01219",
+          "scope": "Checked Section 3.2.2's small-to-big and sliding-window description: retrieve with small chunks and return larger enclosing or neighboring context. Compared its actual experiments with the chapter's references back to Chapter 4.",
+          "access_limitations": "Accessible full HTML identifies itself as v1. It does not directly substantiate the chapter's blanket empirical claim about similarity-based semantic splitting or prove a universal implementation sequence."
+        }
+      ],
+      "notes": [
+        "The Chinese companion began as an exact pre-edit copy of baseline be53fedaedfb28da181db8e95f41bf91100621c4. Only the parent-approved Section 5.2.3/5.3.3/5.5.6 patches listed in approved_zh_patches were then applied. source_sha256 remains the original baseline hash; every original link is unchanged.",
+        "Preserved all 5.x subsection numbers, four Mermaid graphs and their topology, both method-comparison tables, the complete Anthropic results table, implementation ordering, and all cited URLs. The N-2 through N+2 expansion remains unchanged.",
+        "Parent-approved dimensional correction in the explicitly hypothetical Section 5.3.3 example: changed 该比例 to 该金额 and 报销比例 to 报销金额 in both Chinese sample occurrences and their English glosses. This is a book-constructed example, not a real quoted policy; fifteen percent and every other data value remain unchanged.",
+        "Preserved the fictional/hypothetical condition: proposition expansion is permitted only when the preceding source paragraph actually contains the added facts. No author experience, result, or verified policy was invented.",
+        "Preserved the 2024 scope of Anthropic's costs and metrics, the distinction between retrieval failure and answer error, and prompt caching as a computation optimization rather than compression or context restoration.",
+        "Preserved parent-block ACL rechecks, child-to-parent deduplication, full-source permission inheritance for contextual representations, invalidation on revocation, and the distinction between improved embeddings and complete evidence supplied to the generator.",
+        "Parent-approved correction in Sections 5.2.3 and 5.5.6: replaced unsupported broad empirical claims with guidance to measure preprocessing/maintenance costs and compare quality with a tuned simple baseline on the same query set and context budget. Both editions now carry that qualification. RAPTOR was retained as a reference but not fetched.",
+        "Validated unchanged numbered-heading hierarchy, fenced-block language sequence, Mermaid node IDs/edges/shapes/directions, table rows, inline metric/code literals, and links. There are no display formulas or executable samples. Existing Mermaid validation passed for the ingestion module with diagrams=36 and failures=0 using the identical parent-checkout runner after local jsdom was found missing."
+      ],
+      "approved_zh_patches": [
+        {
+          "section": "5.2.3",
+          "before": "理论上很优雅，**但如第四章所述，实证对比显示它成本高、收益不稳定**。列出来是为了知道它存在，而不是推荐默认使用。\n",
+          "after": "这种方法需要额外的句子编码和断点计算。**如第四章所述，应在目标查询集上与固定或递归切分比较检索、生成质量及预处理成本**，不能仅凭“语义”这个名字默认采用。\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        },
+        {
+          "section": "5.3.3",
+          "before": "> 「该比例不得超过前款规定的上限。」\n",
+          "after": "> 「该金额不得超过前款规定的上限。」\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        },
+        {
+          "section": "5.3.3",
+          "before": "> 「差旅住宿费报销比例不得超过员工月基本工资的百分之十五。」\n",
+          "after": "> 「差旅住宿费报销金额不得超过员工月基本工资的百分之十五。」\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        },
+        {
+          "section": "5.5.6",
+          "before": "第四章的实证结论已经说明，基础参数没调好时，上复杂方法收益有限。\n",
+          "after": "复杂方法可能增加预处理和维护开销。应先建立调好基础参数的简单基线，再在相同目标查询集与上下文预算下比较质量和成本，而不是把复杂度当成收益的证据。\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        }
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/06-embedding-principles.md",
+      "zh_path": "docs/rag/02-ingestion-indexing/06-embedding-principles.zh.md",
+      "kind": "chapter",
+      "source_sha256": "751d2169e206157d150f45f18304c50f13640cd7f94f065f0ed0dc77a0d9a5a5",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/1301.3781",
+          "scope": "Read the original Word2Vec abstract to check continuous word representations, the two model architectures, and the paper's similarity-evaluation scope.",
+          "access_limitations": "Abstract only; did not rederive training objectives or rerun experiments."
+        },
+        {
+          "url": "https://nlp.stanford.edu/projects/glove/",
+          "scope": "Read the official project description of global word co-occurrence statistics and the weighted least-squares log-bilinear objective, supporting the distinction from context prediction.",
+          "access_limitations": "Live project page, not a pinned historical snapshot; its newer vector releases were not incorporated into the chapter."
+        },
+        {
+          "url": "https://arxiv.org/abs/1810.04805",
+          "scope": "Read BERT's original abstract on bidirectional contextual representations and joint conditioning on left and right context.",
+          "access_limitations": "Abstract only for this paper; sentence-pooling limitations were checked in Sentence-BERT instead."
+        },
+        {
+          "url": "https://arxiv.org/html/1908.10084v1",
+          "scope": "Read the original Sentence-BERT v1 model section covering independent sentence embeddings, tied-weight siamese architecture, classification, regression and triplet objectives, and its discussion of pooled BERT embeddings.",
+          "access_limitations": "The simplified abstract-page reader returned only a title; direct HTML full text was available. No model evaluation was run."
+        },
+        {
+          "url": "https://arxiv.org/abs/2104.08821",
+          "scope": "Read the fetched raw abstract metadata, identifying v4, for unsupervised same-sentence dropout augmentation and supervised NLI entailment/contradiction training.",
+          "access_limitations": "Abstract metadata rather than full experimental methods; no independent measurement of false-negative rates."
+        },
+        {
+          "url": "https://arxiv.org/html/2004.04906v3",
+          "scope": "Read DPR v3's encoder and inference sections: two independent BERT networks, question/passage roles, and offline FAISS indexing of passage representations.",
+          "access_limitations": "Confirms the compatible-pair counterexample to identical-weight requirements; does not establish compatibility for arbitrary model pairs."
+        },
+        {
+          "url": "https://arxiv.org/html/2112.01488v3",
+          "scope": "Read ColBERTv2 v3 on token-level multi-vector representations, the sum of per-query-token maximum similarities, and residual compression as part of storage accounting.",
+          "access_limitations": "The v4 HTML request returned HTTP 406; v3 full text was available. Published results were not generalized to every multi-vector model."
+        },
+        {
+          "url": "https://arxiv.org/abs/2407.01449",
+          "scope": "Read ColPali's abstract confirming direct document-page image embeddings, multi-vector representations, and late-interaction matching.",
+          "access_limitations": "Abstract only; no visual-retrieval experiment or OCR comparison was reproduced."
+        },
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+          "scope": "Cross-checked query-side instruction usage and unprefixed document encoding in the model card already cited by Chapter 7.",
+          "access_limitations": "Live model card; its 1–5% instruction-related improvements are vendor-reported and task-dependent, not a universal guarantee or an API validation rule."
+        }
+      ],
+      "notes": [
+        "Read and copied the complete original before translation. Only the parent-approved Section 6.5.3 corrections in approved_zh_patches were subsequently applied to Chinese, including a link to the checked official Qwen model card; source_sha256 remains the baseline hash and all existing links are retained.",
+        "Retained all 21 numbered headings, both table shapes, all examples and limitations, and the original 217-line structure. Chinese examples 猫/狗, annual-leave phrases, 苹果 word senses, and the literal Chinese instruction prefix remain unchanged with English explanations.",
+        "Preserved all three Mermaid graphs' node IDs, subgraphs and edges; translated labels and wrapped long labels. All three parsed with Mermaid 11.12.0 and jsdom 26.1.0 from the adjacent solid-doodle worktree, read-only.",
+        "Preserved the distinction between BERT as a backbone, interaction architecture, retrieval versus similarity, encoder compatibility versus equal dimensions, and compressed vector count versus total storage. Section 6.6.5 explicitly says incompatible models, consistent with the DPR exception in 6.5.1.",
+        "Parent-approved accuracy correction in Section 6.5.3: both editions distinguish model-specific prefix conventions from Qwen3's recommended task instructions. Neither omission nor a performance recommendation is described as an invalid API request; the size of any quality effect requires task-specific evaluation. The checked official model-card URL is included in both editions.",
+        "All original reference URLs remain; the approved Qwen clarification adds only its checked official model-card link. There are no executable non-Mermaid code blocks or display formulas in this chapter."
+      ],
+      "approved_zh_patches": [
+        {
+          "section": "6.5.3",
+          "before": "不少现代 Embedding 模型（E5、BGE、Qwen3-Embedding 系列）要求给 Query 加特定前缀（如 `query:` / `为这个句子生成表示以用于检索相关文章：`），而文档不加或加另一个前缀。\n",
+          "after": "不同 Embedding 模型的 Query 与文档输入约定不同。E5、BGE 等模型可能有特定前缀或指令约定（如 `query:` / `为这个句子生成表示以用于检索相关文章：`），文档可能不加或使用另一前缀，应按各自模型卡配置。[Qwen3-Embedding 官方模型卡](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B)推荐为 Query 提供任务指令，但这不表示缺少指令就会使调用无效。\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        },
+        {
+          "section": "6.5.3",
+          "before": "**不按模型卡的要求加前缀，会明显掉点。** 这是实践中极常见的低级错误。\n",
+          "after": "**遗漏适用的前缀或指令可能降低效果，但影响取决于模型和任务；应按模型卡配置，并在目标查询集上验证。** 不要把检索效果建议混同于 API 输入有效性要求。\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        }
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/07-embedding-selection.md",
+      "zh_path": "docs/rag/02-ingestion-indexing/07-embedding-selection.zh.md",
+      "kind": "chapter",
+      "source_sha256": "0cd2cea1477706fef6f1c2240be97b4832c5de3bdab1d503074191cec64f7d78",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2210.07316v3",
+          "scope": "Read MTEB v3 on its eight task types and multilingual coverage, and the limitations section stating that retrieval and clustering were English-only and that code datasets were absent.",
+          "access_limitations": "The v1 HTML request returned HTTP 406; v3 was readable. This is the historical benchmark, not a claim about the current live leaderboard."
+        },
+        {
+          "url": "https://arxiv.org/abs/2502.13595",
+          "scope": "Read MMTEB's abstract confirming multilingual expansion and explicit long-document and code-retrieval tasks.",
+          "access_limitations": "The abstract supports task coverage; it does not validate any application's own length or domain distribution."
+        },
+        {
+          "url": "https://arxiv.org/html/2502.13595v1",
+          "scope": "Fetched the MMTEB v1 full text and checked its benchmark structure and discussion of English v1 versus zero-shot English v2.",
+          "access_limitations": "Did not audit every dataset or refresh live model rankings."
+        },
+        {
+          "url": "https://arxiv.org/abs/2205.13147",
+          "scope": "Read the MRL abstract on coarse-to-fine representations adapting one embedding to different downstream computational budgets.",
+          "access_limitations": "Abstract only for the paper; model-specific shortening and renormalization behavior was checked against the official OpenAI guide."
+        },
+        {
+          "url": "https://openai.com/index/new-embedding-models-and-api-updates/",
+          "scope": "Attempted to inspect the originally cited January 2024 announcement; the reader returned its title.",
+          "access_limitations": "Direct retrieval returned HTTP 403, so the launch article's body was not verified. The source's historical date was retained, not refreshed or presented as newly confirmed."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/embeddings",
+          "scope": "Read the official guide's text-embedding-3 dimensions parameter, default dimensions, shortening guidance, and manual truncation followed by normalization.",
+          "access_limitations": "Live documentation without a pinned revision; no API calls, pricing check, or benchmark reproduction. Preserved the chapter's historical model family and did not substitute newer interfaces."
+        },
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+          "scope": "Read the model overview, custom output dimensions/MRL support, query-instruction guidance, and separate query/document usage examples.",
+          "access_limitations": "Current model card only; no hardware benchmark or claim that all family members share identical contracts."
+        },
+        {
+          "url": "https://arxiv.org/abs/2402.03216",
+          "scope": "Read the M3-Embedding abstract confirming dense, sparse and multi-vector retrieval functions and support for inputs up to 8,192 tokens.",
+          "access_limitations": "Abstract only; the manuscript's warning that separate indexes and query paths still incur costs is engineering reasoning, not a measured deployment result."
+        },
+        {
+          "url": "https://arxiv.org/abs/2407.01219",
+          "scope": "Read the RAG best-practices abstract on evaluating combinations of pipeline stages and balancing quality with efficiency.",
+          "access_limitations": "Abstract only; it does not establish a universal return-on-effort ranking for chunking, hybrid retrieval, reranking and fine-tuning."
+        }
+      ],
+      "notes": [
+        "The companion SHA-256 matches the confirmed baseline exactly. Retained all 24 numbered headings, two tables, three diagrams and the 208-line structure; diagram IDs/edges, reference URLs and numeric examples are preserved.",
+        "Kept corpus snapshot, source-document evidence span/version, and model-specific prefix/tokenizer contracts distinct. Chunk IDs are not treated as permanent evidence labels; answerable and unanswerable evaluation cases remain separate.",
+        "Preserved the BM25 comparison, 3–5-model candidate pool, 3072/256/1024 dimensional examples, false-negative cautions, domain-held-out regression, and the query-only compatible fine-tuning exception.",
+        "MRL is not described as arbitrary vector truncation. Full-dimensional rescoring still requires full vectors, and dimensions remains a provider/model-specific parameter.",
+        "The 2024 API statement is retained historically. Its announcement body was access-limited, while the official API guide verified the dimensions behavior. Provider drift is framed as a risk, not a claim that a particular silent upgrade occurred.",
+        "All three diagrams passed the existing Mermaid 11.12.0 parser using read-only adjacent-worktree dependencies. No embeddings were generated and no paid API or benchmark suite was invoked."
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/08-vector-database.md",
+      "zh_path": "docs/rag/02-ingestion-indexing/08-vector-database.zh.md",
+      "kind": "chapter",
+      "source_sha256": "1340b58ce6e4ae25827e3cd77b701aa09a4384704a9892a00c98d2013b1b71b1",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/1603.09320",
+          "scope": "Read the HNSW abstract confirming the hierarchical proximity-graph design and upper-layer entry search.",
+          "access_limitations": "Full-text HTML attempts returned HTTP 404 for v4 and HTTP 406 for v3. Detailed traversal was additionally checked in the pinned official hnswlib source already cited by Chapter 9."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nmslib/hnswlib/v0.8.0/hnswlib/hnswalg.h",
+          "scope": "Read v0.8.0 searchKnn: greedy upper-layer traversal, a base-layer candidate priority queue, and the std::max(ef_, k) search budget.",
+          "access_limitations": "Confirms this implementation only; no claim that its deletion, memory residency or query-budget details apply to every HNSW product."
+        },
+        {
+          "url": "https://github.com/pgvector/pgvector",
+          "scope": "Read the official README on exact versus approximate search, index operator classes, HNSW/IVFFlat parameters, post-index filtering, binary rescoring, tenant partitioning, and iterative scans introduced in 0.8.0 with hnsw.max_scan_tuples/ivfflat.max_probes limits.",
+          "access_limitations": "Live README displaying v0.8.6 installation instructions when fetched. The chapter retains its historical 0.8.0 feature-introduction claim; no database or query plan was executed."
+        },
+        {
+          "url": "https://arxiv.org/html/2105.09613v1",
+          "scope": "Read FreshDiskANN v1 on SSD-resident long-term indexing, in-memory recent updates, compressed-vector distance estimates, and streaming insert/delete/merge behavior.",
+          "access_limitations": "The v2 HTML request returned HTTP 406; v1 was available. No physical-erasure guarantee for commercial DiskANN implementations was inferred."
+        },
+        {
+          "url": "https://arxiv.org/abs/2403.04871",
+          "scope": "Read ACORN's abstract on predicate-agnostic structured/vector search and predicate-subgraph traversal extending HNSW.",
+          "access_limitations": "Abstract only; no implementation or workload was tested, and the published throughput range was not added to the chapter."
+        },
+        {
+          "url": "https://arxiv.org/html/1702.08734v1",
+          "scope": "Read the FAISS paper's inverted-list scanning and product-quantizer explanation: partitioned subvectors, independent codebooks, and concatenated subquantizer codes.",
+          "access_limitations": "Paper examples often use one byte per subquantizer; the chapter's general mb/8-byte payload is retained with codebooks and original-vector copies explicitly additional."
+        },
+        {
+          "url": "https://arxiv.org/abs/2407.01219",
+          "scope": "Read the cited RAG best-practices abstract on pipeline efficiency and quality tradeoffs.",
+          "access_limitations": "No vector-database product benchmark or universal scale cutoff can be derived from this abstract."
+        }
+      ],
+      "notes": [
+        "Chinese bytes and all six original reference URLs are unchanged. The translation retains 21 numbered headings, six table shapes, all three graph structures, and the original 226-line structure.",
+        "Exact nearest-neighbor recall is not translated as semantic correctness. Preserved the one-million-vector/1024-dimension/top-10 example, O(Nd), quantization factors 4× and 32×, and the 0.1%/top-100 filtered-search counterexample.",
+        "Kept query invisibility, storage reclamation and backup deletion separate, and distinguished DiskANN from FreshDiskANN. No fixed memory multiplier, ANN speedup, recall loss, or vector-count limit was introduced.",
+        "Authorization to access a document remains distinct from an execution-plan filter. Tenant partitions do not replace document ACL enforcement, and an empty filtered result is not evidence that the corpus lacks an answer.",
+        "Retained pgvector's 0.8.0 iterative-scan boundary, scan-budget identifiers, and the warning that SQL WHERE order does not determine physical pre-filtering.",
+        "All three diagrams parsed successfully with Mermaid 11.12.0/jsdom 26.1.0 reused read-only from the adjacent worktree. No production database, indexing benchmark or deletion experiment was run."
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/09-vectordb-production.md",
+      "zh_path": "docs/rag/02-ingestion-indexing/09-vectordb-production.zh.md",
+      "kind": "chapter",
+      "source_sha256": "0c1606a7123dbcde86aa5177816c5728d33e94a863626ebebf415492acee74b4",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/1603.09320",
+          "scope": "Read the HNSW abstract on hierarchical proximity graphs; used the official pinned implementation for concrete memory and traversal claims.",
+          "access_limitations": "HTML full-text versions were unavailable in the attempted requests; no performance curves were reproduced."
+        },
+        {
+          "url": "https://github.com/nmslib/hnswlib/blob/v0.8.0/hnswlib/hnswalg.h",
+          "scope": "Opened the originally cited pinned source page before fetching its raw contents.",
+          "access_limitations": "The simplified reader exposed only file length, so this page view alone was not counted as code verification."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/nmslib/hnswlib/v0.8.0/hnswlib/hnswalg.h",
+          "scope": "Verified typedef unsigned int tableint; maxM0_ = M_ * 2; size_links_level0_ = maxM0_ * sizeof(tableint) + sizeof(linklistsizeint); and separate data/label payload accounting. Also read searchKnn's upper-layer and base-layer control flow.",
+          "access_limitations": "Pinned v0.8.0 source, not a claim about every platform's unsigned-int size or every HNSW implementation. No compiled layout or memory benchmark was run."
+        },
+        {
+          "url": "https://github.com/pgvector/pgvector",
+          "scope": "Read the exact-search baseline, HNSW/IVFFlat query/build parameters, filter-related result loss, and optional iterative-scan budgets.",
+          "access_limitations": "Live README; no query-plan, write-visibility, concurrency or latency experiment. Product-specific guarantees were not generalized."
+        },
+        {
+          "url": "https://arxiv.org/html/2105.09613v1",
+          "scope": "Read the SSD long-term index, in-memory update components and streaming merges supporting the memory-versus-I/O discussion.",
+          "access_limitations": "Paper v1 was readable after a v2 HTML failure; the chapter's latency numbers remain illustrative budgets rather than measured DiskANN performance."
+        },
+        {
+          "url": "https://arxiv.org/abs/2205.13147",
+          "scope": "Read the MRL abstract supporting trained, adaptable representation sizes rather than arbitrary truncation of an unsupported model.",
+          "access_limitations": "Abstract only; no quality-loss percentage was inferred."
+        },
+        {
+          "url": "https://arxiv.org/abs/2407.01219",
+          "scope": "Read the RAG best-practices abstract on evaluating multiple processing stages and balancing response quality with efficiency.",
+          "access_limitations": "Does not independently validate the illustrative latency budget, daily-monitoring cadence, or application-specific cost shares."
+        }
+      ],
+      "notes": [
+        "Chinese companion bytes match the baseline. Retained all 25 numbered headings, four table shapes, the seven-step flowchart, and the original 215-line structure.",
+        "Both display formulas were preserved byte-for-byte, including 1,500,000 vectors, 1024 dimensions, 4-byte float32 values and the 32 × 2 × 8-byte adjacency assumption. Kept decimal GB versus binary GiB, the 0.384 GB implementation alternative, and 6.144 GB ≈ 5.72 GiB explicit.",
+        "ANN Recall@K remains overlap with exact neighbors under the same vectors, metric, ACLs and time filters; application Recall@K remains coverage of human-labeled evidence. Neither is treated as end-to-end answer correctness.",
+        "Preserved every latency range and percentile, including 10–50 ms, 1–10 ms, 5–50 ms, 100–400 ms, 300 ms–2 s and 800 ms–3 s. These remain illustrative budgets, not experiments, commitments or sums of stage-level P95 values.",
+        "Index-build version switching remains distinct from ordinary read/write replica separation. The write-visible versus ANN-indexed distinction and flat-buffer exception are retained, as are ACL and abstention constraints during degradation.",
+        "The diagram parsed with Mermaid 11.12.0/jsdom 26.1.0 using read-only adjacent-worktree dependencies. Math delimiters/braces and non-Mermaid code parity passed; this chapter has no executable examples."
+      ]
+    },
+    {
+      "path": "docs/rag/02-ingestion-indexing/README.md",
+      "zh_path": "docs/rag/02-ingestion-indexing/README.zh.md",
+      "kind": "index",
+      "source_sha256": "e35819bd5d5519b6e70dc906688be832fd23ee8eab32077e1c6bc6c7bda393ae",
+      "references_checked": [],
+      "notes": [
+        "Translated the full module description, title, chapter list and parent-navigation text while preserving all eight original .md link targets and the seven-chapter order.",
+        "Matched the Chapter 3–5 display titles to their owner's current English H1s through a read-only check; did not edit those chapters. Chapter 5 is When Chunking Breaks the Meaning.",
+        "README.zh.md is byte-identical to baseline be53fedaedfb28da181db8e95f41bf91100621c4, including its original links; the parent owns the Chinese-link migration.",
+        "Scope validation: all five files retain original line counts, numbered-heading sequences, table dimensions, reference/link targets, fenced-block language/counts and formulas. All ten English diagrams retain structural IDs/edges and parse successfully with the repository's pinned parser versions.",
+        "The shared-worktree npm run check:mermaid initially failed because jsdom was absent; this agent made no install or package-file edit. Reusing the adjacent solid-doodle node_modules read-only supplied the same pinned Mermaid 11.12.0 and jsdom 26.1.0 and passed the ten-diagram scoped check. After the coordinating session restored local dependencies, reran the existing local checker from docs/rag/02-ingestion-indexing with node ../../../scripts/check_mermaid.mjs: diagrams=36 failures=0 for the complete bilingual module.",
+        "python3 scripts/check_docs.py reported 76 integration issues at the checked shared state: Chinese-companion index/navigation/review coverage and root chapter counts. No assigned-page formula, fence, heading-sequence or missing-target error was reported. Parent-level bilingual integration remains pending; no global MkDocs build was claimed.",
+        "No commits, dependency changes, temporary files, external translation services, paid APIs or database operations were created or performed."
+      ]
+    },
+    {
+      "path": "docs/rag/03-retrieval/10-online-pipeline.md",
+      "zh_path": "docs/rag/03-retrieval/10-online-pipeline.zh.md",
+      "kind": "chapter",
+      "source_sha256": "4b3c26e7ee9f70cfaa360244073d026caa439d316c1a5c19ab63f8ff4d1b1e91",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2312.10997",
+          "scope": "Abstract: modular retrieval, generation, and augmentation stages; background for the online pipeline.",
+          "access_limitations": "Read the abstract extracted from fetched HTML with curl and BeautifulSoup; the initial simplified web_fetch result exposed only the title. No full-paper or experiment-reproduction claim."
+        },
+        {
+          "url": "https://arxiv.org/abs/2407.01219",
+          "scope": "Abstract: component combinations and performance-versus-efficiency tradeoffs in RAG.",
+          "access_limitations": "Abstract-only check from fetched HTML; detailed historical results were separately inspected at the versioned HTML URL."
+        },
+        {
+          "url": "https://arxiv.org/html/2407.01219v1",
+          "scope": "Section 3.1 query classification, including translation versus knowledge lookup; selected latency paragraphs and component-comparison tables showing that runtime depends on configuration.",
+          "access_limitations": "Read selected HTML sections and tables, not the entire paper. Historical v1 experiments were not rerun and do not validate the chapter's illustrative millisecond budgets."
+        },
+        {
+          "url": "https://arxiv.org/abs/2307.03172",
+          "scope": "Abstract: position-sensitive performance on multi-document QA and key-value retrieval, including weaker use of middle-position evidence.",
+          "access_limitations": "Abstract only, recovered with curl after simplified web_fetch returned just the title; no claim that every later model shares the measured behavior."
+        },
+        {
+          "url": "https://arxiv.org/abs/2310.11511",
+          "scope": "Abstract: limitations of indiscriminate fixed-count retrieval and Self-RAG's trained on-demand retrieval and reflection tokens.",
+          "access_limitations": "Abstract only; no model execution or reproduction of reported citation-accuracy gains."
+        },
+        {
+          "url": "https://arxiv.org/abs/2403.14403",
+          "scope": "Abstract: selecting no retrieval, single-step retrieval, or iterative retrieval using a smaller question-complexity classifier.",
+          "access_limitations": "Read the portion of the abstract describing the mechanism and cost motivation; experiment details were not checked."
+        }
+      ],
+      "notes": [
+        "Fully translated sections 10.1–10.8, including all 26 numbered H2/H3 headings, four tables, and the ten-stage pipeline diagram; no outline-only substitutions.",
+        "Kept the encoder-pair representation contract, permission-version and index-snapshot cache keys, post-hit authorization checks, evidence gates on fallback paths, and service-failure versus absent-evidence distinction.",
+        "Preserved every latency-budget number and unit as an illustration rather than a measured percentile; rendered streaming as letting the user start reading before completion, not as a guarantee of shorter full-answer generation.",
+        "Chinese query literals and iPhone 16/17 examples remain sample data with English glosses. Internal and external link targets are unchanged; there were no Chinese-fragment links.",
+        "Chinese companion is byte-identical to baseline be53fedaedfb28da181db8e95f41bf91100621c4. Structural validation passed for section numbering, table rows, list items, fences, links, and Mermaid node/edge topology. The existing Mermaid validator passed over all 20 diagrams in the owned bilingual module."
+      ]
+    },
+    {
+      "path": "docs/rag/03-retrieval/11-retrieval-paradigms.md",
+      "zh_path": "docs/rag/03-retrieval/11-retrieval-paradigms.zh.md",
+      "kind": "chapter",
+      "source_sha256": "a22c947786fcd42933057d0385c1305e94ae1721fa7f720ae41b22e129ed3c22",
+      "references_checked": [
+        {
+          "url": "https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/search/similarities/BM25Similarity.html",
+          "scope": "Version-pinned BM25Similarity API and its documented IDF formula log(1 + (docCount - docFreq + 0.5)/(docFreq + 0.5)).",
+          "access_limitations": "Simplified web_fetch exposed only the class introduction; curl plus HTML extraction recovered the IDF method documentation. Did not run Lucene or inspect implementation bytecode."
+        },
+        {
+          "url": "https://arxiv.org/abs/2004.04906",
+          "scope": "Abstract: DPR's dual-encoder retrieval setup and dataset-specific comparison against a Lucene-BM25 baseline.",
+          "access_limitations": "Abstract only; numerical benchmark results were not imported into the translation or independently reproduced."
+        },
+        {
+          "url": "https://arxiv.org/abs/2107.05720",
+          "scope": "Abstract: sparse learned representations, explicit sparsity regularization, term-weight log saturation, and effectiveness/efficiency tradeoffs.",
+          "access_limitations": "Abstract recovered from fetched HTML after the simplified fetch returned only the title; no full-paper or model evaluation."
+        },
+        {
+          "url": "https://www.elastic.co/docs/explore-analyze/machine-learning/nlp/ml-nlp-elser",
+          "scope": "English-language recommendation, learned weighted term associations, ELSER v2 availability, and v1/v2 incompatibility.",
+          "access_limitations": "Read the official page's introductory, Tokens-not-synonyms, and ELSER v2 sections within the first 20,000 returned characters. Dynamic documentation, not a pinned release archive; no service calls or deployment."
+        },
+        {
+          "url": "https://arxiv.org/abs/2112.01488",
+          "scope": "Abstract: token-level multi-vector late interaction and ColBERTv2 residual compression reducing the storage footprint.",
+          "access_limitations": "Abstract only; reported compression results are model-specific and were not treated as a universal total-cost multiplier."
+        },
+        {
+          "url": "https://arxiv.org/abs/2407.01449",
+          "scope": "Abstract: ColPali's page-image multi-vector embeddings, late-interaction matching, and ViDoRe visual-document evaluation setting.",
+          "access_limitations": "Abstract only; did not inspect all benchmark tables, model licenses, or production deployment evidence."
+        },
+        {
+          "url": "https://arxiv.org/abs/2407.01219",
+          "scope": "Abstract: comparing combinations of retrieval components under performance and efficiency constraints.",
+          "access_limitations": "Abstract-level background check, not a universal endorsement of BM25 plus dense retrieval."
+        }
+      ],
+      "notes": [
+        "Fully translated sections 11.1–11.8, all 18 numbered headings, both tables and both diagrams; BM25 display math and all seven inline math expressions are unchanged.",
+        "Preserved Lucene 9.12 and its exact IDF expression, ERR_CONN_REFUSED, XR-2100, the 500-yuan sample condition, analyzer requirements, and index-visibility caveats.",
+        "Kept learned sparse retrieval distinct from BM25 and dense retrieval, and ELSER distinct from SPLADE; retained the English-only suitability qualification rather than implying Chinese support.",
+        "Kept late interaction as an architecture and reranking as a stage, including precomputable document representations and exact MaxSim scoring. Preserved visual retrieval's limitations for transcription and compliance citations.",
+        "Chinese sample terms remain with English glosses. Chinese companion matches the baseline byte for byte; section, formula, table, list, fence, link, and diagram-topology checks passed. No confirmed factual contradiction was found within the narrowly checked source material."
+      ]
+    },
+    {
+      "path": "docs/rag/03-retrieval/12-query-rewriting.md",
+      "zh_path": "docs/rag/03-retrieval/12-query-rewriting.zh.md",
+      "kind": "chapter",
+      "source_sha256": "5929d41ea47ae62ebe4cc4325e5d59f755077686bf04bbb98a5847a7012d6edc",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2212.10496",
+          "scope": "Abstract: hypothetical document generation, an unsupervised contrastive encoder, false generated details, and retrieval of real corpus documents without relevance labels.",
+          "access_limitations": "Abstract recovered via curl; the original simplified web_fetch response contained only the title. Selected full-paper sections were checked separately."
+        },
+        {
+          "url": "https://ar5iv.labs.arxiv.org/html/2212.10496",
+          "scope": "Introduction, section 3.2 HyDE, Implementation, and section 5.2 HyDE with Fine-tuned Encoder; checked document-only similarity, hypothetical-content status, the historical text-davinci-003/Contriever setup, and possible degradation with fine-tuned encoders.",
+          "access_limitations": "Rendered HTML of the cited original paper; selected sections only. HTML paragraphs/tables were searched for latency terminology but no millisecond guarantee was found. Historical APIs were not executed or modernized."
+        },
+        {
+          "url": "https://arxiv.org/abs/2310.06117",
+          "scope": "Abstract: abstraction to higher-level concepts and first principles, followed by reasoning over specific questions.",
+          "access_limitations": "Abstract only; the battery-temperature example is the manuscript's illustration, not a paper result."
+        },
+        {
+          "url": "https://arxiv.org/abs/2305.14283",
+          "scope": "Abstract: Rewrite-Retrieve-Read, query/document mismatch, and an optionally trainable rewriter.",
+          "access_limitations": "Abstract only; no reproduction of web-search or reinforcement-learning experiments."
+        },
+        {
+          "url": "https://arxiv.org/abs/2403.14403",
+          "scope": "Abstract: complexity-based routing between no-retrieval, single-step, and iterative strategies using a smaller classifier.",
+          "access_limitations": "Mechanism portion of abstract only; no performance or latency claims independently verified."
+        },
+        {
+          "url": "https://arxiv.org/abs/2407.01219",
+          "scope": "Abstract: method combinations and the tradeoff between effectiveness and response time.",
+          "access_limitations": "Abstract-level check; concrete runtime evidence was inspected in the historical v1 HTML."
+        },
+        {
+          "url": "https://arxiv.org/html/2407.01219v1",
+          "scope": "Sections 2.1 and 3.4.2, tables 6, 7, and 11, retrieval implementation details, and the section 4 retrieval-module analysis: query transformations, HyDE sample count, and configuration-dependent latency.",
+          "access_limitations": "Selected HTML sections and tables; not a full-paper review or experiment reproduction. Retained the paper's historical GPT-3.5-turbo-instruct setup rather than extrapolating to current APIs."
+        }
+      ],
+      "notes": [
+        "Fully translated sections 12.1–12.11, all 18 numbered headings, four tables, two Mermaid diagrams, and the Atlas reference-resolution transcript. Extra English glosses explain unchanged Chinese sample content.",
+        "Preserved the hypothetical annual-leave rule of 3 working days as generated sample data, the minus-20-degree battery example without inventing a temperature unit, and the A/B cost-risk decomposition. English HyDE diagram labels translate the sample, while the original Chinese sample wording is retained in the adjoining explanation.",
+        "Kept hypothetical documents outside the evidence set, retained original-query fallbacks, distinguished fixed multi-hop workflows from agent autonomy, and kept router decisions within existing authorization.",
+        "Parent-approved accuracy correction in Section 12.5: removed the unsupported blanket claim that HyDE usually adds a few hundred milliseconds in both editions. It now states that an extra generation call adds latency that depends on model, output length, load, and configuration and must be measured. Evidence: the already-cited https://arxiv.org/html/2407.01219v1 table 11/Section 4 reports Hybrid 1.45 versus Hybrid+HyDE 11.71 seconds in its historical setup. Those numbers are not universal either and were not inserted as a replacement latency promise.",
+        "The Chinese companion differs from baseline only by the parent-approved Section 12.5 paragraph recorded in approved_zh_patches. Heading numbers, table rows, numbered lists, fence types/counts, links, and graph topology were checked; the only plain-text code block is a dialogue sample, with role labels and explanatory arrows translated and utterances preserved."
+      ],
+      "approved_zh_patches": [
+        {
+          "section": "12.5",
+          "before": "代价是一次额外的 LLM 调用，延迟通常会增加几百毫秒。如果问题涉及模型几乎没有先验知识的领域（企业内部黑话、全新的产品名），生成的假想文档可能与真实文档差得很远，**反而降低效果**。\n",
+          "after": "代价是一次额外的生成调用；延迟取决于模型、生成长度和服务负载等，应在目标配置下实测。如果问题涉及模型几乎没有先验知识的领域（企业内部黑话、全新的产品名），生成的假想文档可能与真实文档差得很远，**反而降低效果**。\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        }
+      ]
+    },
+    {
+      "path": "docs/rag/03-retrieval/13-hybrid-retrieval-rerank.md",
+      "zh_path": "docs/rag/03-retrieval/13-hybrid-retrieval-rerank.zh.md",
+      "kind": "chapter",
+      "source_sha256": "5ec204e0dbc3e68fc1416f3ccb2f6d62444a876d2a5d27fed7db84e2b199cbc4",
+      "references_checked": [
+        {
+          "url": "https://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf",
+          "scope": "Original RRF equation, the k=60 pilot setting held fixed during validation, the damping of outlier high ranks, and rank-only fusion rather than incomparable raw scores.",
+          "access_limitations": "Fetched the PDF and decoded compressed text streams in memory because simplified web_fetch returned raw PDF. Glyph spacing and ligatures were imperfect but the equation and k=60 discussion were readable. No independent reproduction of SIGIR experiments."
+        },
+        {
+          "url": "https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/search/similarities/BM25Similarity.html",
+          "scope": "Version-specific IDF expression, supporting the chapter's warning that BM25 scoring depends on implementation.",
+          "access_limitations": "Read the documented IDF method through curl/HTML extraction, not a Lucene execution or a complete scoring-source review."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/contextual-retrieval",
+          "scope": "Hybrid BM25/embedding retrieval, result fusion and deduplication, the reranking procedure, and the stated candidate-count versus cost/latency tradeoff.",
+          "access_limitations": "Read the engineering article; linked cookbooks and Appendix II were not fetched. Vendor experiments were not reproduced or generalized into guaranteed gains."
+        },
+        {
+          "url": "https://arxiv.org/abs/2112.01488",
+          "scope": "Abstract: multi-vector token-level relevance computation, distinguishing late-interaction architecture from a reranking stage.",
+          "access_limitations": "Abstract only; no exact-MaxSim benchmark or implementation was run."
+        },
+        {
+          "url": "https://arxiv.org/abs/2407.01219",
+          "scope": "Abstract: experimental comparison of RAG components and efficiency tradeoffs.",
+          "access_limitations": "Abstract background only; selected reranking results were checked separately in v1 HTML."
+        },
+        {
+          "url": "https://arxiv.org/html/2407.01219v1",
+          "scope": "Table 9 and reranking result analysis: model-specific quality and latency tradeoffs; table 11 reranking ablations under a common RAG configuration.",
+          "access_limitations": "Selected historical tables and result paragraphs, not a current model benchmark. No claim that one reranker family has a fixed cost multiplier."
+        },
+        {
+          "url": "https://arxiv.org/abs/2312.10997",
+          "scope": "Abstract: modular retrieval and augmentation as the surrounding framework for fusion and reranking.",
+          "access_limitations": "Abstract only; it was not treated as proof of the chapter's operational calibration or authorization policies."
+        }
+      ],
+      "notes": [
+        "Fully translated sections 13.1–13.8, all 21 numbered headings, five tables, two diagrams, the RRF display formula, and all six inline math expressions.",
+        "Preserved the one-based ranks, absent-window zero contribution, k=60 versus Top-K distinction, numerical contribution examples, candidate counts, ef_search identifier, and candidate-window/weight qualifications.",
+        "Rendered 成对重排 as query–document pair scoring rather than pairwise learning-to-rank, preserving the described independent cross-encoder scoring behavior without introducing a different ranking objective.",
+        "Retained original Chinese subgraph identifiers 粗排 and 精排 while supplying English display titles; all node IDs and edges remain unchanged. Preserved calibrated abstention, separately validated first-stage fallbacks, ACL checks, and time-applicable rather than automatically newest document versions.",
+        "The rank-one-versus-two-top-ten example explicitly refers to a first-place contribution from one path alone; it does not assert that a document with additional contributions can never win.",
+        "Chinese companion is baseline-identical. Formulas, tables, numbered lists, section hierarchy, fences, URLs, and diagram topology passed scoped validation; no external URLs were changed."
+      ]
+    },
+    {
+      "path": "docs/rag/03-retrieval/14-retrieval-optimization.md",
+      "zh_path": "docs/rag/03-retrieval/14-retrieval-optimization.zh.md",
+      "kind": "chapter",
+      "source_sha256": "b4861a4d6eb9b20e8e9bc0e93963783e277972486e6c43bfc27ad0dc0e5b0b16",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2407.01219",
+          "scope": "Abstract: comparing processing choices and combinations rather than presuming one universal RAG pipeline.",
+          "access_limitations": "Abstract-level check; selected evaluation details were read separately in v1 HTML."
+        },
+        {
+          "url": "https://arxiv.org/html/2407.01219v1",
+          "scope": "Table 11 component comparisons and Appendix A.6 evaluation tasks, evidence triples, faithfulness, answer correctness, and the historical evaluation setup.",
+          "access_limitations": "Read selected sections only; the manuscript's five-layer diagnostic tree and manual-evidence interventions are explanatory guidance, not claimed to be a named standard or reproduced paper experiment."
+        },
+        {
+          "url": "https://arxiv.org/abs/2312.10997",
+          "scope": "Abstract: modular organization across retrieval, generation, and augmentation.",
+          "access_limitations": "Abstract only; no full survey review."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/contextual-retrieval",
+          "scope": "Loss of context at chunk boundaries, chunk-specific context prepended before embeddings/BM25, and reranking with explicit quality/cost tradeoffs.",
+          "access_limitations": "Read the article text but not its linked cookbook or PDF appendix; reported vendor results were not inserted as universal production guarantees."
+        },
+        {
+          "url": "https://arxiv.org/abs/2405.07437",
+          "scope": "Abstract: separate retrieval and generation evaluation, including relevance, accuracy, and faithfulness.",
+          "access_limitations": "Abstract recovered with curl after the simplified fetch exposed only the title; no full benchmark taxonomy or metric implementation check."
+        }
+      ],
+      "notes": [
+        "Fully translated sections 14.1–14.11, all 18 numbered headings, six tables, and three diagrams, including the diagnostic decision tree and offline/online example architecture.",
+        "Kept evidence coverage as a quality ceiling rather than a guarantee, differentiated generation grounding from merely relevant retrieval, and preserved the manual-evidence controlled experiments and complete evidence groups for multi-hop questions.",
+        "Preserved Top-50/Top-5 as illustrative budgets, publication-time and authorization prechecks, filter execution plans, index lag, ANN loss, and the explicit warning not to optimize away legitimate permission filtering.",
+        "Kept versioned evidence IDs at candidate, reranked, parent-expansion, and final-prompt stages distinct from a whole-index snapshot. Retained ACLs, abstention, citations, and evaluation as first-version requirements rather than late optimizations.",
+        "Retained Chinese subgraph identifiers 离线 and 在线 with English display labels. Chinese companion is byte-identical to baseline; structure, table/list counts, links, fences, and graph topology passed validation."
+      ]
+    },
+    {
+      "path": "docs/rag/03-retrieval/README.md",
+      "zh_path": "docs/rag/03-retrieval/README.zh.md",
+      "kind": "index",
+      "source_sha256": "38b74df931b466a5a49fc39ff069ea7e77cd40d5e29f3894b1dccab81341574a",
+      "references_checked": [],
+      "notes": [
+        "Translated the module title, description, introduction, five chapter labels, and return link into English.",
+        "All five chapter links and the parent-topic link retain normal .md destinations and resolve on disk. Chapter labels match the translated H1 titles.",
+        "Chinese companion, including all original links, is byte-identical to baseline be53fedaedfb28da181db8e95f41bf91100621c4; parent will migrate Chinese link destinations separately.",
+        "No files outside docs/rag/03-retrieval were edited in the repository, and no commits were created. This review JSON is the requested session artifact."
+      ]
+    },
+    {
+      "path": "docs/rag/04-advanced/15-advanced-rag-paradigms.md",
+      "zh_path": "docs/rag/04-advanced/15-advanced-rag-paradigms.zh.md",
+      "kind": "chapter",
+      "source_sha256": "3adfb6f705d7ff8476a457245548cd2ec763269f319cc198aedb9b03d9263a0f",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2310.11511",
+          "scope": "Self-RAG reflection-token definitions in Table 1, inference algorithm, training-versus-prompting distinction, and training/inference ablations; HTML identified itself as arXiv:2310.11511v1.",
+          "access_limitations": "Relevant HTML passages were inspected, not every appendix; no training or inference experiments were reproduced."
+        },
+        {
+          "url": "https://arxiv.org/html/2401.15884",
+          "scope": "Corrective RAG introduction describing the lightweight retrieval evaluator, Correct/Incorrect/Ambiguous branches, web-search recovery, and decompose-then-recompose refinement.",
+          "access_limitations": "The accessible introduction was checked; this does not verify engineering threshold equivalence or reproduce evaluation results."
+        },
+        {
+          "url": "https://arxiv.org/html/2401.18059",
+          "scope": "RAPTOR soft clustering with multiple cluster memberships, tree-traversal versus collapsed-tree retrieval, and qualitative synthesis examples.",
+          "access_limitations": "Targeted method passages and accessible qualitative analysis were checked; no clustering, indexing-cost, update, or benchmark experiments were run."
+        },
+        {
+          "url": "https://arxiv.org/html/2403.14403",
+          "scope": "Adaptive-RAG introduction: smaller classifier, no/single/iterative retrieval choices, and labels derived from candidate outcomes and dataset characteristics.",
+          "access_limitations": "The accessible introduction was inspected; classifier training and evaluation were not reproduced."
+        },
+        {
+          "url": "https://arxiv.org/abs/2501.09136",
+          "scope": "Agentic RAG survey title and abstract on autonomous retrieval control, planning, tool use, and iterative adaptation.",
+          "access_limitations": "Abstract-level check only. The simplified web response returned only a title; the abstract was subsequently retrieved directly from the same arXiv page."
+        },
+        {
+          "url": "https://arxiv.org/abs/2305.06983",
+          "scope": "Active Retrieval Augmented Generation title and abstract, including FLARE's forward-looking active retrieval during generation.",
+          "access_limitations": "Abstract-level check only. The simplified web response returned only a title; the abstract was subsequently retrieved directly from the same arXiv page."
+        },
+        {
+          "url": "https://arxiv.org/html/2312.10997",
+          "scope": "RAG survey classification into Naive, Advanced, and Modular approaches and its description of the basic retrieve-read pipeline; HTML identified itself as arXiv:2312.10997v5.",
+          "access_limitations": "Targeted overview passages were checked rather than the entire survey; no claim that these categories form a formal standard was introduced."
+        }
+      ],
+      "notes": [
+        "Copied the original to its .zh.md companion before editing; the companion is byte-for-byte identical to git show be53fedaedfb28da181db8e95f41bf91100621c4 for this path.",
+        "Translated the complete chapter, including all 16 numbered headings, four tables, five Mermaid diagrams, seven summary points, and all qualifications about research mechanisms versus engineering approximations.",
+        "Preserved the distinction between retrieval and the recall metric, Self-RAG training and prompted judging, and Corrective RAG versus the CRAG Benchmark.",
+        "Retained RAPTOR soft-cluster overlap, both retrieval strategies, the 200-page counterexample, token/update/source-mapping costs, and the fixed two-round evaluation baseline.",
+        "Retained per-call authorization, data/tool restrictions, iteration budgets, and evidence-based stopping conditions; no authorization requirement was reduced to score filtering.",
+        "External reference URLs are unchanged. Mermaid node and edge structure, fence counts, table row counts, section numbering, and math/inline-code spans passed local comparisons.",
+        "Added a chapter-specific source-access note under References; the two abstract-only sources are explicitly identified.",
+        "No confirmed factual error in the Chinese source was found during these scoped checks; no historical API was updated.",
+        "The initial targeted Mermaid invocation failed on missing jsdom. The coordinating session restored the declared dependencies and then successfully parsed all 18 diagrams across both advanced-module editions."
+      ]
+    },
+    {
+      "path": "docs/rag/04-advanced/16-graphrag.md",
+      "zh_path": "docs/rag/04-advanced/16-graphrag.zh.md",
+      "kind": "chapter",
+      "source_sha256": "1fe01fa7dce1f926ff3b053f260756ee80cd6c6b4373ec2faa44b86354380d83",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2404.16130",
+          "scope": "GraphRAG hierarchical community summaries and map-reduce global answering; HTML identified itself as arXiv:2404.16130v2.",
+          "access_limitations": "Relevant method passages were extracted directly from the paper HTML after the simplified reader selected an appendix prompt; no paper prompt was executed and no experiments were reproduced."
+        },
+        {
+          "url": "https://microsoft.github.io/graphrag/",
+          "scope": "Official overview of indexing, community summaries, four query modes, and versioning cautions.",
+          "access_limitations": "Live documentation rather than a pinned package installation; no library was installed or executed."
+        },
+        {
+          "url": "https://microsoft.github.io/graphrag/index/methods/",
+          "scope": "Standard LLM extraction and summarization; FastGraphRAG noun phrases, co-occurrence relationships, noisier graphs, English-oriented NLTK defaults, and default spaCy model.",
+          "access_limitations": "Live documentation only; no Chinese-language NLP evaluation or indexing-cost measurement was performed."
+        },
+        {
+          "url": "https://microsoft.github.io/graphrag/cli/",
+          "scope": "Presence of standard-update and fast-update indexing options and the separate update command; query choices local/global/drift/basic.",
+          "access_limitations": "Documentation confirms available options, not correctness of arbitrary replacement, deletion, revocation, or derived-artifact synchronization."
+        },
+        {
+          "url": "https://microsoft.github.io/graphrag/query/overview/",
+          "scope": "Official Local, Global, DRIFT, and Basic query-mode purposes, community-report map-reduce, and DRIFT follow-up questions.",
+          "access_limitations": "Live documentation only; no query-mode benchmark or runtime verification."
+        },
+        {
+          "url": "https://microsoft.github.io/graphrag/query/local_search/",
+          "scope": "Entity-description embeddings, entity access points, related relationships/reports/text units, and budget-constrained ranking/filtering; no fixed 1–3-hop algorithm asserted.",
+          "access_limitations": "The official methodology and dataflow were inspected; implementation source and package-version-specific behavior were not executed."
+        },
+        {
+          "url": "https://arxiv.org/html/2410.05779",
+          "scope": "LightRAG incremental-update claim and evaluation context for comparative results.",
+          "access_limitations": "Targeted paper passages only; incremental-update implementation, deletion behavior, and production costs were not tested."
+        },
+        {
+          "url": "https://arxiv.org/html/2405.14831",
+          "scope": "HippoRAG Section 2.3: OpenIE indexing, query-entity linking, personalized PageRank, and passage scoring.",
+          "access_limitations": "Method section inspected; no benchmark or graph traversal was run."
+        },
+        {
+          "url": "https://arxiv.org/html/2502.14902",
+          "scope": "PathRAG introduction describing key relational paths, flow-based pruning, and reduction of redundant context.",
+          "access_limitations": "Introduction-level method check; experimental claims were not independently reproduced."
+        },
+        {
+          "url": "https://arxiv.org/abs/2501.09136",
+          "scope": "Agentic RAG survey title and abstract supporting the distinction between fixed workflows and agent-controlled retrieval.",
+          "access_limitations": "Abstract-level check only; no cost superiority over graph retrieval inferred."
+        }
+      ],
+      "notes": [
+        "Copied the original to its .zh.md companion before editing; the companion is byte-for-byte identical to the specified baseline.",
+        "Translated all 20 numbered headings, two tables, three Mermaid diagrams, seven summary points, and the full graph-versus-agent cost comparison.",
+        "Retained the A→B→C supplier/competitor example, 1,000-feedback synthesis example, illustrative 1–3-hop range, 37% counterexample, million-token pricing warning, and b^h neighborhood expression.",
+        "Preserved literal entity examples 张三, 张总, 张经理 and the inline edge value 供应商, with English explanations rather than replacing the data.",
+        "Preserved Standard/Fast differences, English-default caveat, update-method identifiers, source-edge evidence requirements, inherited authorization restrictions, and derived-artifact deletion/revocation obligations.",
+        "Retained the Chinese manuscript's 2026-09-15 documentation-access date explicitly as a source-history note instead of silently changing it to the translation review date.",
+        "All external URLs, inline identifiers, and formula spans are unchanged. Section numbers, table rows, Mermaid graph topology, and fenced-block counts passed local comparisons.",
+        "Added a specific References note distinguishing paper/doc review from unperformed runtime, update, and benchmark tests.",
+        "No confirmed factual error in the Chinese source was found during these scoped checks; live documentation still lists both update methods.",
+        "After the agent's initial missing-jsdom prerequisite failure, the coordinating session successfully parsed both advanced-module editions using the restored repository dependencies; graph topology was also compared locally."
+      ]
+    },
+    {
+      "path": "docs/rag/04-advanced/21-multimodal-rag.md",
+      "zh_path": "docs/rag/04-advanced/21-multimodal-rag.zh.md",
+      "kind": "chapter",
+      "source_sha256": "f7e0401ae40a8f64603e9c6285cfeaf6955fcc501ba6b865f1bb7c6bce16682e",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2103.00020",
+          "scope": "CLIP's learned joint image-text embedding space and dot-product cross-domain interaction; HTML identified itself as arXiv:2103.00020v1.",
+          "access_limitations": "Relevant representation passages were inspected directly; the simplified reader initially selected the robustness section. No embeddings or retrieval benchmark were computed."
+        },
+        {
+          "url": "https://arxiv.org/html/2407.01449",
+          "scope": "ColPali page-image multi-vector embeddings, late interaction, and the explanation of token-level MaxSim; HTML identified itself as arXiv:2407.01449v6.",
+          "access_limitations": "Relevant passages were inspected directly after the simplified reader selected the dataset appendix. No model, vector index, or benchmark was run; O(mnd) remains the chapter's explicit naive pairwise-cost derivation."
+        },
+        {
+          "url": "https://arxiv.org/html/2510.12323",
+          "scope": "RAG-Anything introduction: heterogeneous document evidence, structure-aware decomposition, dual-graph representation, and cross-modal hybrid retrieval.",
+          "access_limitations": "Introduction-level check only; no broad claims from the paper were added to the translation and its experiments were not reproduced."
+        },
+        {
+          "url": "https://arxiv.org/abs/2005.11401",
+          "scope": "Original RAG paper title and abstract on parametric/non-parametric memory and retrieval-augmented generation.",
+          "access_limitations": "Abstract-level check only, retrieved directly after the simplified web reader returned only the title; not evidence for implementation-specific multimodal behavior."
+        },
+        {
+          "url": "https://arxiv.org/abs/2302.12173",
+          "scope": "Indirect prompt-injection paper title and abstract on retrieved data crossing the data/instruction boundary.",
+          "access_limitations": "Abstract-level check only; no attacks, exploit payloads, media-injection tests, or third-party systems were exercised."
+        }
+      ],
+      "notes": [
+        "Copied the original to its .zh.md companion before editing; the companion matches the specified baseline byte for byte.",
+        "Translated every paragraph in all eight numbered sections, both tables, the complete Mermaid pipeline, and six summary points.",
+        "Preserved doc_id, version_id, the <image> literal, and O(mnd) exactly; retained the meanings of m query vectors, n page vectors, and d dimensions.",
+        "Preserved the Chinese sample queries 退款规则是什么 and 找到退款流程图 with English glosses, while translating surrounding explanations.",
+        "Retained ACL and tenant propagation, original-versus-derived evidence, query-time validity, media-location tolerances, IoU definition, temporal overlap, chart-unit/scale/error caveats, and all cost factors.",
+        "Kept evidence grounding distinct from generic factual correctness, and kept access authorization separate from retrieval-score filtering.",
+        "All internal .md destinations and external URLs are unchanged; no Chinese fragments were introduced into English links. Section numbers, table rows, inline spans, and diagram edges passed local comparisons.",
+        "Added a specific References note identifying the original RAG and indirect prompt-injection papers as abstract-only checks and explicitly excluding claims of security/runtime testing.",
+        "No confirmed factual error in the Chinese source was found during these scoped checks; no API behavior or historical citation was silently replaced.",
+        "The coordinating session resolved the initial missing-jsdom prerequisite and successfully parsed both advanced-module editions. This checks diagram syntax, not final browser layout or multimodal runtime behavior."
+      ]
+    },
+    {
+      "path": "docs/rag/04-advanced/README.md",
+      "zh_path": "docs/rag/04-advanced/README.zh.md",
+      "kind": "index",
+      "source_sha256": "0a2d59fb92615b77a55b7b7d88dd671ffcfccf91cd72930ada23908ba50fcee0",
+      "references_checked": [],
+      "notes": [
+        "Copied the original module index before editing and verified the .zh.md file against the baseline's exact bytes.",
+        "Translated the description, module title, scope sentence, chapter labels, and parent-index link text.",
+        "Preserved the three chapter destinations, reading order 15/16/21, and ../README.md parent link exactly; all point to the English .md convention.",
+        "No new external references, author footer, bibliography, or reader-facing editorial placeholder was added."
+      ]
+    },
+    {
+      "path": "docs/rag/05-generation-evaluation/17-generation-hallucination.md",
+      "zh_path": "docs/rag/05-generation-evaluation/17-generation-hallucination.zh.md",
+      "kind": "chapter",
+      "source_sha256": "e90cb88b539fc4e2a3660bc335ab895941f6e7f4fb844a826bf2e6200d20a65d",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2410.07176",
+          "scope": "Checked imperfect retrieval, conflicts between parametric and retrieved knowledge, and source-aware consolidation rather than attributing every hallucination to a retrieval miss.",
+          "access_limitations": "Read the extracted introduction, not all experiments. Astute RAG's general-domain conflict resolution was not presented as proof that a prompt can enforce enterprise authorization or factual correctness."
+        },
+        {
+          "url": "https://arxiv.org/html/2310.01558",
+          "scope": "Checked evidence that irrelevant retrieved context can hurt answers, NLI-based entailment checks, the cost of discarding useful context, and training for robustness to noisy context.",
+          "access_limitations": "Read the extracted introduction. The paper's fallback to answering without retrieval was not substituted for the chapter's evidence-only enterprise abstention policy."
+        },
+        {
+          "url": "https://arxiv.org/html/2305.14627",
+          "scope": "Read the introduction and directly extracted Section 3.3 of v2 to verify citation recall based on joint entailment, citation precision aimed at irrelevant citations, and the separation of answer correctness from citation quality.",
+          "access_limitations": "No NLI or human evaluation was rerun. ALCE does not require a minimal citation set, so its precision definition was not equated with simply penalizing every redundant supporting citation."
+        },
+        {
+          "url": "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/",
+          "scope": "Cross-checked the Chapter 18 linkage: faithfulness is support of response claims by retrieved context, not independent validation of the context's factual truth.",
+          "access_limitations": "Current online documentation was inspected, not a pinned installed package or historical implementation. No claim about empty-response behavior was inferred from this page."
+        }
+      ],
+      "notes": [
+        "Sources accessed on 2026-09-20. The full Chinese source was copied before translation and verified byte-for-byte against the confirmed baseline.",
+        "Preserved all 22 numbered headings, two Mermaid diagrams including their original node/edge structure, four defense layers, risk qualifications, tables, and reference targets; English H1 uses Chapter 17.",
+        "Used abstention for refusing to answer without evidence; kept authorization, permission filtering, clarification, and graceful degradation distinct.",
+        "Separated evidence grounding, faithfulness to the supplied material, and factuality; retained the need for version validity, source quality, reasoning, and computation checks.",
+        "Kept the two Chinese reimbursement statements as literal sample data and supplied adjacent English explanations. Shanghai versus Beijing, 800 yuan, and July remain unchanged; doc_id/version_id and citation identifiers [1]/[3] remain intact.",
+        "Retained all restrictions on negative existence claims, validation of the actual cited span rather than the whole corpus, and the inability of offline sampling to retract already displayed errors.",
+        "No executable code or LaTeX formulas occur here; fenced blocks are Mermaid. The RAGAS paper, Corrective RAG paper, and best-practices paper were retained but not fetched in this chapter review.",
+        "Scoped structural checks and git diff --check passed. The initial missing-jsdom failure was resolved by the coordinating session, which successfully parsed all eight generation/evaluation diagrams across the two editions."
+      ]
+    },
+    {
+      "path": "docs/rag/05-generation-evaluation/18-rag-evaluation.md",
+      "zh_path": "docs/rag/05-generation-evaluation/18-rag-evaluation.zh.md",
+      "kind": "chapter",
+      "source_sha256": "e17d511e1e0819c7e5bea5a8377dcd0d446c7bb5728facd9d9158c26414c0b5a",
+      "references_checked": [
+        {
+          "url": "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_recall/",
+          "scope": "Verified the reference requirement, decomposition of reference answers into claims, and distinct reference-context and ID-based recall variants and denominators.",
+          "access_limitations": "Read online documentation, not a pinned package implementation. The documentation's illustrative numerical example was not reproduced or imported into the manuscript."
+        },
+        {
+          "url": "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_precision/",
+          "scope": "Verified the sum of Precision@k at useful positions divided by useful returned chunks, and the distinction between reference-based ContextPrecision, response-based ContextUtilization, and legacy LLMContextPrecisionWithoutReference.",
+          "access_limitations": "The stable documentation is mutable. No APIs were executed, and no historical version compatibility was inferred from the current page."
+        },
+        {
+          "url": "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/",
+          "scope": "Verified claim extraction followed by contextual support checks and the denominator of all response claims, keeping faithfulness distinct from factuality.",
+          "access_limitations": "Read online documentation only. Empty-claim and abstention return values were not verified in source code; the manuscript's implementation-dependent qualification was retained."
+        },
+        {
+          "url": "https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/answer_relevance/",
+          "scope": "Verified reverse generation of questions from a response, mean embedding cosine similarity with the original query, lack of a factual-accuracy check, and AnswerRelevancy versus legacy ResponseRelevancy naming.",
+          "access_limitations": "No embedding or LLM calls were made. The source's numerical example was not treated as a universal expected result."
+        },
+        {
+          "url": "https://arxiv.org/html/2305.14627",
+          "scope": "Read the introduction and directly extracted Section 3.3 of v2 to check the separate evaluation of answer correctness and citation quality, joint support by cited passages, and irrelevant-citation detection.",
+          "access_limitations": "No experiments were reproduced. The manuscript's broader citation accessibility and authorization requirements are engineering criteria, not claims that ALCE measures ACLs."
+        },
+        {
+          "url": "https://arxiv.org/html/2406.04744",
+          "scope": "Directly fetched full HTML to check that CRAG means Comprehensive RAG Benchmark, covers temporal dynamism, and supplies query-time-aligned retrieval results in its evaluation setup.",
+          "access_limitations": "web_fetch initially exposed an appendix prompt rather than the substantive benchmark description. Python urllib extraction then verified relevant abstract/introduction and query-time passages. Dataset tasks and experiments were not run."
+        },
+        {
+          "url": "https://trec-rag.github.io/",
+          "scope": "Confirmed the official track's end-to-end retrieval-plus-generation objective and its complementary component tasks.",
+          "access_limitations": "Only the extracted landing-page description was available in this fetch; annual task specifications and judging details were not individually fetched."
+        }
+      ],
+      "notes": [
+        "Sources accessed for this translation on 2026-09-20. Preserved the original manuscript's explicit Ragas documentation access date, 2026-09-15, rather than silently replacing it with this review date.",
+        "The cp-created Chinese companion was compared directly against baseline bytes; all 27 numbered headings, two Mermaid diagrams, metric definitions, tables, examples, and links remain structurally paired.",
+        "Preserved the exact inline formulas Recall@K = |R ∩ G| / |G| and Precision@K = |R ∩ G| / K, along with the fixed-K empty-slot convention, the A/B/C example, 1/3 evidence recall, and the distinction between ANN and task-level recall.",
+        "Retained all numerical sample sizes and scores, including 10–30, 100–300, 500+, 0.82, and 0.85, with their statistical qualifications.",
+        "Kept collections and legacy API identifiers unchanged and did not modernize the historical API discussion. Reference-free generation scoring is not described as reference-free Context Recall.",
+        "Preserved separate false acceptance, false abstention, coverage, and answered-question risk denominators, plus paired tests, bootstrap grouping, frozen test sets, and feedback-selection-bias caveats.",
+        "No executable code or LaTeX formulas occur; the formulas are inline code and all fenced blocks are Mermaid. The original RAGAS paper, evaluation survey, and Fact, Fetch, and Reason reference were retained but not fetched in this review.",
+        "Scoped structural checks and git diff --check passed. After restoring the existing dependency set, the coordinating session parsed both generation/evaluation editions successfully. Browser rendering and full-site bilingual integration were not performed in this scope."
+      ]
+    },
+    {
+      "path": "docs/rag/05-generation-evaluation/README.md",
+      "zh_path": "docs/rag/05-generation-evaluation/README.zh.md",
+      "kind": "index",
+      "source_sha256": "836ba0dc7f1cc6f243c650bd2ea970501dce2afae2ff33c8e2e1d20fe4753277",
+      "references_checked": [],
+      "notes": [
+        "Translated the module title, description, introduction, chapter titles, and return link into English.",
+        "Maintained the order and ordinary .md links for Chapters 17 and 18 and ../README.md; no localized fragments or .zh.md targets were added to English.",
+        "The Chinese companion retains the exact baseline body and original links for the parent's later link rewrite.",
+        "All 14 source lines retain their structural counterparts; scoped link and whitespace checks passed."
+      ]
+    },
+    {
+      "path": "docs/rag/06-operations-security/19-dynamic-update.md",
+      "zh_path": "docs/rag/06-operations-security/19-dynamic-update.zh.md",
+      "kind": "chapter",
+      "source_sha256": "9402de883a0068d5c244ff80ac066a8f836fbb366dc8b1b701d123b6e17718a1",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2105.09613",
+          "scope": "Fetched and read the primary abstract metadata using curl after the simplified web fetch returned only the title. Checked the scope of streaming insertions, deletions, concurrent search, and index freshness.",
+          "access_limitations": "Abstract only; did not review the full algorithm or reproduce benchmarks. No FreshDiskANN behavior is treated as evidence of compliance-grade physical erasure."
+        },
+        {
+          "url": "https://github.com/pgvector/pgvector",
+          "scope": "Read the official README sections on storing and deleting vectors, exact search, HNSW, filtered search, iterative scans, tenant isolation, and VACUUM/REINDEX. Checked the distinction between logical deletion, index maintenance, filtering, and queryability without an ANN index.",
+          "access_limitations": "The fetched README was truncated after 20,000 characters, but the relevant listed sections were visible. This is current documentation, not a pinned historical release or a database execution test; it does not certify erasure of all replicas, logs, or backups."
+        },
+        {
+          "url": "https://arxiv.org/abs/1603.09320",
+          "scope": "Fetched and read primary abstract metadata using curl. Checked that HNSW describes a hierarchical graph search/index construction method rather than a universal storage-deletion contract.",
+          "access_limitations": "Abstract only; did not audit implementation-specific candidate queues, reclamation, or ef behavior."
+        },
+        {
+          "url": "https://arxiv.org/abs/2403.04871",
+          "scope": "Read the primary abstract in raw HTML metadata. Checked predicate-aware graph traversal as support for the chapter's filter-aware search discussion.",
+          "access_limitations": "Abstract only; throughput figures and full experimental configurations were not reviewed or copied. Predicate filtering is not presented as a complete authorization system."
+        },
+        {
+          "url": "https://arxiv.org/abs/2410.05779",
+          "scope": "Fetched and read primary abstract metadata using curl. Checked the stated use of graph-based retrieval and incremental integration of new data.",
+          "access_limitations": "Abstract only; did not verify code-level dependency tracking, deletion propagation, or a particular release's update guarantees."
+        },
+        {
+          "url": "https://arxiv.org/abs/2312.10997",
+          "scope": "Fetched and read primary abstract metadata using curl for the survey's retrieval/generation/augmentation scope, dynamic external knowledge, and evaluation coverage.",
+          "access_limitations": "Abstract only; not evidence for a particular database's atomicity, authorization, or erasure semantics."
+        }
+      ],
+      "notes": [
+        "Copied the original file before translation and verified its baseline bytes. The parent later approved the sole Section 19.10.5 Chinese patch recorded in approved_zh_patches; source_sha256 still identifies be53fedaedfb28da181db8e95f41bf91100621c4, and Chinese links were not rewritten.",
+        "Translated all 238 source lines, preserving 26 numbered section headings, 3 Mermaid blocks, 26 table rows, references, examples, values, and link targets. No executable code blocks or math expressions occur in this chapter.",
+        "Preserved the distinction between a document's immutable version, collection/index aliases, and a release snapshot containing multiple documents' respective versions; current revocation and deletion restrictions remain independent of rollback.",
+        "Preserved index-version, authorization-version, user-membership, tenant, and cache granularity rather than replacing them with a generic version or metadata filter.",
+        "The descriptive inline chunk-ID expression translates 序号 to sequence_number; actual field identifiers and other inline code are unchanged.",
+        "Parent-approved accuracy correction in Section 19.10.5: both editions now say accumulated soft-deleted entries may affect recall, depending on the index implementation and reclamation/rebuilding strategy. This aligns with Section 19.5.1 and the official pgvector maintenance discussion rather than asserting a universal HNSW deletion rule.",
+        "Validation passed: exact companion hashes, numbered heading hierarchy, Mermaid graph structure, fence count and language, table row count, inline identifiers, math preservation, line coverage, unchanged link targets, and existing local link destinations.",
+        "The module's existing check_mermaid.mjs passed with 10 diagrams and 0 failures across both languages. Local jsdom was missing, so imports were resolved read-only from the parent conventions worktree without creating or modifying dependency files.",
+        "git diff --check passed for the owned module. Full-site build and bilingual navigation integration are left to the parent; no database, retrieval benchmark, or browser-rendering test was run."
+      ],
+      "approved_zh_patches": [
+        {
+          "section": "19.10.5",
+          "before": "累积过多会导致召回率静默下降。\n",
+          "after": "过多软删除记录可能影响召回，具体取决于索引实现与回收、重建等维护策略。\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        }
+      ]
+    },
+    {
+      "path": "docs/rag/06-operations-security/20-rag-challenges-security.md",
+      "zh_path": "docs/rag/06-operations-security/20-rag-challenges-security.zh.md",
+      "kind": "chapter",
+      "source_sha256": "e93db3335d204b6527fa20ebc433a0177478084a3e98ae0fbb61d1199861f367",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2402.07867",
+          "scope": "Read the primary abstract in raw HTML metadata. Checked that the small-volume corpus-poisoning result assumes an attacker can insert texts and depends on the evaluated threat model, rather than implying universal production success.",
+          "access_limitations": "Abstract-level scope check only; no attack construction, reproduction, or production-system investigation was performed."
+        },
+        {
+          "url": "https://arxiv.org/html/2402.07867v3",
+          "scope": "Fetched the primary HTML article and selected paragraphs defining Attack Success Rate. Verified that ASR is a fraction of target questions whose answers match the attacker-chosen answer, so successful targets belong in the numerator rather than the denominator.",
+          "access_limitations": "Targeted reading of evaluation-metric paragraphs, not a full-paper review or independent validation of reported results. No attack implementation or additional offensive detail was added."
+        },
+        {
+          "url": "https://arxiv.org/abs/2302.12173",
+          "scope": "Read the primary abstract in raw HTML metadata. Checked the distinction between direct prompting and instructions arriving in retrieved material, and the stated risks when applications also call APIs.",
+          "access_limitations": "Abstract only; does not establish guarantees for any particular mitigation or current model. No reproduction or assessment of a third-party application was performed."
+        },
+        {
+          "url": "https://arxiv.org/abs/2405.07437",
+          "scope": "Read the primary abstract in raw HTML metadata. Checked the separate evaluation of retrieval and generation and the distinctions among relevance, accuracy, and faithfulness.",
+          "access_limitations": "Abstract only; benchmark tables, metric implementations, and full survey coverage were not independently reviewed."
+        },
+        {
+          "url": "https://arxiv.org/abs/2407.01219",
+          "scope": "Read the primary abstract in raw HTML metadata. Checked the discussion of interacting RAG processing choices and the need to balance measured performance with efficiency.",
+          "access_limitations": "Abstract only; no experimental configuration or purported universally optimal setup was imported into the translation."
+        },
+        {
+          "url": "https://arxiv.org/abs/2312.10997",
+          "scope": "Fetched and read primary abstract metadata using curl for the survey's RAG components, evaluation, and deployment challenges.",
+          "access_limitations": "Abstract only; no claim that every operational checklist item is experimentally established by the survey."
+        }
+      ],
+      "notes": [
+        "Copied the original file before translation and verified its baseline bytes. The parent later approved the sole Section 20.4 Chinese patch recorded in approved_zh_patches; source_sha256 still identifies be53fedaedfb28da181db8e95f41bf91100621c4, and Chinese links were not rewritten.",
+        "Translated all 245 source lines, preserving 21 numbered section headings, 2 Mermaid blocks, 20 table rows, all 28 launch-checklist items, references, examples, and link targets. No executable code blocks or math expressions occur in this chapter.",
+        "Kept the original Chinese injection sentence as sample data, with an English explanation at the same location. It is the only remaining Chinese text in the English module and has not been expanded into an operational example.",
+        "Parent-approved accuracy correction in Section 20.4: the denominator is the evaluated request/question/target count at the declared level and retry budget, while the corresponding success count is the numerator. Corrected both editions, retaining threat-model and normal-utility qualifications. Evidence: the fetched PoisonedRAG v3 ASR definition uses the fraction of target questions receiving the attacker-chosen answer.",
+        "Preserved normal-task utility alongside ASR, attempt-budget and threat-model qualifications, and the distinction between malicious-answer objectives and denial-of-service/resource-consumption objectives.",
+        "Preserved prompt separation as an attribution aid rather than a security boundary, with authorization, capability isolation, data-flow control, and egress checks as enforcement mechanisms.",
+        "Validation passed: exact companion hashes, numbered heading hierarchy, Mermaid graph structure, fence count and language, table and checklist counts, inline identifiers, math preservation, line coverage, unchanged link targets, and existing local link destinations.",
+        "The module's existing check_mermaid.mjs passed with 10 diagrams and 0 failures across both languages, using read-only parent-worktree dependencies after local jsdom was missing. git diff --check passed.",
+        "This was a manuscript translation and primary-source terminology check, not a security vulnerability investigation. Full-site build, bilingual navigation integration, and final browser rendering remain with the parent."
+      ],
+      "approved_zh_patches": [
+        {
+          "section": "20.4",
+          "before": "**只报告 ASR 下降是不完整的**：全拒答可能压低“诱导错误回答”的成功率，却失去正常用途；若攻击目标就是拒绝服务或消耗资源，全拒答也不代表防御成功。要说明分母是攻击请求、目标问题还是多次尝试后的目标成功数，并报告攻击者权限、查询预算及正常任务效用。\n",
+          "after": "**只报告 ASR 下降是不完整的**：全拒答可能压低“诱导错误回答”的成功率，却失去正常用途；若攻击目标就是拒绝服务或消耗资源，全拒答也不代表防御成功。要说明分母是攻击请求数、目标问题数，还是规定重试预算下被评测的目标数；成功请求、问题或目标数才是对应的分子，并报告攻击者权限、查询预算及正常任务效用。\n",
+          "approval": "Explicit parent-session approval on 2026-09-20 for a minimal synchronized accuracy correction."
+        }
+      ]
+    },
+    {
+      "path": "docs/rag/06-operations-security/README.md",
+      "zh_path": "docs/rag/06-operations-security/README.zh.md",
+      "kind": "index",
+      "source_sha256": "b6f48045d115aa0b7f65846b416f615f547e4bf3b996c0394fbd48abb181ea32",
+      "references_checked": [],
+      "notes": [
+        "Copied the original index before translation and confirmed byte identity with be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Translated the description, module title, introduction, chapter labels, and return link. Preserved both chapter targets and the parent-index target as ordinary .md links.",
+        "All 14 source lines and the full index structure are preserved. No independent technical claims or external references required additional checking.",
+        "Local link destinations resolve; no Chinese prose remains in the English index. Chinese companion links remain unchanged for the parent's bilingual rewrite.",
+        "Only the three English files and their three companions in docs/rag/06-operations-security were changed. No commits or changes to other repository files were made."
+      ]
+    },
+    {
+      "path": "docs/rag/07-structured-queries/22-text-to-sql.md",
+      "zh_path": "docs/rag/07-structured-queries/22-text-to-sql.zh.md",
+      "kind": "chapter",
+      "source_sha256": "2486de0bbc6e1d1ee9a663c8a5d250cd0d8dbfcba9d2e6b0d717dc34b5529fd8",
+      "references_checked": [
+        {
+          "url": "https://raw.githubusercontent.com/bojieli/ai-agent-book/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md",
+          "scope": "Read the pinned Generating SQL Queries discussion and ERP experiment description: generated artifact versus row transcription, restricted execution, and the book's PostgreSQL requirement.",
+          "access_limitations": "Read relevant passages at the pinned revision, not every section of the upstream chapter; did not run an upstream experiment."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/bojieli/ai-agent-book/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/README.md",
+          "scope": "Read companion overview, two-table model, independent Python reference, SQLite-versus-PostgreSQL distinction, and reported experiment conditions.",
+          "access_limitations": "Source read only; upstream model pass rates were neither reproduced nor adopted as results of this order example."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/bojieli/ai-agent-book/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/agent.py",
+          "scope": "Read SELECT-only prompt, one model invocation in generate_sql, and output cleanup; confirmed that a prompt restriction is not database authorization.",
+          "access_limitations": "No model invocation or paid API call; retained the pinned implementation rather than updating its historical API."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/bojieli/ai-agent-book/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py",
+          "scope": "Read direct cur.execute(sql), independent reference invocation, multiset comparison, and numeric normalization/tolerance; these do not establish read-only enforcement.",
+          "access_limitations": "Read but did not execute the upstream program; the chapter defines exact integer and ordered-row comparison independently."
+        },
+        {
+          "url": "https://www.sqlite.org/lang_aggfunc.html",
+          "scope": "Checked COUNT rows, SUM returning NULL with no non-null inputs, integer SUM behavior and overflow, and approximate floating-point aggregation.",
+          "access_limitations": "Live official documentation rather than a pinned release; only the cited aggregate semantics were used."
+        },
+        {
+          "url": "https://www.sqlite.org/uri.html",
+          "scope": "Checked mode=ro opens a database read-only; it does not add tenant- or row-level authorization.",
+          "access_limitations": "Documentation review, not a production isolation audit."
+        },
+        {
+          "url": "https://www.sqlite.org/c3ref/set_authorizer.html",
+          "scope": "Checked compile-time operation/object authorization, SQLITE_DENY behavior, and the distinction from automatic row filtering.",
+          "access_limitations": "No sandbox or authorization service was implemented or claimed validated."
+        },
+        {
+          "url": "https://www.sqlite.org/security.html",
+          "scope": "Checked SQL/resource limits, memory limits, progress callbacks, and interrupt mechanisms for untrusted SQL.",
+          "access_limitations": "Reviewed defensive guidance only; no hostile workload or production database was exercised."
+        },
+        {
+          "url": "https://www.sqlite.org/appfunc.html#security_implications",
+          "scope": "Checked that application-defined SQL functions can have external side effects even when invoked from a read query.",
+          "access_limitations": "Did not reproduce the documentation's attack example; retained only the chapter's defensive explanation."
+        },
+        {
+          "url": "https://www.sqlite.org/eqp.html",
+          "scope": "Read warning about unstable EXPLAIN QUERY PLAN output, SCAN/SEARCH, index use, and temporary sorting b-trees.",
+          "access_limitations": "The relevant opening sections were read; the remaining compound-query discussion was outside this chapter's claim."
+        },
+        {
+          "url": "https://www.sqlite.org/datatype3.html",
+          "scope": "Read storage classes and type affinity, including INTEGER/NUMERIC affinity and the fact that ordinary column declarations do not enforce integer-only storage.",
+          "access_limitations": "Reviewed the relevant opening sections, not every comparison-expression example."
+        },
+        {
+          "url": "https://www.sqlite.org/stricttables.html",
+          "scope": "Checked per-table STRICT enforcement, lossless coercion, and the SQLite 3.37.0 version requirement.",
+          "access_limitations": "Live official documentation; did not change the chapter's ordinary-table DDL into STRICT tables."
+        }
+      ],
+      "notes": [
+        "Translated all eight sections, all tables and diagram labels; preserved the two SQL blocks byte-for-byte, the eight order rows, nine line rows, all identifiers and UTC timestamps.",
+        "Amounts remain integer renminbi fen, not dollars. Retained Shanghai's inclusive calendar-date request as the half-open UTC interval 2026-08-31T16:00:00Z to 2026-09-07T16:00:00Z, distinct from snapshot cutoff 2026-09-08T01:00:00Z.",
+        "Preserved exact expected rows C1=(2,10,7000) and C2=(1,2,4000), the duplicate-order and equal-amount counterexamples, NULL-versus-zero semantics, integer-affinity/overflow qualifications, and trusted authorization enforcement independent of model filters.",
+        "Executed the unchanged DDL and query against an in-memory SQLite database populated from the displayed eight orders and nine lines; independently iterated the same data in Python using Asia/Shanghai calendar dates. Both produced the exact expected rows. This checks the teaching data and query, not model accuracy or production authorization.",
+        "Retained Bojie Li attribution and commit 985a49d35b9f50937f1f757cf25867672991ded7. Source checks for this migration were performed on 2026-09-20 without executing the upstream program.",
+        "The fictional order case remains fictional. Chinese source bytes, SQL, and internal links are unchanged; no source factual correction was needed."
+      ]
+    },
+    {
+      "path": "docs/rag/07-structured-queries/README.md",
+      "zh_path": "docs/rag/07-structured-queries/README.zh.md",
+      "kind": "index",
+      "source_sha256": "14a1258a74c0c306b3086934d566b3bf608285603928019d2a93704501e726e8",
+      "references_checked": [],
+      "notes": [
+        "Translated the description and database-versus-document-retrieval distinction; retained the single Chapter 22 link and parent topic link.",
+        "Preserved fixed report templates as an explicit alternative to generating arbitrary SQL; Chinese source bytes and links are unchanged."
+      ]
+    },
+    {
+      "path": "docs/rag/README.md",
+      "zh_path": "docs/rag/README.zh.md",
+      "kind": "index",
+      "source_sha256": "df83cbb82625298a54bef34aac61b36b4482fb7c4bf9ca1d881fe48724a16d08",
+      "references_checked": [],
+      "notes": [
+        "Translated all seven module links, the module relationship diagram, five reading paths, and all three visible FAQ answers; retained their chapter ranges and relative .md targets.",
+        "Kept database aggregation distinct from vector retrieval and retained the qualifications on hallucinations, pre-input authorization for long context, and equal-budget chunk-size evaluation.",
+        "Chinese companion is byte-identical to the baseline, including internal links; Chinese link migration is reserved for the integration session."
+      ]
+    }
+  ]
+}

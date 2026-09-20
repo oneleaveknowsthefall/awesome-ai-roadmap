@@ -1,197 +1,197 @@
 ---
-description: 说明 PDF 版面、表格和扫描件的解析路径，比较规则、版面模型与 VLM，并建立原件回链、权限元数据和入库质量校验。
+description: Explains parsing paths for PDF layouts, tables, and scanned documents, compares rules, layout models, and VLMs, and covers source links, authorization metadata, and pre-ingestion quality checks.
 ---
 
-# 第三章：文档解析与预处理
+# Chapter 3: Document Parsing and Preprocessing
 
-## 3.1 为什么这是 RAG 最被低估的一环
+## 3.1 Why This Is the Most Underestimated Part of RAG
 
-大多数人讲 RAG 时会从切分讲起，但真实项目里，**最先卡住的往往是更前面一步：把原始文档变成干净的文本**。
+Most explanations of RAG start with chunking. In real projects, however, **the first obstacle is often one step earlier: turning raw documents into clean text**.
 
-原因很简单：企业的知识不是以 Markdown 存在的。它是扫描版的合同 PDF、带合并单元格的 Excel、有页眉页脚和分栏的 Word、嵌了流程图的 PPT、以及内网 Wiki 里格式混乱的 HTML。
+The reason is simple: enterprise knowledge does not arrive as Markdown. It arrives as scanned contract PDFs, Excel files with merged cells, Word documents with headers, footers, and columns, PowerPoint slides containing flowcharts, and inconsistently formatted HTML on an internal wiki.
 
-> **这一层出错，后面所有环节都是在垃圾数据上做优化。** 切分策略再精妙、Embedding 模型再强、Rerank 再准，也救不回一张被解析成乱码的表格。
+> **If this layer goes wrong, every subsequent stage is optimizing garbage data.** No matter how sophisticated the chunking strategy, how capable the embedding model, or how accurate the reranker, none can rescue a table that has been parsed into gibberish.
 
-因此，排查检索问题时应先打开实际入库内容，而不是直接更换模型。
+When investigating retrieval problems, therefore, first inspect what was actually ingested rather than immediately switching models.
 
-## 3.2 解析阶段的四类典型问题
+## 3.2 Four Common Parsing Problems
 
 ```mermaid
 flowchart TB
-    DOC[原始文档] --> P1[版面问题]
-    DOC --> P2[表格问题]
-    DOC --> P3[非文本内容]
-    DOC --> P4[噪音与结构丢失]
+    DOC[Raw document] --> P1[Layout problems]
+    DOC --> P2[Table problems]
+    DOC --> P3[Non-text content]
+    DOC --> P4[Noise and lost structure]
 
-    P1 --> A1[分栏被按行读串<br/>阅读顺序错乱]
-    P2 --> A2[合并单元格塌陷<br/>行列关系丢失]
-    P3 --> A3[扫描件 图表 公式<br/>无法直接取文本]
-    P4 --> A4[页眉页脚重复<br/>标题层级丢失]
+    P1 --> A1[Columns merged line by line<br/>Reading order scrambled]
+    P2 --> A2[Merged cells collapse<br/>Row-column relationships lost]
+    P3 --> A3[Scans, charts, and formulas<br/>No directly extractable text]
+    P4 --> A4[Repeated headers and footers<br/>Heading hierarchy lost]
 ```
 
-### 3.2.1 版面与阅读顺序
+### 3.2.1 Layout and Reading Order
 
-PDF 页面主要描述绘制和布局；部分 Tagged PDF 含逻辑结构，但不能假设任意文件都提供正确的段落和阅读顺序。
+A PDF page primarily describes drawing operations and layout. Some tagged PDFs include a logical structure, but you cannot assume that an arbitrary file provides correct paragraphs or reading order.
 
-所以双栏排版的论文，用简单的文本抽取工具处理时，很容易把左右两栏按视觉行拼接起来，产出彻底错乱的句子。
+A simple text extraction tool can therefore easily concatenate the left and right columns of a two-column paper along each visual line, producing completely scrambled sentences.
 
-### 3.2.2 表格
+### 3.2.2 Tables
 
-表格是解析里最难的一类，因为它的信息**同时编码在内容和位置关系里**。
+Tables are among the hardest elements to parse because their information is **encoded in both their content and their spatial relationships**.
 
-一个被拉平成纯文本的表格，会丢掉「这个数字属于哪一行哪一列」这个最关键的信息。合并单元格、跨页表格、无边框表格会让情况进一步恶化。
+Flattening a table into plain text loses its most important information: which row and column each number belongs to. Merged cells, tables spanning multiple pages, and borderless tables make the problem worse.
 
-### 3.2.3 扫描件与图片
+### 3.2.3 Scans and Images
 
-纯图片 PDF 里没有任何文本层，必须走 OCR。而 OCR 会引入一类特殊的错误：**它产出的文本看起来是正常文字，但字符是错的**（比如把 0 认成 O）。这类错误比「解析失败」更危险，因为它不会报错，会静默污染知识库。
+An image-only PDF has no text layer and must go through OCR. OCR introduces a distinctive kind of error: **the output looks like ordinary text, but the characters are wrong**—for example, recognizing `0` as `O`. These errors are more dangerous than an explicit parsing failure because they produce no error message and silently contaminate the knowledge base.
 
-### 3.2.4 噪音与结构丢失
+### 3.2.4 Noise and Lost Structure
 
-每页重复的页眉页脚、水印、页码，会在切分后混进每一个片段里稀释语义。而标题层级一旦丢失，就无法做后续的结构化切分——**这是最可惜的一类损失，因为原文档里本来是有这个信息的**。
+Headers, footers, watermarks, and page numbers repeated on every page can end up in every chunk, diluting its meaning. Once the heading hierarchy is lost, subsequent structure-aware chunking is no longer possible. **This loss is particularly unfortunate because the original document already contained that information.**
 
-## 3.3 解析路线的三种选择
+## 3.3 Three Parsing Approaches
 
-| 路线 | 做法与取舍 |
+| Approach | Method and tradeoffs |
 |---|---|
-| 规则/工具库 | 直接抽取文本与布局，适合规整电子文档；计算成本通常较低，但复杂分栏、表格容易错排 |
-| 版面分析模型 | 先识别标题、段落、表格和图片区域，再分类型抽取；适合混合版面，需要额外推理与结构恢复 |
-| 多模态大模型 | 把页面图像交给 VLM 转录为结构化文本；适合难解析的高价值材料，但可能漏读、编造，不保证胜过专用模型 |
+| Rules and parsing libraries | Extract text and layout directly; suitable for well-formed digital documents. Computational cost is usually low, but complex columns and tables are prone to ordering errors. |
+| Layout analysis models | Identify heading, paragraph, table, and image regions first, then extract each type separately. Suitable for mixed layouts, but requires additional inference and structural reconstruction. |
+| Vision-language models | Give page images to a VLM for transcription into structured text. Useful for valuable material that is difficult to parse, but may omit or invent content and is not guaranteed to outperform specialized models. |
 
-**实践建议是分层处理，而不是全用最贵的那条路**：
+**In practice, use a tiered pipeline rather than sending everything through the most expensive approach**:
 
 ```mermaid
 flowchart LR
-    IN[文档] --> T1[规则解析]
-    T1 --> CK{质量检查}
-    CK -->|通过| OK[入库]
-    CK -->|失败| T2[版面模型]
-    T2 --> CK2{质量检查}
-    CK2 -->|通过| OK
-    CK2 -->|失败| T3[多模态模型]
-    T3 --> CK3{复核通过?}
-    CK3 -->|是| OK
-    CK3 -->|否| HOLD[隔离或人工处理]
+    IN[Document] --> T1[Rule-based parsing]
+    T1 --> CK{Quality check}
+    CK -->|Pass| OK[Ingest]
+    CK -->|Fail| T2[Layout model]
+    T2 --> CK2{Quality check}
+    CK2 -->|Pass| OK
+    CK2 -->|Fail| T3[Multimodal model]
+    T3 --> CK3{Review passed?}
+    CK3 -->|Yes| OK
+    CK3 -->|No| HOLD[Quarantine or<br/>manual processing]
 ```
 
-这样绝大多数简单文档走最便宜的路径，只有难啃的部分才升级到昂贵方案。
+Most straightforward documents can then take the cheapest path, while only difficult cases move to a more expensive option.
 
-### 3.3.1 用大模型解析的额外风险
+### 3.3.1 Additional Risks of Parsing with Large Models
 
-VLM 可用于文档转录，但有生成式风险：它可能补出原件中不存在的内容。
+A VLM can transcribe documents, but its generative nature introduces a risk: it may fill in content that does not exist in the source.
 
-规则解析也可能静默错排、漏字或错配列，不能以“不报错”判断质量。VLM 还可能在数字模糊时补出一个“合理”值，因此两条路线都需要与原件核对。
+Rule-based parsing can also silently reorder text, omit characters, or misalign columns. An absence of errors is not proof of quality. A VLM may additionally fill in a “reasonable” value when a number is unclear, so both approaches require checks against the original.
 
-所以用 VLM 解析必须配套：
+VLM-based parsing must therefore include:
 
-- 让它**只做转录不做总结**，在提示里明确禁止推断和补全；
-- 对数值密集的表格做**抽样人工校验**；
-- 保留原始页面图像的引用，便于事后追溯核对。
+- Instructions to **transcribe, not summarize**, explicitly prohibiting inference and completion;
+- **Manual spot checks** of number-heavy tables;
+- References to the original page images for later tracing and verification.
 
-## 3.4 表格的特殊处理
+## 3.4 Handling Tables Separately
 
-表格不应该被当作普通文本对待。常见的三种处理方式：
+Tables should not be treated as ordinary text. Three common approaches are:
 
-| 方式 | 说明 | 适用 |
+| Approach | Description | Suitable for |
 |---|---|---|
-| 转成 Markdown/HTML 表格 | 保留行列结构，模型能读懂 | 中小表格 |
-| 行级展开成自然语言 | 每行变成一句「某产品在某年的销量是某值」 | 需要按行精确检索 |
-| 表格摘要 + 原表挂载 | 用摘要参与检索，命中后把完整表格给模型 | 大表格 |
+| Convert to Markdown or HTML tables | Preserve a row-and-column structure that the model can read. | Small and medium-sized tables |
+| Expand each row into natural language | Turn each row into a sentence such as 「某产品在某年的销量是某值」 (“Sales of a given product in a given year were a given value”). | Precise row-level retrieval |
+| Table summary linked to the original table | Retrieve using a summary, then provide the full table to the model when it is selected. | Large tables |
 
-摘要适合定位大表，但会漏掉罕见行项。行级查询可返回带表头、单位与脚注的局部行；需要全表聚合时应获取结构化全表交给 SQL 或计算工具，而不是假定全表都能塞进模型。
+A summary can help locate a large table, but may omit rare entries. Row-level queries can return a subset of rows together with their headers, units, and footnotes. When a query requires aggregation over the entire table, retrieve the full structured table and pass it to SQL or a computation tool rather than assuming it will fit into the model's context.
 
-跨大量表格做聚合统计的问题（「所有合同的平均金额」），RAG 本身并不适合，应该走结构化抽取 + 数据库查询的路线（见第一章 1.7 节的能力边界）。
+RAG itself is not well suited to aggregate statistics across many tables, such as 「所有合同的平均金额」 (“the average amount across all contracts”). Use structured extraction followed by a database query instead; see the capability boundaries in Chapter 1, Section 1.7.
 
-## 3.5 一条绕开解析的新路线：视觉文档检索
+## 3.5 An Alternative That Bypasses Parsing: Visual Document Retrieval
 
-近年出现的一类方法是**直接把文档页面当作图像来做嵌入和检索**，完全跳过 OCR 和版面分析。检索时把 Query 和页面图像在同一空间里比对，命中后把页面图像直接交给多模态模型阅读。
+A class of methods introduced in recent years **embeds and retrieves document pages directly as images**, skipping OCR and layout analysis entirely. At retrieval time, the query and page images are compared in the same embedding space. Retrieved page images are then passed directly to a multimodal model for reading.
 
-它的价值在于：**版面复杂、图表密集的文档上，传统「OCR + 文本嵌入」管线丢失的信息（图表、排版关系、视觉强调），在图像里天然保留了。** 公开评测显示这类方法在视觉丰富的文档上优于传统管线。
+The benefit is that **images inherently retain information that a conventional “OCR + text embedding” pipeline can lose in documents with complex layouts and many charts: figures, layout relationships, and visual emphasis**. Published evaluations show that these methods outperform conventional pipelines on visually rich documents.
 
-它目前的局限包括：
+Their current limitations include:
 
-- ColPali 一类方法为每页保存多个向量；相对单向量文本方案通常增加载荷，实际差距取决于页数、维度、数据类型和压缩；
-- 页面编码与阅读需要多模态能力，还要计入图像传输和推理成本；在线向量匹配本身不一定依赖 GPU；
-- 与文本检索混合时需处理证据粒度、跨模态融合和引用定位；
-- 是否进入主链路取决于语料的视觉信息密度、成本、延迟、可引用性和业务评测；不能脱离这些条件判断它是否应取代 OCR 管线。
+- Methods such as ColPali store multiple vectors per page. This generally increases storage requirements compared with single-vector text approaches, but the actual difference depends on page count, vector dimensions, data types, and compression.
+- Encoding and reading pages require multimodal capabilities, and image transmission and inference costs must also be included. Online vector matching itself does not necessarily require a GPU.
+- Combining visual and text retrieval requires handling evidence granularity, cross-modal fusion, and citation localization.
+- Whether to use visual retrieval in the primary pipeline depends on the corpus's visual information density, cost, latency, citation support, and business-specific evaluation. You cannot decide whether it should replace an OCR pipeline without considering these conditions.
 
-完整的视觉、表格、音视频联合索引、跨模态检索、引用和安全链路见 [多模态 RAG](../04-advanced/21-multimodal-rag.md)。
+For a complete pipeline covering joint indexing of visual content, tables, audio, and video, cross-modal retrieval, citations, and safety, see [Multimodal RAG](../04-advanced/21-multimodal-rag.md).
 
-## 3.6 清洗阶段该做什么
+## 3.6 What to Clean After Parsing
 
-解析出文本后，还需要一轮清洗：
+Extracted text still needs a cleaning pass:
 
-- **识别重复元素**：固定位置、多页重复可用于发现页眉、页脚和导航噪声，但不是直接删除的依据；版本号、保密标记、表格续页表头和许可声明可能必须保留；
-- **保留结构信号**：把标题层级转成 Markdown 的 `#` 层级，这是后续结构化切分的依据；
-- **规范化空白与编码**：按文档类型处理全角半角、空行和断行连字符；代码、型号与负号不能机械替换，转换后应能回指原文位置；
-- **保留元数据**：文件名、章节路径、页码、更新时间、权限标签。
+- **Identify repeated elements**: fixed positions and repetition across pages can help detect headers, footers, and navigation noise, but are not sufficient grounds for deletion. Version numbers, confidentiality markings, repeated table headers on continuation pages, and license notices may need to remain.
+- **Preserve structural signals**: convert the heading hierarchy into Markdown `#` levels to support later structure-aware chunking.
+- **Normalize whitespace and encoding**: handle full-width and half-width characters, blank lines, and line-break hyphenation according to the document type. Do not mechanically replace code, model identifiers, or minus signs. After transformation, the text should still map back to its original location.
+- **Preserve metadata**: filename, section path, page number, last-updated time, and access-control labels.
 
-### 3.6.1 元数据是最容易被跳过、后期最难补的
+### 3.6.1 Metadata Is Easy to Skip and Hard to Recover Later
 
-建库时同步提取元数据，比事后回填更容易保留来源关系；权限映射和结构恢复仍有成本。它决定了以下能力：
+Extracting metadata during ingestion makes source relationships easier to preserve than backfilling it afterward, although permission mapping and structural reconstruction still have a cost. Metadata enables the following capabilities:
 
-| 元数据 | 支撑的能力 |
+| Metadata | Capability supported |
 |---|---|
-| 文档 ID、页码、章节路径 | 引用溯源、答案可验证 |
-| 更新时间、版本 | 时效过滤、增量更新 |
-| 权限标签、租户 ID | 检索时的 ACL 过滤 |
-| 文档类型、来源 | 检索路由、按类型加权 |
+| Document ID, page number, section path | Source tracing and verifiable answers |
+| Last-updated time, version | Freshness filtering and incremental updates |
+| Access-control labels, tenant ID | ACL filtering at retrieval time |
+| Document type, source | Retrieval routing and type-specific weighting |
 
-权限关联应在建库时设计好。很多数据库可原地更新 metadata/payload，不必重算 Embedding；但补权限映射和过滤索引仍有迁移成本。应区分内容向量、元数据索引和当前授权信息，缺失授权时默认不可见。
+Design permission associations during ingestion. Many databases can update metadata or payloads in place without recomputing embeddings, but adding permission mappings and filtering indexes later still incurs migration costs. Distinguish content vectors, metadata indexes, and current authorization information. Content without authorization information should be invisible by default.
 
-## 3.7 入库前质量校验
+## 3.7 Quality Checks Before Ingestion
 
-预处理完成后，需要在入库前建立几条自动检查：
+After preprocessing, establish a set of automated checks before ingestion:
 
-- **文本覆盖**：按文档类型比较有文字区域与抽取文本；文本长度与文件大小的异常比值只适合筛查，图片密集文件本来就可能文本很少；
-- **乱码信号**：异常字符、替换字符或 OCR 低置信度触发复核；罕见专业符号和多语言文字不能仅因“不常见”就判错；
-- **表格完整性**：识别出的表格行列数是否与原文一致（抽样）；
-- **重复率**：同一段文本在库中出现次数异常高，说明页眉页脚没清干净；
-- **人工抽样**：**每类文档抽几份逐页对照**——这一步无法被自动化完全替代。
+- **Text coverage**: compare text-bearing regions with extracted text according to the document type. An unusual ratio of text length to file size is only a screening signal; image-heavy files may legitimately contain very little text.
+- **Signs of corrupted text**: unusual characters, replacement characters, or low OCR confidence should trigger review. Rare technical symbols and multilingual text should not be marked as incorrect merely because they are uncommon.
+- **Table completeness**: spot-check whether the detected row and column counts match the original.
+- **Duplication rate**: an unusually high number of occurrences of the same passage in the knowledge base indicates that headers or footers were not fully removed.
+- **Manual sampling**: **take a few documents of each type and compare them page by page with the originals**. Automation cannot fully replace this step.
 
-> **一条实用经验：与其花两周调 Rerank，不如花两天看看你的知识库里到底存了什么。** 很多「检索效果差」的问题，根源在解析阶段。
+> **A useful rule of thumb: instead of spending two weeks tuning a reranker, spend two days inspecting what your knowledge base actually contains.** Many problems described as “poor retrieval” originate in parsing.
 
-## 3.8 常见错误
+## 3.8 Common Mistakes
 
-### 3.8.1 直接用最简单的工具处理所有格式
+### 3.8.1 Using the Simplest Tool for Every Format
 
-不同格式与版面需要分别评测，不能因一种样例解析成功就假定其他文档也可靠。
+Different formats and layouts need separate evaluation. Successfully parsing one example does not establish reliability for other documents.
 
-### 3.8.2 不做质量校验就入库
+### 3.8.2 Ingesting Without Quality Checks
 
-解析失败往往是静默的。没有校验，你会在几周后从「检索效果差」这个模糊症状反推回来。
+Parsing failures are often silent. Without validation, you may spend weeks working backward from the vague symptom of “poor retrieval.”
 
-### 3.8.3 把表格当普通文本拉平
+### 3.8.3 Flattening Tables into Ordinary Text
 
-丢掉行列关系后，表格数据基本失去检索价值。
+Once row-and-column relationships are lost, table data loses most of its value for retrieval.
 
-### 3.8.4 不保留元数据
+### 3.8.4 Discarding Metadata
 
-后期补元数据需要回填和一致性校验，不一定需要重嵌入；不能在回填完成前开放缺少 ACL 的材料。
+Adding metadata later requires backfilling and consistency checks, though not necessarily re-embedding. Materials missing ACLs must not become accessible before that backfill is complete.
 
-### 3.8.5 认为用了大模型解析就万无一失
+### 3.8.5 Assuming Large-Model Parsing Is Foolproof
 
-VLM 除了可能漏字、错排，还可能生成原件没有的内容；应在通用解析校验之外检查这种新增风险。
+Beyond omissions and ordering errors, a VLM can generate content absent from the original. Check for this additional risk as well as the problems covered by general parsing validation.
 
-### 3.8.6 把预处理当一次性工作
+### 3.8.6 Treating Preprocessing as a One-Time Job
 
-文档会更新、会新增格式。预处理链路需要能持续运行和监控，而不是跑一次就完事（详见第十九章）。
+Documents change, and new formats appear. The preprocessing pipeline must support ongoing operation and monitoring, not just a one-off run; see Chapter 19.
 
-## 3.9 本章总结
+## 3.9 Chapter Summary
 
-1. **预处理是 RAG 最脏最累也最容易被低估的一环**，这一层的错误无法被后续任何优化弥补；
-2. **四类典型问题**：版面阅读顺序、表格结构、扫描件与图片、噪音与结构丢失；
-3. **三条解析路线**（规则 / 版面模型 / 多模态模型）应该**分层组合**，按质量检查逐级升级，而不是全用最贵的；
-4. **用 VLM 解析要防它编**：限定只转录不推断，对数值做抽样校验；
-5. **表格要特殊处理**：保留结构、行级展开或摘要挂载；跨表聚合应走结构化路线；
-6. **视觉文档检索**可减少显式 OCR 依赖，在 ColPali 等论文的视觉文档评测上有收益；部署成本与文本链路需实测对比；
-7. **元数据与权限映射应提前设计**；后期可以回填，但不能遗漏版本、引用定位和授权一致性；
-8. **必须做入库前质量校验**，包括自动指标和人工抽样。
+1. **Preprocessing is one of RAG's messiest, most labor-intensive, and most underestimated stages.** Errors here cannot be repaired by downstream optimization.
+2. **Four common problems** are layout and reading order, table structure, scans and images, and noise and lost structure.
+3. **Combine the three parsing approaches in tiers**—rules, layout models, and multimodal models—escalating based on quality checks rather than using the most expensive option everywhere.
+4. **Guard against fabricated content when parsing with VLMs**: require transcription rather than inference, and spot-check numbers.
+5. **Handle tables separately**: preserve their structure, expand rows, or link summaries to the original tables. Use structured processing for cross-table aggregation.
+6. **Visual document retrieval** can reduce reliance on explicit OCR and has shown gains on visual document benchmarks in papers such as ColPali. Measure its deployment costs against those of a text-based pipeline.
+7. **Design metadata and permission mappings early**. They can be backfilled later, but versioning, citation localization, and authorization consistency must not be overlooked.
+8. **Pre-ingestion quality checks are essential**, including both automated metrics and manual sampling.
 
 
-## 参考资料
+## References
 
 - [ColPali: Efficient Document Retrieval with Vision Language Models](https://arxiv.org/abs/2407.01449)
-- [Qdrant：Payload 更新与索引](https://qdrant.tech/documentation/manage-data/payload/)
+- [Qdrant: Payload Updates and Indexing](https://qdrant.tech/documentation/manage-data/payload/)
 - [Advanced ingestion process powered by LLM parsing for RAG system](https://arxiv.org/abs/2412.15262)
 - [Searching for Best Practices in Retrieval-Augmented Generation](https://arxiv.org/abs/2407.01219)
 - [Retrieval-Augmented Generation for Large Language Models: A Survey](https://arxiv.org/abs/2312.10997)

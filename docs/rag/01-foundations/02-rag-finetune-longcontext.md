@@ -1,229 +1,229 @@
 ---
-description: 从知识更新、行为学习、上下文长度、成本和可追溯性比较 RAG、模型微调与长上下文，并给出组合选型方法。
+description: Compare RAG, fine-tuning, and long context in terms of knowledge updates, learned behavior, context length, cost, and traceability, and decide how to combine them.
 ---
 
-# 第二章：RAG、微调与长上下文的三方取舍
+# Chapter 2: Tradeoffs Between RAG, Fine-Tuning, and Long Context
 
-## 2.1 不要把它当成单选题
+## 2.1 This Is Not a Single-Choice Question
 
-讨论 RAG 和微调时，最常见的误区是**二选一思维**：把它们当成互斥选项，说完其中一个的优点就结束了。
+The most common mistake when discussing RAG and fine-tuning is **treating them as an either-or choice**: assuming they are mutually exclusive and stopping after listing the advantages of one.
 
-支持长上下文的模型让选型多了一个维度：「既然材料装得下，为什么还要检索？」窗口长度只是条件之一，不能代替质量与成本验证。
+Long-context models add another dimension: “If all the material fits, why retrieve anything?” Window size is only one condition; it cannot replace quality and cost validation.
 
-更合适的比较方式，是把微调、长上下文和 RAG 放在一起看，再决定是否组合使用。
+A better approach is to compare fine-tuning, long context, and RAG together, then decide whether to combine them.
 
 ```mermaid
 flowchart TB
-    NEED[需求] --> Q1{要改变的是<br/>知识还是行为?}
-    Q1 -->|行为/风格/格式| FT[微调]
-    Q1 -->|知识| Q2{知识规模与时效?}
-    Q2 -->|小且稳定| LC[长上下文直接塞]
-    Q2 -->|大或频繁变化<br/>或需权限过滤| RAG[RAG]
-    FT --> COMBO[实践中通常组合使用]
+    NEED[Requirements] --> Q1{Change knowledge<br/>or behavior?}
+    Q1 -->|Behavior, style, or format| FT[Fine-tuning]
+    Q1 -->|Knowledge| Q2{Knowledge volume<br/>and freshness?}
+    Q2 -->|Small and stable| LC[Put all material<br/>in a long context]
+    Q2 -->|Large or frequently changing<br/>or requiring access filtering| RAG[RAG]
+    FT --> COMBO[Often combined in practice]
     LC --> COMBO
     RAG --> COMBO
 ```
 
-## 2.2 三种方案的区别
+## 2.2 How the Three Approaches Differ
 
-可以先这样区分：
+Start with this distinction:
 
-| 方案 | 知识存在哪 | 什么时候确定 | 改一条知识的代价 |
+| Approach | Where knowledge resides | When it is determined | Cost of changing a fact |
 |---|---|---|---|
-| 微调 | 模型参数里 | 训练时 | 再训练或模型编辑后验证、发布 |
-| 长上下文 | Prompt 里 | 每次调用时 | 改输入即可 |
-| RAG | 外部知识库 | 每次调用时动态检索 | 更新数据、索引与相关缓存 |
+| Fine-tuning | Model parameters | During training | Retrain or edit the model, then validate and release |
+| Long context | The prompt | At each invocation | Change the input |
+| RAG | An external knowledge base | Retrieved dynamically at each invocation | Update the data, indexes, and related caches |
 
-微调改的是**模型本身**，另外两个都是**在推理时提供材料**，区别只在于材料是「全塞」还是「先检索再塞」。
+Fine-tuning changes **the model itself**. The other two approaches **supply material at inference time**, differing in whether they provide everything or retrieve first.
 
-这个区分决定了后面的判断方式：长上下文和 RAG 都是在推理时提供材料，区别在于 RAG 多了一步「筛选」。因此真正要判断的不是「要不要 RAG」，而是**「需不需要在把材料给模型之前先筛一遍」**。
+This distinction frames the decision. Both long context and RAG supply material at inference time, but RAG adds a selection step. The real question is therefore not “Do we need RAG?” but **“Do we need to select material before giving it to the model?”**
 
-## 2.3 微调：把能力烧进参数
+## 2.3 Fine-Tuning: Encoding Capabilities in Parameters
 
-### 2.3.1 微调更适合什么
+### 2.3.1 What Fine-Tuning Is Better Suited To
 
-微调擅长的是**改变模型的行为方式**，而不是灌输事实：
+Fine-tuning is good at **changing how a model behaves**, rather than loading it with facts:
 
-- 提高固定格式、特定报告结构的遵循率；严格 JSON/schema 约束还需结构化输出或程序校验，不能靠微调保证；
-- 特定的语气与风格（客服话术、法律文书口吻）；
-- 领域术语与表达习惯（医疗、金融的专业措辞）；
-- 特定任务的能力提升（分类、抽取这类结构化任务）；
-- 让小模型在窄任务上逼近大模型，从而降低推理成本。
+- Improving adherence to fixed formats or specific report structures. Strict JSON/schema requirements still need structured output or programmatic validation; fine-tuning cannot guarantee them.
+- Adopting a particular tone or style, such as customer-service phrasing or the tone of legal documents.
+- Learning domain terminology and expression, such as medical or financial language.
+- Improving performance on specific tasks, including structured tasks such as classification and extraction.
+- Bringing a small model closer to a large model on a narrow task, reducing inference costs.
 
-最后一条在长期运行的窄任务里尤其重要：微调一个小模型专做某个任务，长期推理成本可能远低于持续调用大模型。
+The final point is especially important for narrow tasks that run for a long time. Fine-tuning a small model to specialize in one task may produce much lower long-term inference costs than repeatedly calling a large model.
 
-### 2.3.2 微调不擅长的
+### 2.3.2 What Fine-Tuning Is Less Suited To
 
-- **注入大量事实知识**。这需要足够多的样本反复强化，成本高且效果不稳定；
-- **频繁更新的知识**。需要再训练或模型编辑并回归，难以像数据库一样可靠地逐条更新、撤销；
-- **溯源**。参数本身不提供可靠的逐条事实来源；模型生成一个书名或链接，不等于证明该事实来自那里；
-- **权限隔离**。共享参数不提供可靠的文档级 ACL，不能保证敏感知识不会被无权限用户诱出；外部授权仍然必要。
+- **Injecting large amounts of factual knowledge.** This requires enough examples and repeated reinforcement, with high costs and inconsistent results.
+- **Frequently updated knowledge.** Retraining or model editing, followed by regression testing, is needed. Individual updates and revocations are difficult to make as reliable as database operations.
+- **Source traceability.** Parameters do not provide a reliable source for each fact. A model generating a book title or a link does not prove that the fact came from that source.
+- **Permission-based isolation.** Shared parameters do not provide reliable document-level ACLs and cannot guarantee that unauthorized users will not elicit sensitive knowledge. External authorization remains necessary.
 
-**「不可溯源」和「无法做权限隔离」这两条，往往是企业选择 RAG 的关键原因之一**，而不只是效果好坏的问题。
+**The lack of reliable traceability and permission-based isolation is often a decisive reason for enterprises to choose RAG**, beyond differences in answer quality.
 
-### 2.3.3 微调可以学知识，但不适合当知识库
+### 2.3.3 Fine-Tuning Can Learn Knowledge, but Is Not a Good Knowledge Base
 
-微调和继续预训练可以学习事实，但是否划算取决于任务、更新频率和监督数据。更准确的说法是：
+Fine-tuning and continued pretraining can teach facts. Whether doing so is worthwhile depends on the task, update frequency, and supervision data. More precisely:
 
-> **参数学习可以补充领域知识，但不等价于一个可逐条更新、撤销和审计的知识库。**
+> **Learning through parameters can add domain knowledge, but it is not equivalent to a knowledge base whose individual records can be updated, revoked, and audited.**
 
-## 2.4 长上下文：直接把材料全塞进去
+## 2.4 Long Context: Put All the Material in the Prompt
 
-模型窗口变大后，一个很自然的想法是：把所有资料一次性放进 Prompt，让模型自己找。
+As model windows grow, a natural idea is to put all the material in one prompt and let the model find what it needs.
 
-这个做法值得作为基线：当前用户有权访问的材料装得下，且读取成本可接受。它省掉检索链路，不会在检索阶段漏掉证据，但模型仍可能在长输入中漏读。长上下文同样可以先执行权限过滤，并逐条标注引用。
+This is a useful baseline when all material the current user is authorized to access fits in the window and the reading cost is acceptable. It removes the retrieval pipeline, so evidence cannot be missed at the retrieval stage, although the model may still overlook it in a long input. Long-context systems can also filter by permissions before input and attach citations to individual claims.
 
-配合 Prompt Caching，重复使用同一批材料的成本还能进一步降低。
+Prompt caching can further reduce the cost of repeatedly using the same material.
 
-如果知识库只有几十篇稳定文档，直接全塞往往比搭一套 RAG 更快，工程复杂度也更低。
+If the knowledge base contains only a few dozen stable documents, supplying them all is often faster to implement and less complex than building a RAG system.
 
-### 2.4.1 但它有四个硬约束
-
-```mermaid
-flowchart TB
-    LC[长上下文直接塞] --> C1[规模约束]
-    LC --> C2[时效约束]
-    LC --> C3[权限约束]
-    LC --> C4[质量约束]
-
-    C1 --> D1[语料远超窗口时装不下]
-    C2 --> D2[高频更新导致缓存频繁失效]
-    C3 --> D3[输入前仍须执行 ACL<br/>不同权限降低缓存复用]
-    C4 --> D4[位置与干扰内容<br/>可能影响有效利用率]
-```
-
-前三条是常见工程约束，**第四条直接影响最终效果**。
-
-### 2.4.2 窗口容量不等于有效利用能力
-
-这不是猜测，而是有系统性实验证据的。
-
-早期的 **Lost in the Middle** 研究发现：模型对上下文**开头和结尾**的信息利用得更好，放在中间的关键信息容易被忽略。
-
-后续更严格的实验进一步表明：
-
-- 在所测模型和任务上，输入变长可能导致性能下降，且可早于窗口上限；下降不是对所有模型都单调成立的定律；
-- **当问题和答案之间是语义关联而非字面匹配时，下降更明显**；
-- **语义相近但错误的干扰内容**，比完全无关的内容伤害更大；
-- 经典的「大海捞针」测试拿满分，**不代表**模型在真实长上下文任务中可靠——因为它只考察字面匹配。
-
-这个现象通常被称为 **Context Rot**（上下文腐化）。
-
-这些结果支持的工程判断是：单纯塞更多材料不一定提升效果，应区分必要证据与干扰。RAG 的最终上下文选择也面临相同问题——见 2.6 节。
-
-### 2.4.3 长上下文能取代 RAG 吗
-
-已有研究测试了若干模型与任务，显示长上下文不能无条件替代检索、SQL 等组件；这不排除它在某个小语料任务上比 RAG 更合适。需要检查：
-
-1. 语料规模超出窗口——这是硬性的；
-2. 语料频繁更新——变化位置可能影响前缀缓存复用，需测实际预填充成本；
-3. 需要精确检索的结构化查询；
-4. 相关信息稀疏地分布在大量文档中时的多文档融合。
-
-工程上可以把两者组合，但不应把某年的“共识”当作选型证据。
-
-> **RAG 负责「从海量语料中筛出候选」，长上下文负责「把候选读得更充分」。**
-
-一个正在增多的做法是把两者结合：检索阶段不再返回几百 Token 的小片段，而是返回**整篇文档或大段落**，交给长上下文模型阅读。这样既避免了小片段丢失语境的问题，又避免了全量塞入的规模问题。
-
-## 2.5 三方对比表
-
-| 方案 | 主要预算与失败模式 |
-|---|---|
-| 微调 | 容量、训练数据与发布流程限制知识更新；可能过拟合或遗忘。推理成本和首 Token 延迟由实际模型、输入和服务负载决定 |
-| 长上下文 | 受窗口及有效利用能力限制；预填充、缓存命中和更新位置影响成本与延迟，材料装得下也可能漏读 |
-| RAG | 受存储、摄取、检索和治理预算限制；查询多了召回、重排等工作，也可能因缩短输入减少预填充；主要风险是漏检、错检和生成误读 |
-
-溯源和权限应单独比较：长上下文与 RAG 都能携带引用，也都需要在输入前外部授权并校验引用；共享模型参数本身不提供文档级 ACL 或可靠事实来源。前期投入和首 Token 延迟不能简单排成“高、中、低”，小模型微调、长前缀缓存和复杂检索链路可能改变次序。
-
-比较总成本时，把数据与训练、索引构建与更新、每次查询、缓存写入/命中和运维分别计费。只有微调后能换用较小模型或明显减少输入时，才可能摊薄训练成本；高命中率长上下文缓存也可能比复杂检索链路便宜。
-
-## 2.6 Top-K 不是越大越好
-
-「多召回一些 chunk 总没坏处」并不成立。
-
-很多人默认 Top-K 越大越好，反正模型自己会挑。但 2.4.2 节的证据表明，无关或语义相近但错误的内容会**主动损害**答案质量，模型并不会干净地忽略它们。
-
-正确的做法是：
-
-- **把 Top-K 当作需要实测调优的超参数**，而不是设个大数了事；
-- 用 Rerank 把候选压缩到少而准，而不是把粗排结果直接全给模型；
-- 注意最优 K 值**依赖于具体模型和任务**，换模型后需要重新测。
-
-Anthropic 的 Contextual Retrieval 博客在所测设置中比较了 5、10、20 个片段，并报告 20 更好；长上下文研究则显示干扰内容可能损害质量。**这不矛盾：片段数量、长度、相关性和模型共同决定结果，不存在通用的最优 K。**
-
-## 2.7 怎么选：一套可执行的判断顺序
+### 2.4.1 Four Constraints Still Apply
 
 ```mermaid
 flowchart TB
-    S[需求] --> A{要改行为还是补知识?}
-    A -->|行为/格式/风格| FT[微调]
-    A -->|补知识| B{语料能装进窗口吗?}
-    B -->|不能| RAG[RAG]
-    B -->|能| C{更新频繁吗?}
-    C -->|是| COMP[比较更新、授权过滤<br/>缓存与检索总成本]
-    C -->|否| D{需要按用户过滤吗?}
-    D -->|是| COMP
-    D -->|否| E{调用量大吗?}
-    E -->|是| COMP
-    E -->|否| LC[长上下文直接塞]
+    LC[Put all material<br/>in a long context] --> C1[Scale]
+    LC --> C2[Freshness]
+    LC --> C3[Authorization]
+    LC --> C4[Quality]
+
+    C1 --> D1[A corpus far larger than<br/>the window cannot fit]
+    C2 --> D2[Frequent updates<br/>frequently invalidate caches]
+    C3 --> D3[Enforce ACLs before input<br/>Permission differences reduce cache reuse]
+    C4 --> D4[Position and distracting content<br/>may impair effective use]
 ```
 
-可以按四个问题依次判断：**装不装得下 → 更不更新 → 要不要过滤 → 调用量大不大**。超出窗口时必须筛选、分组或分轮处理；频繁更新和权限差异则要求比较方案，不自动排除长上下文。即使选择全量输入，也要在固定任务集上检验漏读和干扰。
+The first three are common engineering constraints. **The fourth directly affects final answer quality.**
 
-## 2.8 组合使用才是常态
+### 2.4.2 Window Capacity Is Not the Same as Effective Use
 
-这三者不是互斥的，生产系统中经常同时存在：
+This is not speculation; systematic experiments support it.
 
-| 组合 | 分工 |
+The earlier **Lost in the Middle** study found that models made better use of information at the **beginning and end** of the context and were more likely to overlook key information in the middle.
+
+Later, more stringent experiments further showed that:
+
+- On the tested models and tasks, performance could decline as inputs grew, even before reaching the window limit. This is not a law of monotonic decline that holds for every model.
+- **The decline was more pronounced when the question and answer were related semantically rather than through lexical matching.**
+- **Semantically similar but incorrect distractors** were more damaging than entirely unrelated content.
+- A perfect score on the classic “needle in a haystack” test **does not** establish reliability on real long-context tasks, because that test examines lexical matching.
+
+This phenomenon is commonly called **context rot**.
+
+The engineering lesson is that simply adding material does not necessarily improve results. Necessary evidence must be distinguished from distractions. RAG faces the same issue when selecting its final context; see Section 2.6.
+
+### 2.4.3 Can Long Context Replace RAG?
+
+Studies across several models and tasks show that long context cannot unconditionally replace components such as retrieval and SQL. That does not rule out it being more suitable than RAG for a particular small-corpus task. Check the following:
+
+1. The corpus exceeds the window. This is a hard limit.
+2. The corpus changes frequently. Where the changes occur may affect prefix-cache reuse, so measure actual prefill costs.
+3. Structured queries require precise retrieval.
+4. Answers require combining information scattered sparsely across many documents.
+
+The two approaches can be combined, but a supposed “consensus” from a particular year is not evidence for an engineering decision.
+
+> **RAG selects candidates from a large corpus; long context allows the model to read those candidates more fully.**
+
+An increasingly common combination retrieves **whole documents or large sections** rather than small passages of a few hundred tokens, then lets a long-context model read them. This avoids both the loss of context caused by small chunks and the scale problem of supplying the entire corpus.
+
+## 2.5 Comparing the Three Approaches
+
+| Approach | Main budgets and failure modes |
 |---|---|
-| 微调 + RAG | 微调解决「**怎么说**」（格式、语气、领域表达），RAG 解决「**说什么**」（事实依据） |
-| RAG + 长上下文 | RAG 粗筛出相关文档，长上下文模型完整阅读，而不是只读碎片 |
-| 三者齐用 | 微调一个小模型做领域任务，RAG 提供实时知识，长上下文承载检索出的完整文档 |
+| Fine-tuning | Capacity, training data, and release processes constrain knowledge updates; overfitting or forgetting may occur. Inference cost and time to first token depend on the actual model, input, and serving load |
+| Long context | Limited by the window and the ability to use it effectively. Prefill, cache hits, and update locations affect cost and latency; material may be overlooked even when it fits |
+| RAG | Constrained by storage, ingestion, retrieval, and governance budgets. Each query adds work such as retrieval and reranking, but shorter inputs may reduce prefill. Main risks are missed evidence, incorrect retrieval, and misreading during generation |
 
-**「微调解决怎么说，RAG 解决说什么」说明了两者的分工**：它们处理的不是同一个问题，因此通常不是互斥关系。
+Compare traceability and authorization separately. Both long context and RAG can carry citations, and both need external authorization before input and citation validation. Shared model parameters alone provide neither document-level ACLs nor reliable factual provenance. Upfront investment and time to first token cannot simply be ranked “high, medium, low”: small-model fine-tuning, long-prefix caching, and complex retrieval pipelines can change the order.
 
-还有一种把两者揉在一起的思路：**针对 RAG 场景微调模型**，专门训练它在给定材料中区分有用信息与干扰信息，并在材料不足时拒答。这类方法能同时改善「被干扰内容带偏」和「材料不足仍硬答」这两个 RAG 固有失败模式。
+When comparing total cost, account separately for data and training, index construction and updates, each query, cache writes and hits, and operations. Training costs may be amortized only if fine-tuning enables a smaller model or substantially shorter inputs. Long-context caching with a high hit rate may also be cheaper than a complex retrieval pipeline.
 
-## 2.9 常见错误
+## 2.6 Larger Top-K Is Not Always Better
 
-### 2.9.1 把问题答成单选题
+“Retrieving a few more chunks cannot hurt” is not a safe assumption.
 
-如果完全不考虑组合使用，往往会遗漏实际系统里的常见做法。
+Many people assume that a larger Top-K is better because the model can choose what to use. Yet the evidence in Section 2.4.2 shows that unrelated content and semantically similar but incorrect material can **actively harm** answer quality. Models do not simply ignore it cleanly.
 
-### 2.9.2 说「微调学不到知识」
+A better approach is to:
 
-不准确。可以学习事实，但共享参数不适合承担频繁的逐条更新、撤销与来源审计。
+- **Treat Top-K as a hyperparameter that requires empirical tuning**, rather than setting an arbitrarily large value.
+- Use reranking to narrow candidates to a small, accurate set instead of passing every first-stage result to the model.
+- Recognize that the best K **depends on the model and task**; measure it again after changing models.
 
-### 2.9.3 认为长上下文已经淘汰了 RAG
+Anthropic's Contextual Retrieval post compared 5, 10, and 20 chunks in its tested setup and reported that 20 worked best. Long-context research, meanwhile, shows that distractors can harm quality. **There is no contradiction: chunk count, chunk length, relevance, and the model jointly determine the result. There is no universally optimal K.**
 
-有明确的实验证据反驳，且忽略了规模、时效、权限、成本四个约束。
+## 2.7 How to Choose: A Practical Decision Sequence
 
-### 2.9.4 认为窗口够大就可以随便塞
+```mermaid
+flowchart TB
+    S[Requirements] --> A{Change behavior<br/>or add knowledge?}
+    A -->|Behavior, format, or style| FT[Fine-tuning]
+    A -->|Add knowledge| B{Does the corpus<br/>fit in the window?}
+    B -->|No| RAG[RAG]
+    B -->|Yes| C{Frequent updates?}
+    C -->|Yes| COMP[Compare total costs of updates,<br/>authorization filtering,<br/>caching, and retrieval]
+    C -->|No| D{Filter by user?}
+    D -->|Yes| COMP
+    D -->|No| E{High request volume?}
+    E -->|Yes| COMP
+    E -->|No| LC[Put all material<br/>in a long context]
+```
 
-长输入中的位置效应和干扰风险有实验证据，但不是“每加一个 Token 必然变差”；需在当前模型和任务上复测。
+Work through four questions: **Does it fit? → Does it change? → Must it be filtered? → Is request volume high?** When the corpus exceeds the window, selection, grouping, or multiple processing rounds are unavoidable. Frequent updates and permission differences call for comparing alternatives; they do not automatically rule out long context. Even if you supply everything, test for overlooked evidence and distractions on a fixed task set.
 
-### 2.9.5 只比效果不比成本结构
+## 2.8 Combining Approaches Is Common
 
-不计调用量、模型大小、缓存命中和更新频率，就无法比较训练、检索与长上下文的总成本。
+The three approaches are not mutually exclusive and often coexist in production:
 
-### 2.9.6 忽略权限与溯源
+| Combination | Division of responsibility |
+|---|---|
+| Fine-tuning + RAG | Fine-tuning handles **how to say it**—format, tone, and domain expression—while RAG supplies **what to say**—the factual basis |
+| RAG + long context | RAG makes an initial selection of relevant documents; the long-context model reads them in full instead of reading only fragments |
+| All three | Fine-tune a small model for a domain task, use RAG to supply current knowledge, and use long context to hold complete retrieved documents |
 
-在企业场景里，这两条经常直接决定方案选型，且不可通过「效果更好」来弥补。
+**“Fine-tuning handles how to say it; RAG handles what to say” describes their division of responsibility.** They address different problems and are therefore usually not mutually exclusive.
 
-## 2.10 本章总结
+Another approach combines them directly: **fine-tune a model specifically for RAG**, using distractor-aware examples to teach it to distinguish useful information from irrelevant material. If the task requires every answer to be supported by supplied evidence, separately design and evaluate training for abstention when evidence is insufficient. These are not one capability already established by the same method. The cited RAFT method includes training examples that omit the correct document while retaining the target answer, encouraging answers from parametric knowledge; this does not establish that the model has learned to abstain without evidence.
 
-1. 微调改的是模型行为；长上下文和 RAG 都是在推理时提供材料，区别在于 RAG 先做筛选；
-2. 微调更适合格式、风格、领域表达和小模型降本，不适合承载大量事实知识、频繁更新、溯源和权限隔离；
-3. 长上下文在语料小且稳定时很有效，但仍受规模、时效、权限和质量四个约束；
-4. 长输入可能出现非均匀退化，「大海捞针」满分不代表真实任务可靠；
-5. 长上下文可在特定小语料任务中替代检索，也可与 RAG 组合；不能无条件推广到海量语料；
-6. Top-K 需要按模型和任务实测调优，不存在一组固定答案；
-7. 实际判断通常按四个问题展开：装不装得下、是否频繁更新、是否需要过滤、调用量是否足够大；
-8. 三种方案可以组合，但是否增加一个组件，应由它解决的失败问题和新增成本决定。
+## 2.9 Common Mistakes
+
+### 2.9.1 Treating the Decision as a Single Choice
+
+Ignoring combinations altogether misses a common pattern in real systems.
+
+### 2.9.2 Saying “Fine-Tuning Cannot Learn Knowledge”
+
+That is inaccurate. It can learn facts, but shared parameters are not well suited to frequent updates and revocations of individual facts or to source auditing.
+
+### 2.9.3 Assuming Long Context Has Made RAG Obsolete
+
+There is clear experimental evidence against this claim, and it ignores the constraints of scale, freshness, authorization, and cost.
+
+### 2.9.4 Assuming Anything Can Be Added If the Window Is Large Enough
+
+Experiments establish positional effects and distraction risks in long inputs. They do not establish that “every additional token necessarily makes performance worse.” Retest with the current model and task.
+
+### 2.9.5 Comparing Quality but Not Cost Structure
+
+Without request volume, model size, cache hit rate, and update frequency, it is impossible to compare the total costs of training, retrieval, and long context.
+
+### 2.9.6 Ignoring Authorization and Traceability
+
+In enterprise settings, these often determine the choice directly. Better answer quality cannot compensate for their absence.
+
+## 2.10 Chapter Summary
+
+1. Fine-tuning changes model behavior. Long context and RAG both provide material at inference time; RAG differs by selecting it first.
+2. Fine-tuning is better suited to format, style, domain expression, and reducing costs with small models. It is less suited to large stores of facts, frequent updates, traceability, and permission-based isolation.
+3. Long context works well for small, stable corpora but still faces constraints of scale, freshness, authorization, and quality.
+4. Long inputs can exhibit nonuniform degradation. A perfect needle-in-a-haystack score does not establish reliability on real tasks.
+5. Long context can replace retrieval for particular small-corpus tasks or be combined with RAG. Its effectiveness cannot be generalized unconditionally to very large corpora.
+6. Top-K must be tuned empirically for each model and task; there is no fixed universal setting.
+7. A practical decision usually follows four questions: whether the corpus fits, whether updates are frequent, whether filtering is needed, and whether request volume is high.
+8. The three approaches can be combined, but each added component should be justified by the failure it addresses and the cost it introduces.
 
 
-## 参考资料
+## References
 
 - [Lost in the Middle: How Language Models Use Long Contexts](https://arxiv.org/abs/2307.03172)
 - [Chroma Research: Context Rot — How Increasing Input Tokens Impacts LLM Performance](https://research.trychroma.com/context-rot)

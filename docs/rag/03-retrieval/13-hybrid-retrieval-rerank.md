@@ -1,209 +1,209 @@
 ---
-description: 说明 RRF 的排名贡献、窗口与平滑常数，比较 cross-encoder 和 listwise 重排，并讨论校准拒答、去重和版本选择。
+description: How RRF combines rank contributions, candidate windows, and a smoothing constant; how cross-encoder and listwise reranking differ; and how to calibrate abstention, deduplicate, and select versions.
 ---
 
-# 第十三章：多路召回、RRF 融合与 Rerank
+# Chapter 13: Multi-Path Retrieval, RRF Fusion, and Reranking
 
-## 13.1 为什么考虑多路召回
+## 13.1 Why consider multiple retrieval paths?
 
-第十一章已经展开过理论依据，这里先压缩成一句话：
+Chapter 11 developed the rationale. In one sentence:
 
-> **不同表示常有互补弱项；先测各路独占的证据覆盖，再决定是否组合，而不是假定每个系统都必须多路。**
+> **Different representations often have complementary weaknesses. Measure the evidence uniquely covered by each path before combining them, rather than assuming every system needs multiple paths.**
 
-| 单路方案 | 系统性盲区 |
+| Single-path design | Systematic weak spots |
 |---|---|
-| 只用向量 | 型号、错误码、人名、专有名词、否定语义、数值条件 |
-| 只用 BM25 | 同义表述、概念性问题、跨语言 |
+| Vectors only | Model numbers, error codes, names, proper nouns, negation, numerical constraints |
+| BM25 only | Synonymous wording, conceptual questions, cross-language matching |
 
-这些是常见弱项，不是某类 Query 永远不可能召回。提高 K 有时能补覆盖，但增加成本；提高 `ef_search` 主要减少 ANN 近似误差，不能保证修复表示本身的相关性排序。
+These are common weaknesses, not claims that a method can never retrieve a particular type of query. Increasing K can sometimes improve coverage at additional cost. Increasing `ef_search` mainly reduces ANN approximation error; it does not guarantee a fix for relevance ordering in the representation itself.
 
-## 13.2 分数没法直接比较
+## 13.2 Scores cannot be compared directly
 
-多路召回的第一个技术问题是**融合**。
+The first technical problem in multi-path retrieval is **fusion**.
 
-| 召回路 | 分数形式 | 典型范围 |
+| Retrieval path | Score form | Typical range |
 |---|---|---|
-| 向量检索 | 余弦相似度 | −1 到 1；产品可能返回变换后的分数 |
-| BM25 | 累加的词项得分 | 不归一化到固定区间；范围依 IDF 变体、语料、查询与字段配置 |
+| Vector retrieval | Cosine similarity | −1 to 1; a product may return a transformed score |
+| BM25 | Sum of term scores | Not normalized to a fixed interval; depends on the IDF variant, corpus, query, and field configuration |
 
-**这两组分数根本不在同一个量纲上。** 简单加权融合需要先归一化，而归一化本身又有问题：
+**These scores are not on the same scale.** A simple weighted sum first needs normalization, which brings its own problems:
 
-- **min-max 归一化依赖当前批次的极值**，同一个文档在不同 Query 下的归一化分数会剧烈波动；
-- **分数分布形状不同**：余弦可能集中在窄区间，但具体区间依模型与数据而定；线性归一化不等于把两路校准成同一种相关性概率；
-- **权重需要针对每个数据集调**，换语料就要重调。
+- **Min–max normalization depends on the current batch's extremes.** The same document's normalized score may vary sharply across queries.
+- **The distributions have different shapes.** Cosine scores may cluster within a narrow interval, but that interval depends on the model and data. Linear normalization does not calibrate both paths to the same relevance probability.
+- **Weights need dataset-specific tuning.** Changing the corpus requires retuning.
 
-## 13.3 RRF：用排名代替分数
+## 13.3 RRF: ranks instead of scores
 
-**倒数排名融合（Reciprocal Rank Fusion）的思路极其简单：只用排名，完全不用原始分数。**
+**Reciprocal rank fusion has a very simple idea: use only ranks, not the raw scores.**
 
 $$
 \mathrm{RRF}(d) = \sum_{r \in R} \frac{1}{k + \mathrm{rank}_r(d)}
 $$
 
-其中 $R$ 是召回路集合，排名从 1 开始；未出现在某路候选窗口中的文档，该路贡献为 0。 $k$ 是平滑常数，常用起点为 60，**不是最终 Top-K**。融合前确保每路同一 ID 只出现一次，再累加跨路贡献。
+Here, $R$ is the set of retrieval paths, and ranks start at 1. A document outside a path's candidate window contributes zero from that path. The smoothing constant $k$ commonly starts at 60; **it is not the final Top-K**. Ensure that each ID appears only once within each path before summing contributions across paths.
 
-### 13.3.1 为什么它管用
+### 13.3.1 Why it works
 
-排名本身没有量纲，第 1 名就是第 1 名，不管原始分数是 0.92 还是 34.7，这让 RRF 能直接绕开不同分数体系不可比的问题。
+Ranks have no score scale. First place is first place, whether the raw score is 0.92 or 34.7, so RRF sidesteps the incompatibility of different scoring systems.
 
-$k$ 则起到削峰作用。当 $k = 60$ 时：
+The constant $k$ dampens the influence of the highest ranks. With $k = 60$:
 
-| 排名 | 贡献值 |
+| Rank | Contribution |
 |---|---|
 | 1 | 1/61 ≈ 0.0164 |
 | 2 | 1/62 ≈ 0.0161 |
 | 10 | 1/70 ≈ 0.0143 |
 
-第 1 名和第 2 名的差距很小。**这意味着：某一路把某文档排第 1，不足以让它压过“在两路里都排前十”的文档。**
+The gap between first and second place is small. **A first-place contribution from one path alone therefore cannot outweigh a document ranked in the top ten by both paths.**
 
-> **RRF 天然偏好「多路共识」而非「单路极端自信」。** 因为单路的高分可能来自该路特有的偏见，而多路都认可的结果通常更可靠。
+> **RRF naturally favors agreement across paths over extreme confidence from one path.** A high score from one path may reflect that path's own bias, whereas agreement across paths is usually more reliable.
 
-$k=60$ 来自原论文的经验设置，RRF 无需训练，但每路候选窗口、权重、平滑常数和融合后截断仍要调。多个高度相似的 Query 扩展结果并非独立证据，可能重复放大某一路偏见。
+The setting $k=60$ comes from the original paper's experiments. RRF needs no training, but candidate windows, weights, the smoothing constant, and post-fusion truncation still need tuning. Highly similar query expansions are not independent evidence and can repeatedly amplify the same path's bias.
 
-### 13.3.2 它的局限
+### 13.3.2 Its limitations
 
-- **丢弃了分数的绝对信息**：一个相似度 0.95 和一个 0.5 的结果，只要排名相同，贡献就相同；
-- **无法表达"这一路整体都不靠谱"**：即使某路的所有结果都很差，它的第 1 名仍然贡献满额；
-- **不同路的可信度无法直接表达**（可通过给每路加权部分缓解）。
+- **It discards absolute score information.** Results with similarities of 0.95 and 0.5 contribute equally if they have the same rank.
+- **It cannot express that an entire path is unreliable.** Even if all of a path's results are poor, its first-ranked result still contributes the full amount for that rank.
+- **It does not directly express differences in path reliability**, although per-path weights can partly address this.
 
-RRF 是混合检索中广泛采用、值得先建立的**强基线**，因为它鲁棒且少调参；它不是所有语料的“事实标准”。若有带标签的业务数据，应将 RRF 与归一化加权、学习排序或单路检索一起比较，再按效果、延迟和可维护性选择。
+RRF is a widely used **strong baseline** for hybrid retrieval because it is robust and needs relatively little tuning. It is not the universal standard for every corpus. With labeled application data, compare it against normalized weighted fusion, learning to rank, and single-path retrieval, then choose based on quality, latency, and maintainability.
 
-## 13.4 Rerank：在候选覆盖之后改善排序
+## 13.4 Reranking: improve ordering after candidate coverage
 
-### 13.4.1 为什么需要它
+### 13.4.1 Why use it?
 
-典型稠密粗排把 Query 与文档独立编码，再比较两个压缩表示，在线没有跨文本注意力。因此可以尝试重排补足细粒度交互，但不意味着双塔在每个任务上一定更差（第六章 6.3.3）。
+Typical dense first-stage retrieval encodes queries and documents independently and compares their compressed representations, with no cross-text attention at query time. Reranking can add finer-grained interaction, though this does not mean dual encoders are worse on every task (Section 6.3.3).
 
-常见的 Rerank 实现采用 cross-encoder：**把 Query 和候选文档拼在一起**送进模型，让两者充分交互后输出相关性分数。重排也可用多向量打分或 LLM 排序，不只这一种架构。
+A common reranker is a cross-encoder: **concatenate the query and candidate document** and feed them into a model that allows full interaction before producing a relevance score. Reranking can also use multi-vector scoring or LLM-based ordering; it is not restricted to one architecture.
 
 ```mermaid
 flowchart LR
-    subgraph 粗排
-        Q1[Query] --> E1[编码]
-        D1[文档] --> E2[编码<br/>离线完成]
-        E1 --> S1[向量距离]
+    subgraph 粗排["First-stage ranking"]
+        Q1[Query] --> E1[Encode]
+        D1[Document] --> E2[Encode<br/>Offline]
+        E1 --> S1[Vector distance]
         E2 --> S1
     end
-    subgraph 精排
-        Q2[Query] --> CAT[拼接]
-        D2[候选文档] --> CAT
-        CAT --> M[交互式模型] --> S2[相关性分数]
+    subgraph 精排["Reranking"]
+        Q2[Query] --> CAT[Concatenate]
+        D2[Candidate document] --> CAT
+        CAT --> M[Joint-interaction model] --> S2[Relevance score]
     end
 ```
 
-**效果提升通常很明显**，也是单点投入产出比很高的优化，因此往往会早于更复杂的改造进入链路。
+**The quality improvement is often substantial**, making reranking a high-return, focused optimization that commonly enters the pipeline before more complex changes.
 
-### 13.4.2 三类 Reranker
+### 13.4.2 Three types of reranker
 
-| 类型 | 比较重点 |
+| Type | What to compare |
 |---|---|
-| 轻量成对重排 | 如基于 MiniLM 的 cross-encoder；资源较少，但要核对语言、领域与输入长度 |
-| 较大成对模型或托管重排服务 | 如 BGE/Jina 的具体重排模型、Cohere Rerank 服务；按型号核验架构、截断规则、计费与批处理，不能由系列名推断成本 |
-| LLM listwise | 对候选列表做相对排序，可利用候选间关系；需检查位置偏置、ID 遗漏与超窗口分组 |
+| Lightweight query–document pair scoring | For example, a MiniLM-based cross-encoder; modest resource use, but check language, domain, and input-length support |
+| Larger pair-scoring models or hosted reranking services | Examples include specific BGE/Jina rerankers and Cohere Rerank. Verify architecture, truncation, pricing, and batching for the actual model or service; a family name does not determine cost. |
+| LLM listwise ranking | Orders a candidate list relatively and can exploit relationships among candidates; check position bias, missing IDs, and grouping when the input exceeds the context window |
 
-**LLM listwise 的额外价值**在于它一次看到所有候选，能做**相对比较**和去冗余（识别出「这两条说的是同一件事」），而 cross-encoder 是**逐条独立打分**的，看不到候选之间的关系。
+**The additional value of LLM listwise ranking** is that it can see all candidates together, make **relative comparisons**, and identify redundancy—for example, recognizing that two passages say the same thing. A cross-encoder **scores each query–document pair independently** and cannot see relationships between candidates.
 
-Listwise 只有在候选装入同一输入时才能一起比较；超预算时需滑动窗口或分组排序。应在相同候选数、长度、硬件和负载下测各方案延迟，并检查 ID 是否遗漏、重复，以及候选顺序扰动是否改变结果。
+Listwise ranking can compare candidates together only when they fit in the same input. Beyond that budget, it needs sliding windows or grouped ranking. Measure latency with the same candidate count, lengths, hardware, and load. Check for omitted or duplicated IDs and whether changing the input order changes the output.
 
-### 13.4.3 工程要点
+### 13.4.3 Engineering considerations
 
-候选数与长度共同决定计算量；批处理、padding 和排队使墙钟延迟不一定线性。普通全注意力编码器还受单对输入长度的平方项影响。应在不同候选数与长度下测覆盖、排序、吞吐和尾延迟，而非预设从 100 减到 50 就快一倍。
+Candidate count and length jointly determine computation. Batching, padding, and queuing mean wall-clock latency need not scale linearly. Standard full-attention encoders also have a quadratic term in the length of each query–document input. Measure coverage, ranking, throughput, and tail latency across candidate counts and lengths; do not assume that reducing 100 candidates to 50 halves latency.
 
-同时要有经校准的拒答策略。
+A calibrated abstention policy is also necessary.
 
-> **Rerank 之后不得无条件取 Top-K；但也不能把一个固定绝对分数当作所有 Query 的通用阈值。**
+> **Do not unconditionally take Top-K after reranking, but do not treat a fixed absolute score as a universal threshold across all queries either.**
 
-不同 Query、语言、候选集和模型版本的分数分布不同。应在带“有依据/无依据”标注的业务评测集上校准置信度或拒答规则，例如结合首位分数、首二名间隔、候选一致性、来源质量和 Query 类型，并分别报告覆盖率与错误接受率。低置信度时返回空、请求澄清或走人工/外部检索路径，而不是硬凑不相关上下文。
+Score distributions vary by query, language, candidate set, and model version. Calibrate confidence or abstention rules on an application evaluation set labeled for evidence support. For example, combine the top score, the gap between the first two scores, candidate consistency, source quality, and query type. Report coverage and false acceptance separately. When confidence is low, return no results, request clarification, or use a human-review or external-retrieval path instead of padding the context with irrelevant material.
 
-更换 reranker、语料、语言分布或召回策略都会使校准失效。将拒答规则版本化，在评测集和线上抽样上重校准；不要把来自一个 Query 的裸分数直接同另一个 Query 比较。
+Changing the reranker, corpus, language distribution, or retrieval strategy can invalidate calibration. Version the abstention rules and recalibrate against the evaluation set and production samples. Do not directly compare one query's raw scores with another's.
 
-Rerank 超时可以回退到粗排，但必须使用针对粗排校准的证据规则，并继续执行 ACL、版本和引用校验。若该路径没有通过业务验收，就返回暂时无法回答，不能把“仍有 Top-K”当作可发布依据。
+A reranking timeout can fall back to first-stage results, but it must use evidence rules calibrated for that stage and still enforce ACLs, version checks, and citation validation. If that path has not passed application acceptance tests, report temporary inability to answer. “We still have Top-K” is not a sufficient basis for release.
 
-## 13.5 完整的召回-排序链路
+## 13.5 The complete retrieval-and-ranking pipeline
 
 ```mermaid
 flowchart TB
-    Q[Query] --> RW[Query 改写]
-    RW --> P1[BM25 召回 top-50]
-    RW --> P2[向量召回 top-50]
-    RW --> P3[可选: 其他路]
-    P1 --> RRF[RRF 融合]
+    Q[Query] --> RW[Query rewriting]
+    RW --> P1[BM25 retrieval: top-50]
+    RW --> P2[Vector retrieval: top-50]
+    RW --> P3[Optional: other paths]
+    P1 --> RRF[RRF fusion]
     P2 --> RRF
     P3 --> RRF
-    RRF --> DEDUP[去重与合并]
-    DEDUP --> RR[Rerank top-50 到 top-5]
-    RR --> TH{校准后置信度足够?}
-    TH -->|是| CTX[组装上下文]
-    TH -->|否| REJ[拒答、澄清或降级]
+    RRF --> DEDUP[Deduplicate and merge]
+    DEDUP --> RR[Rerank: top-50 to top-5]
+    RR --> TH{Sufficient calibrated<br/>confidence?}
+    TH -->|Yes| CTX[Assemble context]
+    TH -->|No| REJ[Abstain, clarify,<br/>or degrade gracefully]
 ```
 
-**各阶段的数量收缩参考**：每路召回 50–100 → 融合去重后 50–150 → Rerank 输入 50 → 最终 3–10。
+**Illustrative candidate counts by stage**: 50–100 per retrieval path → 50–150 after fusion and deduplication → 50 reranker inputs → 3–10 final results.
 
-最后一档不是越大越好（第二章 2.6 节），必须实测。
+A larger final count is not always better (Section 2.6); measure it.
 
-## 13.6 去重也很重要
+## 13.6 Deduplication matters too
 
-融合之后必须去重，否则会浪费 Prompt 预算：
+Deduplicate after fusion to avoid wasting the prompt budget:
 
-| 重复来源 | 处理 |
+| Source of duplication | Treatment |
 |---|---|
-| 多路召回同一 chunk | 按 chunk ID 合并 |
-| 多个子块命中同一父块 | 合并为一个父块（第五章 5.3.2） |
-| 内容高度相似的不同 chunk | 相似度筛候选，再核对实体、数字、否定、版本与适用范围；保留会改变结论的差异 |
-| 同一文档的新旧版本 | 按查询时刻、生效区间和适用范围选择；历史查询保留对应旧版，对比查询可保留两版 |
+| The same chunk retrieved by several paths | Merge by chunk ID |
+| Several child chunks pointing to the same parent | Merge into one parent chunk (Section 5.3.2) |
+| Different chunks with highly similar content | Use similarity to identify candidates, then check entities, numbers, negation, versions, and applicability; retain differences that change the conclusion |
+| Old and new versions of the same document | Select by query time, effective interval, and applicability; retain the relevant old version for historical questions and both versions when comparing them |
 
-最后一行尤其容易漏掉：新旧版本同时进入上下文，会让模型面对矛盾信息，产出错误或含糊的答案。
+The final row is particularly easy to overlook. Supplying old and new versions together can expose the model to contradictory information and produce incorrect or ambiguous answers.
 
-## 13.7 常见错误
+## 13.7 Common mistakes
 
-### 13.7.1 直接加权融合不同量纲的分数
+### 13.7.1 Directly combining scores on incompatible scales
 
-需要归一化，而归一化本身不稳定。RRF 是更好的默认选择。
+Normalization is required, and normalization itself can be unstable. RRF is a better default.
 
-### 13.7.2 不知道 RRF 为什么用排名
+### 13.7.2 Not understanding why RRF uses ranks
 
-如果只知道 RRF 这个名词，却说不出「规避量纲问题」和「偏好多路共识」，通常也很难判断它是否适合当前链路。
+Knowing the name without understanding “avoid incompatible score scales” and “favor agreement across paths” makes it difficult to judge whether RRF fits the current pipeline.
 
-### 13.7.3 不知道 $k=60$ 的作用
+### 13.7.3 Not understanding the role of $k=60$
 
-它起削峰作用，让排名靠前的差距变小，从而更看重多路共识。
+It dampens the top ranks, shrinking their differences and giving more importance to agreement across paths.
 
-### 13.7.4 Rerank 后无条件取 Top-K
+### 13.7.4 Unconditionally selecting Top-K after reranking
 
-这会放弃拒答能力；低置信度候选应触发拒答、澄清或降级路径。
+This removes the ability to abstain. Low-confidence candidates should trigger abstention, clarification, or graceful degradation.
 
-### 13.7.5 用固定裸分阈值跨 Query 比较
+### 13.7.5 Comparing queries with a fixed raw-score threshold
 
-分数分布因 Query、模型和语料而异。应在业务评测集上校准可回归的置信度/拒答策略，并在变更后重校准。
+Score distributions depend on the query, model, and corpus. Calibrate a confidence/abstention policy on application data, make it regression-testable, and recalibrate after changes.
 
-### 13.7.6 默认上 LLM listwise rerank
+### 13.7.6 Defaulting to LLM listwise reranking
 
-计算量、调用方式、位置偏置与输入窗口都需要验证，不应预设它一定最准或固定贵多少倍。
+Validate computational cost, calling patterns, position bias, and input-window limits. Do not assume it is always the most accurate or costs a fixed multiple of alternatives.
 
-### 13.7.7 忘记去重，尤其是新旧版本
+### 13.7.7 Forgetting deduplication, especially across versions
 
-矛盾的上下文会直接导致错误答案。
+Contradictory context can directly produce incorrect answers.
 
-### 13.7.8 没有 Rerank 的降级路径
+### 13.7.8 Providing no reranking fallback
 
-经验证的粗排降级可提高可用性，但不能绕过证据与权限闸门；安全回退不可用时应明确失败。
+A validated fallback to first-stage results can improve availability, but it must not bypass evidence or authorization gates. If no safe fallback is available, fail explicitly.
 
-## 13.8 本章总结
+## 13.8 Summary
 
-1. **多路召回的理由是实测互补**，不是只要链路更多就一定更可靠；
-2. **不同召回路的分数量纲不同**，直接加权需要归一化，而归一化本身不稳定；
-3. **RRF 只用排名不用分数**，无需训练但仍需设置窗口与权重；平滑常数不等于 Top-K；
-4. **RRF 的局限**：丢弃分数绝对信息、无法表达“某路整体不靠谱”；它是常用强基线，不能替代业务实测；
-5. **Rerank 可改善候选排序**，但找不回候选集外的证据；
-6. **Cross-encoder 与 listwise 应在相同候选与预算下比较**，不预设最优模型或固定成本倍数；
-7. **必须采用经评测集校准的置信度/拒答策略并允许返回空**，不能用固定裸分一刀切；
-8. **去重要覆盖多路重复、父块重复、内容冗余和新旧版本**，其中新旧版本冲突后果最严重。
+1. **Measured complementarity justifies multiple retrieval paths**; more paths do not automatically make a system more reliable.
+2. **Retrieval scores have incompatible scales.** Direct weighting requires normalization, which can itself be unstable.
+3. **RRF uses ranks, not raw scores.** It needs no training, but windows and weights still need configuration; its smoothing constant is not Top-K.
+4. **RRF discards absolute score information and cannot express that an entire path is unreliable.** It is a common strong baseline, not a substitute for application-specific measurement.
+5. **Reranking can improve candidate ordering**, but cannot recover evidence outside the candidate set.
+6. **Compare cross-encoders and listwise methods on the same candidates and budgets**, without assuming a universally best model or fixed cost ratio.
+7. **Use a confidence/abstention policy calibrated on an evaluation set and allow empty results.** A fixed raw-score cutoff is not a universal solution.
+8. **Deduplication must cover cross-path duplicates, repeated parents, redundant content, and old/new versions.** Conflicting versions have the most serious consequences.
 
 
-## 参考资料
+## References
 
 - [Reciprocal Rank Fusion outperforms Condorcet and individual Rank Learning Methods (SIGIR 2009)](https://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf)
-- [Lucene 9.12：BM25Similarity 的具体计分实现](https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/search/similarities/BM25Similarity.html)
+- [Lucene 9.12: the BM25Similarity scoring implementation](https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/search/similarities/BM25Similarity.html)
 - [Anthropic: Introducing Contextual Retrieval](https://www.anthropic.com/engineering/contextual-retrieval)
 - [ColBERTv2: Effective and Efficient Retrieval via Lightweight Late Interaction](https://arxiv.org/abs/2112.01488)
 - [Searching for Best Practices in Retrieval-Augmented Generation](https://arxiv.org/abs/2407.01219)

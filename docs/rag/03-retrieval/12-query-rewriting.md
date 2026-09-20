@@ -1,203 +1,213 @@
 ---
-description: 解释指代消解、多查询扩展、HyDE、Step-back、查询分解和路由的适用条件，关注语义漂移、原查询兜底与证据边界。
+description: When to use reference resolution, multi-query expansion, HyDE, step-back questions, query decomposition, and routing, with attention to semantic drift, original-query fallbacks, and evidence boundaries.
 ---
 
-# 第十二章：Query 理解与改写
+# Chapter 12: Query Understanding and Rewriting
 
-## 12.1 要解决的是什么问题
+## 12.1 What problem are we solving?
 
-用户提问的方式，和文档写作的方式，天然不一样。
+Users naturally phrase questions differently from the way documents are written.
 
-| 用户会问 | 文档里写的是 |
+| A user might ask | What the document says |
 |---|---|
-| 「年假怎么请」 | 「带薪年休假申请与审批流程」 |
-| 「它多少钱」 | （需要上文才知道「它」指什么） |
-| 「介绍一下我们公司的技术栈」 | （分散在十几篇文档里） |
-| 「量子计算对密码学的影响」 | （需要先知道量子计算是什么） |
+| “年假怎么请” (“How do I request annual leave?”) | “带薪年休假申请与审批流程” (“Paid annual leave application and approval process”) |
+| “它多少钱” (“How much does it cost?”) | The previous conversation is needed to identify “it.” |
+| “介绍一下我们公司的技术栈” (“Tell me about our company's technology stack.”) | The information is spread across a dozen or more documents. |
+| “量子计算对密码学的影响” (“The impact of quantum computing on cryptography”) | Some background on quantum computing is needed first. |
 
-这四行对应了**四种不同的鸿沟**，而 Query 改写的各种方法，正是分别针对这四种鸿沟：
+These four rows illustrate **four different gaps**. Query-rewriting methods address different parts of this mismatch:
 
 ```mermaid
 flowchart TB
-    G[Query 与文档之间的鸿沟] --> G1[表述鸿沟<br/>同一意思不同说法]
-    G --> G2[指代鸿沟<br/>多轮对话中的省略]
-    G --> G3[粒度鸿沟<br/>问题太宽泛或太复合]
-    G --> G4[抽象层级鸿沟<br/>问题太具体或太抽象]
+    G[The gap between<br/>queries and documents] --> G1[Wording gap<br/>Same meaning, different phrasing]
+    G --> G2[Reference gap<br/>Omitted context across turns]
+    G --> G3[Granularity gap<br/>Broad or compound questions]
+    G --> G4[Abstraction gap<br/>Too specific or too abstract]
 
-    G1 --> M1[直接改写 / 多 Query 扩展 / HyDE]
-    G2 --> M2[指代消解]
-    G3 --> M3[查询分解]
-    G4 --> M4[Step-back 提问]
+    G1 --> M1[Direct rewriting /<br/>multi-query expansion / HyDE]
+    G2 --> M2[Reference resolution]
+    G3 --> M3[Query decomposition]
+    G4 --> M4[Step-back questions]
 ```
 
-> **理解这些方法时，重点是它们分别对应哪种鸿沟，而不是只记方法名。**
+> **Understand which gap each method addresses, rather than just memorizing method names.**
 
-## 12.2 直接改写
+## 12.2 Direct rewriting
 
-直接改写通常用 LLM 把口语化的问题改成更接近文档表述的形式，并补充领域术语。
+Direct rewriting usually asks an LLM to turn a conversational question into wording closer to that used in documents, adding domain terminology where appropriate.
 
-「年假怎么请」→「带薪年休假的申请流程和审批要求」
+“年假怎么请” → “带薪年休假的申请流程和审批要求”
 
-这类方法适合处理口语化输入和术语不匹配，但改写一旦偏离原意，后续检索就会整体跑偏。所以**要保留原始 Query 一起检索作为兜底**（第十章 10.3.2）。
+In English: “How do I request annual leave?” → “The application process and approval requirements for paid annual leave.”
 
-## 12.3 指代消解
+This handles conversational language and terminology mismatches, but a rewrite that changes the meaning can send all subsequent retrieval in the wrong direction. **Retain the original query and retrieve with it as a fallback** (Section 10.3.2).
 
-指代消解会结合对话历史，把省略和指代还原成完整问题。
+## 12.3 Reference resolution
+
+Reference resolution uses conversation history to turn omissions and references into a self-contained question.
 
 ```
-用户：示例产品 Atlas 有哪些版本？
-助手：资料中列出了标准版和 Pro 版。
-用户：Pro 的价格呢？    ← 未带上文时容易匹配到其他产品
-      ↓ 消解后
+User: 示例产品 Atlas 有哪些版本？
+Assistant: 资料中列出了标准版和 Pro 版。
+User: Pro 的价格呢？    ← Without prior context, this may match other products
+      ↓ After reference resolution
       Atlas Pro 的价格是多少？
 ```
 
-这在多轮对话场景里通常是必需环节，而不是可选优化。很多「多轮对话下 RAG 效果突然变差」的问题，根源就在这里。
+The user asks which editions of the example product Atlas exist. The assistant lists Standard and Pro; “What is Pro's price?” is then resolved to “What is the price of Atlas Pro?”
 
-可以先传入最近相关轮次或经过核验的会话状态，避免无关历史挤占预算。若“它”可能指多个对象，应澄清而不是猜；助手前一轮的回答也可能有误，不能自动当作权威事实或授权信息。
+In multi-turn conversations, this is usually a necessary stage, not an optional improvement. It explains many cases where RAG quality suddenly deteriorates after the first turn.
 
-## 12.4 多 Query 扩展
+Start with recent relevant turns or verified conversation state so unrelated history does not consume the budget. If “it” could refer to several objects, ask for clarification rather than guessing. The assistant's previous answer may itself be wrong and must not automatically become an authoritative fact or a source of authorization.
 
-多 Query 扩展会让 LLM 生成同一问题的多个不同表述，**并行**检索后再合并结果。
+## 12.4 Multi-query expansion
 
-「年假怎么请」→
+Multi-query expansion asks an LLM for several formulations of the same question, retrieves with them **in parallel**, and merges the results.
 
-- 「年假申请流程是什么」
-- 「带薪休假需要哪些审批」
-- 「休年假要提前多久提交」
+“年假怎么请” (“How do I request annual leave?”) →
 
-单个 Query 的表述可以看作**随机的一次采样**，可能刚好没命中文档的措辞。多个表述能覆盖更大的语义邻域，**降低“表述不巧”导致的漏召**。
+- “年假申请流程是什么” (“What is the annual leave application process?”)
+- “带薪休假需要哪些审批” (“What approvals are required for paid leave?”)
+- “休年假要提前多久提交” (“How far in advance must an annual leave request be submitted?”)
 
-代价也很明确：一次 LLM 调用、N 倍的检索开销（可并行），以及后续的融合去重。这更适合召回率优先、可以接受额外延迟的场景。
+A single formulation can be viewed as **one random sample** that may happen to miss the document's wording. Multiple formulations cover a wider semantic neighborhood and **reduce missed evidence caused by an unlucky choice of words**.
 
-## 12.5 HyDE：假设性文档嵌入
+The costs are clear: an LLM call, N times the retrieval work—which can run in parallel—and subsequent fusion and deduplication. This is more suitable when recall takes priority and some additional latency is acceptable.
 
-HyDE 不直接用 Query 检索，而是**先让 LLM 生成一个“假想的答案文档”，再用这个假想文档去做向量检索**。
+## 12.5 HyDE: hypothetical document embeddings
+
+Instead of searching directly with the query, HyDE **first asks an LLM to generate a hypothetical answer document, then uses that document for vector retrieval**.
 
 ```mermaid
 flowchart LR
-    Q[Query: 年假怎么请] --> LLM[LLM 生成假想答案]
-    LLM --> H["假想文档: 员工申请年休假<br/>需提前 3 个工作日在系统提交<br/>经直属主管审批..."]
-    H --> EMB[向量化]
-    EMB --> SEARCH[检索真实文档]
+    Q["Query: How do I<br/>request annual leave?"] --> LLM[LLM generates<br/>a hypothetical answer]
+    LLM --> H["Hypothetical document:<br/>Submit an annual leave request<br/>in the system 3 working days ahead,<br/>with direct manager approval..."]
+    H --> EMB[Embed]
+    EMB --> SEARCH[Retrieve real documents]
 ```
 
-它之所以有效，是因为向量检索本质上在比较两段文本的相似度，而**问题和答案在语义空间里并不天然接近**：问题是疑问句、通常很短；文档是陈述句、通常更长。
+The diagram translates the sample query “年假怎么请” and hypothetical text “员工申请年休假需提前 3 个工作日在系统提交经直属主管审批...”. The sample document says employees must submit an annual leave request in the system 3 working days in advance, with approval from their direct manager.
 
-用一个**形式上更像文档的假想答案**去检索，匹配的就变成「文档 vs 文档」而不是「问题 vs 文档」，**在语义空间里的距离往往更近**。
+The intuition is that vector retrieval compares the similarity of two texts, yet **a question and an answer are not inherently close in semantic space**: the question is interrogative and usually short; the document is declarative and usually longer.
 
-假想文档只提供检索信号，不能进入证据集合或被引用。HyDE 原论文在无相关性标签的检索设置中，用生成文档搭配无监督编码器；对已针对 Query—文档训练的双塔，收益不一定相同。假想实体、数值或结论虽不必作为事实成立，却可能把检索带偏，所以仍须保留原查询并做对照。
+Retrieving with a **hypothetical answer that looks more like a document** changes the comparison from “question versus document” to “document versus document,” which **often places the texts closer together in semantic space**.
 
-代价是一次额外的 LLM 调用，延迟通常会增加几百毫秒。如果问题涉及模型几乎没有先验知识的领域（企业内部黑话、全新的产品名），生成的假想文档可能与真实文档差得很远，**反而降低效果**。
+The hypothetical document is only a retrieval signal. It must not enter the evidence set or be cited. The original HyDE paper pairs generated documents with an unsupervised encoder in a retrieval setting without relevance labels. The benefit may differ for dual encoders already trained on query–document pairs. Invented entities, numbers, or conclusions need not be true to provide a signal, but they can still steer retrieval off course, so retain the original query and compare against it.
 
-## 12.6 Step-back 提问
+The cost is an additional generation call. Its latency depends on the model, generated length, service load, and other configuration details, so measure it in the intended setup. If the question concerns a domain the model knows almost nothing about—internal company jargon or a brand-new product name—the hypothetical document may differ greatly from real documents and **make retrieval worse**.
 
-Step-back 提问会先把具体问题**抽象成一个更宽泛的问题**，先检索背景知识，再回来回答原问题。
+## 12.6 Step-back questions
 
-「XX 型号电池在零下 20 度的续航衰减多少」
-→ 先问「锂电池在低温下的性能特性是什么」
+Step-back questioning first **abstracts a specific question into a broader one**, retrieves background knowledge, and then returns to the original question.
 
-背景原理有助于解释影响因素，但不能仅凭“低温影响锂电池”推导某型号的确切衰减值。数值回答仍需对应型号、温度和测试条件的数据；缺少时应说明不能确定，而非把通用原理包装成产品事实。
+“XX 型号电池在零下 20 度的续航衰减多少”
+→ First ask “锂电池在低温下的性能特性是什么”
 
-它适合需要推理而非直接查找的问题，也适合原理性内容较多的知识库。风险在于抽象过头后会召回大量无关的通用内容，所以**通常要与原始 Query 一起检索并合并结果**。
+In English: “How much does the battery runtime of model XX decline at −20 degrees?” → “How do lithium batteries perform at low temperatures?”
 
-## 12.7 查询分解
+General principles can explain contributing factors, but “cold affects lithium batteries” cannot establish the exact decline for a particular model. A numerical answer still requires data for the relevant model, temperature, and test conditions. Without that data, explain that the value cannot be determined rather than presenting a general principle as a product-specific fact.
 
-查询分解会把复合问题拆成多个子问题，分别检索，再综合结果。
+This is suitable for questions requiring reasoning rather than direct lookup, and for knowledge bases rich in explanatory principles. The risk is that excessive abstraction retrieves a large amount of irrelevant general material. **Usually, retrieve with the original query as well and merge the results.**
 
-「对比 A 方案和 B 方案的成本和风险」
-→ 「A 方案的成本」「A 方案的风险」「B 方案的成本」「B 方案的风险」
+## 12.7 Query decomposition
 
-它主要解决一类向量检索的结构性缺陷：一个包含多个实体和多个维度的复合 Query，其向量是这些成分的混合，**对任何一个成分都不够聚焦**，结果往往是每个都召回一点、每个都不完整。
+Query decomposition splits a compound question into subquestions, retrieves for each, and synthesizes the results.
 
-多跳问题可以看作分解的特例：「A 公司 CEO 的母校在哪」需要先确定查询时刻的 CEO，再检索此人的母校。真正依赖未知中间值的步骤需等待前一步；固定两步工作流就能实现，不必由 Agent 自主决策。若已有可靠实体 ID 或一次结构化查询能完成关联，也不必分两次检索。
+“对比 A 方案和 B 方案的成本和风险”
+→ “A 方案的成本,” “A 方案的风险,” “B 方案的成本,” “B 方案的风险”
 
-| 类型 | 子问题关系 | 执行方式 |
+In English: “Compare the costs and risks of plans A and B” becomes separate queries for each plan's cost and risk.
+
+This addresses a structural weakness of vector retrieval: the vector for a compound query containing several entities and dimensions mixes those components and **does not focus enough on any one of them**. Retrieval may cover a little of each without covering any completely.
+
+Multi-hop questions are a special case. “A 公司 CEO 的母校在哪” (“Where is the alma mater of company A's CEO?”) requires first identifying the CEO at the time of the query, then retrieving that person's alma mater. A step that genuinely depends on an unknown intermediate value must wait for the previous step. A fixed two-step workflow can do this; autonomous agent decisions are not required. If reliable entity IDs are already available, or one structured query can perform the join, two retrieval calls may not be needed at all.
+
+| Type | Relationship between subquestions | Execution |
 |---|---|---|
-| 并列分解 | 互相独立 | **并行** |
-| 多跳分解 | 存在数据依赖 | 依赖步骤串行，独立分支仍可并行 |
+| Parallel decomposition | Independent | **Parallel** |
+| Multi-hop decomposition | Data dependencies exist | Dependent steps run sequentially; independent branches can still run in parallel |
 
-区分这两种分解方式很重要，因为它决定了延迟是「取最大值」还是「累加」。
+This distinction matters because it determines whether latency follows the slowest branch or accumulates across steps.
 
-## 12.8 Query 路由
+## 12.8 Query routing
 
-改写之外还有一类动作：**判断这个问题该走哪条路**。
+Another operation goes beyond rewriting: **deciding which path the question should take**.
 
-| 路由决策 | 说明 |
+| Routing decision | Explanation |
 |---|---|
-| 要不要检索 | 闲聊和纯改写任务不需要（第十章 10.3.1） |
-| 检索哪个知识库 | 产品文档 / 制度文档 / 代码库 |
-| 用哪种检索方式 | 术语精确查找偏 BM25，概念性问题偏向量 |
-| 需要几轮检索 | 简单查找一轮，多跳问题多轮 |
+| Whether to retrieve | Conversation and pure rewriting tasks do not need retrieval (Section 10.3.1) |
+| Which knowledge base to search | Product documents, policy documents, or a codebase |
+| Which retrieval method to use | Exact terminology lookups favor BM25; conceptual questions favor vectors |
+| How many retrieval rounds to use | One for a simple lookup; several for a multi-hop question |
 
-根据问题复杂度动态选择策略，通常比“所有问题一视同仁”更合适。相关研究方向（如 Adaptive-RAG）也表明：**对简单问题用重策略是浪费，对复杂问题用轻策略则往往不够用**。
+Choosing a strategy dynamically based on question complexity is usually more appropriate than treating all questions alike. Research such as Adaptive-RAG illustrates the same point: **heavy strategies waste work on simple questions, while light strategies are often insufficient for complex ones**.
 
-## 12.9 方法对比与选择
+## 12.9 Comparing and choosing methods
 
-| 方法 | 收益、成本与主要风险 |
+| Method | Benefits, costs, and main risks |
 |---|---|
-| 指代消解 | 补全对象，需要相关历史；歧义未消除时应澄清 |
-| 直接改写 | 跨越表述差异；模型改写增加推理成本，也可能改变原意 |
-| 多 Query 扩展 | 增加表述覆盖和检索量；并行可缩短等待，但也会引入重复与噪声 |
-| HyDE | 用假想文档提供检索信号；生成较长文本，域外内容可能带偏 |
-| Step-back | 补充背景原理；抽象过度会漏掉原问题的具体约束 |
-| 查询分解 | 补全多个子问题；数据依赖和重试决定调用次数与关键路径 |
-| 路由 | 选择已有权限内的路径；规则、小模型或 LLM 都可实现，错路由会漏证据 |
+| Reference resolution | Identifies the intended object and needs relevant history; ask for clarification if ambiguity remains |
+| Direct rewriting | Bridges wording differences; model-based rewriting adds inference cost and may alter the intended meaning |
+| Multi-query expansion | Increases phrasing coverage and retrieval work; parallelism can reduce waiting, but duplicates and noise may increase |
+| HyDE | Uses a hypothetical document as a retrieval signal; generates longer text, and out-of-domain content can misdirect retrieval |
+| Step-back questions | Add background principles; excessive abstraction can lose the original question's specific constraints |
+| Query decomposition | Covers multiple subquestions; data dependencies and retries determine call count and the critical path |
+| Routing | Selects among paths already authorized for the user; rules, small models, or LLMs can implement it, and misrouting can miss evidence |
 
-一次调用可以合并多个动作，也可能需要多轮才能完成一个动作。因此不能给每种方法固定“一次 LLM 调用”或固定高低延迟，应记录实际调用图、Token 和证据增益。
+One call can combine several operations, while one operation may require several rounds. Do not assign every method a fixed “one LLM call” cost or a fixed latency category. Record the actual call graph, tokens, and evidence gained.
 
-实践中常见的组合方式如下：
+A common practical combination is:
 
-1. **多轮对话场景先做指代消解**，否则后续检索很容易因为省略和指代而失败；
-2. **然后做轻量的路由**（要不要检索、走哪个库），通常用规则或小模型，成本较低；
-3. **按失败类型选择改写动作**，组合时做消融，避免重复生成没有新增价值的查询；
-4. **始终保留原始 Query 一起检索**。
+1. **Resolve references first in multi-turn conversations**; otherwise omissions and references can derail subsequent retrieval.
+2. **Apply lightweight routing next**: decide whether to retrieve and which knowledge base to use, often with inexpensive rules or a small model.
+3. **Choose rewriting actions by failure type**, and use ablations when combining them to avoid repeatedly generating queries that add no value.
+4. **Always keep retrieving with the original query as well.**
 
-评估改写时不仅看整体 Hit@K，还要看新增命中与丢失命中的问题、实体/数字/否定词是否被改掉，以及多路增加的候选和 Token 成本。路由器只选择用户已有权限内的库，不能把生成的库名、部门或时间条件直接当作授权事实。
+Evaluate more than overall Hit@K. Examine questions with newly gained or lost hits, changes to entities, numbers, or negation, and the candidate and token costs added by extra paths. A router selects only knowledge bases the user is already authorized to access; generated database names, departments, or time conditions are not authorization facts.
 
-## 12.10 常见错误
+## 12.10 Common mistakes
 
-### 12.10.1 罗列方法但说不出各治什么问题
+### 12.10.1 Listing methods without explaining the problem each solves
 
-只罗列方法名而不建立「鸿沟 → 方法」的对应关系，通常无法判断何时该用哪一种。
+Without mapping each gap to an appropriate method, it is hard to decide when to use which one.
 
-### 12.10.2 认为 HyDE 的假想文档必须内容正确
+### 12.10.2 Assuming HyDE's hypothetical document must be factually correct
 
-它提供的是检索信号，不是答案本身。
+It supplies a retrieval signal, not the answer itself.
 
-### 12.10.3 改写后丢弃原始 Query
+### 12.10.3 Discarding the original query after rewriting
 
-改写失败时没有兜底。
+There is then no fallback when the rewrite fails.
 
-### 12.10.4 多轮对话不做指代消解
+### 12.10.4 Skipping reference resolution in multi-turn conversations
 
-必需项，缺了会导致大面积召回失败。
+This is a necessary step; omitting it can cause widespread retrieval failures.
 
-### 12.10.5 不区分并列分解与多跳分解
+### 12.10.5 Failing to distinguish parallel from multi-hop decomposition
 
-依赖未知中间结果的步骤需要等待，独立分支可并行；据此核算关键路径，而不是按方法名判断延迟。
+Steps that depend on unknown intermediate results must wait; independent branches can run in parallel. Calculate the critical path from those dependencies rather than inferring latency from the method's name.
 
-### 12.10.6 所有问题都走同一套重策略
+### 12.10.6 Applying the same heavy strategy to every question
 
-简单问题用重策略是纯粹的成本浪费。
+A heavy strategy for a simple question is simply wasted cost.
 
-### 12.10.7 叠加多种改写方法
+### 12.10.7 Stacking multiple rewriting methods
 
-未经消融就叠加会增加成本且难以归因；有依赖的步骤增加关键路径，并行或同次生成则有不同成本，收益可能互补，也可能互相抵消。
+Combining methods without ablations adds cost and makes attribution difficult. Dependent steps extend the critical path, while parallel execution or joint generation has different costs. Benefits can complement or cancel one another.
 
-## 12.11 本章总结
+## 12.11 Summary
 
-1. **Query 改写解决的是四种鸿沟**：表述、指代、粒度、抽象层级——**每种方法对应一种鸿沟**；
-2. **指代消解在多轮对话中是必需项**；
-3. **多 Query 扩展**通过覆盖更大的语义邻域降低"表述不巧"导致的漏召；
-4. **HyDE** 用假想文档提供检索信号，假想内容不能作为证据，生成错误也可能损害召回；
-5. **Step-back** 可补背景知识，但具体数值和业务事实仍需直接证据；
-6. **查询分解**按数据依赖安排串并行；固定工作流也能做多跳，不必自动升级为 Agent；
-7. **路由**根据问题复杂度选择策略，避免简单问题用重策略；
-8. **保留原始 Query 兜底**，组合方法前比较新增命中、丢失命中和实际成本。
+1. **Query rewriting addresses four gaps**: wording, references, granularity, and abstraction. **Each method targets a particular gap.**
+2. **Reference resolution is necessary in multi-turn conversations.**
+3. **Multi-query expansion** covers a wider semantic neighborhood, reducing missed evidence caused by unfortunate phrasing.
+4. **HyDE** supplies a retrieval signal through a hypothetical document. That document is not evidence, and generation errors can harm recall.
+5. **Step-back questions** add background knowledge, but specific numerical and business claims still need direct evidence.
+6. **Query decomposition** schedules sequential and parallel work according to data dependencies. Fixed workflows can perform multi-hop retrieval without automatically becoming agents.
+7. **Routing** chooses a strategy based on question complexity and avoids heavy processing for simple questions.
+8. **Keep the original query as a fallback.** Before combining methods, compare newly gained hits, lost hits, and actual costs.
 
 
-## 参考资料
+## References
 
 - [Precise Zero-Shot Dense Retrieval without Relevance Labels](https://arxiv.org/abs/2212.10496)
 - [Take a Step Back: Evoking Reasoning via Abstraction in Large Language Models](https://arxiv.org/abs/2310.06117)

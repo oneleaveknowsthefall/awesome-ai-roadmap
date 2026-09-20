@@ -1,187 +1,187 @@
 ---
-description: 比较 BM25、学习式稀疏、稠密双塔和后期交互的匹配机制、失败模式与成本，依据实测互补性选择检索组合。
+description: Compare the matching mechanisms, failure modes, and costs of BM25, learned sparse retrieval, dense dual encoders, and late interaction, and choose combinations using measured complementarity.
 ---
 
-# 第十一章：检索范式：稀疏、稠密与后期交互
+# Chapter 11: Retrieval Paradigms—Sparse, Dense, and Late Interaction
 
-## 11.1 三种范式的本质区别
+## 11.1 The fundamental differences
 
-| 范式 | 表示与匹配依据 |
+| Paradigm | Representation and basis for matching |
 |---|---|
-| 稀疏检索 | 词表维度大部分为零，通常用倒排索引；BM25 按词项统计打分，SPLADE 等还能学习扩展词项 |
-| 稠密检索 | 双塔将文本压成几百到几千维向量，按训练出的相关性匹配 |
-| 后期交互 | ColBERT 系保留 Token 级向量，在线聚合细粒度匹配分数 |
+| Sparse retrieval | Most vocabulary dimensions are zero, usually with an inverted index. BM25 scores term statistics; methods such as SPLADE can also learn term expansion. |
+| Dense retrieval | Dual encoders compress text into vectors with hundreds to thousands of dimensions and match according to learned relevance. |
+| Late interaction | ColBERT-family models retain token-level vectors and aggregate fine-grained matching scores at query time. |
 
-这三种范式不是简单的新旧替代关系，更准确的说法是：它们分别擅长不同类型的匹配。
+These are not simply successive generations that replace one another. More accurately, they excel at different kinds of matching.
 
-## 11.2 稀疏检索：不要低估它
+## 11.2 Sparse retrieval: do not underestimate it
 
-### 11.2.1 BM25 在做什么
+### 11.2.1 What BM25 does
 
-BM25 的打分逻辑可以拆成三个直觉：
+BM25 scoring rests on three intuitions:
 
-1. **匹配词频增加可提高得分，但收益逐渐饱和**，不是线性无限累加；
-2. **一个词在整个语料中越罕见，它的匹配越有价值**（逆文档频率）——「的」匹配上不说明什么，「XR-2100」匹配上意义重大；
-3. **长文档天然容易包含更多词，需要按长度归一化**，否则长文档会占便宜。
+1. **More occurrences of a matching term can increase the score, but the gain saturates** rather than growing linearly without limit.
+2. **The rarer a term is across the corpus, the more valuable a match becomes**—inverse document frequency. Matching “的,” a common Chinese grammatical particle, says little; matching “XR-2100” says much more.
+3. **Long documents naturally contain more terms, so scores need length normalization** to avoid giving them an unfair advantage.
 
-打分形式大致是：
+The scoring function has approximately this form:
 
 $$
 \mathrm{score}(q, d) = \sum_{t \in q} \mathrm{IDF}(t) \cdot \frac{f(t, d) \cdot (k_1 + 1)}{f(t, d) + k_1 \cdot \left(1 - b + b \cdot \frac{|d|}{\mathrm{avgdl}}\right)}
 $$
 
-其中 $f(t,d)$ 是词 $t$ 在文档 $d$ 中的频次， $|d|$ 是文档长度， $\mathrm{avgdl}$ 是平均文档长度， $k_1$ 和 $b$ 是可调参数。
+Here, $f(t,d)$ is the frequency of term $t$ in document $d$, $|d|$ is the document length, $\mathrm{avgdl}$ is the average document length, and $k_1$ and $b$ are tunable parameters.
 
-公式本身不是重点，关键是词频、逆文档频率和长度归一化这三个因素。
+The formula itself is not the main point. What matters is the interaction of term frequency, inverse document frequency, and length normalization.
 
-具体实现的 IDF 和常数项存在差异。例如 Lucene 9.12 使用 `log(1 + (N − df + 0.5) / (df + 0.5))`，其中 N 是字段的文档数，df 是含词文档数；另一些历史公式没有外层的 `1 +`，常见词的 IDF 可能为负。比较分数时要固定分析器、字段统计和实现。
+IDF definitions and constant factors vary by implementation. For example, Lucene 9.12 uses `log(1 + (N − df + 0.5) / (df + 0.5))`, where N is the number of documents for the field and df is the number containing the term. Some historical formulas omit the outer `1 +`, allowing common terms to have negative IDF. Fix the analyzer, field statistics, and implementation when comparing scores.
 
-### 11.2.2 BM25 的不可替代之处
+### 11.2.2 Where BM25 is hard to replace
 
-在专业术语密集的领域，BM25 经常优于稠密检索。
+BM25 often outperforms dense retrieval in domains with many specialized terms.
 
-具体场景：
+Examples include:
 
-- **产品型号、错误码、API 名**：`ERR_CONN_REFUSED`、`XR-2100`——这些在 Embedding 模型的训练数据里出现极少，向量表示很差；
-- **人名、机构名、专有名词**：语义空间里区分度低；
-- **域外领域**（医疗、法律、企业内部黑话）：Embedding 模型没见过这些分布；
-- **精确短语匹配**：用户明确要找某个确切说法。
+- **Product model numbers, error codes, and API names**: `ERR_CONN_REFUSED` and `XR-2100` may appear very rarely in an embedding model's training data and have poor vector representations.
+- **People, organizations, and proper names**: these can be poorly distinguished in semantic space.
+- **Out-of-domain material**, such as medicine, law, or internal company jargon: the embedding model may not have encountered these distributions.
+- **Exact phrase searches**: the user explicitly wants a particular wording.
 
-BM25 无需训练和 GPU，也不需要文档向量化；但新文档仍需完成分词、倒排更新并达到引擎的可见性条件。精确短语、型号完整匹配还要配置分析器和字段，BM25 分数本身不保证词序或字符串完全一致。
+BM25 requires neither training nor a GPU, and it does not need document embeddings. However, a new document still has to be tokenized, added to the inverted index, and made visible under the engine's rules. Exact phrase and full model-number matching also require appropriate analyzers and fields; BM25 scores alone do not guarantee word order or an exact string match.
 
-BM25 是值得保留的对照组；是否上线这一路，取决于它新增的证据覆盖与维护成本。
+BM25 is a useful baseline to retain. Whether to deploy it as a retrieval path depends on the additional evidence it covers and the cost of maintaining it.
 
-### 11.2.3 学习式稀疏检索
+### 11.2.3 Learned sparse retrieval
 
-有一类方法（如 SPLADE）试图兼顾两者：用模型学习稀疏表示，在保留倒排索引效率的同时做词项扩展（把「汽车」自动扩展出「车辆」「轿车」等相关词的权重）。
+Methods such as SPLADE aim to combine the advantages of both approaches: a model learns sparse representations that retain inverted-index efficiency while expanding terms—for example, assigning weights to “车辆” (“vehicle”) and “轿车” (“sedan”) for “汽车” (“car”).
 
-不能说学习式稀疏检索已被混合方案取代。SPLADE 论文给出词项扩展与稀疏正则化方案；Elastic 的 ELSER v2 官方文档也提供可部署的学习式稀疏检索。这不意味着 ELSER 等同于 SPLADE，或在中文上自动有效：官方建议 ELSER 用于英语资料。
+It would be wrong to say that hybrid retrieval has made learned sparse retrieval obsolete. The SPLADE paper describes term expansion and sparsity regularization, and Elastic's official ELSER v2 documentation provides a deployable learned sparse retrieval option. This does not make ELSER equivalent to SPLADE or mean that it automatically works well in Chinese: the official recommendation is to use ELSER for English material.
 
-它减少纯字面重合的限制，但引入编码推理、扩展词项与倒排存储成本。应比较 BM25、学习式稀疏、稠密及其组合；稀疏正则越强通常越省检索资源，也可能损失召回。
+Learned sparse retrieval reduces the limitations of purely literal overlap, but adds encoding inference, expanded terms, and inverted-index storage costs. Compare BM25, learned sparse retrieval, dense retrieval, and their combinations. Stronger sparsity regularization usually saves retrieval resources but may reduce recall.
 
-## 11.3 稠密检索：语义匹配
+## 11.3 Dense retrieval: semantic matching
 
-原理已在第六章展开，这里只强调它的**失败模式**：
+Chapter 6 covered the mechanism. Here, the focus is on its **failure modes**:
 
-| 失败模式 | 例子 |
+| Failure mode | Example |
 |---|---|
-| 罕见词表示差 | 型号、错误码、内部术语 |
-| 否定语义弱 | 「不含糖的饮料」可能召回含糖饮料 |
-| 数值与精确条件不敏感 | 「超过 500 元的报销」中的数值约束 |
-| 域外泛化差 | 通用模型在专业领域表现下降 |
-| 短 Query 信息不足 | 两三个词的 Query 语义模糊 |
+| Poor representations of rare terms | Model numbers, error codes, internal terminology |
+| Weak handling of negation | “不含糖的饮料” (“drinks without sugar”) may retrieve sugary drinks |
+| Insensitivity to numbers and exact constraints | The numerical constraint in “超过 500 元的报销” (“reimbursements above 500 yuan”) |
+| Poor out-of-domain generalization | A general-purpose model performs worse in a specialized domain |
+| Too little information in a short query | A query of two or three words has ambiguous meaning |
 
-BM25 可补充罕见词的词项匹配，但不天然理解“不含糖”、数值范围或模糊短查询。否定、单位、范围、时间和权限等硬条件应解析为可验证谓词；混合检索的依据是实测互补，而非宣称一方能解决另一方所有错误。
+BM25 can add term-level matching for rare words, but it does not inherently understand “without sugar,” numerical ranges, or ambiguous short queries either. Hard constraints involving negation, units, ranges, time, or permissions should be parsed into verifiable predicates. Hybrid retrieval should be justified by measured complementarity, not by claiming that one method fixes every failure of the other.
 
-## 11.4 后期交互：中间路线
+## 11.4 Late interaction: a middle ground
 
-第六章 6.3.4 已介绍原理。这里补充它在检索范式中的定位：
+Section 6.3.4 introduced the mechanism. The following places it alongside other matching architectures:
 
 ```mermaid
 flowchart LR
-    A[稀疏 BM25<br/>字面精确] --- B[稠密双塔<br/>语义相似]
-    B --- C[后期交互 ColBERT<br/>词级语义匹配]
-    C --- D[Cross-Encoder<br/>完整交互]
+    A[Sparse BM25<br/>Literal matching] --- B[Dense dual encoder<br/>Semantic similarity]
+    B --- C[Late interaction: ColBERT<br/>Token-level semantic matching]
+    C --- D[Cross-encoder<br/>Full interaction]
 
-    A -.-> A1[快 无需训练<br/>不懂同义]
-    B -.-> B1[快 懂同义<br/>细粒度弱]
-    C -.-> C1[较快 兼顾两者<br/>存储成本高]
-    D -.-> D1[在线跨文本交互<br/>不能缓存独立文档分数]
+    A -.-> A1[Fast; no training<br/>No synonym understanding]
+    B -.-> B1[Fast; handles synonyms<br/>Weak fine-grained matching]
+    C -.-> C1[Relatively fast; bridges both<br/>High storage cost]
+    D -.-> D1[Query-time cross-text interaction<br/>No independent document-score cache]
 ```
 
-后期交互保留 Token 级语义匹配，可能缓解单向量压缩造成的细节丢失，文档表示也仍可离线预计算。但它不保证型号、词序或数字约束精确成立，质量仍依赖训练和分词。
+Late interaction retains token-level semantic matching and may reduce the loss of detail caused by single-vector compression. Document representations can still be precomputed offline. It does not, however, guarantee exact model numbers, word order, or numerical constraints; quality still depends on training and tokenization.
 
-主要代价包括多向量存储、候选生成和细粒度匹配。ColBERTv2 的残差压缩可降低空间；应按向量数、维度、量化与索引开销比较，不能仅用“几百个向量”推出固定几十倍总成本。
+The main costs are multi-vector storage, candidate generation, and fine-grained matching. ColBERTv2's residual compression reduces the storage footprint. Compare vector count, dimensions, quantization, and index overhead rather than concluding that “hundreds of vectors” must imply a fixed tens-fold increase in total cost.
 
-### 11.4.1 视觉文档检索
+### 11.4.1 Visual document retrieval
 
-后期交互在多模态方向上有一个重要衍生：**直接对文档页面图像做多向量嵌入**，用视觉语言模型编码页面，完全绕开 OCR 和版面解析（第三章 3.5 节）。
+An important multimodal extension of late interaction **embeds document-page images directly as multiple vectors**. A vision-language model encodes the page, bypassing explicit OCR and layout parsing entirely (Section 3.5).
 
-在版面复杂、图表密集的文档上，公开评测显示它优于「OCR + 文本嵌入」管线。
+Published evaluations on documents with complex layouts and many charts show advantages over “OCR + text embedding” pipelines.
 
-主要约束是多向量存储、图像编码和生成成本，以及区域级引用定位；应依据视觉语料比例与实测收益选择，不能由年份推断生产成熟度。
+The main constraints are multi-vector storage, image-encoding and generation costs, and locating citations at the region level. Choose based on the proportion of visual material and measured benefits, not on an assumption that the year alone establishes production maturity.
 
-## 11.5 怎么组合
+## 11.5 How to combine the approaches
 
-**默认方案：BM25 + 稠密检索并行召回，用 RRF 融合，再接 Rerank。**
+**A default design is parallel BM25 and dense retrieval, followed by RRF fusion and reranking.**
 
-它值得作为对照基线，原因是：
+It is worth using as a comparison baseline because:
 
-- 覆盖了字面和语义两类匹配；
-- 每个组件都成熟、可独立调优、可独立降级；
-- 成本可控。
+- It covers both lexical and semantic matching.
+- Each component is mature and can be tuned or given a fallback independently.
+- Costs can be controlled.
 
 ```mermaid
 flowchart TB
-    Q[Query] --> B[BM25 召回]
-    Q --> D[稠密向量召回]
-    B --> RRF[RRF 融合]
+    Q[Query] --> B[BM25 retrieval]
+    Q --> D[Dense vector retrieval]
+    B --> RRF[RRF fusion]
     D --> RRF
-    RRF --> RR[Rerank 精排]
+    RRF --> RR[Reranking]
     RR --> TOP[Top-K]
 ```
 
-**什么时候考虑加第三路（后期交互）**：
+**Consider a third path—late interaction—when**:
 
-- 前两路 + Rerank 已经调到位，效果仍不达标；
-- 领域内的细粒度词级匹配确实很重要；
-- 存储成本可以接受。
+- The first two paths and reranker are already well tuned but still miss quality targets.
+- Fine-grained token-level matching genuinely matters in the domain.
+- The storage cost is acceptable.
 
-如果没有这些条件，通常不必加。每多一路召回，就多一套需要维护、调优和监控的链路。
+Without these conditions, a third path is usually unnecessary. Every additional retrieval path is another pipeline to maintain, tune, and monitor.
 
-## 11.6 一个实用的判断方法
+## 11.6 A practical way to decide
 
-不确定该侧重哪一路时，做这个实验：
+If it is unclear which retrieval path deserves more attention, run this experiment:
 
-1. 用评测集分别跑纯 BM25 和纯稠密检索，记录各自的 Hit@K；
-2. **重点看两者的 Query 分布**——哪些问题只有 BM25 能召回、哪些只有稠密能召回；
-3. 分析这两类问题的特征。
+1. Run BM25-only and dense-only retrieval on the evaluation set and record their respective Hit@K.
+2. **Examine the query breakdown**: which questions are successfully retrieved only by BM25, and which only by dense retrieval?
+3. Analyze the characteristics of those two groups.
 
-**这个分析结果会直接影响融合权重的设定，以及是否需要引入第三路。** 它来自你自己的数据分布，通常比通用经验更有针对性。
+**The result directly informs fusion weights and whether a third path is needed.** Because it reflects your own data distribution, it is usually more useful than general rules of thumb.
 
-## 11.7 常见错误
+## 11.7 Common mistakes
 
-### 11.7.1 认为向量检索全面优于关键词检索
+### 11.7.1 Assuming vector retrieval is universally better than keyword retrieval
 
-在术语密集领域经常相反。这一类 Query 往往更依赖字面匹配。
+The reverse is often true in terminology-heavy domains, where queries depend more on literal matching.
 
-### 11.7.2 只用一路召回
+### 11.7.2 Relying on only one retrieval path
 
-单路可能在某类输入上持续较弱，但是否需要多路应看新增召回与成本，不能把单路设计本身判为错误。
+A single path may consistently struggle with some input types, but the need for more paths depends on additional coverage and cost. A single-path design is not inherently a mistake.
 
-### 11.7.3 把学习式稀疏检索说成已经淘汰
+### 11.7.3 Declaring learned sparse retrieval obsolete
 
-这是一条仍可使用的技术路线；要核实具体模型的语言、许可证、编码与索引成本，而不是用“主流/淘汰”代替比较。
+It remains a viable technical approach. Check the particular model's language support, license, encoding cost, and indexing cost instead of substituting labels such as “mainstream” or “obsolete” for a comparison.
 
-### 11.7.4 把后期交互和 Rerank 混为一谈
+### 11.7.4 Confusing late interaction with reranking
 
-后期交互与 cross-encoder 是交互架构，Rerank 是流水线阶段。重排既可以用 cross-encoder，也可以对多向量候选做精确 MaxSim；不能因为用于重排，就说文档表示一定不能预计算。
+Late interaction and cross-encoders are interaction architectures; reranking is a pipeline stage. Reranking can use a cross-encoder or exact MaxSim scoring over multi-vector candidates. Being used for reranking does not imply that document representations cannot be precomputed.
 
-### 11.7.5 忽略后期交互的存储成本
+### 11.7.5 Ignoring late interaction's storage costs
 
-需要将压缩后的载荷、索引开销、匹配计算和数据更新成本一起计入，不能只报向量数。
+Account for the compressed payload, index overhead, matching computation, and update costs together, rather than reporting only the vector count.
 
-### 11.7.6 说视觉文档检索已经取代了 OCR 管线
+### 11.7.6 Claiming visual document retrieval has replaced OCR pipelines
 
-它在特定视觉任务上有优势，但不能据此宣布全面取代 OCR；文本搜索、数字转录与合规引用仍可能需要 OCR。
+It has advantages on particular visual tasks, but that does not establish a universal replacement for OCR. Text search, numerical transcription, and citations that meet compliance requirements may still need OCR.
 
-## 11.8 本章总结
+## 11.8 Summary
 
-1. **三种范式各自擅长不同类型的匹配**，不是新旧替代关系；
-2. **BM25 的三个直觉**：词频、逆文档频率、长度归一化；
-3. **BM25 是重要的词项检索基线**；精确匹配依赖分析器与字段，新写入的可见性依赖索引引擎；
-4. **混合检索依赖实测互补**，否定、数值范围与权限不能仅靠 BM25 或向量分数保证；
-5. **后期交互**可离线预计算文档表示，但多向量匹配与索引增加成本；视觉版本减少显式 OCR 依赖；
-6. **常用基线**：BM25 + 稠密 + RRF + Rerank；学习式稀疏和后期交互仍是可比较的替代或补充；
-7. **是否加第三路要靠实测**：分析两路各自独占的召回 Query，比套用通用经验更有针对性。
+1. **The three paradigms excel at different kinds of matching**; they are not simply older and newer replacements.
+2. **BM25 rests on three intuitions**: term frequency, inverse document frequency, and length normalization.
+3. **BM25 is an important term-retrieval baseline.** Exact matching depends on analyzers and fields, and the visibility of new writes depends on the index engine.
+4. **Hybrid retrieval relies on measured complementarity.** Neither BM25 nor vector scores alone enforce negation, numerical ranges, or permissions.
+5. **Late interaction** permits offline document encoding, but multi-vector matching and indexing add costs. Visual variants reduce reliance on explicit OCR.
+6. **A common baseline is BM25 + dense retrieval + RRF + reranking.** Learned sparse retrieval and late interaction remain alternatives or additions worth comparing.
+7. **Measure before adding a third path.** Analyzing queries successfully retrieved by only one of the first two paths is more targeted than applying general advice.
 
 
-## 参考资料
+## References
 
-- [Lucene 9.12 BM25Similarity：词频饱和、长度归一化与 IDF 实现](https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/search/similarities/BM25Similarity.html)
+- [Lucene 9.12 BM25Similarity: term-frequency saturation, length normalization, and IDF implementation](https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/search/similarities/BM25Similarity.html)
 - [Dense Passage Retrieval for Open-Domain Question Answering](https://arxiv.org/abs/2004.04906)
 - [SPLADE: Sparse Lexical and Expansion Model for First Stage Ranking](https://arxiv.org/abs/2107.05720)
-- [Elastic：ELSER 官方文档](https://www.elastic.co/docs/explore-analyze/machine-learning/nlp/ml-nlp-elser)
+- [Elastic: official ELSER documentation](https://www.elastic.co/docs/explore-analyze/machine-learning/nlp/ml-nlp-elser)
 - [ColBERTv2: Effective and Efficient Retrieval via Lightweight Late Interaction](https://arxiv.org/abs/2112.01488)
 - [ColPali: Efficient Document Retrieval with Vision Language Models](https://arxiv.org/abs/2407.01449)
 - [Searching for Best Practices in Retrieval-Augmented Generation](https://arxiv.org/abs/2407.01219)

@@ -1,183 +1,183 @@
 ---
-description: 解释 RAG 如何通过检索外部证据缓解知识过期、私有知识缺失和幻觉，并拆解索引、检索与生成流程。
+description: How RAG uses external evidence to address outdated knowledge, missing private information, and hallucinations, with a breakdown of indexing, retrieval, and generation.
 ---
 
-# 第一章：RAG 是什么，解决什么问题
+# Chapter 1: What RAG Is and What Problems It Solves
 
-## 1.1 从一个具体的失败说起
+## 1.1 Start with a Concrete Failure
 
-你把公司内部的报销制度问题丢给一个通用大模型，它会给出一段听起来专业、格式工整、逻辑通顺的回答——但里面的额度标准、审批层级、报销时限可能全是错的。
+Ask a general-purpose large language model about your company's expense reimbursement policy. It may produce a professional-sounding, neatly formatted, coherent answer—yet the spending limits, approval levels, and submission deadlines could all be wrong.
 
-问题不在措辞，而在于模型**没有可靠依据了解你们公司的制度**。自回归语言模型的预训练目标是预测下一个 Token；后训练可以鼓励拒答，但不能保证它在每次证据缺失时都停下来。
+The problem is not the wording. The model **has no reliable basis for knowing your company's policy**. An autoregressive language model is pretrained to predict the next token. Post-training can encourage it to abstain, but cannot guarantee that it will stop whenever evidence is missing.
 
-这就是 RAG 要解决的问题的起点。
+This is the starting point for understanding the problem RAG addresses.
 
-## 1.2 根因：知识被冻结在参数里
+## 1.2 The Underlying Issue: Knowledge Is Frozen in Parameters
 
-模型的参数化知识来自训练，部署后不会自动随现实更新。可以通过继续训练或模型编辑改变部分知识，但它不像数据库记录那样容易逐条检查、可靠修改和撤销；推理时还可以从上下文或工具获得非参数化知识。
+A model acquires its parametric knowledge through training; that knowledge does not automatically keep up with the world after deployment. Continued training or model editing can change some of it, but individual facts are not as easy to inspect, reliably modify, or revoke as database records. At inference time, the model can also obtain non-parametric knowledge from context or tools.
 
-参数知识不会自动更新，也不一定覆盖私有资料。这两类缺口会增加无依据作答的风险，但不是幻觉的全部原因。
+Parametric knowledge neither updates automatically nor necessarily covers private material. Both gaps increase the risk of unsupported answers, but they do not explain every hallucination.
 
 ```mermaid
 flowchart TB
-    ROOT[只依赖参数知识] --> P1[知识可能过期]
-    ROOT --> P2[可能缺少私有知识]
-    P1 --> P3[无依据作答风险]
+    ROOT[Relying only on<br/>parametric knowledge] --> P1[Knowledge may be outdated]
+    ROOT --> P2[Private knowledge may be missing]
+    P1 --> P3[Risk of unsupported answers]
     P2 --> P3
-    OTHER[误读、推理与生成失误] --> P3
+    OTHER[Misreading, reasoning errors,<br/>and generation errors] --> P3
 
-    P1 --> D1[训练数据有截止日期]
-    P2 --> D2[企业内部数据从未进入训练集]
-    P3 --> D3[缺少依据时仍然生成流畅答案]
+    P1 --> D1[Training data has a cutoff date]
+    P2 --> D2[Internal company data<br/>was never in the training set]
+    P3 --> D3[Fluent answers are generated<br/>even without evidence]
 ```
 
-### 1.2.1 知识过期
+### 1.2.1 Outdated Knowledge
 
-训练数据有时间范围。截止日之后的新产品、政策和财报不能仅靠参数知识可靠回答；若应用提供了更新的上下文或工具，模型仍可利用这些信息。
+Training data covers a particular period. Parametric knowledge alone cannot reliably answer questions about products, policies, or financial reports released after that cutoff. If the application supplies updated context or tools, however, the model can still use that information.
 
-而且模型往往**不知道自己不知道**，它会用过时的信息自信作答。
+Models also often **do not know what they do not know**: they answer confidently using outdated information.
 
-### 1.2.2 私有知识空白
+### 1.2.2 Missing Private Knowledge
 
-这是企业场景中更重要的一类。未公开、未用于训练的内部文档、客户数据和业务规则，不能指望通用模型预先掌握。
+This is an even more important category in enterprise applications. A general-purpose model cannot be expected to already know internal documents, customer data, and business rules that were never published or used for training.
 
-这类知识的特点是：**量大、更新频繁、且不可能通过公开训练获得**。
+Such knowledge is typically **voluminous, frequently updated, and unavailable through training on public data**.
 
-### 1.2.3 幻觉
+### 1.2.3 Hallucinations
 
-> **幻觉不是知识冻结和私有知识缺失的唯一副产品，而是证据、检索、上下文处理和生成等环节都可能造成的多因素失效。**
+> **Hallucination is not simply a by-product of frozen knowledge and missing private information. It is a multifactor failure that can arise from evidence, retrieval, context processing, and generation.**
 
-模型在缺少依据时可能生成看似合理的答案；即使检索到材料，也可能误读、过度概括或错误引用。知识缺失是常见原因，不是唯一根因。
+Without evidence, a model may generate a plausible-sounding answer. Even with retrieved material, it may misread, overgeneralize, or cite incorrectly. Missing knowledge is a common cause, not the sole root cause.
 
-因此，RAG 的价值是提供可更新、可访问的外部证据并降低一部分不实输出风险，**不能消除幻觉**；还需要数据治理、grounding、引用校验和拒答策略（详见[第十七章](../05-generation-evaluation/17-generation-hallucination.md)）。
+RAG therefore provides updatable, accessible external evidence and reduces some risks of false output. It **cannot eliminate hallucinations**. Data governance, evidence grounding, citation validation, and abstention policies are still necessary; see [Chapter 17](../05-generation-evaluation/17-generation-hallucination.md).
 
-## 1.3 RAG 怎么工作
+## 1.3 How RAG Works
 
-RAG（Retrieval-Augmented Generation，检索增强生成）的做法是：
+RAG, or Retrieval-Augmented Generation, works as follows:
 
-> **保留模型的参数知识，同时检索外部材料作为生成依据，而不是把已有知识从参数里“搬走”。**
+> **Keep the model's parametric knowledge, while retrieving external material to support generation—not “moving” existing knowledge out of its parameters.**
 
-常见的工程实现不需要改动生成模型，主要让它阅读与组织材料。但“不训练”不是 RAG 的定义：原始 RAG 论文联合微调了检索器与生成器；也可以单独训练检索或生成组件。
+Common engineering implementations leave the generation model unchanged, primarily asking it to read and organize the supplied material. But “no training” is not part of RAG's definition: the original RAG paper jointly fine-tuned the retriever and generator, and retrieval or generation components can also be trained separately.
 
 ```mermaid
 flowchart LR
-    Q[用户问题] --> R[检索相关材料]
-    KB[(外部知识库)] --> R
-    R --> P[材料 + 问题 拼成 Prompt]
-    P --> LLM[大模型]
-    LLM --> A[基于材料的回答 + 引用]
+    Q[User question] --> R[Retrieve relevant material]
+    KB[(External knowledge base)] --> R
+    R --> P[Combine material and question<br/>into a prompt]
+    P --> LLM[Large language model]
+    LLM --> A[Evidence-based answer<br/>with citations]
 ```
 
-这个转变带来三个直接收益：
+This change offers three direct benefits:
 
-| 收益 | 原因 |
+| Benefit | Why |
 |---|---|
-| 知识可更新 | 发布新索引并处理缓存后生效，不必重训生成模型 |
-| 答案有机会溯源 | 保留原文定位，并校验每条结论是否被对应引用支持 |
-| 可做权限控制 | 检索阶段可以按用户权限过滤材料 |
+| Knowledge can be updated | Publishing a new index and handling caches makes updates available without retraining the generation model |
+| Answers can potentially be traced to sources | Preserve locations in the original text and check whether each claim is supported by its corresponding citation |
+| Access control can be enforced | Material can be filtered during retrieval according to the user's permissions |
 
-权限不能交给模型自行判断。共享模型中已经学入参数的敏感知识，很难按文档可靠撤销；RAG 可以在材料进入模型前执行 ACL，但缓存、引用和工具也必须执行相同规则（详见第十九、二十章）。
+Authorization decisions must not be left to the model. Sensitive knowledge already learned by a shared model is difficult to reliably revoke on a per-document basis. RAG can enforce ACLs before material enters the model, but caches, citations, and tools must follow the same rules; see Chapters 19 and 20.
 
-## 1.4 完整工作流：离线与在线两个阶段
+## 1.4 The Full Workflow: Offline and Online Stages
 
-常见工作流分为建库与查询两个阶段。建库负责随文档变化维护索引，可以批处理，也可以持续摄取；查询阶段处理每次提问，并可能复用有效缓存。“离线”主要指不在当前用户请求的关键路径上，不是只能定期运行。
+A typical workflow has two stages: indexing and querying. Indexing maintains the index as documents change, through either batch processing or continuous ingestion. Querying handles each question and may reuse valid caches. “Offline” primarily means outside the critical path of the current user request, not that the work can only run periodically.
 
 ```mermaid
 flowchart TB
-    subgraph OFF[离线阶段 文档变化时执行]
-        D[原始文档] --> PARSE[解析与清洗]
-        PARSE --> CHUNK[切分 Chunking]
-        CHUNK --> EMB[向量化 Embedding]
-        EMB --> IDX[(写入索引)]
+    subgraph OFF[Offline stage: runs when documents change]
+        D[Original documents] --> PARSE[Parse and clean]
+        PARSE --> CHUNK[Chunk]
+        CHUNK --> EMB[Embed]
+        EMB --> IDX[(Write to index)]
     end
 
-    subgraph ON[在线阶段 每次提问执行]
-        Q[用户 Query] --> RW[Query 改写]
-        RW --> QEMB[Query 向量化]
-        QEMB --> SEARCH[多路召回 粗排]
+    subgraph ON[Online stage: runs for each question]
+        Q[User query] --> RW[Rewrite query]
+        RW --> QEMB[Embed query]
+        QEMB --> SEARCH[Multi-path retrieval<br/>and first-stage ranking]
         IDX --> SEARCH
-        SEARCH --> RERANK[Rerank 精排]
-        RERANK --> PROMPT[Prompt 拼装]
-        PROMPT --> GEN[生成 + 溯源]
+        SEARCH --> RERANK[Rerank]
+        RERANK --> PROMPT[Assemble prompt]
+        PROMPT --> GEN[Generate and cite sources]
     end
 ```
 
-### 1.4.1 离线阶段
+### 1.4.1 Offline Stage
 
-| 步骤 | 做什么 | 主要难点 | 详见 |
+| Step | What it does | Main challenges | See |
 |---|---|---|---|
-| 解析与清洗 | 把 PDF、Word、网页等转成结构化文本 | 表格、扫描件、复杂版面 | 第三章 |
-| 切分 | 把长文档切成适合检索的片段 | 粒度选择、语义被切断 | 第四、五章 |
-| 向量化 | 用 Embedding 模型把片段转成向量 | 模型选型与评估 | 第六、七章 |
-| 写入索引 | 存入向量库与关键词索引 | 索引类型、量化、更新 | 第八、九章 |
+| Parsing and cleaning | Convert PDFs, Word documents, web pages, and other sources into structured text | Tables, scans, complex layouts | Chapter 3 |
+| Chunking | Split long documents into passages suitable for retrieval | Choosing granularity; breaking semantic continuity | Chapters 4 and 5 |
+| Embedding | Use an embedding model to convert passages into vectors | Model selection and evaluation | Chapters 6 and 7 |
+| Indexing | Store data in a vector database and a keyword index | Index types, quantization, updates | Chapters 8 and 9 |
 
-### 1.4.2 在线阶段
+### 1.4.2 Online Stage
 
-| 步骤 | 做什么 | 主要难点 | 详见 |
+| Step | What it does | Main challenges | See |
 |---|---|---|---|
-| Query 改写 | 把口语化问题转成适合检索的形式 | 改写可能引入偏差 | 第十二章 |
-| Query 向量化 | 用兼容的 Query 编码器生成向量 | 与 Document 编码器处于同一可比较空间 | 第十章 |
-| 多路召回 | 向量 + 关键词并行检索，融合结果 | 融合策略 | 第十一、十三章 |
-| Rerank | 用更强的模型对候选精排 | 延迟与成本 | 第十三章 |
-| Prompt 拼装 | 组织材料，约束模型只依据材料作答 | 顺序、预算、约束强度 | 第十七章 |
-| 生成与溯源 | 生成答案并标注引用来源 | 引用是否真实支撑结论 | 第十七章 |
+| Query rewriting | Turn a conversational question into a retrieval-friendly form | Rewriting may introduce bias | Chapter 12 |
+| Query embedding | Generate a vector with a compatible query encoder | Query and document encoders must produce comparable representations in the same space | Chapter 10 |
+| Multi-path retrieval | Run vector and keyword retrieval in parallel, then fuse the results | Fusion strategy | Chapters 11 and 13 |
+| Reranking | Use a stronger model to rank candidates more precisely | Latency and cost | Chapter 13 |
+| Prompt assembly | Organize material and constrain the model to answer only from that material | Ordering, budget, strength of constraints | Chapter 17 |
+| Generation and source attribution | Generate an answer and cite its sources | Whether the citations actually support the claims | Chapter 17 |
 
-这里的契约是**兼容的 Query/Document 模型对**，不一定是相同权重。DPR 就分别训练两端编码器。应固定版本、前缀、维度、池化、归一化和距离度量；不能随意混用同维模型。若 Document 编码器或表示契约变化，通常要重嵌入并重建索引；仅调整已验证兼容的 Query 编码器，不必自动重建文档向量。
+The contract here is a **compatible query/document model pair**, not necessarily identical weights. DPR, for example, trains separate encoders for the two sides. Pin the versions, prefixes, dimensions, pooling, normalization, and distance metric. Models cannot be mixed arbitrarily just because their dimensions match. If the document encoder or representation contract changes, documents usually need to be re-embedded and the index rebuilt. Updating only a query encoder whose compatibility has been verified does not automatically require rebuilding document vectors.
 
-## 1.5 粗排与精排为什么要分开
+## 1.5 Why Separate First-Stage Ranking from Reranking?
 
-Cross-encoder 重排能利用更细的交互，但对全库逐对打分通常成本过高；是否比粗排更准仍需评测。
+Cross-encoder reranking can capture finer interactions, but scoring every query–document pair across the full corpus is usually too expensive. Whether it is more accurate than first-stage ranking still needs evaluation.
 
-- **粗排（向量检索）**：文档向量离线预计算，在线编码 Query 后搜索索引；毫秒级仅是合适硬件、索引和负载下的可能结果。
-- **精排（Rerank）**：对 100 个候选计算 100 个 Query—片段对，可以批处理，不等于 100 次串行 API 调用。计算量还取决于候选长度、模型和批大小。
+- **First-stage ranking through vector retrieval:** Precompute document vectors offline, then encode the query and search the index online. Millisecond latency is possible only with suitable hardware, indexing, and load.
+- **Reranking:** Scoring 100 candidates means evaluating 100 query–passage pairs. These can be batched; it does not mean 100 sequential API calls. Computation also depends on candidate length, the model, and batch size.
 
-如果用这种成对重排直接扫全库，百万个候选就有百万个 Query—文档对需要评分。虽然可以批处理，但在交互式延迟和成本预算下通常不划算。
+Scanning the entire corpus with this pairwise reranking approach would require scoring a million query–document pairs for a million candidates. Batching is possible, but the approach is usually uneconomical within interactive latency and cost budgets.
 
 ```mermaid
 flowchart LR
-    ALL[(百万级文档)] -->|索引召回| C[Top-100 候选]
-    C -->|批量重排| F[Top-5 结果]
+    ALL[(Millions of documents)] -->|Index retrieval| C[Top-100 candidates]
+    C -->|Batch reranking| F[Top-5 results]
 ```
 
-> **这是典型的漏斗式设计：用便宜的方法快速缩小范围，用昂贵的方法精确排序。** 搜索、推荐系统都是这个结构，RAG 只是沿用了它。
+> **This is a typical funnel design: quickly narrow the field with a cheap method, then rank precisely with an expensive one.** Search and recommendation systems use the same structure; RAG adopts it.
 
-## 1.6 RAG 不是什么
+## 1.6 What RAG Is Not
 
-下面几条常被混淆：
+Several points are frequently confused:
 
-| 误解 | 实际情况 |
+| Misconception | Reality |
 |---|---|
-| RAG 就是「检索 + 生成」 | 这是定义不是理解；关键在于每个环节解决什么问题 |
-| RAG 能消除幻觉 | 只能降低。检索失败时模型仍会编，检索正确时也可能过度发挥 |
-| 接上 RAG 就提高了模型本身的能力 | 仅接入检索不会改变模型权重；提供新证据可改善任务表现，联合训练则是额外变化 |
-| 有了长上下文就不需要 RAG | 规模、时效、权限、成本四个约束都还在（第二章展开） |
-| 检索做好了就万事大吉 | 生成层同样会出问题，需要独立的约束与校验 |
+| RAG is just “retrieval + generation” | That is a definition, not an understanding; the important part is what problem each stage solves |
+| RAG eliminates hallucinations | It can only reduce them. The model may invent an answer when retrieval fails, or go beyond the evidence even when retrieval succeeds |
+| Adding RAG improves the model's underlying capabilities | Connecting retrieval alone does not change model weights. New evidence can improve task performance; joint training is a separate change |
+| Long context makes RAG unnecessary | Scale, freshness, authorization, and cost remain constraints; Chapter 2 develops this comparison |
+| Good retrieval solves everything | The generation layer also fails and needs its own constraints and validation |
 
-## 1.7 RAG 的能力边界
+## 1.7 The Limits of RAG
 
-RAG 擅长的是**「材料里写了，但模型不知道」**这类问题。它不擅长：
+RAG is well suited to questions where **the material contains the answer, but the model does not know it**. It is less suited to:
 
-- **需要全局统计的问题**：「这一万份合同里平均违约金是多少」——这是聚合计算，不是片段检索；
-- **需要多跳关系推理的问题**：「A 公司的供应商的竞争对手有哪些」——单轮向量召回不显式遍历关系，常需查询分解、多轮检索或图结构（[第十六章](../04-advanced/16-graphrag.md)）；
-- **材料本身就没有答案的问题**：检索不到就应该拒答，而不是让模型硬答；
-- **需要改变模型行为风格的需求**：这是微调的领域（第二章展开）。
+- **Questions requiring global statistics:** “What is the average contractual penalty across these 10,000 contracts?” This is an aggregation task, not passage retrieval.
+- **Questions requiring multi-hop relational reasoning:** “Who are the competitors of company A's suppliers?” A single round of vector retrieval does not explicitly traverse relationships. Query decomposition, multiple retrieval rounds, or graph structures are often needed; see [Chapter 16](../04-advanced/16-graphrag.md).
+- **Questions whose answers are absent from the material:** If sufficient evidence cannot be retrieved, the system should abstain rather than force the model to answer.
+- **Requests to change the model's behavior or style:** This is the domain of fine-tuning, discussed in Chapter 2.
 
-后续章节里的各种高级范式，大多是在补这几类短板。
+Most of the advanced approaches in later chapters address these shortcomings.
 
-其中，全量统计通常应交给数据库或计算工具。[第二十二章：Text-to-SQL](../07-structured-queries/22-text-to-sql.md)用订单案例串起业务口径、查询生成、受限执行和独立验收，而不是让模型从 Top-K 片段估算总数。
+Full-corpus statistics should generally be handled by a database or a computation tool. [Chapter 22: Text-to-SQL](../07-structured-queries/22-text-to-sql.md) uses an orders example to connect business definitions, query generation, restricted execution, and independent acceptance checks, rather than asking a model to estimate totals from Top-K passages.
 
-## 1.8 本章总结
+## 1.8 Chapter Summary
 
-1. 知识冻结在模型参数里，会表现为知识过期、私有知识空白，并进一步放大幻觉风险；
-2. RAG 在生成时引入外部证据，常见工程实现不必训练，但也可与微调结合；
-3. 这样做带来三类直接收益：知识可热更新、答案可溯源、检索阶段可做权限控制；
-4. 工作流分为离线和在线两段：前者负责解析、切分、向量化和入库，后者负责改写、召回、精排、拼装与生成；
-5. 在线与离线须遵守兼容编码器契约；文档表示变化时通常需要重嵌入与索引迁移；
-6. 粗排和精排分离是典型的漏斗式设计：先用便宜方法缩范围，再用昂贵方法定顺序；
-7. RAG 能降低但不能消除幻觉；单轮片段检索不是全量统计或完整多跳推理器，需按任务接入计算与多步取证。
+1. Knowledge frozen in model parameters can become outdated or leave gaps in private knowledge, further increasing hallucination risk.
+2. RAG introduces external evidence during generation. Common engineering implementations do not require training, but RAG can also be combined with fine-tuning.
+3. This offers three direct benefits: knowledge can be updated without retraining, answers can be traced to sources, and access control can be enforced during retrieval.
+4. The workflow has offline and online stages. The former parses, chunks, embeds, and indexes; the latter rewrites, retrieves, reranks, assembles the prompt, and generates.
+5. Online and offline stages must follow a compatible encoder contract. Changes to document representations usually require re-embedding and index migration.
+6. Separating first-stage ranking from reranking is a standard funnel design: narrow the field cheaply, then determine the order with a more expensive method.
+7. RAG can reduce but not eliminate hallucinations. Single-round passage retrieval is neither a full-corpus statistics engine nor a complete multi-hop reasoner; add computation and multi-step evidence gathering according to the task.
 
 
-## 参考资料
+## References
 
 - [Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks](https://arxiv.org/abs/2005.11401)
 - [Dense Passage Retrieval for Open-Domain Question Answering](https://arxiv.org/abs/2004.04906)

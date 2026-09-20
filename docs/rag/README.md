@@ -1,60 +1,60 @@
 ---
-description: 从文档摄取、索引与检索重排到生成评测、更新与安全，梳理生产级 RAG，并用 Text-to-SQL 说明结构化统计的互补路线。
+description: A guide to production RAG, from document ingestion and indexing to retrieval, reranking, generation, evaluation, updates, and security, with Text-to-SQL as a complementary path for structured aggregation.
 ---
 
-# RAG 相关知识点
+# Retrieval-Augmented Generation
 
-本主题位于应用架构层，从知识外置的基本取舍出发，覆盖摄取索引、在线检索、高级与多模态方案、生成评估，以及动态更新和安全治理。
+This topic addresses application architecture. It starts with the tradeoffs of keeping knowledge outside the model, then covers ingestion and indexing, online retrieval, advanced and multimodal approaches, generation and evaluation, and ongoing updates and security.
 
-需要统计完整订单或计算汇总金额时，检索几个相关片段并不够。结构化查询模块用 Text-to-SQL 案例说明这条互补路线，不把数据库计算混同于向量检索。
+Retrieving a few relevant passages is not enough when a question requires counting every eligible order or calculating a total amount. The structured queries module uses a Text-to-SQL case to explain this complementary approach without conflating database computation with vector retrieval.
 
-## 子模块
+## Modules
 
-1. [基础与选型（第 1–2 章）](01-foundations/README.md)
-2. [摄取与索引（第 3–9 章）](02-ingestion-indexing/README.md)
-3. [在线检索（第 10–14 章）](03-retrieval/README.md)
-4. [高级与多模态（第 15–16、21 章）](04-advanced/README.md)
-5. [生成与评估（第 17–18 章）](05-generation-evaluation/README.md)
-6. [运维与安全（第 19–20 章）](06-operations-security/README.md)
-7. [结构化查询（第 22 章）](07-structured-queries/README.md)
+1. [Foundations and approach selection (Chapters 1–2)](01-foundations/README.md)
+2. [Ingestion and indexing (Chapters 3–9)](02-ingestion-indexing/README.md)
+3. [Online retrieval (Chapters 10–14)](03-retrieval/README.md)
+4. [Advanced and multimodal RAG (Chapters 15–16, 21)](04-advanced/README.md)
+5. [Generation and evaluation (Chapters 17–18)](05-generation-evaluation/README.md)
+6. [Operations and security (Chapters 19–20)](06-operations-security/README.md)
+7. [Structured queries (Chapter 22)](07-structured-queries/README.md)
 
-## 模块关系
+## How the modules fit together
 
 ```mermaid
 flowchart TB
-    F[基础与选型] --> I[摄取与索引]
-    F --> R[在线检索]
+    F["Foundations and<br/>approach selection"] --> I["Ingestion and<br/>indexing"]
+    F --> R[Online retrieval]
     I --> R
-    R --> A[高级与多模态]
-    R --> G[生成与评估]
+    R --> A["Advanced and<br/>multimodal RAG"]
+    R --> G["Generation and<br/>evaluation"]
     A --> G
-    I --> O[运维与安全]
+    I --> O["Operations and<br/>security"]
     G --> O
-    F --> S[结构化查询]
+    F --> S[Structured queries]
     S --> G
     S --> O
 ```
 
-## 阅读建议
+## Suggested reading paths
 
-- **快速建立全貌**：基础与选型 → 在线检索 → 生成与评估；
-- **知识库工程**：摄取与索引 → 在线检索 → 运维与安全；
-- **效果优化**：在线检索 → 生成与评估；
-- **复杂语料**：摄取与索引 → 高级与多模态 → 生成与评估。
-- **业务统计问答**：基础与选型 → 结构化查询 → 生成与评估。
+- **A quick overview**: foundations and approach selection → online retrieval → generation and evaluation.
+- **Knowledge-base engineering**: ingestion and indexing → online retrieval → operations and security.
+- **Improving answer quality**: online retrieval → generation and evaluation.
+- **Complex source material**: ingestion and indexing → advanced and multimodal RAG → generation and evaluation.
+- **Questions about business statistics**: foundations and approach selection → structured queries → generation and evaluation.
 
-## 常见问题
+## Frequently asked questions
 
-### RAG 能完全消除大模型幻觉吗？
+### Can RAG eliminate LLM hallucinations?
 
-不能。RAG 可以给模型提供可核验的外部证据，但检索可能漏召回、召回错误内容，模型也可能忽略或误读证据。生产系统仍需要引用、拒答、输出校验和端到端评测。
+No. RAG can supply verifiable external evidence, but retrieval may miss relevant material or return the wrong content, and the model may ignore or misinterpret the evidence. Production systems still need citations, abstention, output validation, and end-to-end evaluation.
 
-### RAG、微调和长上下文应该怎么选？
+### How should you choose between RAG, fine-tuning, and long context?
 
-需要从大量或持续更新的材料中筛选证据时考虑 RAG；需要稳定改变模型行为时考虑微调；资料规模可控且任务依赖整体上下文时可把长上下文作为基线。长上下文也能携带引用并执行输入前授权，最终应比较证据质量、更新和缓存成本，而不是三选一。
+Consider RAG when you need to select evidence from large or continually changing collections, and fine-tuning when you need a lasting change in model behavior. Long context is a useful baseline when the material fits within a manageable input and the task depends on seeing it as a whole. Long-context systems can also include citations and enforce authorization before constructing the input. Compare evidence quality and the costs of updates and caching rather than treating these approaches as mutually exclusive.
 
-### Chunk 越小，检索效果越好吗？
+### Do smaller chunks always improve retrieval?
 
-不一定。小 Chunk 可提供更细的定位，但可能丢失上下文；大 Chunk 可保留更多语境，却也可能引入噪声并增加 Token 成本。应根据文档结构、问题粒度和重排能力，在相同上下文预算下评测块大小与重叠率。
+Not necessarily. Smaller chunks can locate evidence more precisely but may lose context. Larger chunks retain more context but may also introduce noise and consume more tokens. Evaluate chunk size and overlap under the same context budget, taking document structure, question granularity, and reranking capabilities into account.
 
-返回[文档主题索引](../README.md)。
+Back to the [documentation topics](../README.md).

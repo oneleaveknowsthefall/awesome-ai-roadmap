@@ -1,15 +1,15 @@
 ---
-description: 比较自适应检索、树摘要、图检索与多模态 RAG 的原理、证据需求、构建成本和更新边界。
+description: Compares the principles, evidence requirements, construction costs, and update limits of adaptive retrieval, tree summaries, graph retrieval, and multimodal RAG.
 ---
 
-# RAG · 高级与多模态
+# RAG · Advanced and Multimodal
 
-讨论 Agentic/Adaptive RAG、GraphRAG 与多模态检索。
+This module covers Agentic/Adaptive RAG, GraphRAG, and multimodal retrieval.
 
-## 章节
+## Chapters
 
-1. [第十五章：高级 RAG 范式](15-advanced-rag-paradigms.md)
-2. [第十六章：GraphRAG 与图检索](16-graphrag.md)
-3. [第二十一章：多模态 RAG](21-multimodal-rag.md)
+1. [Chapter 15: Advanced RAG Paradigms](15-advanced-rag-paradigms.md)
+2. [Chapter 16: GraphRAG and Graph Retrieval](16-graphrag.md)
+3. [Chapter 21: Multimodal RAG](21-multimodal-rag.md)
 
-返回 [RAG 相关知识点](../README.md)。
+Back to [RAG Knowledge Guide](../README.md).

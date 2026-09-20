@@ -1,214 +1,214 @@
 ---
-description: 从静态词向量到双塔与后期交互解释检索表示，区分 BERT 骨干、交互架构、距离度量和兼容编码器契约。
+description: Explain retrieval representations from static word vectors to bi-encoders and late interaction, distinguishing BERT backbones, interaction architectures, distance metrics, and compatible encoder contracts.
 ---
 
-# 第六章：Embedding 原理与技术演进
+# Chapter 6: Embedding Principles and Technical Evolution
 
-## 6.1 Embedding 到底在做什么
+## 6.1 What does an embedding actually do?
 
-本章先讨论稠密文本 Embedding：**把文本映射成向量，让训练目标所定义的相似或相关文本更容易匹配。** 检索中，问题与能回答它的段落不必是同义句。
+We begin with dense text embeddings: **mapping text to vectors so that texts defined as similar or relevant by the training objective are easier to match.** In retrieval, a question and a passage that answers it need not be paraphrases.
 
-这句话里有两个关键点，缺一个都不完整：
+Two essential points make this definition complete:
 
-1. **稠密**：几百到几千维的实数向量，每一维没有独立的可解释含义，语义分布在整个向量上；
-2. **语义相近 → 距离近**：这是靠训练目标**刻意造出来的**性质，不是自动出现的。
+1. **Dense**: a real-valued vector with hundreds to thousands of dimensions. Individual dimensions have no independently interpretable meaning; semantics are distributed across the vector.
+2. **Similar meaning → nearby vectors**: this property is **deliberately induced by the training objective**, not something that emerges automatically.
 
-第二点是理解 Embedding 的关键。**「猫」和「狗」的向量之所以接近，不是因为模型显式存着「它们都属于动物」这条知识，而是因为训练时它们大量出现在相似的上下文中，参数被优化成给出相近的表示。**
+The second point is the key to understanding embeddings. **The vectors for “猫” (cat) and “狗” (dog) are close not because the model explicitly stores the fact that both are animals, but because they frequently occur in similar contexts during training, and the parameters are optimized to produce similar representations.**
 
-## 6.2 为什么 RAG 需要它
+## 6.2 Why does RAG need embeddings?
 
-未做词项扩展的关键词检索依赖分词后的词项重合。「怎么请年假」与「带薪休假申请流程」可能重合不足；同义词词典、分词和学习式稀疏表示也能缓解这个问题。
+Keyword retrieval without term expansion depends on overlap between tokenized terms. “怎么请年假” (how do I request annual leave?) and “带薪休假申请流程” (paid-leave application procedure) may not overlap enough. Synonym dictionaries, tokenization, and learned sparse representations can also help address this problem.
 
-Embedding 把两者都映射到「休假申请」这个语义区域，从而能匹配上。
+Embeddings map both expressions into the semantic region of “休假申请” (leave applications), allowing them to match.
 
-> **这就是 RAG 用向量检索的根本原因：它跨越了「同一个意思的不同说法」这道鸿沟。**
+> **This is the fundamental reason RAG uses vector retrieval: it bridges the gap between different ways of expressing the same meaning.**
 
-但也要提前说明：**向量检索并非全面优于关键词检索**。精确的产品型号、错误码、人名、专有术语，关键词检索反而更可靠——这是第十一章要展开的内容。
+One caveat belongs up front: **vector retrieval is not universally better than keyword retrieval**. For exact product model numbers, error codes, personal names, and specialized terminology, keyword retrieval can be more reliable. Chapter 11 explores this distinction.
 
-## 6.3 四类表示方法
+## 6.3 Four approaches to representation
 
 ```mermaid
 flowchart LR
-    G1[静态词向量] --> G2[上下文词向量]
-    G2 --> G3[句向量 双塔]
-    G3 --> G4[后期交互 多向量]
+    G1[Static word vectors] --> G2[Contextual word vectors]
+    G2 --> G3[Sentence embeddings<br/>Bi-encoders]
+    G3 --> G4[Late interaction<br/>Multi-vector representations]
 ```
 
-上图和下文的“代”按技术思路组织，不是严格年代或替代顺序；双塔、多向量与 cross-encoder 仍可并存。
+The “generations” in this diagram and the discussion below organize technical ideas, not a strict chronology or replacement sequence. Bi-encoders, multi-vector models, and cross-encoders still coexist.
 
-### 6.3.1 第一代：静态词向量
+### 6.3.1 First generation: static word vectors
 
-代表：Word2Vec、GloVe、FastText。
+Examples: Word2Vec, GloVe, and FastText.
 
-**共同思想**：利用词的上下文分布学习表示，但训练目标不同。Word2Vec 的 CBOW/Skip-gram 预测中心词或上下文；FastText 在这类目标中加入字符子词信息；GloVe 则拟合全局词共现统计，使用加权最小二乘目标，不能都称为“预测上下文”。
+**Shared idea**: learn representations from the distribution of words in context, but with different objectives. Word2Vec's CBOW and Skip-gram predict a center word or its context; FastText adds character-level subword information to this family of objectives. GloVe instead fits global word co-occurrence statistics using a weighted least-squares objective. It is inaccurate to describe all of them as “predicting context.”
 
-**贡献**：以高效的分布式表示学习词语关系；此前已有 LSA 等语义表示方法，并非首次让语义相似度可计算。
+**Contribution**: learning word relationships through efficient distributed representations. Earlier semantic representation methods such as LSA already existed; static word vectors were not the first way to make semantic similarity computable.
 
-**致命局限**：**一词一向量，无法处理多义词。**
+**Critical limitation**: **one vector per word cannot distinguish multiple senses.**
 
-「苹果」在「吃苹果」和「苹果发布会」里含义不同，但静态词向量给它同一个表示，不能随本次语境区分词义；这不等于两种含义的算术平均。
+“苹果” means something different in “吃苹果” (eating an apple) and “苹果发布会” (an Apple launch event), but a static word vector gives it the same representation. It cannot distinguish the sense in the current context; this does not mean the vector is the arithmetic average of the two meanings.
 
-### 6.3.2 第二代：上下文相关的词向量
+### 6.3.2 Second generation: contextual word vectors
 
-代表：ELMo、BERT。
+Examples: ELMo and BERT.
 
-**核心突破**：**同一个词在不同句子里有不同的向量**。BERT 通过双向 Transformer 编码整个句子，每个 Token 的表示都依赖于它的具体上下文。
+**Key advance**: **the same word has different vectors in different sentences**. BERT encodes the entire sentence with a bidirectional Transformer, so each token's representation depends on its specific context.
 
-这缓解了一词一向量的限制，但不保证所有歧义都能正确消解。
+This alleviates the one-vector-per-word limitation, but does not guarantee that every ambiguity is resolved correctly.
 
-这里需要单独区分一个常见误解：
+A common misconception needs separate clarification:
 
-> **BERT 是编码器骨干，不等于某一种检索架构；未经句向量训练，直接池化通常不是好的检索基线。**
+> **BERT is an encoder backbone, not a particular retrieval architecture. Without sentence-embedding training, directly pooling its outputs is usually not a good retrieval baseline.**
 
-原因有两个：
+There are two reasons:
 
-**第一，原生 BERT 的句向量质量差。** 直接取 `[CLS]` 位置的向量或对所有 Token 向量做平均，得到的句向量在语义相似度任务上表现很差——因为 BERT 的预训练目标（掩码语言建模）**根本没有优化句子级的相似度**。
+**First, vanilla BERT produces poor sentence embeddings.** Taking the vector at the `[CLS]` position or averaging all token vectors produces sentence embeddings that perform poorly on semantic similarity tasks, because BERT's pretraining objective, masked language modeling, **does not optimize sentence-level similarity**.
 
-**第二，若采用 cross-encoder，就不能像双塔那样离线缓存整段文档表示用于直接打分。**
+**Second, a cross-encoder cannot cache a whole-document representation offline for direct scoring in the way a bi-encoder can.**
 
-BERT 可以分别编码文本，也可以把 Query 与文档拼接后微调为 cross-encoder。后者意味着：
+BERT can encode texts separately, or it can be fine-tuned as a cross-encoder over a concatenated query and document. The latter has the following implications:
 
 ```mermaid
 flowchart TB
-    subgraph CE[Cross-Encoder 交互式]
-        Q1[Query] --> CAT[拼接]
-        D1[文档] --> CAT
-        CAT --> M1[模型] --> S1[相似度分数]
-        N1[在线为每个文本对评分<br/>可批处理但计算量大]
+    subgraph CE[Cross-encoder<br/>Joint interaction]
+        Q1[Query] --> CAT[Concatenate]
+        D1[Document] --> CAT
+        CAT --> M1[Model] --> S1[Similarity score]
+        N1[Score every text pair online<br/>Batchable but compute-intensive]
     end
 
-    subgraph BE[Bi-Encoder 双塔]
-        Q2[Query] --> ME1[模型] --> V1[Query 向量]
-        D2[文档] --> ME2[模型] --> V2[文档向量<br/>离线预先算好]
-        V1 --> SIM[向量距离]
+    subgraph BE[Bi-encoder<br/>Independent encoding]
+        Q2[Query] --> ME1[Model] --> V1[Query vector]
+        D2[Document] --> ME2[Model] --> V2[Document vector<br/>Precomputed offline]
+        V1 --> SIM[Vector distance]
         V2 --> SIM
-        N2[文档向量离线算好<br/>在线只算 Query]
+        N2[Precompute document vectors offline<br/>Encode only the query online]
     end
 ```
 
-**百万级候选需要在线评分百万个文本对。** 批处理减少调用开销，但不能免去这些交互计算，因此通常先用可预计算文档表示的检索器缩小范围。
+**A million candidates require scoring a million text pairs online.** Batching reduces invocation overhead but does not eliminate these interaction computations. A retriever with precomputable document representations therefore usually narrows the candidate set first.
 
-### 6.3.3 第三代：专门优化的句向量模型（双塔）
+### 6.3.3 Third generation: purpose-trained sentence embedding models (bi-encoders)
 
-代表：Sentence-BERT、SimCSE、BGE、E5、GTE、Qwen3-Embedding。
+Examples: Sentence-BERT, SimCSE, BGE, E5, GTE, and Qwen3-Embedding.
 
-**两个关键改进：**
+**Two key improvements:**
 
-**改进一：架构改成双塔（bi-encoder）。** Query 和文档**分别独立编码**，各自得到一个向量，用向量距离衡量相似度。这样文档向量可以在离线阶段全部算好并建索引，在线只需算一次 Query 向量。
+**Improvement 1: use a bi-encoder architecture.** The query and document are **encoded independently**, producing one vector each, and vector distance measures their similarity. All document vectors can therefore be computed and indexed offline; online processing requires only one query encoding.
 
-**这是让向量检索在工程上可行的决定性一步。**
+**This is the decisive step that makes vector retrieval practical to engineer.**
 
-**改进二：训练目标对齐句子表示或检索任务。** 对比学习是常用路线：以相关 Query—文档或相似句对为正例，以不相关样本为负例。原始 Sentence-BERT 还比较了分类、相似度回归和三元组目标，不能把双塔架构等同于某一种损失函数。
+**Improvement 2: align the training objective with sentence representation or retrieval.** Contrastive learning is a common approach: relevant query–document pairs or similar sentence pairs are positives, and unrelated examples are negatives. The original Sentence-BERT paper also compared classification, similarity regression, and triplet objectives. A bi-encoder architecture must not be equated with any single loss function.
 
-无监督 SimCSE 展示了一个简洁的做法：**同一个句子过两次模型，用独立 Dropout 得到两个略有差异的向量，把这一对当作正样本**；同批其他句子作为负样本。论文还给出使用自然语言推断标签的监督版本。批内样本可能实际同义，需要留意假负例。
+Unsupervised SimCSE demonstrates a simple approach: **pass the same sentence through the model twice, use independent dropout to obtain two slightly different vectors, and treat them as a positive pair**. Other sentences in the batch provide negatives. The paper also presents a supervised version using natural language inference labels. Some in-batch examples may actually be paraphrases, so false negatives require attention.
 
-**这一代是当前 RAG 的标准配置。**
+**This generation is the standard configuration in current RAG systems.**
 
-**代价**：双塔在线编码时没有跨 Query—文档注意力，匹配依赖压缩后的表示；cross-encoder 通常能补充细粒度交互，但精度高低还取决于训练和领域匹配。
+**Tradeoff**: bi-encoder encoding has no cross-query–document attention at query time; matching relies on compressed representations. A cross-encoder can usually add fine-grained interaction, but relative accuracy still depends on training and domain fit.
 
-> **这正是 RAG 采用「双塔粗排 + cross-encoder 精排」两阶段架构的根本原因**——用双塔的速度缩小范围，用 cross-encoder 的精度定顺序。第一章 1.5 节的漏斗结构，在这里得到了技术上的解释。
+> **This is the technical reason behind RAG's two-stage architecture of “bi-encoder candidate ranking + cross-encoder reranking”**: use the bi-encoder's speed to narrow the search, then the cross-encoder's accuracy to order the candidates. It explains the funnel introduced in Chapter 1, Section 1.5.
 
-### 6.3.4 第四代：后期交互与多向量
+### 6.3.4 Fourth generation: late interaction and multi-vector representations
 
-代表：ColBERT、ColBERTv2、ColPali。
+Examples: ColBERT, ColBERTv2, and ColPali.
 
-**核心思想**：在「单向量双塔」和「拼接式 cross-encoder」之间取中间路线。
+**Core idea**: take a middle path between a single-vector bi-encoder and a concatenation-based cross-encoder.
 
-文档不再压缩成**一个**向量，而是保留**每个 Token 的向量**。检索时计算 Query 每个 Token 与文档所有 Token 向量的最大相似度，再求和。
+Instead of compressing a document into **one** vector, retain **a vector for each token**. At retrieval time, find each query token's maximum similarity to any document token vector, then sum these maxima.
 
 ```mermaid
 flowchart TB
-    A[单向量双塔] -->|保留更多细粒度表示| B[后期交互 多向量]
-    B -->|增加在线跨文本交互| C[Cross-Encoder]
-    A -.->|文档压成 1 个向量| A1[细粒度信息丢失]
-    B -.->|文档保留 N 个向量| B1[空间由数量、维度<br/>数据类型与压缩共同决定]
-    C -.->|Query 文档拼接| C1[无法离线预计算]
+    A[Single-vector bi-encoder] -->|Retain more<br/>fine-grained representations| B[Late interaction<br/>Multi-vector representations]
+    B -->|Add online<br/>cross-text interaction| C[Cross-encoder]
+    A -.->|Compress document<br/>into 1 vector| A1[Fine-grained information lost]
+    B -.->|Retain N vectors<br/>per document| B1[Storage depends on vector count,<br/>dimensions, data type, and compression]
+    C -.->|Concatenate query<br/>and document| C1[Cannot precompute<br/>joint representations offline]
 ```
 
-**优点**：保留 Token 级匹配信息，同时文档表示仍可离线预计算。ColBERT 系论文在所测检索任务上展示了收益，但不能推出任意多向量模型都胜过单向量模型，或必然接近 cross-encoder。
+**Benefit**: preserve token-level matching information while still precomputing document representations offline. Papers in the ColBERT family demonstrate gains on their evaluated retrieval tasks, but this does not establish that every multi-vector model beats a single-vector model or necessarily approaches a cross-encoder.
 
-代价是每文档多向量的存储与匹配；实际倍数取决于 Token 数、维度和压缩。ColBERTv2 论文使用残差压缩，不能把未经压缩的向量数量比直接当作总成本比。
+The cost is storing and matching multiple vectors per document. The actual multiplier depends on token count, dimensions, and compression. ColBERTv2 uses residual compression, so the ratio of uncompressed vector counts is not a valid ratio of total costs.
 
-**第四代的一个重要衍生是把它用到视觉上**：直接对文档**页面图像**做多向量嵌入，绕开 OCR 和版面解析（第三章 3.5 节讨论过）。
+**An important extension of this generation applies it to vision**: embed document **page images** directly as multiple vectors, bypassing OCR and layout parsing, as discussed in Chapter 3, Section 3.5.
 
-## 6.4 相似度怎么算
+## 6.4 How is similarity calculated?
 
-| 度量 | 说明 | 备注 |
+| Metric | Meaning | Notes |
 |---|---|---|
-| 余弦相似度 | 只看方向不看长度 | RAG 最常用 |
-| 点积 | 同时受方向和模长影响 | 归一化后与余弦等价 |
-| 欧氏距离 | 空间直线距离 | 归一化后与余弦单调等价 |
+| Cosine similarity | Considers direction, not length | Most common in RAG |
+| Dot product | Depends on both direction and magnitude | Equivalent to cosine after normalization |
+| Euclidean distance | Straight-line distance in vector space | Monotonically equivalent to cosine after normalization |
 
-**实践要点**：不要假定输出已归一化，先按模型卡检查。对两端 L2 归一化的非零向量，点积等于余弦，平方欧氏距离等于 `2 − 2 × 点积`，因此精确排序等价；ANN 实现和量化仍可能产生不同候选。未归一化时点积受模长影响，不能直接换度量。查询算子还必须匹配数据库索引，否则可能不走索引，而非一定算错。
+**Practical rule**: do not assume outputs are normalized; check the model card first. For two nonzero, L2-normalized vectors, the dot product equals cosine similarity, and squared Euclidean distance equals `2 − 2 × dot product`, so exact rankings are equivalent. ANN implementations and quantization may still produce different candidates. Without normalization, the dot product depends on magnitude, so metrics are not interchangeable. The query operator must also match the database index; a mismatch may prevent index use rather than necessarily produce an incorrect calculation.
 
-## 6.5 使用时的几个硬性约束
+## 6.5 Hard constraints in practice
 
-### 6.5.1 建库和查询必须用兼容的编码器对
+### 6.5.1 Indexing and querying require a compatible encoder pair
 
-不同模型的向量位于不同的语义空间，跨空间计算距离**没有任何意义**，且不会报错——只会静默地返回一堆不相关结果。
+Vectors from different models occupy different semantic spaces. Computing distances across incompatible spaces **has no meaningful interpretation**, yet raises no error: it silently returns unrelated results.
 
-共同训练的双塔可以使用不同权重，例如 DPR 的 Query 与 Passage 编码器。若 Document 表示变化，通常要重嵌入和迁移索引；仅改变 Query 侧但仍保持兼容时，不必一概重建。兼容性由模型契约和回归评测保证，不由维度相同保证。
+Jointly trained bi-encoders may use different weights, as DPR does for its query and passage encoders. If document representations change, re-embedding and index migration are usually necessary. A query-only change that preserves compatibility does not automatically require rebuilding the index. Compatibility comes from the model contract and regression evaluation, not matching dimensions.
 
-### 6.5.2 注意输入长度上限
+### 6.5.2 Check input length limits
 
-输入上限依模型和服务配置而异，不能统一记为 512 Token；超长可能报错或被 tokenizer 截断。对照模型卡检查最大长度、前缀和特殊 Token，并在入库时监控截断。
+Input limits vary by model and service configuration; 512 tokens is not a universal limit. Oversized inputs may cause an error or be truncated by the tokenizer. Check the model card for maximum length, prefixes, and special tokens, and monitor truncation during ingestion.
 
-### 6.5.3 注意指令前缀
+### 6.5.3 Check instruction prefixes
 
-不少现代 Embedding 模型（E5、BGE、Qwen3-Embedding 系列）要求给 Query 加特定前缀（如 `query:` / `为这个句子生成表示以用于检索相关文章：`），而文档不加或加另一个前缀。
+Embedding models differ in their query and document input conventions. Models such as E5 and BGE may specify particular prefixes or instructions, such as `query:` or `为这个句子生成表示以用于检索相关文章：` (“generate a representation of this sentence for retrieving relevant articles”); documents may take no prefix or a different one. Follow the particular model card. The [official Qwen3-Embedding model card](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) recommends task instructions for queries, but that does not mean an instruction-free call is invalid.
 
-**不按模型卡的要求加前缀，会明显掉点。** 这是实践中极常见的低级错误。
+**Omitting an applicable prefix or instruction can reduce performance, but the effect depends on the model and task. Follow the model card and evaluate on the target query set.** Retrieval-quality guidance is not the same as an API input-validity requirement.
 
-### 6.5.4 对称与非对称检索是两回事
+### 6.5.4 Symmetric and asymmetric retrieval are different tasks
 
-| 类型 | 场景 | 说明 |
+| Type | Scenario | Explanation |
 |---|---|---|
-| 对称检索 | 句子 vs 句子 | 两侧长度和形式相近，如相似问题匹配 |
-| 非对称检索 | 短 Query vs 长文档 | **RAG 的典型场景** |
+| Symmetric retrieval | Sentence vs. sentence | Similar lengths and forms on both sides, such as matching similar questions |
+| Asymmetric retrieval | Short query vs. long document | **The typical RAG scenario** |
 
-**RAG 需要的是非对称检索能力。** 用在对称任务上训练的模型做 RAG，效果会打折扣——这也是为什么不能只看模型在通用相似度榜单上的分数。
+**RAG needs asymmetric retrieval capability.** A model trained on symmetric tasks can be less effective for RAG, which is another reason not to rely solely on general-purpose similarity leaderboard scores.
 
-## 6.6 常见错误
+## 6.6 Common mistakes
 
-### 6.6.1 说「BERT 就能做 RAG 检索」
+### 6.6.1 Saying “BERT can handle RAG retrieval”
 
-BERT 可用作双塔或重排骨干；问题在于是否经过适合的检索训练，以及能否预计算文档，而不是骨干名字。
+BERT can be the backbone of a bi-encoder or reranker. The questions are whether it has suitable retrieval training and whether document representations can be precomputed, not what the backbone is called.
 
-### 6.6.2 不知道为什么需要双塔
+### 6.6.2 Not knowing why a bi-encoder is needed
 
-答不出「文档向量必须能离线预计算」，说明没理解检索的工程约束。
+If you cannot explain that document vectors must be precomputable offline, you have missed a central engineering constraint of retrieval.
 
-### 6.6.3 把 Embedding 模型和 Rerank 模型混为一谈
+### 6.6.3 Conflating embedding models with reranking models
 
-Embedding 是表示方式，Rerank 是流水线阶段；常见重排采用 cross-encoder，也可采用多向量精确打分或 LLM 排序，不能把两者当作一一对应的架构名称。
+Embedding is a representation method; reranking is a pipeline stage. Reranking commonly uses a cross-encoder, but it may also use exact multi-vector scoring or LLM-based ranking. These are not one-to-one architecture names.
 
-### 6.6.4 忘记加指令前缀
+### 6.6.4 Forgetting instruction prefixes
 
-模型卡明确要求的前缀不加，会明显掉点。
+Omitting prefixes explicitly required by the model card can substantially reduce performance.
 
-### 6.6.5 混用不同模型的向量
+### 6.6.5 Mixing vectors from incompatible models
 
-不报错，但结果全错。
+No error is raised, but the results are wrong.
 
-### 6.6.6 只记模型名不讲演进逻辑
+### 6.6.6 Listing model names without explaining the progression
 
-「有 Word2Vec、BERT、BGE」这种罗列没有信息量。**要说清每一代解决了上一代的什么问题。**
+A list such as “Word2Vec, BERT, BGE” tells the listener little. **Explain which limitation of the preceding approach each generation addresses.**
 
-## 6.7 本章总结
+## 6.7 Summary
 
-1. **Embedding 把文本映射为稠密向量，让语义相似度可计算**；这个性质来自训练目标，不是自动出现的；
-2. **第一代**静态词向量解决了「语义可计算」，但**一词一向量、无法处理多义**；
-3. **上下文词向量**缓解多义性；BERT 可作为不同检索架构的骨干，直接池化不等于已训练好的检索表示；
-4. **双塔句向量模型**是常用方案：架构上可离线预计算，训练上对齐句子或检索任务；对比学习不是唯一目标；
-5. **后期交互**保留 Token 级匹配；空间与算力取决于向量数、维度和压缩率，ColBERTv2 的压缩也应计入比较；
-6. **两阶段架构的技术根源**：先复用文档表示缩小范围，再为候选增加交互计算；质量收益仍要评测；
-7. **硬性约束**：兼容编码器对、实际长度预算、模型指定前缀与度量，并区分对称和非对称任务。
+1. **Embeddings map text to dense vectors, making semantic similarity computable**. This property comes from the training objective, not automatically from vectorization.
+2. **First-generation static word vectors** provided computable semantic representations, but **one vector per word cannot distinguish multiple senses**.
+3. **Contextual word vectors** alleviate ambiguity. BERT can underpin different retrieval architectures; direct pooling is not equivalent to a trained retrieval representation.
+4. **Bi-encoder sentence embedding models** are widely used: their architecture supports offline precomputation, and their training targets sentence representation or retrieval. Contrastive learning is not the only objective.
+5. **Late interaction** preserves token-level matching. Storage and computation depend on vector count, dimensions, and compression; ColBERTv2's compression must be included in comparisons.
+6. **The technical basis for a two-stage architecture** is to reuse document representations to narrow the search, then add interaction computation for the candidates. Quality gains still require evaluation.
+7. **Hard constraints** include compatible encoder pairs, actual length budgets, model-specific prefixes and metrics, and the distinction between symmetric and asymmetric tasks.
 
 
-## 参考资料
+## References
 
 - [Efficient Estimation of Word Representations in Vector Space](https://arxiv.org/abs/1301.3781)
-- [Stanford GloVe：全局共现统计与加权最小二乘目标](https://nlp.stanford.edu/projects/glove/)
+- [Stanford GloVe: global co-occurrence statistics and a weighted least-squares objective](https://nlp.stanford.edu/projects/glove/)
 - [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805)
 - [Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks](https://arxiv.org/abs/1908.10084)
 - [SimCSE: Simple Contrastive Learning of Sentence Embeddings](https://arxiv.org/abs/2104.08821)

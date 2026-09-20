@@ -1,14 +1,14 @@
 ---
-description: 解释 RAG 的外部证据机制与能力边界，比较微调、长上下文和检索的质量、更新与成本取舍。
+description: Understand RAG's external-evidence mechanism and limits, and compare the quality, update, and cost tradeoffs of fine-tuning, long context, and retrieval.
 ---
 
-# RAG · 基础与选型
+# RAG · Foundations and Architecture Choices
 
-理解 RAG 的价值，以及与微调和长上下文的取舍。
+Understand the value of RAG and its tradeoffs with fine-tuning and long context.
 
-## 章节
+## Chapters
 
-1. [第一章：RAG 是什么，解决什么问题](01-what-is-rag.md)
-2. [第二章：RAG、微调与长上下文的三方取舍](02-rag-finetune-longcontext.md)
+1. [Chapter 1: What RAG Is and What Problems It Solves](01-what-is-rag.md)
+2. [Chapter 2: Tradeoffs Between RAG, Fine-Tuning, and Long Context](02-rag-finetune-longcontext.md)
 
-返回 [RAG 相关知识点](../README.md)。
+Back to [RAG Topics](../README.md).
