@@ -1,122 +1,122 @@
 ---
-description: 审查模型及依赖的来源与加载链路，解释 PyTorch weights_only、safetensors、签名和物料清单各自能保证什么。
+description: Review the provenance and loading of models and dependencies, and distinguish the guarantees provided by PyTorch weights_only, safetensors, signatures, and bills of materials.
 ---
 
-# 第五章：模型供应链与序列化风险
+# Chapter 5: Model Supply Chains and Serialization Risks
 
-## 5.1 模型也是一种依赖
+## 5.1 Models Are Dependencies Too
 
-现代 AI 应用很少从零训练模型，而是从模型仓库（Hugging Face、云厂商模型市场等）下载预训练权重、适配器（LoRA）、Tokenizer 和评测脚本，再叠加自己的微调和 Prompt 工程。这意味着**模型和它的配套文件应该被当作软件依赖来管理**，需要与开源库依赖同等级别的供应链治理——但现实中很多团队只对代码依赖做扫描，对模型文件毫无审查。OWASP 将其列为 LLM03（Supply Chain Vulnerabilities）。
+Modern AI applications rarely train models from scratch. They download pretrained weights, adapters such as LoRA, tokenizers, and evaluation scripts from repositories such as Hugging Face or cloud-provider model marketplaces, then add their own fine-tuning and prompt engineering. **Models and their accompanying files should therefore be managed as software dependencies**, with supply chain governance comparable to that applied to open-source libraries. In practice, many teams scan code dependencies while leaving model files entirely unreviewed. OWASP lists this risk as LLM03, Supply Chain Vulnerabilities.
 
 ```mermaid
 flowchart TB
-    subgraph SC["模型供应链"]
-        S1[预训练权重来源] --> S2[微调/LoRA 适配器]
-        S2 --> S3[Tokenizer/配置文件]
-        S3 --> S4[推理框架/依赖库]
+    subgraph SC["Model supply chain"]
+        S1[Source of pretrained weights] --> S2[Fine-tuning/LoRA adapters]
+        S2 --> S3[Tokenizer/configuration files]
+        S3 --> S4[Inference framework/dependencies]
     end
-    SC --> R1[来源篡改<br/>5.2]
-    SC --> R2[反序列化 RCE<br/>5.3]
-    SC --> R3[依赖投毒<br/>5.4]
-    R1 --> D[防御：签名/出处/ML-BOM<br/>5.5]
+    SC --> R1[Source tampering<br/>5.2]
+    SC --> R2[Deserialization RCE<br/>5.3]
+    SC --> R3[Dependency poisoning<br/>5.4]
+    R1 --> D[Defenses: signatures/provenance/ML-BOM<br/>5.5]
     R2 --> D
     R3 --> D
 ```
 
-## 5.2 来源篡改：模型仓库不是可信根
+## 5.2 Source Tampering: A Model Repository Is Not a Root of Trust
 
-任何人都可以在公开模型仓库上传文件，仓库平台的「下载量」「点赞数」不构成安全审查。已被公开报告的风险包括：
+Anyone can upload files to a public model repository. Download counts and likes are not a security review. Publicly reported risks include:
 
-- **仿冒模型**：上传与知名模型同名或极相似名称的权重，内容被植入后门（见第四章）或直接是恶意程序；
-- **看似正常但携带后门的微调版本**：某个热门开源模型的「优化版」实际上被植入了触发器；
-- **账号劫持后的恶意更新**：合法维护者账号被盗后，原本可信的模型条目被替换为恶意版本，而下游应用如果没有锁定具体版本/哈希，会静默拉取新内容。
+- **Impersonated models:** weights uploaded under a name identical or very similar to a well-known model may contain a backdoor (see Chapter 4) or simply be malware.
+- **Apparently normal fine-tuned versions with backdoors:** an “optimized” version of a popular open-source model may contain a hidden trigger.
+- **Malicious updates after account compromise:** after a legitimate maintainer's account is stolen, a previously trusted model entry may be replaced with a malicious version. Downstream applications that do not pin a version or hash silently fetch the new content.
 
-**防御**：拉取模型前验证发布者身份（组织认证、历史提交记录）；锁定具体的 commit hash 或版本号而非 `latest`/`main` 分支；对权重文件计算并核对哈希；内部维护一份「已审查模型」的私有镜像仓库，生产环境只允许从私有镜像拉取。
+**Defense:** verify the publisher's identity before fetching a model, using organization verification and commit history. Pin a specific commit hash or version rather than following `latest` or `main`. Compute and verify hashes of weight files. Maintain an internal private mirror of reviewed models, and allow production systems to fetch only from that mirror.
 
-## 5.3 反序列化风险：Pickle 与安全格式的选择
+## 5.3 Deserialization Risks: Pickle and Safer Formats
 
-PyTorch 检查点常含 Pickle 元数据，而**通用 Pickle 反序列化可以执行代码**。但不能把任意 `.pt`/`.bin` 文件或所有 `torch.load()` 调用都描述为同一种执行路径：扩展名不决定内容与加载器，限制模式也影响可执行能力。
+PyTorch checkpoints often contain pickle metadata, and **general-purpose pickle deserialization can execute code**. However, not every `.pt` or `.bin` file, nor every `torch.load()` call, follows the same execution path. The extension does not determine the content or loader, and restricted loading modes affect what can execute.
 
-PyTorch 2.6 起，未传入 `pickle_module` 时，`torch.load` 默认采用 `weights_only=True`，限制可构造类型并禁止动态导入。它是攻击面缩减措施，不是完整沙箱；拒绝服务、解析器缺陷和不安全 allowlist 仍需防范。不能为消除报错就无审查地切换 `weights_only=False`。
+Starting with PyTorch 2.6, `torch.load` defaults to `weights_only=True` when `pickle_module` is not supplied. This restricts the types that can be constructed and prohibits dynamic imports. It reduces the attack surface but is not a complete sandbox: denial of service, parser defects, and unsafe allowlists remain concerns. Do not switch to `weights_only=False` without review merely to eliminate an error.
 
 ```mermaid
 sequenceDiagram
-    participant A as 攻击者
-    participant F as 恶意 .pt/.bin 文件
-    participant V as 受害者环境
-    A->>F: 构造带 __reduce__ 的对象并 pickle
-    V->>F: 不受限的 Pickle 加载<br/>例如 weights_only=False
-    F-->>V: 反序列化时执行任意代码
+    participant A as Attacker
+    participant F as Malicious .pt/.bin file
+    participant V as Victim environment
+    A->>F: Construct and pickle an object with __reduce__
+    V->>F: Unrestricted pickle loading<br/>For example, weights_only=False
+    F-->>V: Arbitrary code executes during deserialization
 ```
 
-**防御要点**：
+**Key defenses:**
 
-- **优先使用不可执行代码的序列化格式**，例如 `safetensors`——它只存储张量数据，不支持任意 Python 对象反序列化，从格式层面消除了这一类风险；
-- 必须处理历史 Pickle 时，先验证来源并扫描，再在无凭据、受限网络与资源的隔离环境处理；静态扫描无告警不等于可安全执行；
-- 框架层面优先使用支持 `weights_only=True` 等安全加载模式的新版本 API，并保持推理框架本身的及时更新，历史上多个推理框架都修复过与模型加载相关的反序列化漏洞；
-- 不要因为「文件扩展名是 .bin/.pt 看起来像模型」就降低警惕，模型文件的可信度评估标准应该与任意可执行文件一致。
+- **Prefer serialization formats that do not execute code**, such as `safetensors`. It stores tensor data and does not support deserializing arbitrary Python objects, eliminating this class of risk at the format level.
+- If legacy pickle files must be processed, verify their source and scan them first, then process them in an isolated environment without credentials and with restricted networking and resources. A clean static scan does not mean execution is safe.
+- Prefer newer framework APIs with restricted loading modes such as `weights_only=True`, and keep the inference framework itself updated. Multiple frameworks have historically fixed deserialization vulnerabilities related to model loading.
+- Do not lower scrutiny because a `.bin` or `.pt` extension makes a file look like a model. Assess its trustworthiness as carefully as that of any executable.
 
-## 5.4 依赖与工具链投毒
+## 5.4 Dependency and Toolchain Poisoning
 
-模型之外，整个 AI 应用的依赖链同样是攻击面：
+Beyond the model itself, the application's entire dependency chain is an attack surface:
 
-| 风险 | 说明 |
+| Risk | Explanation |
 |---|---|
-| 依赖混淆（Dependency Confusion） | 内部私有包名被发布到公共仓库的同名恶意包抢注，构建时被错误拉取公共版本 |
-| 恶意 MCP Server / Tool 包 | 与 [Tool Protocol 安全 15.3.2](../../tools/02-mcp/15-tool-protocol-security.md) 描述的工具投毒相同思路，扩展到「工具本身作为软件包分发」的场景，需在安装前审查来源、版本与请求权限 |
-| 恶意评测/预处理脚本 | 模型仓库附带的 `tokenizer.py`、自定义 `modeling_*.py` 等「远程代码」（`trust_remote_code`）文件本身可以包含任意逻辑 |
-| CI/CD 供应链 | 模型训练、评测、发布流水线中的任一环节（构建镜像、依赖安装脚本）被污染，都能影响最终产出物 |
+| Dependency confusion | An attacker publishes a malicious public package with the same name as an internal private package, and the build mistakenly retrieves the public version |
+| Malicious MCP server / tool packages | Extends the tool-poisoning problem in [Tool Protocol Security, Section 15.3.2](../../tools/02-mcp/15-tool-protocol-security.md) to tools distributed as software packages; review provenance, versions, and requested permissions before installation |
+| Malicious evaluation / preprocessing scripts | Repository-provided remote code, such as `tokenizer.py` or custom `modeling_*.py` files loaded with `trust_remote_code`, can contain arbitrary logic |
+| CI/CD supply chain | Contamination at any stage of model training, evaluation, or release—such as a build image or dependency installation script—can affect the final artifact |
 
-**关于「远程自定义代码」的特别提醒**：部分模型仓库允许模型附带自定义 Python 代码（用于自定义架构或 Tokenizer 逻辑），加载时如果开启了信任远程代码的选项，这段代码会被直接执行——这和执行任意脚本没有区别，应仅对来源明确、经过审查的模型开启，且应在隔离环境中首次执行。
+**A specific warning about custom remote code:** some repositories ship custom Python code to implement a model architecture or tokenizer. Enabling the option to trust remote code executes it directly. This is no different from running an arbitrary script. Enable it only for reviewed models with established provenance, and run it for the first time in an isolated environment.
 
-## 5.5 出处、签名与 ML-BOM
+## 5.5 Provenance, Signatures, and ML-BOMs
 
-供应链治理让来源和完整性可核验，但仍依赖可信发布者、构建环境及验证策略。攻击者与文件一起提供的哈希没有独立可信度；签名只能证明受信身份签过这些字节，不能证明权重无后门或数据许可合法。`safetensors` 不执行任意 Python 对象，但不能阻止伴随的远程代码、推理框架缺陷或模型行为后门。
+Supply chain governance makes provenance and integrity verifiable, but still depends on trusted publishers, build environments, and verification policies. A hash supplied by an attacker alongside the file has no independent credibility. A signature proves only that a trusted identity signed those bytes; it does not prove that weights are backdoor-free or that the data license is valid. `safetensors` does not execute arbitrary Python objects, but it cannot prevent accompanying remote code, inference-framework defects, or behavioral backdoors in the model.
 
-| 手段 | 作用 |
+| Mechanism | Purpose |
 |---|---|
-| **模型签名** | 对发布的模型文件做数字签名（如基于 Sigstore 一类的透明签名生态），下游在加载前验证签名与发布者身份 |
-| **ML-BOM（Machine Learning Bill of Materials）** | 参照软件 SBOM 的思路，记录模型的训练数据来源、基础模型血缘、依赖库版本、评测结果，作为可审计的物料清单 |
-| **模型卡/数据集卡** | 记录用途、已知局限、训练数据特征、评测结果，是治理和事后追责的基础文档（详见第十章） |
-| **可复现构建/训练记录** | 记录代码、环境、数据与种子；分布式训练不一定逐位复现，需声明可重复的指标与容差 |
-| **内部制品库** | 私有镜像仓库统一管理已审查通过的模型、适配器和工具版本，生产环境禁止直接从公网拉取 |
+| **Model signatures** | Digitally sign released model files, for example through a transparent signing ecosystem such as Sigstore, so downstream users can verify both the signature and publisher identity before loading |
+| **ML-BOM (Machine Learning Bill of Materials)** | Apply the software SBOM idea to record training data provenance, base-model lineage, dependency versions, and evaluation results in an auditable inventory |
+| **Model cards / dataset cards** | Document intended uses, known limitations, training data characteristics, and evaluation results as a basis for governance and accountability (see Chapter 10) |
+| **Reproducible build / training records** | Record code, environment, data, and seeds; distributed training may not reproduce bit for bit, so declare which metrics are repeatable and the permitted tolerances |
+| **Internal artifact repository** | Centrally manage reviewed versions of models, adapters, and tools in a private mirror, prohibiting direct production downloads from the public internet |
 
-## 5.6 上线检查表
+## 5.6 Launch Checklist
 
-- [ ] 模型、适配器、Tokenizer 均锁定具体版本/哈希，而非跟随最新分支自动更新；
-- [ ] 生产环境模型来自内部已审查的私有镜像，而非直接从公网仓库拉取；
-- [ ] 优先使用张量数据格式；历史 Pickle 做来源验证、扫描和隔离，不把扫描当作沙箱替代；
-- [ ] 默认关闭「信任远程自定义代码」，确需开启时仅对审查过的来源放行；
-- [ ] 依赖扫描覆盖模型文件、工具包、MCP Server 及其传递依赖，防范依赖混淆；
-- [ ] 关键模型具备可复现构建记录或 ML-BOM，供事后审计。
+- [ ] Models, adapters, and tokenizers are pinned to specific versions or hashes rather than automatically following the latest branch.
+- [ ] Production models come from an internal, reviewed private mirror rather than directly from public repositories.
+- [ ] Tensor data formats are preferred. Legacy pickle is subject to provenance verification, scanning, and isolation; a scan is not a substitute for a sandbox.
+- [ ] Trust in custom remote code is disabled by default and enabled only for reviewed sources when necessary.
+- [ ] Dependency scanning covers model files, tool packages, MCP servers, and their transitive dependencies, including defenses against dependency confusion.
+- [ ] Critical models have reproducible build records or an ML-BOM for later auditing.
 
-## 5.7 常见错误
+## 5.7 Common Mistakes
 
-### 5.7.1 只扫描代码依赖，不扫描模型文件
+### 5.7.1 Scanning Code Dependencies but Not Model Files
 
-模型权重、适配器、Tokenizer 配置都应纳入供应链安全管理范围，与代码依赖同等对待。
+Model weights, adapters, and tokenizer configurations all belong in supply chain security management, on the same footing as code dependencies.
 
-### 5.7.2 认为下载量高、点赞多的模型天然可信
+### 5.7.2 Assuming Popular Models Are Inherently Trustworthy
 
-平台的热度指标不构成安全审查，账号劫持和仿冒模型在热门条目上同样会发生。
+Popularity metrics are not a security review. Account compromise and impersonation affect popular listings too.
 
-### 5.7.3 默认信任远程自定义代码
+### 5.7.3 Trusting Custom Remote Code by Default
 
-开启该选项等同于执行任意脚本，必须仅对来源明确、经过审查的模型开启。
+Enabling this option is equivalent to running an arbitrary script. Restrict it to reviewed models with established provenance.
 
-### 5.7.4 混淆"模型来源可信"与"文件格式安全"
+### 5.7.4 Confusing a Trusted Model Source with a Safe File Format
 
-即便模型来源可信，pickle 格式本身的反序列化机制依然存在被篡改利用的风险，两者需要分别把关。
+Even when a model's source is trusted, pickle's deserialization mechanism can still be exploited if the artifact is tampered with. Source trust and format safety require separate checks.
 
-## 5.8 本章总结
+## 5.8 Chapter Summary
 
-1. 模型、适配器、Tokenizer 和相关脚本应被当作软件依赖管理，供应链风险覆盖来源篡改、反序列化漏洞和依赖投毒三类；
-2. 模型仓库的热度指标不构成安全审查，应验证发布者身份、锁定版本哈希，并优先使用内部审查过的私有镜像；
-3. Pickle 格式的反序列化机制本身可执行任意代码，应优先迁移到 `safetensors` 等不可执行代码的格式；
-4. 「信任远程自定义代码」选项等同于执行任意脚本，默认应关闭；
-5. 模型签名、ML-BOM、模型卡和可复现构建是让供应链可验证、可审计的核心手段，为第十章的治理与审计提供基础物料。
+1. Manage models, adapters, tokenizers, and associated scripts as software dependencies. Supply chain risks include source tampering, deserialization vulnerabilities, and dependency poisoning.
+2. Repository popularity is not a security review. Verify publisher identity, pin version hashes, and prefer internally reviewed private mirrors.
+3. Pickle deserialization can execute arbitrary code. Prefer migration to non-code-executing formats such as `safetensors`.
+4. Trusting custom remote code is equivalent to running an arbitrary script and should be disabled by default.
+5. Model signatures, ML-BOMs, model cards, and reproducible builds make the supply chain verifiable and auditable, providing the foundational records for the governance and auditing discussed in Chapter 10.
 
-## 参考资料
+## References
 
 - [OWASP LLM03:2025 Supply Chain](https://genai.owasp.org/llmrisk/llm032025-supply-chain/)
 - [Hugging Face: Pickle Scanning and Safetensors](https://huggingface.co/docs/hub/security-pickle)

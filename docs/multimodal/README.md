@@ -1,30 +1,30 @@
 ---
-description: 多模态面试知识索引，按融合架构、视觉文档、语音交互、图像视频生成及数据评测组织十章内容。
+description: Ten chapters on multimodal engineering, covering fusion architectures, vision and documents, speech interaction, image and video generation, training data, and evaluation.
 ---
 
-# 多模态相关知识点
+# Multimodal Models and Systems
 
-本主题覆盖图像、音频、视频等模态如何被理解、定位、生成，以及围绕这些能力的训练数据、评测、安全与服务问题。基础架构问题（融合位置、统一 Token 化）之上，按视觉、语音、生成三条能力线展开，最后收敛到训练数据与投产前的评测/安全/服务环节。
+This topic examines how models understand, ground, and generate images, audio, video, and other modalities, along with the training data, evaluation, safety, and serving questions these capabilities raise. It starts with architectural choices—where to fuse modalities and how to tokenize them within a shared framework—then follows three paths: vision, speech, and generation. The final module brings them together through training data and the evaluation, safety, and serving decisions needed before deployment.
 
-内容以各章列出的原论文和官方文档为依据。代表模型用于解释机制，不作为最新型号或性能排名；未公开架构不根据产品名称推断。复习时应能说明输入输出、训练信号、失败条件，以及用什么对照实验验证自己的判断。
+The material draws on the original papers and official documentation listed in each chapter. Representative models illustrate mechanisms; they are neither a list of the latest releases nor a performance ranking. A product name is not evidence of an undisclosed architecture. When reviewing, be ready to explain the inputs and outputs, training signals, failure conditions, and controlled comparisons that would test your conclusions.
 
-## 子模块
+## Modules
 
-1. [基础与架构（第 1 章）](01-foundations/README.md)
-2. [视觉与文档智能（第 2–4 章）](02-vision-document/README.md)
-3. [语音与音频（第 5–6 章）](03-speech-audio/README.md)
-4. [多模态生成（第 7–8 章）](04-generation/README.md)
-5. [训练数据、评测与服务（第 9–10 章）](05-data-training-evaluation/README.md)
+1. [Foundations and Architecture (Chapter 1)](01-foundations/README.md)
+2. [Vision and Document Intelligence (Chapters 2–4)](02-vision-document/README.md)
+3. [Speech and Audio (Chapters 5–6)](03-speech-audio/README.md)
+4. [Multimodal Generation (Chapters 7–8)](04-generation/README.md)
+5. [Training Data, Evaluation, and Serving (Chapters 9–10)](05-data-training-evaluation/README.md)
 
-## 模块关系
+## How the Modules Connect
 
 ```mermaid
 flowchart TB
-    F["基础与架构<br/>融合架构 / 统一 Token 化"]
-    V["视觉与文档智能<br/>VLM / Grounding / OCR / Computer Use"]
-    S["语音与音频<br/>ASR / TTS / 全双工对话"]
-    G["多模态生成<br/>扩散 / Flow Matching / 图像 / 视频"]
-    D["训练数据、评测与服务"]
+    F["Foundations and Architecture<br/>Fusion / Unified Tokenization"]
+    V["Vision and Document Intelligence<br/>VLM / Grounding / OCR / Computer Use"]
+    S["Speech and Audio<br/>ASR / TTS / Full-Duplex Conversation"]
+    G["Multimodal Generation<br/>Diffusion / Flow Matching / Images / Video"]
+    D["Training Data, Evaluation,<br/>and Serving"]
 
     F --> V
     F --> S
@@ -34,25 +34,25 @@ flowchart TB
     G --> D
 ```
 
-基础与架构模块解决"模态信号如何接入模型"这一公共问题，视觉、语音、生成三个模块在此基础上分别展开理解、交互和生成能力，最后训练数据与评测/安全/服务模块收敛所有模块共同面对的投产前验证问题。
+Foundations and Architecture addresses the shared question of how modality signals enter a model. Vision, Speech, and Generation then develop the corresponding understanding, interaction, and generation capabilities. The final module covers the training data and evaluation, safety, and serving checks that all three paths need before production.
 
-## 与其他主题的关系：本主题只讲多模态特有的部分
+## Scope Across Topics: What Is Specific to Multimodality?
 
-多模态相关内容分散在多个主题中，为避免重复展开，仓库约定了以下"详解归属地"：
+Multimodal material appears in several topics. To avoid repeating the same explanations, the repository assigns detailed coverage as follows:
 
-| 概念 | 详解归属 | 本主题的角色 |
+| Concept | Detailed coverage | Role of this topic |
 |---|---|---|
-| 多模态模型概览 | LLM 第 06 模块 | 在整体训练、推理、评测与安全框架上，按视觉、语音和生成能力展开 |
-| 多模态 RAG 的摄取/表示/检索/Grounding/评测 | RAG 第 04 模块 | 本主题的[视觉与文档智能](02-vision-document/README.md)聚焦模型本身的架构与坐标定位能力；RAG 侧重把这些能力接入检索增强生成的工程链路 |
-| Agent 安全的通用威胁模型与防御模式 | Agent 第 05 模块 | 本主题的 [Computer Use](02-vision-document/04-computer-use.md) 只补充截图类输入和不可逆动作带来的额外风险 |
-| 实时传输协议（SSE/WebSocket/WebRTC） | Tools 第 05 模块 | 本主题的[实时全双工语音](03-speech-audio/06-realtime-duplex-voice.md)讨论模型与会话控制，包括持续监听、打断后的播放和上下文同步 |
+| Overview of multimodal models | LLM, Module 06 | Develop vision, speech, and generation capabilities within the broader framework of training, inference, evaluation, and safety. |
+| Ingestion, representation, retrieval, grounding, and evaluation for multimodal RAG | RAG, Module 04 | [Vision and Document Intelligence](02-vision-document/README.md) focuses on model architecture and coordinate-based localization. RAG focuses on incorporating these capabilities into a retrieval-augmented generation pipeline. |
+| General threat models and defense patterns for agent security | Agent, Module 05 | [Computer Use](02-vision-document/04-computer-use.md) adds only the risks introduced by screenshot inputs and irreversible actions. |
+| Real-time transport protocols: SSE, WebSocket, and WebRTC | Tools, Module 05 | [Real-Time Full-Duplex Voice](03-speech-audio/06-realtime-duplex-voice.md) discusses model and session control, including continuous listening, playback after interruption, and context synchronization. |
 
-## 阅读建议
+## Suggested Reading Paths
 
-- **理解多模态架构的来龙去脉**：基础与架构 → 视觉与文档智能 第 2 章；
-- **面向文档/RAG 工程**：视觉与文档智能 第 3 章 → [RAG · 文档解析](../rag/02-ingestion-indexing/03-document-parsing.md) → [RAG · 多模态 RAG](../rag/04-advanced/21-multimodal-rag.md)；
-- **面向 GUI/Computer Use Agent**：视觉与文档智能 第 2、4 章 → [Agent · 安全](../agent/05-production/15-agent-security.md)；
-- **面向语音产品**：语音与音频全部 → [Tools · SSE、WebSocket 与 WebRTC](../tools/05-transport-gateway/13-sse-websocket-webrtc.md)；
-- **面向图像/视频生成**：多模态生成全部 → 训练数据、评测与服务 第 9–10 章。
+- **Understanding multimodal architectures**: Foundations and Architecture → Vision and Document Intelligence, Chapter 2.
+- **Document and RAG engineering**: Vision and Document Intelligence, Chapter 3 → [RAG: Document Parsing](../rag/02-ingestion-indexing/03-document-parsing.md) → [RAG: Multimodal RAG](../rag/04-advanced/21-multimodal-rag.md).
+- **GUI and computer-use agents**: Vision and Document Intelligence, Chapters 2 and 4 → [Agent Security](../agent/05-production/15-agent-security.md).
+- **Voice products**: all of Speech and Audio → [Tools: SSE, WebSocket, and WebRTC](../tools/05-transport-gateway/13-sse-websocket-webrtc.md).
+- **Image and video generation**: all of Multimodal Generation → Training Data, Evaluation, and Serving, Chapters 9 and 10.
 
-返回[文档主题索引](../README.md)。
+Back to the [documentation topic index](../README.md).

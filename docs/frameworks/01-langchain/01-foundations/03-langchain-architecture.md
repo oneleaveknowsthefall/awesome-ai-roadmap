@@ -1,229 +1,233 @@
 ---
-description: 沿消息、工具调用和状态流理解 LangChain v1 的协议、provider、中间件与 LangGraph 运行时职责。
+description: Follow messages, tool calls, and state through LangChain v1 to understand the responsibilities of its protocols, providers, middleware, and LangGraph runtime.
 ---
 
-# 第三章：LangChain v1 的底层架构
+# Chapter 3: The Underlying Architecture of LangChain v1
 
-## 3.1 LangChain 解决什么问题
+## 3.1 What problems does LangChain solve?
 
-**直接调用一家模型厂商的 SDK 并不困难。** 应用复杂度上来后，问题主要出现在这些地方：
+**Calling a single model provider's SDK directly is not difficult.** As an application becomes more complex, the main problems arise elsewhere:
 
-- 不同厂商的**消息格式、工具调用结构和流式响应各不相同**；
-- 业务还需要接入 Prompt、工具、状态、重试和追踪；
-- **一旦更换模型，大量厂商专属字段可能已经散落在业务代码中。**
+- Providers use **different message formats, tool-call structures, and streaming responses**.
+- The application also needs prompts, tools, state, retries, and tracing.
+- **By the time you switch models, provider-specific fields may already be scattered throughout the business code.**
 
-LangChain 的做法是在这些差异之上定义稳定接口：厂商集成负责适配，应用只依赖公共协议，从而让模型、工具和运行时能够相对独立地演进。
+LangChain defines stable interfaces over these differences. Provider integrations handle adaptation, while applications depend on shared protocols, allowing models, tools, and runtimes to evolve relatively independently.
 
-## 3.2 四层架构
+## 3.2 Four architectural layers
 
-| 层次 | 主要职责 | 典型对象 |
+| Layer | Main responsibility | Typical objects |
 |---|---|---|
-| **核心协议层** | 统一组件的数据结构与调用接口 | Message、Runnable、Model、Tool |
-| **集成适配层** | 屏蔽模型、向量库和外部服务差异 | `langchain-openai` 等独立集成包 |
-| **Agent 开发层** | 提供高层 Agent 组装与扩展能力 | `create_agent`、Middleware、Structured Output |
-| **编排运行层** | 管理状态、循环、路由、持久化和恢复 | LangGraph Runtime |
+| **Core protocol layer** | Standardize component data structures and invocation interfaces | Message, Runnable, Model, Tool |
+| **Integration adapter layer** | Abstract differences between models, vector stores, and external services | Separate integration packages such as `langchain-openai` |
+| **Agent development layer** | Provide high-level agent assembly and extension capabilities | `create_agent`, Middleware, Structured Output |
+| **Orchestration runtime layer** | Manage state, loops, routing, persistence, and recovery | LangGraph Runtime |
 
-**可观测性贯穿各层**，通过运行事件和 Trace 记录模型调用、工具调用、耗时和异常。
+**Observability spans every layer**, recording model calls, tool calls, durations, and exceptions through execution events and traces.
 
 ```mermaid
 flowchart TB
-    A["核心协议层<br/>Message / Runnable / Model / Tool"]
-    B["集成适配层<br/>各 Provider 独立包"]
-    C["Agent 开发层<br/>create_agent / Middleware / 结构化输出"]
-    D["编排运行层<br/>LangGraph Runtime"]
-    O["可观测性<br/>运行事件与 Trace"]
+    A["Core protocol layer<br/>Message / Runnable / Model / Tool"]
+    B["Integration adapter layer<br/>Separate provider packages"]
+    C["Agent development layer<br/>create_agent / Middleware / Structured Output"]
+    D["Orchestration runtime layer<br/>LangGraph Runtime"]
+    O["Observability<br/>Execution events and traces"]
     A --- B --- C --- D
-    O -.贯穿.- A
-    O -.贯穿.- D
+    O -.spans.- A
+    O -.spans.- D
 
     style O fill:#fff3cd
 ```
 
-这张图描述的是职责边界，不是严格的单向调用顺序。例如模型和编译后的 Agent 都遵循 Runnable 调用方式，但它们承担的架构角色不同。
+The diagram shows responsibility boundaries, not a strict one-way call sequence. For example, models and compiled agents both follow the Runnable invocation interface, but they serve different architectural roles.
 
-## 3.3 协议如何统一数据与执行
+## 3.3 How do protocols unify data and execution?
 
-比起记类名，更重要的是看一条数据如何从用户走到模型，再进入业务系统。
+Rather than memorize class names, follow a piece of data from the user to the model and then into the business system.
 
-### 3.3.1 第一棒：统一「传什么」
+### 3.3.1 First: standardize what is passed
 
-| 消息类型 | 表示 |
+| Message type | Represents |
 |---|---|
-| `HumanMessage` | 用户输入 |
-| `AIMessage` | 模型输出 |
-| `ToolMessage` | 工具执行结果 |
+| `HumanMessage` | User input |
+| `AIMessage` | Model output |
+| `ToolMessage` | Tool execution results |
 
-**不同厂商原本各有一套消息格式**，适配成 Message 之后，上层就不用跟着每家 SDK 反复改动。
+**Each provider starts with its own message format.** Once those formats are adapted into Messages, higher-level code does not have to keep changing for each SDK.
 
-### 3.3.2 第二棒：Tool 划清边界
+### 3.3.2 Second: Tools establish the boundary
 
-**模型看到的只是工具名称、描述和参数 Schema**，它只能提出「想调用哪个工具、参数是什么」。
+This section discusses custom tools supplied by the application and executed client-side. Provider-hosted built-in tools may instead execute on the provider's servers.
 
-Python 函数或外部服务仍由应用程序执行，权限校验和副作用控制也必须留在这里。
+**The model sees only a tool's name, description, and parameter schema.** It can only propose which tool to call and with what arguments.
 
-### 3.3.3 第三棒：Runnable 统一「怎么执行」
+The application still executes the Python function or calls the external service. Authorization checks and control over side effects must remain there as well.
 
-提供 `invoke`、异步调用、批处理和流式输出等调用语义。步骤确定的流程可以直接用 LCEL 组合（见 [第二章](02-chain-and-lcel.md)）：
+### 3.3.3 Third: Runnable standardizes execution
+
+Runnable provides invocation semantics such as `invoke`, asynchronous calls, batching, and streaming. Workflows with predefined steps can be composed directly with LCEL (see [Chapter 2](02-chain-and-lcel.md)):
 
 ```python
-# 三个组件都遵循 Runnable 协议，可以用管道符顺序组合
+# All three components follow the Runnable protocol and compose sequentially with |.
 chain = prompt | model | output_parser
 
-# 组合后的整体仍然通过统一的 invoke 接口执行
+# The composed workflow still runs through the common invoke interface.
 result = chain.invoke({"question": "什么是 Agent？"})
 ```
 
-> **Message 统一数据表达，Tool 划清模型与业务动作的边界，Runnable 统一执行方式。** 三者连起来，LangChain 才不只是替换模型 SDK 的薄封装。
+The Chinese question is preserved as example input; it asks, "What is an agent?"
 
-## 3.4 Agent loop 如何运行
+> **Message standardizes data representation, Tool separates model decisions from business actions, and Runnable standardizes execution.** Together, they make LangChain more than a thin wrapper around model SDKs.
 
-Agent 与普通单次调用的区别，在于模型和工具之间可能反复多轮执行。
+## 3.4 How does the agent loop run?
+
+Unlike an ordinary single call, an agent may execute multiple rounds between the model and tools.
 
 ```mermaid
 flowchart TB
     H["HumanMessage"] --> M["Model"]
     M --> A["AIMessage"]
-    A --> D{"包含 tool_calls?"}
-    D -->|否| F["最终回答"]
-    D -->|是| T["Tool Runtime"]
-    T --> TM["ToolMessage<br/>带 tool_call_id"]
+    A --> D{"Contains tool_calls?"}
+    D -->|No| F["Final answer"]
+    D -->|Yes| T["Tool Runtime"]
+    T --> TM["ToolMessage<br/>with tool_call_id"]
     TM --> M
 
     style F fill:#e6f4ea
 ```
 
-### 3.4.1 `tool_call_id` 为什么重要
+### 3.4.1 Why does `tool_call_id` matter?
 
-**模型一轮可能请求多个工具**，工具结果必须通过**调用 ID 与原请求对应**，模型才能知道每条结果属于哪次调用。
+**A model may request several tools in one round.** Each result must be **matched to its original request by call ID**, so the model knows which result belongs to which call.
 
-### 3.4.2 `create_agent` 返回的是什么
+### 3.4.2 What does `create_agent` return?
 
-`create_agent` 根据模型、工具、系统提示词和中间件创建这套循环。
+`create_agent` constructs this loop from a model, tools, system prompt, and middleware.
 
-> **它返回的不是普通函数，而是编译后的 LangGraph 图**，可以输出进度并决定下一条执行边。跨调用保存和恢复状态还必须配置 checkpointer，并传入 `thread_id`；编译图本身不等于已经启用持久化。
+> **It returns a compiled LangGraph graph, not an ordinary function.** That graph can stream progress and select the next execution edge. Saving and restoring state across invocations additionally requires a configured checkpointer and a supplied `thread_id`; compiling a graph does not, by itself, enable persistence.
 
-## 3.5 数据应该放在哪里
+## 3.5 Where should data live?
 
-**Agent 中的数据不应该全部塞进消息或 Prompt。** 运行时会区分三类：
+**Not all agent data belongs in messages or prompts.** The runtime distinguishes three categories:
 
-| 数据 | 作用 | 示例 |
+| Data | Purpose | Examples |
 |---|---|---|
-| **State** | 执行中**不断变化**的数据 | 消息、当前步骤、工具结果 |
-| **Context** | 一次调用期间**不变的可信依赖** | 用户 ID、租户、权限 |
-| **Store** | **跨线程**保存的数据 | 用户偏好、长期事实 |
+| **State** | Data that **changes during execution** | Messages, current step, tool results |
+| **Context** | **Trusted dependencies that remain unchanged** during one invocation | User ID, tenant, permissions |
+| **Store** | Data retained **across threads** | User preferences, long-term facts |
 
-这样划分后，可信用户身份不需要让模型生成，数据库连接也不会被写入对话上下文。工具可以通过 Runtime 读取这些数据，**同时只把真正需要模型填写的参数暴露在工具 Schema 中**。
+This separation keeps the model from having to generate a trusted user identity and keeps database connections out of the conversation context. Tools can access these values through the runtime, **while exposing only the arguments the model actually needs to supply in the tool schema**.
 
-Context 的可信性来自应用的认证边界，不来自 dataclass 或类型注解；State 中的工具结果可能仍是不可信外部内容。长暂停后恢复时，应重新检查当下权限，不能因为旧 checkpoint 记录过一个身份就跳过授权。Store 的 namespace 是定位机制，也不替代服务端访问控制。
+Context is trusted because of the application's authentication boundary, not because of a dataclass or type annotation. Tool results in State may still contain untrusted external content. When resuming after a long pause, recheck current permissions rather than skipping authorization because an old checkpoint recorded an identity. A Store namespace is a lookup mechanism, not a replacement for server-side access control.
 
-## 3.6 Middleware 做什么
+## 3.6 What does middleware do?
 
-真实应用通常需要处理**动态提示词、模型切换、工具筛选、重试、对话摘要、敏感信息和人工审批**。
+Real applications commonly need **dynamic prompts, model switching, tool filtering, retries, conversation summarization, sensitive-information handling, and human approval**.
 
-**如果把这些逻辑全部塞进 Prompt 或 Tool，代码会很快纠缠在一起。**
+**Putting all of this logic into prompts or tools quickly tangles the code.**
 
 ```mermaid
 flowchart LR
-    R["请求"] --> M1["进入模型前<br/>按用户身份生成系统提示词<br/>历史过长先做摘要"]
-    M1 --> LLM["模型"]
-    LLM --> M2["决定调工具后<br/>检查权限<br/>敏感动作暂停等审批"]
-    M2 --> T["执行工具<br/>临时网络故障做有上限的重试"]
-    T --> M3["结果返回后<br/>补格式或安全校验"]
-    M3 --> O["输出"]
+    R["Request"] --> M1["Before the model call<br/>Build a system prompt for the user's identity<br/>Summarize if the history is too long"]
+    M1 --> LLM["Model"]
+    LLM --> M2["After tool selection<br/>Check permissions<br/>Pause sensitive actions for approval"]
+    M2 --> T["Execute the tool<br/>Use bounded retries for transient network failures"]
+    T --> M3["After results return<br/>Add format or safety checks"]
+    M3 --> O["Output"]
 
     style M2 fill:#fff3cd
 ```
 
-> **Middleware 并不是另一套运行时。** 它运行在 `create_agent` 编译出的 LangGraph 内部，对执行行为进行**组合式扩展**。
+> **Middleware is not a separate runtime.** It runs inside the LangGraph graph compiled by `create_agent`, providing **composable extensions** to execution behavior.
 
-## 3.7 LangGraph 是什么角色
+## 3.7 What role does LangGraph play?
 
-**如果只用 `while` 循环实现 Agent**：进程退出后中间状态容易丢失，也很难在敏感工具前暂停几小时再继续。
+**If an agent is implemented with only a `while` loop**, intermediate state is easily lost when the process exits. Pausing for several hours before a sensitive tool call and then resuming is also difficult.
 
-LangGraph 把流程建模为 **State + Node + Edge**：
+LangGraph models the workflow as **State + Node + Edge**:
 
-| 概念 | 职责 |
+| Concept | Responsibility |
 |---|---|
-| State | 保存状态 |
-| Node | 执行模型或工具 |
-| Edge | 决定下一步 |
+| State | Hold state |
+| Node | Execute a model or tool |
+| Edge | Determine the next step |
 
-**检查点在 super-step 边界保存状态快照**，同一步成功节点的 pending writes 可辅助故障恢复；不是每一行代码都被持久化。由此能支持中断恢复、人工介入和长时间运行，但外部写入与 checkpoint 不自动处于同一事务。
+**Checkpoints save state snapshots at super-step boundaries.** Pending writes from successful nodes in the same step can help with failure recovery; persistence does not happen after every line of code. These mechanisms support interruption recovery, human intervention, and long-running execution, but external writes and checkpoints do not automatically share a transaction.
 
-### 3.7.1 两者不是二选一
+### 3.7.1 The two are not an either-or choice
 
-LangChain 提供高层组件和标准 Agent 架构，LangGraph 提供底层执行能力。标准 Agent 直接用 `create_agent`，工具审批可由中间件接入；当业务分支、并行汇合或恢复边界超出标准循环的表达范围时，再直接编写 LangGraph。
+LangChain supplies high-level components and a standard agent architecture, while LangGraph supplies the underlying execution capabilities. Use `create_agent` directly for a standard agent, with middleware for tool approval. Write LangGraph directly when business branches, parallel joins, or recovery boundaries exceed what the standard loop can express.
 
-## 3.8 旧版 Chain 还能用吗
+## 3.8 Can legacy Chains still be used?
 
-早期教程常见的 `LLMChain`、`ConversationChain` 和部分旧式 Agent 执行器已经进入 **`langchain-classic`**。
+`LLMChain`, `ConversationChain`, and some legacy agent executors commonly seen in early tutorials have moved to **`langchain-classic`**.
 
-**它们可以用于维护存量项目，但不再代表 v1 的主架构。**
+**They can be used to maintain existing projects, but no longer represent the main v1 architecture.**
 
-| 场景 | 更合适的方式 |
+| Scenario | Better-suited approach |
 |---|---|
-| 固定的 Prompt、Model、Parser 流程 | **Runnable + LCEL** |
-| 标准模型与工具循环 | **`create_agent`** |
-| 超出标准循环的业务分支、并行汇合或审批流程 | **直接使用 LangGraph** |
-| 维护旧式 Chain 项目 | `langchain-classic` 后渐进迁移 |
+| Fixed Prompt, Model, Parser flow | **Runnable + LCEL** |
+| Standard model–tool loop | **`create_agent`** |
+| Business branches, parallel joins, or approval processes beyond the standard loop | **Use LangGraph directly** |
+| Maintaining a legacy Chain project | Use `langchain-classic`, then migrate incrementally |
 
-## 3.9 常见错误
+## 3.9 Common mistakes
 
-### 3.9.1 把 LangChain 说成「模型 SDK 的薄封装」
+### 3.9.1 Calling LangChain "a thin wrapper around model SDKs"
 
-**Message 统一数据、Tool 划边界、Runnable 统一执行**，三者组合起来才是它的价值。
+**Message standardizes data, Tool establishes boundaries, and Runnable standardizes execution.** Their combination is what provides the value.
 
-### 3.9.2 认为工具是模型执行的
+### 3.9.2 Assuming the model executes these custom tools
 
-**模型只能提出调用意图**，真正执行、权限校验和副作用都在应用程序里。
+For these custom tools, **the model can only propose a call.** Actual execution, authorization checks, and side effects belong to the application.
 
-### 3.9.3 忽略 `tool_call_id`
+### 3.9.3 Ignoring `tool_call_id`
 
-一轮可能请求多个工具，**没有 ID 对应模型就分不清哪条结果属于哪次调用**。
+A single round may request multiple tools. **Without matching IDs, the model cannot tell which result belongs to which call.**
 
-### 3.9.4 以为 `create_agent` 返回的是普通函数
+### 3.9.4 Assuming `create_agent` returns an ordinary function
 
-**它返回的是编译后的 LangGraph 图**，可以流式输出进度；跨调用保存与恢复状态仍需配置 checkpointer 和 `thread_id`。
+**It returns a compiled LangGraph graph** that can stream progress. Saving and restoring state across invocations still requires a checkpointer and `thread_id`.
 
-### 3.9.5 把所有数据都塞进消息或 Prompt
+### 3.9.5 Putting all data in messages or prompts
 
-**State / Context / Store 三分**：可信身份不该让模型生成，数据库连接不该进对话上下文。
+**Separate State / Context / Store**: the model should not generate trusted identities, and database connections should not appear in conversation context.
 
-### 3.9.6 把 Middleware 当成另一套运行时
+### 3.9.6 Treating middleware as another runtime
 
-**它跑在 `create_agent` 编译出的图内部**，是组合式扩展点。
+**It runs inside the graph compiled by `create_agent`**, providing composable extension points.
 
-### 3.9.7 把 LangChain 和 LangGraph 说成二选一
+### 3.9.7 Treating LangChain and LangGraph as an either-or choice
 
-前者是高层组件与标准架构，后者是底层执行能力。
+The former provides high-level components and a standard architecture; the latter provides underlying execution capabilities.
 
-### 3.9.8 照抄旧教程用 `LLMChain`
+### 3.9.8 Copying `LLMChain` usage from an old tutorial
 
-已进 `langchain-classic`，新项目不该以它为首选。
+It has moved to `langchain-classic` and should not be the first choice for a new project.
 
-## 3.10 本章总结
+## 3.10 Chapter summary
 
-1. **LangChain 的思路是在厂商差异之上定义稳定接口**，让模型、工具、运行时独立演进；
-2. **四层架构**：核心协议层、集成适配层、Agent 开发层、编排运行层，可观测性贯穿各层；
-3. **Message 统一「传什么」**：Human / AI / Tool 三类消息隔离了各家 SDK 的格式差异；
-4. **Tool 统一「谁执行什么」**：模型只提意图，执行与权限校验留在应用程序；
-5. **Runnable 统一「怎么执行」**：invoke、异步、批处理、流式；
-6. **Agent loop 是模型与工具间可重复多轮的循环**，`tool_call_id` 保证多工具结果能对上原请求；
-7. **`create_agent` 返回编译后的 LangGraph 图**，可输出进度并控制执行边；跨调用恢复还需 checkpointer 与 `thread_id`；
-8. **数据三分**：State（可变）、Context（不变可信依赖）、Store（跨线程持久）；
-9. **Middleware 是模型和工具调用前后的扩展点**，覆盖动态提示词、权限、审批、重试、摘要、校验；
-10. **LangGraph 用 State + Node + Edge 建模**，检查点支撑中断恢复与人工介入；
-11. **v1 主线是「标准协议 + create_agent + LangGraph Runtime」**，LCEL 仍适合确定性流程，旧式 Chain 主要用于维护存量。
+1. **LangChain defines stable interfaces over provider differences**, allowing models, tools, and runtimes to evolve independently.
+2. **Four architectural layers**: core protocols, integration adapters, agent development, and orchestration runtime, with observability spanning all four.
+3. **Message standardizes what is passed**: Human / AI / Tool messages abstract the differences between SDK formats.
+4. **Tool standardizes who executes what**: the model proposes an action; execution and authorization remain in the application.
+5. **Runnable standardizes how execution happens**: invoke, asynchronous calls, batching, and streaming.
+6. **The agent loop can run for multiple rounds between model and tools**; `tool_call_id` matches results from multiple tools to their original requests.
+7. **`create_agent` returns a compiled LangGraph graph**, which can stream progress and control execution edges; cross-invocation recovery also requires a checkpointer and `thread_id`.
+8. **Three data categories**: State (mutable), Context (unchanging trusted dependencies), and Store (persistence across threads).
+9. **Middleware supplies extension points around model and tool calls**, covering dynamic prompts, permissions, approvals, retries, summarization, and validation.
+10. **LangGraph models workflows as State + Node + Edge**, with checkpoints supporting interruption recovery and human intervention.
+11. **The main v1 architecture is "standard protocols + create_agent + LangGraph Runtime."** LCEL remains suitable for deterministic flows, while legacy Chains primarily serve existing systems.
 
-可以顺着一次请求理解 LangChain v1：协议层统一了传什么和怎么执行，Agent 层组装出模型与工具的循环，LangGraph 让这个循环拥有状态、检查点和恢复能力，Middleware 则在关键位置提供扩展点。
+Follow a single request to understand LangChain v1: the protocol layer standardizes what to pass and how to execute it; the agent layer assembles the model–tool loop; LangGraph gives that loop state, checkpoints, and recovery capabilities; and middleware supplies extension points at key positions.
 
-## 参考资料
+## References
 
-- [LangChain 官方文档](https://docs.langchain.com/oss/python/langchain/overview)
-- [LangChain: Agents 概念文档](https://docs.langchain.com/oss/python/langchain/agents)
-- [LangChain: Messages 概念文档](https://docs.langchain.com/oss/python/langchain/messages)
-- [LangChain: Tools 概念文档](https://docs.langchain.com/oss/python/langchain/tools)
-- [LangChain: Middleware 概念文档](https://docs.langchain.com/oss/python/langchain/middleware)
-- [LangChain v1 迁移指南](https://docs.langchain.com/oss/python/migrate/langchain-v1)
-- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
-- [LangGraph Checkpointers：super-step 与 pending writes](https://docs.langchain.com/oss/python/langgraph/checkpointers)
+- [LangChain documentation](https://docs.langchain.com/oss/python/langchain/overview)
+- [LangChain: Agents concepts](https://docs.langchain.com/oss/python/langchain/agents)
+- [LangChain: Messages concepts](https://docs.langchain.com/oss/python/langchain/messages)
+- [LangChain: Tools concepts](https://docs.langchain.com/oss/python/langchain/tools)
+- [LangChain: Middleware concepts](https://docs.langchain.com/oss/python/langchain/middleware)
+- [LangChain v1 migration guide](https://docs.langchain.com/oss/python/migrate/langchain-v1)
+- [LangGraph documentation](https://docs.langchain.com/oss/python/langgraph/overview)
+- [LangGraph Checkpointers: super-steps and pending writes](https://docs.langchain.com/oss/python/langgraph/checkpointers)

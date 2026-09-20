@@ -1,45 +1,45 @@
 ---
-description: 比较 ReAct、Plan-and-Execute、Router、Evaluator-Optimizer 等 Agent 设计范式，以及不同任务约束下的选型方法。
+description: Compare agent design patterns including ReAct, Plan-and-Execute, routing, and evaluator-optimizer loops, and choose among them under different task constraints.
 ---
 
-# 第四章：Agent 设计范式
+# Chapter 4: Agent Design Patterns
 
-## 4.1 什么是 Agent 设计范式
+## 4.1 What is an agent design pattern?
 
-同样是“搜索资料后生成报告”，可以每查到一条结果就决定下一步，也可以先列计划再执行，还可以对初稿反复核验。Agent 设计范式描述的正是这些控制方式：
+Even a task as simple as “research a topic and write a report” admits several approaches. The system might decide its next move after every search result, make a plan before acting, or repeatedly verify a draft. Agent design patterns describe these forms of control:
 
-> **Agent 如何组织推理、规划、行动、观察、验证与重试。**
+> **How an agent organizes reasoning, planning, action, observation, verification, and retries.**
 
-它不是某个特定框架，也不只是一个 Prompt 模板，而是一种运行时控制策略。
+A pattern is neither a particular framework nor merely a prompt template. It is a runtime control strategy.
 
-本章选取三类便于比较的基础范式，它们不是互斥或穷尽的分类：
+This chapter compares three foundational families. They are neither mutually exclusive nor exhaustive:
 
-1. **ReAct**：一边观察、一边决定下一步；
-2. **Plan-and-Execute**：先建立全局计划，再执行和动态重规划；
-3. **Reflection / Reflexion**：通过评估和反馈修订结果；其中 Reflexion 是带情景记忆的具体研究方法。
+1. **ReAct**: observe and decide the next step as the task unfolds.
+2. **Plan-and-Execute**: establish a global plan, then execute and dynamically replan.
+3. **Reflection / Reflexion**: revise results using evaluation and feedback; Reflexion is a specific research method with episodic memory.
 
-这三类范式经常混用，实际系统里更常见的是分层组合：
+These patterns are often combined, usually in layers:
 
 ```mermaid
 flowchart TB
-    G[用户目标] --> WF[Workflow / 安全边界]
-    WF --> P[Planner / 全局计划]
+    G[User goal] --> WF[Workflow / Safety boundary]
+    WF --> P[Planner / Global plan]
     P --> E[Executor]
-    E --> R[局部 ReAct 循环]
+    E --> R[Local ReAct loop]
     R --> V[Verifier / Evaluator]
-    V -->|通过| DONE[完成]
-    V -->|局部失败| R
-    V -->|计划失效| P
-    V -->|需要人工判断| H[Human-in-the-loop]
+    V -->|Pass| DONE[Complete]
+    V -->|Local failure| R
+    V -->|Plan invalidated| P
+    V -->|Human judgment needed| H[Human-in-the-loop]
 ```
 
-## 4.2 ReAct：推理与行动交替
+## 4.2 ReAct: alternating reasoning and action
 
-ReAct（Reasoning and Acting）将推理与外部行动结合起来。经典表达是：
+ReAct (Reasoning and Acting) combines reasoning with external actions. Its classic formulation is:
 
 > **Thought → Action → Observation → Thought**
 
-这是 [ReAct 原论文](https://arxiv.org/abs/2210.03629)的示意，不要求每次行动前都输出一段 Thought：原文在决策任务中允许稀疏出现推理步骤，也用这些步骤生成、跟踪和更新计划。其主要实验通过上下文示例运行，不在每次工具调用后更新模型权重；论文另有微调实验，不能与提示式 ReAct 混为一谈。
+This is a schematic view of the [original ReAct paper](https://arxiv.org/abs/2210.03629), not a requirement to emit a Thought before every action. For decision-making tasks, the paper allows sparse reasoning steps, which can also generate, track, and update plans. Its main experiments use in-context examples rather than updating model weights after each tool call. The paper also includes fine-tuning experiments; those should not be confused with prompting-based ReAct.
 
 ```mermaid
 flowchart LR
@@ -49,15 +49,15 @@ flowchart LR
     T --> F[Final Answer]
 ```
 
-### 4.2.1 一轮 ReAct 如何运行
+### 4.2.1 How one ReAct iteration works
 
 #### Thought
 
-模型分析当前目标、状态和观察结果，并决定下一步策略。
+The model analyzes the current goal, state, and observations, then chooses its next strategy.
 
 #### Action
 
-模型生成结构化动作，例如调用搜索工具。以下是调用语义示意，实际字段和调用 ID 由所用 API 决定：
+The model proposes a structured action, such as a search tool call. The following illustrates the call's semantics; actual fields and call IDs depend on the API. The query asks for competitor A's latest product updates.
 
 ```json
 {
@@ -72,127 +72,129 @@ flowchart LR
 
 #### Observation
 
-Runtime 执行 Tool，并将真实结果或错误返回给模型。模型基于新证据进入下一轮决策。
+The runtime executes the tool and returns its actual result or error to the model. The model starts its next decision using that new evidence.
 
-### 4.2.2 现代实现不应暴露完整 Thought
+### 4.2.2 Modern implementations should not expose complete Thoughts
 
-早期 ReAct 示例会让模型显式输出 Thought。工程实现不应把这段自由文本当成稳定的控制接口，更不必依赖向用户展示完整隐藏思维链来调试。
+Early ReAct examples had models explicitly output Thoughts. An engineering implementation should not treat that free-form text as a stable control interface, nor should debugging depend on showing users the model's complete hidden chain of thought.
 
-例如模型说“已经查到最新版价格”，运行轨迹却只有一次失败的搜索调用，应以工具结果为准。系统应记录目标、计划、调用参数、真实返回值及状态变化，并把“为什么继续搜索”表达为可核验的简短理由。循环因此更适合写成：
+Suppose the model says, “I found the latest price,” but the trace contains only a failed search call. The tool result takes precedence. Record goals, plans, call arguments, actual return values, and state changes, and express “why continue searching” as a brief, checkable rationale. A more useful description of the loop is:
 
 > **Observe → Decide → Act → Observe**
 
-这些记录支持检查与追溯，但不等于模型内部计算的完整解释；推理文本的忠实性问题见[第五章](05-agent-reasoning-methods.md) §5.5.3。
+These records support inspection and traceability, but they are not a complete explanation of the model's internal computation. See [Chapter 5](05-agent-reasoning-methods.md), §5.5.3, for the faithfulness of reasoning text.
 
-### 4.2.3 ReAct 的决策形式
+### 4.2.3 A decision model for ReAct
 
-设当前目标为 $g$、状态为 $s_t$、观察为 $o_t$、可用上下文为 $c_t$，下一步动作可表示为：
+Let the current goal be $g$, the state $s_t$, the observation $o_t$, and the available context $c_t$. The next action can be written as:
 
 $$
 a_t \sim \pi_{\theta}(a\mid g,s_t,o_t,c_t)
 $$
 
-Runtime 执行动作后得到新的观察。用 `eₜ` 表示环境真实状态，区别于 Agent 保存的状态 `sₜ`：
+Executing the action produces a new observation. Use `eₜ` for the environment's actual state, distinct from the agent's saved state `sₜ`:
 
 $$
 (e_{t+1},o_{t+1})\sim Env(\cdot\mid e_t,a_t)
 $$
 
-Agent 随后更新状态：
+The agent then updates its state:
 
 $$
 s_{t+1}=Update(s_t,a_t,o_{t+1})
 $$
 
-观察可能不完整、过期或只表示请求已受理。更新的是 Agent 对环境的记录，不能据此假设它已经掌握全部真实状态。
+Observations may be incomplete, stale, or indicate only that a request was accepted. The update changes the agent's record of the environment; it does not establish that the agent knows the environment's complete actual state.
 
-### 4.2.4 ReAct 的优势
+### 4.2.4 Strengths of ReAct
 
-- 实现简单；
-- 能及时利用最新环境反馈；
-- 适合无法预先获得完整信息的任务；
-- 工具失败后可以立即调整；
-- 可用于短任务和探索性任务，收益取决于工具返回的信息是否有用。
+- Straightforward implementation.
+- Prompt use of fresh environmental feedback.
+- Suitable for tasks whose full information is unavailable in advance.
+- Immediate adjustment after tool failures.
+- Useful for short or exploratory tasks, provided the tools return useful information.
 
-原论文覆盖 HotpotQA、FEVER、ALFWorld 和 WebShop。检索可补充事实，但错误查询或无关结果也会误导后续决策；这些结果不证明 ReAct 在所有任务上优于 CoT，更不保证工具调用次数越多越准确。
+The original paper evaluates HotpotQA, FEVER, ALFWorld, and WebShop. Retrieval can supply facts, but bad queries or irrelevant results can also mislead later decisions. These findings do not establish that ReAct outperforms CoT on every task, or that more tool calls always improve accuracy.
 
-### 4.2.5 ReAct 的局限
+### 4.2.5 Limitations of ReAct
 
-ReAct 常被概括为“走一步看一步”，其主要风险包括：
+ReAct is often described as “taking one step, then deciding the next.” Its main risks include:
 
-- 默认不强制维护可调度的全局任务结构，但可以在推理中制定计划；
-- 串行的“调用工具后再决策”需要模型往返，批量调用可减少部分开销；
-- 容易重复搜索或调用相同工具；
-- 长任务中目标和约束可能被上下文噪音稀释；
-- 局部合理的动作未必形成全局最优路径；
-- 完成条件模糊时容易过早停止或持续循环。
+- It does not require a schedulable global task structure by default, although reasoning can include planning.
+- Serial tool-call/decision cycles require model round trips; batching calls can reduce some overhead.
+- Searches or identical tool calls may be repeated.
+- Context noise can dilute goals and constraints during long tasks.
+- Locally plausible actions may not form a globally optimal path.
+- Ambiguous completion criteria can cause premature stopping or endless loops.
 
-这里的“局部最优”是一个直观类比，不是严格的优化保证。模型选择的动作甚至不一定是当前局部最优，只是根据当前上下文生成的候选动作。
+“Local optimum” is only an analogy here, not an optimization guarantee. The model's proposed action may not even be locally optimal; it is simply a candidate generated from the current context.
 
-### 4.2.6 改进 ReAct
+### 4.2.6 Improving ReAct
 
-生产系统通常加入：
+Production systems commonly add:
 
-- 始终可见的目标和验收条件；
-- 结构化任务状态；
-- Todo 或阶段检查点；
-- Tool Call 去重；
-- 无进展检测；
-- 最大步骤、时间和费用预算；
-- 周期性全局目标复核；
-- 关键步骤的外部验证。
+- Goals and acceptance criteria that remain visible.
+- Structured task state.
+- A to-do list or phase checkpoints.
+- Tool-call deduplication.
+- No-progress detection.
+- Step, time, and cost budgets.
+- Periodic checks against the global goal.
+- External verification of critical steps.
 
 ```mermaid
 flowchart TB
     O[Observation] --> D[Decide]
-    D --> C{动作是否无进展或越权?}
-    C -->|是| RP[重新规划或停止]
-    C -->|否| A[Action]
-    A --> U[更新结构化状态]
-    U --> G{仍符合全局目标?}
-    G -->|是| O
-    G -->|否| RP
+    D --> C{No progress or unauthorized action?}
+    C -->|Yes| RP[Replan or stop]
+    C -->|No| A[Action]
+    A --> U[Update structured state]
+    U --> G{Still aligned with the global goal?}
+    G -->|Yes| O
+    G -->|No| RP
 ```
 
-## 4.3 Plan-and-Execute：规划与执行解耦
+## 4.3 Plan-and-Execute: separating planning from execution
 
-Plan-and-Execute 将全局规划与局部执行分开。成熟实现通常包含三个角色：
+Plan-and-Execute separates global planning from local execution. Mature implementations usually have three roles:
 
-1. **Planner**：生成带依赖关系的计划；
-2. **Executor**：执行一个或多个计划步骤；
-3. **Replanner**：根据结果更新剩余计划或结束任务。
+1. **Planner**: generates a plan with dependencies.
+2. **Executor**: carries out one or more plan steps.
+3. **Replanner**: updates the remaining plan from results or ends the task.
 
-Planner、Executor 和 Replanner 可以使用不同模型，也可以由同一个模型在不同上下文中承担。
+Different models can fill these roles, or the same model can fill them with different contexts.
 
 ```mermaid
 flowchart TB
-    G[目标] --> P[Planner]
-    P --> PLAN[计划 / DAG]
+    G[Goal] --> P[Planner]
+    P --> PLAN[Plan / DAG]
     PLAN --> E[Executor]
-    E --> O[执行结果]
-    O --> V{计划仍然有效?}
-    V -->|是| N{还有步骤?}
-    N -->|是| E
-    N -->|否| ACCEPT{整体验收通过?}
-    ACCEPT -->|是| DONE[完成]
-    ACCEPT -->|否| RP
-    V -->|否| RP[Replanner]
+    E --> O[Execution results]
+    O --> V{Is the plan still valid?}
+    V -->|Yes| N{Any steps remaining?}
+    N -->|Yes| E
+    N -->|No| ACCEPT{Overall acceptance passed?}
+    ACCEPT -->|Yes| DONE[Complete]
+    ACCEPT -->|No| RP
+    V -->|No| RP[Replanner]
     RP --> PLAN
 ```
 
-### 4.3.1 计划不应只是自然语言列表
+### 4.3.1 A plan should be more than a natural-language list
 
-一个可靠的计划步骤最好包含：
+A reliable plan step should ideally specify:
 
-- 唯一 ID；
-- 目标；
-- 依赖步骤；
-- 所需输入；
-- 推荐 Tool 或执行器；
-- 预期输出；
-- 验收条件；
-- 风险等级；
-- 失败和回退策略。
+- A unique ID.
+- Its goal.
+- Prerequisite steps.
+- Required inputs.
+- A recommended tool or executor.
+- Expected outputs.
+- Acceptance criteria.
+- Risk level.
+- Failure and fallback strategies.
+
+The example retains Chinese task data: compare competitors A and B, cover features, pricing, and target users, and cite each key conclusion.
 
 ```json
 {
@@ -207,75 +209,77 @@ flowchart TB
 }
 ```
 
-结构化计划比自由文本列表更容易调度、验证和恢复。
+Structured plans are easier to schedule, validate, and recover than free-form lists.
 
-但“列表中的步骤都做完了”不等于用户目标已经完成。例如竞品 A 和 B 各自的报告都有来源，却分别使用年付价和月付价，比较结果仍然不成立。因此图中的整体验收要检查跨步骤约束，而不能只数 `done` 状态。
+But “every item is done” does not mean the user's goal has been achieved. Reports on competitors A and B may both cite sources while using annual pricing for one and monthly pricing for the other, making the comparison invalid. Overall acceptance in the diagram must therefore check cross-step constraints, not merely count `done` states.
 
-### 4.3.2 动态重规划
+### 4.3.2 Dynamic replanning
 
-稳定、充分已知的任务可以执行一次性计划；环境或前提会变化时，需要重规划机制。每个关键步骤完成后，Replanner 应判断：
+A one-time plan can work for stable, well-understood tasks. When the environment or assumptions may change, a replanning mechanism is needed. After each critical step, the replanner should assess:
 
-- 执行结果是否达到验收条件；
-- 关键假设是否仍然成立；
-- 后续步骤是否仍有必要；
-- 是否需要插入、删除或重排步骤；
-- 是否可以并行执行；
-- 是否需要人工确认。
+- Whether the result meets its acceptance criteria.
+- Whether key assumptions still hold.
+- Whether later steps remain necessary.
+- Whether steps should be inserted, removed, or reordered.
+- Whether work can run in parallel.
+- Whether human confirmation is needed.
 
-设当前计划为 $P_t$，新观察为 $o_{t+1}$，重规划可以表示为：
+For current plan $P_t$ and new observation $o_{t+1}$, replanning can be represented as:
 
 $$
 P_{t+1}=R(P_t,o_{t+1},g,s_t)
 $$
 
-其中 $R$ 表示 Replanner。
+Here, $R$ denotes the replanner.
 
-### 4.3.3 动态插入步骤示例
+### 4.3.3 Example: inserting a step dynamically
 
-原始计划：
-
-```text
-1. 搜索竞品 A
-2. 搜索竞品 B
-3. 对比分析
-```
-
-执行第一步后发现竞品 A 刚发布重大版本，计划更新为：
+Original plan:
 
 ```text
-1. 搜索竞品 A
-2. 调研竞品 A 的重大版本更新
-3. 搜索竞品 B
-4. 对比分析
+1. Search for competitor A
+2. Search for competitor B
+3. Compare the findings
 ```
 
-此时计划仍提供全局方向，但可以根据环境反馈演化。
+After the first step reveals a major new release from competitor A, update the plan:
 
-### 4.3.4 Plan-and-Execute 的优势
+```text
+1. Search for competitor A
+2. Investigate competitor A's major release
+3. Search for competitor B
+4. Compare the findings
+```
 
-- 对复杂任务具有更强的全局视野；
-- 可以显式表达步骤依赖；
-- 计划可以在执行前由人工审核；
-- 容易分配不同模型和工具；
-- 可以将独立步骤并行化；
-- 更适合 checkpoint 和故障恢复。
+The plan still provides global direction, but evolves in response to environmental feedback.
 
-### 4.3.5 Plan-and-Execute 的局限
+### 4.3.4 Strengths of Plan-and-Execute
 
-- 规划和重规划增加延迟与成本；
-- 初始计划可能建立在错误假设上；
-- 规划器可能生成不可执行或过度细化的步骤；
-- 频繁重规划可能退化成高成本 ReAct；
-- Planner 与 Executor 之间可能出现语义偏差；
-- 长计划可能在环境变化后迅速失效。
+- A stronger global view of complex tasks.
+- Explicit step dependencies.
+- Human review of the plan before execution.
+- Straightforward assignment of different models and tools.
+- Parallel execution of independent steps.
+- Better support for checkpoints and failure recovery.
 
-因此，计划粒度应与任务稳定性匹配：环境变化越快，计划越应保持高层和短周期。
+### 4.3.5 Limitations of Plan-and-Execute
 
-## 4.4 减少往返与支持并行的变体
+- Planning and replanning add latency and cost.
+- The initial plan may rely on false assumptions.
+- The planner may produce infeasible or excessively detailed steps.
+- Frequent replanning may degenerate into expensive ReAct.
+- The planner and executor may interpret a step differently.
+- Long plans can become obsolete quickly as the environment changes.
+
+Plan granularity should therefore match task stability: the faster the environment changes, the more high-level and short-horizon the plan should be.
+
+## 4.4 Variants that reduce round trips and support parallelism
 
 ### 4.4.1 ReWOO
 
-ReWOO（Reasoning WithOut Observation）将 Planner、Worker 和 Solver 解耦：Planner 在获取工具观察前生成带变量引用的计划，Worker 执行并绑定结果，Solver 结合计划与证据生成答案。“Without Observation”限定规划阶段，不表示最终答案无需工具观察。
+ReWOO (Reasoning WithOut Observation) separates the Planner, Worker, and Solver. Before receiving tool observations, the Planner creates a plan with variable references; the Worker executes it and binds results; the Solver combines the plan and evidence into an answer. “Without Observation” applies to the planning stage, not to the final answer's need for tool observations.
+
+The Chinese query data below asks for this year's finalists in a specified competition, extracts the first team, and requests statistics for that team's key player.
 
 ```text
 #E1 = Search["指定赛事本年度决赛队伍"]
@@ -283,224 +287,224 @@ ReWOO（Reasoning WithOut Observation）将 Planner、Worker 和 Solver 解耦�
 #E3 = Search["#E2 的核心球员数据"]
 ```
 
-以上是教学伪代码，不是通用工具协议。Worker 必须把 `#E1`、`#E2` 替换为实际输出，检查引用与依赖，而不是把变量名原样送给搜索工具。它减少了规划模型的往返，但无法预知所有条件分支；依赖返回内容才能决定是否添加新步骤时，仍需重规划或退回交互式执行。
+This is teaching pseudocode, not a universal tool protocol. The Worker must substitute actual outputs for `#E1` and `#E2` and check references and dependencies rather than send variable names literally to the search tool. This reduces planning-model round trips, but cannot anticipate every conditional branch. If returned content determines whether a new step is needed, the system still needs replanning or a fallback to interactive execution.
 
-### 4.4.2 DAG Planning
+### 4.4.2 DAG planning
 
-当计划包含明确依赖时，可以将其表示为有向无环图：
+A plan with explicit dependencies can be represented as a directed acyclic graph:
 
 ```mermaid
 flowchart LR
-    A[调研竞品 A] --> D[对比分析]
-    B[调研竞品 B] --> D
-    C[收集行业趋势] --> E[趋势影响分析]
-    D --> F[生成报告]
+    A[Research competitor A] --> D[Comparative analysis]
+    B[Research competitor B] --> D
+    C[Collect industry trends] --> E[Analyze trend implications]
+    D --> F[Generate report]
     E --> F
 ```
 
-数据依赖已满足、没有共享写冲突且资源允许的步骤可以并行执行。DAG 只表达一版计划内的无环依赖；重试和重规划循环应由外层状态机管理。
+Steps can run concurrently when their data dependencies are satisfied, they have no shared-write conflicts, and resources permit. A DAG captures acyclic dependencies within one version of a plan; an outer state machine should manage retry and replanning loops.
 
 ### 4.4.3 LLMCompiler
 
-LLMCompiler 类架构通常包含：
+LLMCompiler-style architectures commonly include:
 
-- Planner：生成或流式输出任务 DAG；
-- Task Fetching Unit：依赖满足后立即调度任务；
-- Executor：实际执行已就绪的工具任务。
+- Planner: generates or streams a task DAG.
+- Task Fetching Unit: schedules tasks as soon as their dependencies are satisfied.
+- Executor: actually executes ready tool tasks.
 
-这是 [LLMCompiler 论文](https://arxiv.org/abs/2312.04511)列出的三个组件；带重规划的实现还可以加入 Joiner，汇总结果并决定结束或继续。不要把 Joiner 当作执行工具的 Executor。
+These are the three components listed in the [LLMCompiler paper](https://arxiv.org/abs/2312.04511). Implementations with replanning may also add a Joiner to aggregate results and decide whether to finish or continue. Do not confuse the Joiner with the tool-executing Executor.
 
-这类设计关注的不只是规划质量，也关注执行并行度、模型调用次数和总体延迟。
+Such designs address not just planning quality but also execution parallelism, model-call count, and total latency.
 
-## 4.5 Reflection：通过反馈改进结果
+## 4.5 Reflection: improving results through feedback
 
-Reflection 在生成或执行之后加入评估环节：
+Reflection adds evaluation after generation or execution:
 
 ```mermaid
 flowchart LR
     G[Generate / Execute] --> E[Evaluate]
-    E --> D{达到标准?}
-    D -->|是| DONE[完成]
-    D -->|否| FB[生成反馈]
+    E --> D{Meets the criteria?}
+    D -->|Yes| DONE[Complete]
+    D -->|No| FB[Generate feedback]
     FB --> G
 ```
 
-评估可以发生在：
+Evaluation can occur:
 
-- 单个步骤完成后；
-- 一个里程碑完成后；
-- 整个任务完成后；
-- 只有高风险或低置信度时。
+- After an individual step.
+- After a milestone.
+- After the entire task.
+- Only when risk is high or confidence is low.
 
-### 4.5.1 验证器的优先级
+### 4.5.1 Choosing verifiers
 
-在工程实现里，Reflection 不能停留在“让同一个 LLM 再看一遍”。只要拿得到确定性或外部验证信号，就优先用这些信号：
+In an engineering system, reflection must go beyond asking the same LLM to “look again.” Prefer deterministic or external verification signals whenever they are available:
 
-1. 编译器、单元测试和静态分析；
-2. Schema、规则和约束检查；
-3. 数据库或 API 返回的真实状态；
-4. 人工审核；
-5. 独立模型或 LLM-as-a-Judge；
-6. 同一模型的自我评价。
+1. Compilers, unit tests, and static analysis.
+2. Schema, rule, and constraint checks.
+3. Actual state returned by databases or APIs.
+4. Human review.
+5. Independent models or LLM-as-a-Judge.
+6. The same model's self-evaluation.
 
-这不是固定的可信度排名。编译通过不等于业务正确，测试可能漏测，API 成功可能只代表受理；应按每项验收条件选择证据。LLM Judge 不得以“总体质量不错”为由覆盖测试失败或权限拒绝。
+This is not a fixed trust ranking. Compilation does not establish business correctness, tests may miss cases, and API success may mean only acceptance of a request. Choose evidence for each acceptance criterion. An LLM judge must not override failed tests or denied permissions because “overall quality looks good.”
 
-### 4.5.2 Reflection 的适用场景
+### 4.5.2 When reflection is useful
 
-- 代码生成与修复；
-- 文案和报告优化；
-- 翻译；
-- 需要来源完整性的研究；
-- 具有明确评分规则的结构化输出；
-- 可以通过模拟器或测试环境验证的任务。
+- Code generation and repair.
+- Improving copy and reports.
+- Translation.
+- Research requiring complete source attribution.
+- Structured outputs with explicit scoring rules.
+- Tasks that can be checked in a simulator or test environment.
 
-### 4.5.3 Reflection 的风险
+### 4.5.3 Risks of reflection
 
-- 评估模型可能与生成模型共享相同盲点；
-- 没有明确标准时，反思可能只是改写；
-- 多轮优化可能出现质量退化；
-- 反思文本可能污染后续上下文；
-- Agent 可能针对评分规则“投机”而非真正完成目标；
-- 成本和延迟随轮数增加。
+- The evaluator may share the generator's blind spots.
+- Without clear criteria, reflection may amount to mere rewriting.
+- Repeated optimization can degrade quality.
+- Reflection text can contaminate subsequent context.
+- The agent may game the scoring rule instead of achieving the goal.
+- Cost and latency grow with the number of rounds.
 
-因此，需要最大反思轮数、最低改进阈值和清晰的成功标准。
+Set a maximum number of reflection rounds, a minimum improvement threshold, and clear success criteria.
 
-## 4.6 Reflexion：带经验记忆的反思
+## 4.6 Reflexion: reflection with experiential memory
 
-Reflexion 是 Reflection 的一种具体范式。它不更新模型权重，而是把任务反馈转化为自然语言经验，并将其保存在情景记忆中供下一次尝试使用。
+Reflexion is a specific reflection method. Rather than updating model weights, it converts task feedback into natural-language lessons and stores them in episodic memory for the next attempt.
 
-原方法包含 Actor、Evaluator、Self-Reflection 三个功能模块，并用情景记忆保存反馈：
+The original method has three functional modules—Actor, Evaluator, and Self-Reflection—and uses episodic memory to retain feedback:
 
-- **Actor**：执行任务；
-- **Evaluator**：评价轨迹或结果；
-- **Self-Reflection**：将失败信号总结为可操作经验；
-- **Episodic Memory**：在后续尝试中提供这些经验。
+- **Actor**: performs the task.
+- **Evaluator**: evaluates the trajectory or result.
+- **Self-Reflection**: turns failure signals into actionable lessons.
+- **Episodic Memory**: supplies those lessons on subsequent attempts.
 
-这里不是要求调用四个独立模型：记忆是存储，Evaluator 也可以使用环境奖励、规则或测试。模块如何实现取决于任务能提供什么反馈。
+This does not require four separate models. Memory is storage, and the Evaluator can use environmental rewards, rules, or tests. The implementation depends on the feedback available for the task.
 
 ```mermaid
 flowchart TB
-    A[Actor] --> ENV[环境 / 工具]
-    ENV --> TRAJ[执行轨迹与结果]
+    A[Actor] --> ENV[Environment / Tools]
+    ENV --> TRAJ[Execution trajectory and results]
     TRAJ --> E[Evaluator]
-    E --> PASS{成功?}
-    PASS -->|是| DONE[结束]
-    PASS -->|否| SR[Self-Reflection]
-    SR --> MEM[情景记忆]
+    E --> PASS{Success?}
+    PASS -->|Yes| DONE[Finish]
+    PASS -->|No| SR[Self-Reflection]
+    SR --> MEM[Episodic memory]
     MEM --> A
 ```
 
-### 4.6.1 “错题本”类比
+### 4.6.1 The “mistake notebook” analogy
 
-普通重试可能只是再次生成；Reflexion 会先总结：
+An ordinary retry may simply generate again. Reflexion first identifies:
 
-- 哪个假设错误；
-- 哪一步行动无效；
-- 哪个反馈被忽略；
-- 下一次应该采用什么不同策略。
+- Which assumption was wrong.
+- Which action was ineffective.
+- Which feedback was ignored.
+- Which different strategy to try next.
 
-这些经验作为额外上下文加入下一次尝试，因此类似“做错题、分析原因、带着经验重做”。
+These lessons become additional context for the next attempt, much like solving a problem incorrectly, analyzing the mistake, and trying again with that experience.
 
-### 4.6.2 HumanEval 结果应如何解读
+### 4.6.2 Interpreting the HumanEval results
 
-Reflexion 论文报告：在其 2023 年的实验设置中，基于 GPT-4 的 Reflexion 在 HumanEval Python 上达到 **91.0% pass@1**，表 1 中 GPT-4 单次生成基线为 **80.1%**（摘要取整为 80%）。
+The Reflexion paper reports **91.0% pass@1** on HumanEval Python with GPT-4-based Reflexion under its 2023 experimental setup. Table 1 gives **80.1%** for the GPT-4 single-generation baseline, rounded to 80% in the abstract.
 
-这里的 `pass@1` 指最终提交一个候选接受评测，不表示整个系统只生成一次或只调用一次模型。Reflexion 使用自生成测试、执行反馈和多次修订，再以保留的基准测试评价最终程序；反思循环不能访问用于最终计分的隐藏测试。单次生成基线与这个循环的计算预算不同，因此不能把差值全部归因于“反思提示词”。
+Here, `pass@1` means submitting one final candidate for evaluation, not generating once or making one model call in the entire system. Reflexion uses self-generated tests, execution feedback, and repeated revision, then evaluates the final program against held-out benchmark tests. The reflection loop must not access the hidden tests used for final scoring. The single-generation baseline and this loop have different compute budgets, so the entire difference cannot be attributed to a “reflection prompt.”
 
-这个数字说明反思与执行反馈在特定实验中具有价值，但不能直接推导为：
+These numbers show the value of reflection and execution feedback in a particular experiment. They do not imply that:
 
-- 所有模型都能从 80% 提升到 91%；
-- 所有代码任务都能获得相同提升；
-- 生产项目中的仓库级任务也有相同效果；
-- 增加反思轮次一定持续提高质量。
+- Every model can improve from 80% to 91%.
+- Every coding task will see the same gain.
+- Repository-level production tasks will benefit equally.
+- More reflection rounds always improve quality.
 
-同一论文的 MBPP Python 结果反而从 80.1% 降到 77.1%，说明测试质量和任务分布会改变效果方向。模型版本、Prompt、测试生成方式和基准污染也会影响结果；实际评估应增加等预算重采样、仅测试修复等对照。
+In the same paper, MBPP Python performance instead falls from 80.1% to 77.1%, showing that test quality and task distribution can even reverse the effect. Model version, prompts, test generation, and benchmark contamination also matter. Practical evaluations should include controls such as equal-budget resampling and test-driven repair without reflection.
 
-### 4.6.3 记忆污染问题
+### 4.6.3 Memory contamination
 
-模型生成的反思不一定正确。如果未经验证就写入长期记忆，错误经验可能影响未来任务。
+Model-generated reflections are not necessarily correct. Writing them to long-term memory without verification can spread bad lessons to future tasks.
 
-更安全的策略是：
+A safer approach is:
 
-1. 默认将反思保留在当前任务的临时记忆中；
-2. 使用测试、环境反馈或人工审核验证；
-3. 只有稳定、可复用的经验才晋升为长期记忆、Skill 或规则；
-4. 为长期经验记录来源、版本和适用范围。
+1. Keep reflections in temporary, task-local memory by default.
+2. Validate them with tests, environmental feedback, or human review.
+3. Promote only stable, reusable lessons to long-term memory, skills, or rules.
+4. Record the source, version, and scope of long-term lessons.
 
-## 4.7 三种范式如何组合
+## 4.7 Combining the three patterns
 
-实际系统里常见的分层组合如下：
+A common layered composition is:
 
 ```mermaid
 flowchart TB
-    G[目标] --> P[Plan-and-Execute<br/>生成全局里程碑]
-    P --> S1[步骤 1]
-    P --> S2[步骤 2]
-    P --> S3[步骤 N]
+    G[Goal] --> P[Plan-and-Execute<br/>Generate global milestones]
+    P --> S1[Step 1]
+    P --> S2[Step 2]
+    P --> S3[Step N]
 
-    S1 --> R1[ReAct<br/>局部探索与工具调用]
-    S2 --> R2[ReAct<br/>局部探索与工具调用]
-    S3 --> R3[ReAct<br/>局部探索与工具调用]
+    S1 --> R1[ReAct<br/>Local exploration and tool calls]
+    S2 --> R2[ReAct<br/>Local exploration and tool calls]
+    S3 --> R3[ReAct<br/>Local exploration and tool calls]
 
     R1 --> V[Reflection / Verifier]
     R2 --> V
     R3 --> V
 
-    V -->|局部失败| RETRY[局部重试]
-    V -->|计划失效| P
-    V -->|通过| DONE[完成]
+    V -->|Local failure| RETRY[Local retry]
+    V -->|Plan invalidated| P
+    V -->|Pass| DONE[Complete]
 ```
 
-职责划分为：
+Responsibilities are divided as follows:
 
-- **Plan-and-Execute**：保持全局方向；
-- **ReAct**：处理局部未知和工具反馈；
-- **Reflection**：检查质量并产生改进反馈；
-- **Workflow**：限制整体路径、权限和预算。
+- **Plan-and-Execute**: maintain global direction.
+- **ReAct**: handle local uncertainty and tool feedback.
+- **Reflection**: check quality and produce improvement feedback.
+- **Workflow**: constrain the overall path, permissions, and budget.
 
-图中的完成出口还需要整体验收：确认当前计划的必要节点已完成、Artifact 版本一致，且跨步骤约束满足。单个子任务通过 Verifier，不代表整个目标完成。
+The completion exit still requires overall acceptance: all necessary nodes in the current plan must be complete, artifact versions must agree, and cross-step constraints must hold. One subtask passing a verifier does not complete the entire goal.
 
-## 4.8 Agentic Workflow：生产环境里的常见做法
+## 4.8 Agentic workflows: a common production approach
 
-Agentic Workflow 用确定性流程包围概率性决策：
+An agentic workflow surrounds probabilistic decisions with deterministic process control.
 
-按 Anthropic《Building Effective Agents》的术语，Router、固定并行分支和 Evaluator-Optimizer 都可以是 Workflow：分别负责分流、聚合独立工作、按反馈迭代。循环或多次 LLM 调用本身不构成自主 Agent；关键在于后续路径是预先编码，还是由模型在运行时动态选择。
+In the terminology of Anthropic's December 2024 *Building Effective Agents*, routing, fixed parallel branches, and evaluator-optimizer loops can all be workflows: they dispatch inputs, aggregate independent work, and iterate on feedback, respectively. A loop or multiple LLM calls alone do not make an autonomous agent. The key distinction is whether code predetermines subsequent paths or a model chooses them dynamically at runtime.
 
 ```mermaid
 flowchart LR
-    IN[输入] --> V[校验]
-    V --> ROUTE[固定路由]
-    ROUTE --> AG[受限 Agent 节点]
-    AG --> CHECK[确定性验证]
-    CHECK -->|通过| OUT[输出]
-    CHECK -->|可修复| AG
-    CHECK -->|高风险| HUMAN[人工审核]
+    IN[Input] --> V[Validation]
+    V --> ROUTE[Fixed routing]
+    ROUTE --> AG[Constrained agent node]
+    AG --> CHECK[Deterministic verification]
+    CHECK -->|Pass| OUT[Output]
+    CHECK -->|Repairable| AG
+    CHECK -->|High risk| HUMAN[Human review]
 ```
 
-以客服系统为例：
+For example, in customer support:
 
-- 意图识别、权限检查和输出审核由 Workflow 控制；
-- 知识检索节点可以使用 ReAct 动态决定查询方式；
-- 复杂问题使用 Plan-and-Execute 拆分；
-- 最终答案使用引用检查或 Reflection；
-- 退款、改价等写操作必须经过权限和业务规则检查；超出预授权范围时再转人工确认。
+- A workflow controls intent classification, authorization checks, and output review.
+- A knowledge-retrieval node can use ReAct to choose queries dynamically.
+- Complex issues can be decomposed with Plan-and-Execute.
+- The final answer can undergo citation checks or reflection.
+- Writes such as refunds and price changes must pass authorization and business-rule checks; actions beyond preauthorized limits then require human confirmation.
 
-这种方式将自主性限制在真正需要灵活性的局部范围内。
+This confines autonomy to the parts of the task that genuinely need flexibility.
 
-## 4.9 如何选择范式
+## 4.9 Choosing a pattern
 
-| 任务特征 | 推荐范式 |
+| Task characteristic | Recommended pattern |
 |---|---|
-| 步骤少、信息需要边做边获取 | ReAct |
-| 步骤多、依赖复杂、需要全局视野 | Plan-and-Execute |
-| 子任务存在明确依赖且可并行 | DAG Planning |
-| 每次工具调用都咨询大模型成本过高 | ReWOO 或分层执行 |
-| 输出质量要求高且存在验收标准 | Reflection |
-| 希望从失败经验中改进下一次尝试 | Reflexion |
-| 主流程稳定、局部存在未知 | Agentic Workflow |
-| 高风险、强合规、路径完全已知 | 确定性 Workflow |
+| Few steps; information must be gathered along the way | ReAct |
+| Many steps, complex dependencies, need for a global view | Plan-and-Execute |
+| Explicit subtask dependencies with parallelizable work | DAG planning |
+| Consulting a large model for every tool call is too expensive | ReWOO or hierarchical execution |
+| High output-quality requirements with acceptance criteria | Reflection |
+| The next attempt should learn from failures | Reflexion |
+| Stable main process with local uncertainty | Agentic workflow |
+| High risk, strict compliance, fully known path | Deterministic workflow |
 
-还可以从两个基础维度判断：
+Two basic dimensions can also help:
 
 ```mermaid
 quadrantChart
@@ -517,101 +521,101 @@ quadrantChart
     Hybrid Agent: [0.82, 0.85]
 ```
 
-二维图只是帮助理解。实际选择还需考虑风险、延迟、成本、可验证性和环境变化速度。
+This two-dimensional chart is only a conceptual aid. A real decision must also consider risk, latency, cost, verifiability, and the rate of environmental change.
 
-## 4.10 停止、预算与无进展检测
+## 4.10 Stopping, budgets, and no-progress detection
 
-所有范式都必须具有停止条件：
+Every pattern needs stopping conditions:
 
-- 达到明确成功标准；
-- 达到最大步骤数；
-- 达到 Token 或费用预算；
-- 超过运行时间；
-- 连续多轮没有产生新信息；
-- 在没有新信息、合理轮询或可恢复错误的情况下重复相同 Tool Call；
-- 反思后评分不再改善；
-- 触发安全策略；
-- 需要人工判断；
-- 用户主动取消。
+- Explicit success criteria have been met.
+- The maximum step count has been reached.
+- The token or cost budget has been exhausted.
+- The runtime limit has been exceeded.
+- Several consecutive rounds have produced no new information.
+- The same tool call repeats without new information, legitimate polling, or a recoverable error.
+- Reflection no longer improves the score.
+- A safety policy has been triggered.
+- Human judgment is required.
+- The user cancels the task.
 
-可以定义一个受限执行预算：
+A bounded execution budget can be defined as:
 
 $$
 B=(N_{max},T_{max},C_{max},R_{max})
 $$
 
-其中：
+Where:
 
-- $N_{max}$：最大步骤数；
-- $T_{max}$：最大运行时间；
-- $C_{max}$：最大费用或 Token；
-- $R_{max}$：最大重试或反思次数。
+- $N_{max}$: maximum number of steps.
+- $T_{max}$: maximum runtime.
+- $C_{max}$: maximum cost or token count.
+- $R_{max}$: maximum retries or reflection rounds.
 
-当预算耗尽时，系统应明确报告未完成状态和已有结果，而不是伪装成成功。
+When the budget runs out, the system should report that the task is incomplete and show the results obtained so far, rather than pretend it succeeded.
 
-## 4.11 生产级设计检查表
+## 4.11 Production design checklist
 
 ### ReAct
 
-- 是否持续保留目标和成功标准？
-- 是否检测重复动作和无进展循环？
-- Observation 是否来自真实工具结果？
-- Tool 错误是否以结构化形式返回？
+- Do the goal and success criteria remain available throughout execution?
+- Are repeated actions and no-progress loops detected?
+- Do observations come from actual tool results?
+- Are tool errors returned in a structured form?
 
 ### Plan-and-Execute
 
-- 计划是否具有依赖、输入和验收条件？
-- 任务前提会变化时，是否有重规划入口？
-- 什么事件会触发重规划？
-- 能否只重规划受影响的局部步骤？
+- Does the plan specify dependencies, inputs, and acceptance criteria?
+- Is there a replanning entry point when assumptions can change?
+- Which events trigger replanning?
+- Can replanning be limited to affected steps?
 
 ### Reflection / Reflexion
 
-- 是否有客观验证器？
-- 评价标准是否明确？
-- 最大优化轮数是多少？
-- 反思是否可能污染长期记忆？
-- 改进是否值得额外延迟和成本？
+- Is an objective verifier available?
+- Are evaluation criteria explicit?
+- What is the maximum number of optimization rounds?
+- Could reflections contaminate long-term memory?
+- Is the improvement worth the extra latency and cost?
 
-### Agentic Workflow
+### Agentic workflow
 
-- 哪些节点必须由确定性代码控制？
-- 哪些节点确实需要 Agent 自主性？
-- 高风险动作是否经过审批？
-- 是否保留完整 Trace、状态和审计记录？
+- Which nodes must be controlled by deterministic code?
+- Which nodes genuinely need agent autonomy?
+- Do high-risk actions undergo approval?
+- Are complete traces, state, and audit records retained?
 
-## 4.12 Anthropic 原则的准确理解
+## 4.12 Interpreting Anthropic's principle accurately
 
-“能用 Workflow 解决，就不要用 Agent”是对 Anthropic 工程建议的通俗概括，但不是原文中的绝对规则。
+“If a workflow can solve it, do not use an agent” is a colloquial summary of Anthropic's engineering advice, not an absolute rule stated in the article.
 
-更接近原意的说法是：
+A closer paraphrase is:
 
-> **从能够满足需求的最简单方案开始，只有在更高复杂度能够带来可测量收益时，才升级为多步 Workflow 或自主 Agent。**
+> **Start with the simplest solution that meets the requirements. Move to a multistep workflow or autonomous agent only when greater complexity produces measurable benefits.**
 
-Anthropic 的区分是：
+Anthropic distinguishes the cases as follows:
 
-- 路径明确、需要一致性和可预测性时，优先使用 Workflow；
-- 路径无法预先确定、需要模型动态决策时，才使用 Agent；
-- 很多问题通过单次 LLM 调用、检索和示例优化就能解决。
+- Prefer workflows when paths are well defined and consistency and predictability matter.
+- Use agents when paths cannot be determined in advance and models must make dynamic decisions.
+- Many problems can be solved by improving a single LLM call with retrieval and examples.
 
-复杂度本身不是能力。只有当任务成功率、质量或可扩展性得到可验证提升时，增加 Agent 自主性才有价值。
+Complexity is not capability. Greater agent autonomy is worthwhile only when it yields a verifiable improvement in task success, quality, or scalability.
 
-## 4.13 本章总结
+## 4.13 Chapter summary
 
-ReAct、Plan-and-Execute 与 Reflection 分别解决三个不同问题：
+ReAct, Plan-and-Execute, and Reflection address three different questions:
 
-1. **ReAct**：如何根据最新环境反馈选择下一步；
-2. **Plan-and-Execute**：如何维持复杂任务的全局结构；
-3. **Reflection / Reflexion**：如何利用验证和失败经验提升质量。
+1. **ReAct**: how to choose the next step using fresh environmental feedback.
+2. **Plan-and-Execute**: how to maintain the global structure of a complex task.
+3. **Reflection / Reflexion**: how to improve quality using verification and lessons from failure.
 
-组合时应明确每个控制环修改什么状态、由谁验收，以及何时停止。短任务不必配置全部角色；增加 Planner 或 Critic 后，仍要检验其收益是否超过往返延迟、状态管理和误判成本。
+When combining them, specify which state each control loop changes, who accepts its results, and when it stops. Short tasks do not need every role. After adding a planner or critic, check whether its benefit exceeds the costs of round trips, state management, and mistaken judgments.
 
-## 参考资料
+## References
 
 - [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629)
 - [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366)
-- [Reflexion 原文实验设置与表 1–2](https://arxiv.org/html/2303.11366v4)
+- [Reflexion: original experimental setup and Tables 1–2](https://arxiv.org/html/2303.11366v4)
 - [ReWOO: Decoupling Reasoning from Observations for Efficient Augmented Language Models](https://arxiv.org/abs/2305.18323)
 - [An LLM Compiler for Parallel Function Calling](https://arxiv.org/abs/2312.04511)
 - [LangChain: Planning Agents](https://www.langchain.com/blog/planning-agents)
-- [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
+- [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) — the architectural distinction cited here comes from the December 2024 article; the live page now notes that parts of its tooling discussion have changed.

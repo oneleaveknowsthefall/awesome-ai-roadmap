@@ -1,13 +1,13 @@
 ---
-description: 通过订单统计理解 Text-to-SQL 的业务口径、结构化查询、执行权限和独立结果验收。
+description: Use an order-aggregation example to understand business definitions, structured queries, execution authorization, and independent result validation in Text-to-SQL.
 ---
 
-# RAG · 结构化查询
+# RAG · Structured Queries
 
-文档检索负责找到解释和依据；关系表里的筛选、关联与汇总，应交给数据库。本模块讨论自然语言如何变成可检查的 SQL，以及什么时候应保留固定报表模板。
+Document retrieval finds explanations and supporting evidence; filtering, joining, and aggregating relational tables belong in the database. This module explains how natural language becomes SQL that can be inspected, and when fixed report templates remain the better choice.
 
-## 章节
+## Chapters
 
-1. [第二十二章：Text-to-SQL：从业务问题到可验证查询](22-text-to-sql.md)
+1. [Chapter 22: Text-to-SQL: From Business Questions to Verifiable Queries](22-text-to-sql.md)
 
-返回 [RAG 相关知识点](../README.md)。
+Back to [Retrieval-Augmented Generation](../README.md).

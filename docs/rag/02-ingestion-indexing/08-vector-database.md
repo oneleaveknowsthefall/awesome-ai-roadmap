@@ -1,225 +1,225 @@
 ---
-description: 比较 FLAT、HNSW、IVF 和 DiskANN 的搜索机制，说明量化、过滤检索、删除回收及向量库选型的资源约束。
+description: Compare FLAT, HNSW, IVF, and DiskANN search mechanisms, covering quantization, filtered retrieval, deletion and space reclamation, and resource constraints when choosing a vector database.
 ---
 
-# 第八章：向量数据库与 ANN 索引
+# Chapter 8: Vector Databases and ANN Indexes
 
-## 8.1 什么时候需要近似搜索
+## 8.1 When do you need approximate search?
 
-一百万条向量，每条 1024 维。用户提问后，要找出最相似的 10 条。
+Suppose you have one million vectors, each with 1024 dimensions, and need to find the 10 most similar vectors for a user's question.
 
-精确搜索对所有向量计算距离，再选择 Top-K，不必完整排序。距离计算约为 `O(Nd)`；它对给定向量与度量得到精确近邻，**不等于语义答案 100% 正确**。延迟取决于硬件、批量、维度与过滤后规模，GPU 或小子集上也可以在线使用。
+Exact search calculates distances to all vectors, then selects the top K; a full sort is unnecessary. Distance computation costs approximately `O(Nd)`. It finds exact nearest neighbors for the given vectors and metric, **not semantically correct answers with 100% accuracy**. Latency depends on hardware, batching, dimensionality, and the size of the filtered subset. Exact search can also serve online queries on GPUs or small subsets.
 
-于是有了 **ANN（近似最近邻搜索）**：
+This motivates **ANN (approximate nearest neighbor search)**:
 
-> **允许漏掉一部分精确近邻，以减少搜索工作量；在合适数据和硬件上可能获得数量级加速。**
+> **Allow some exact nearest neighbors to be missed in exchange for less search work. On suitable data and hardware, this may yield orders-of-magnitude speedups.**
 
-近似误差必须测量，不能只看延迟。ANN 是索引算法，不要求部署独立向量数据库；索引库、关系库扩展和独立服务都可以承载它。
+Approximation error must be measured alongside latency. ANN is an indexing technique, not a requirement to deploy a separate vector database. An indexing library, a relational database extension, or an independent service can all host it.
 
-## 8.2 主流 ANN 索引
+## 8.2 Common ANN indexes
 
 ```mermaid
 flowchart TB
-    ANN[向量搜索方案] --> HNSW[HNSW<br/>图索引]
-    ANN --> IVF[IVF<br/>倒排聚类]
-    ANN --> DISK[DiskANN<br/>磁盘图索引]
-    ANN --> FLAT[FLAT<br/>暴力精确]
+    ANN[Vector search approaches] --> HNSW[HNSW<br/>Graph index]
+    ANN --> IVF[IVF<br/>Inverted lists of clusters]
+    ANN --> DISK[DiskANN<br/>Disk-based graph index]
+    ANN --> FLAT[FLAT<br/>Brute-force exact search]
 ```
 
 ### 8.2.1 HNSW
 
-**思路**：构建多层邻近图，上层稀疏，底层覆盖全部节点。查询先在上层贪心寻找入口，到底层后维护候选队列继续扩展，以搜索宽度换召回；不是从头到尾只沿唯一一条贪心路径行走。
+**Approach**: build a multilayer proximity graph, with sparse upper layers and a base layer covering every node. A query first searches greedily in the upper layers to find an entry point, then maintains a candidate queue and expands the search at the base layer, trading search width for recall. It does not follow a single greedy path from beginning to end.
 
-类比：**先坐飞机到城市，再打车到街区，最后步行找门牌号。**
+An analogy: **fly to a city, take a taxi to a neighborhood, then walk to the street address.**
 
-| 关键参数 | 作用 |
+| Key parameter | Role |
 |---|---|
-| `M` | 控制每个节点的连接数上限；增大通常增加图空间，召回收益需实测 |
-| `ef_construction` | 建索引时的候选搜索宽度；增大通常提高构建成本并可能改善图质量 |
-| `ef_search` | 查询时的候选队列长度，是常用的召回—延迟旋钮；不是所有实现唯一的查询预算 |
+| `M` | Controls the maximum number of connections per node. Increasing it generally increases graph storage; recall gains must be measured |
+| `ef_construction` | Candidate search width during index construction. Increasing it usually raises build cost and may improve graph quality |
+| `ef_search` | Query-time candidate queue length, a common recall–latency control; not necessarily the only query budget in every implementation |
 
-**优点**：通常能在较高召回下减少距离计算，是常见候选；仍需用相同数据、过滤与延迟目标比较。
+**Benefit**: HNSW often reduces distance computations while maintaining high recall, making it a common candidate. Compare it using the same data, filters, and latency targets.
 
-**两个必须知道的缺点：**
+**Two limitations you must understand:**
 
-1. **工作集开销大**。除向量外还要存邻接表；是否常驻内存、是否 mmap/on-disk，由实现决定；
-2. **删除与回收依实现而异**。有的实现用 tombstone，有的通过图修复、VACUUM 或 segment compaction 回收，不能把算法名等同于“没有真删除”。应分别验证查询不可见、空间回收和备份删除。
+1. **A large working set.** Adjacency lists must be stored in addition to vectors. Whether the data stays in memory or uses mmap/on-disk storage depends on the implementation.
+2. **Deletion and space reclamation are implementation-specific.** Some implementations use tombstones; others reclaim resources through graph repair, VACUUM, or segment compaction. The algorithm's name does not mean “no real deletion.” Verify query invisibility, space reclamation, and deletion from backups separately.
 
-**第二点在需要合规删除数据的场景里是个大问题**（第十九章展开）。
+**The second point matters greatly when data deletion is a compliance requirement**, as Chapter 19 explains.
 
 ### 8.2.2 IVF
 
-**思路**：先把所有向量聚类成若干个桶（`nlist`），查询时只搜索最接近 Query 的几个桶（`nprobe`）。
+**Approach**: cluster the vectors into a number of buckets (`nlist`), then search only the buckets closest to the query (`nprobe`).
 
-| 关键参数 | 作用 |
+| Key parameter | Role |
 |---|---|
-| `nlist` | 聚类中心数量；增加通常缩小平均桶大小，但也增加中心选择成本，需与 `nprobe` 联调 |
-| `nprobe` | 查询时搜索的桶数。**在线调节召回-延迟的旋钮** |
+| `nlist` | Number of cluster centroids. Increasing it usually reduces average bucket size but increases centroid-selection cost; tune it jointly with `nprobe` |
+| `nprobe` | Number of buckets searched per query. **A query-time recall–latency control** |
 
-IVF 省去多层图邻接表，但 IVF-Flat 仍保存全精度向量，内存不一定“远低于”HNSW；聚类训练、数据倾斜和更新后的分布漂移也有成本。
+IVF avoids multilayer graph adjacency lists, but IVF-Flat still stores full-precision vectors, so its memory use is not necessarily “far lower” than HNSW's. Clustering, data skew, and distribution drift after updates also have costs.
 
-**边界问题**：目标向量若位于本次未搜索的桶里就会漏掉；增加 `nprobe` 可提高覆盖。与 HNSW 谁更准，应在相同时间和资源预算下比较，而不是按索引名字排序。
+**Boundary issue**: a target vector is missed if its bucket is not searched. Increasing `nprobe` can improve coverage. Compare IVF and HNSW under equal time and resource budgets rather than ranking their accuracy by index name.
 
-**IVF 通常与量化组合使用**（如 IVF-PQ），进一步压缩内存。
+**IVF is commonly combined with quantization**, as in IVF-PQ, to reduce memory further.
 
 ### 8.2.3 DiskANN
 
-**思路**：把大部分图和全精度向量放到 SSD，在内存中用压缩向量辅助搜索，并缓存部分图节点。内存里不只有压缩向量，还要容纳缓存、查询状态和运行时开销。
+**Approach**: keep most of the graph and full-precision vectors on SSD, use compressed vectors in memory to guide search, and cache some graph nodes. Memory must hold more than compressed vectors: caches, query state, and runtime overhead also count.
 
-DiskANN 主要解决高召回搜索的内存预算问题。FreshDiskANN 是支持流式插入、删除的后续方案；不能据此推断每个名为 DiskANN 的产品都支持相同更新与物理擦除语义。
+DiskANN primarily addresses the memory budget for high-recall search. FreshDiskANN is a subsequent approach supporting streaming insertions and deletions. This does not mean every product named DiskANN provides identical update or physical-erasure semantics.
 
-**代价是引入 SSD 随机 I/O、缓存和预取设计**；实际延迟取决于硬件、批量和缓存命中，不能保证始终比另一种内存索引慢。
+**The tradeoff introduces SSD random I/O, cache management, and prefetching design.** Actual latency depends on hardware, batching, and cache hits; it is not necessarily always slower than another in-memory index.
 
-**适用**：内存预算成为瓶颈且能够提供合适 SSD 吞吐的场景；频繁更新还需单独核验实现的插入、删除与压实能力。
+**Suitable when**: memory is the bottleneck and sufficient SSD throughput is available. For frequent updates, separately verify the implementation's insertion, deletion, and compaction capabilities.
 
-### 8.2.4 索引对比
+### 8.2.4 Comparing indexes
 
-| 索引 | 搜索与调参重点 |
+| Index | Search behavior and tuning priorities |
 |---|---|
-| FLAT | 扫描全部候选，受带宽和距离计算限制；给定度量下精确，无图或聚类维护，可做 ANN 基线 |
-| IVF | 搜索选中的桶；联调 `nlist`、`nprobe`，观察训练、倾斜和分布漂移，PQ 还引入压缩误差 |
-| HNSW | 沿分层图扩展候选；联调建图质量与查询宽度，核算邻接表、向量和删除回收成本 |
-| DiskANN | 用压缩、缓存辅助 SSD 图搜索；比较搜索宽度、随机 I/O、冷热缓存及具体更新能力 |
+| FLAT | Scans all candidates; constrained by bandwidth and distance computation. Exact for the chosen metric, with no graph or clustering maintenance; useful as an ANN baseline |
+| IVF | Searches selected buckets. Tune `nlist` and `nprobe` together; watch training, skew, and distribution drift. PQ adds compression error |
+| HNSW | Expands candidates through a hierarchical graph. Tune graph quality and search width together; account for adjacency lists, vectors, deletion, and reclamation |
+| DiskANN | Uses compression and caching to assist SSD graph search. Compare search width, random I/O, warm and cold caches, and concrete update capabilities |
 
-先以 FLAT 建立精确近邻基线，再按真实 QPS、P99、维度和过滤选择性决定是否需要 ANN；十万条既不是 FLAT 的上限，也不是性能承诺。
+First establish exact nearest neighbors with FLAT, then decide whether ANN is needed based on real QPS, P99 latency, dimensions, and filter selectivity. One hundred thousand vectors is neither FLAT's upper limit nor a performance guarantee.
 
-## 8.3 量化：用精度换空间
+## 8.3 Quantization: trading precision for space
 
-以 float32 向量为基线，量化用更少比特近似表示数值。标量量化逐维编码；PQ 则把向量分成多个子空间，用各自码本中的编号表示子向量，不是逐维改成小整数。
+Starting from float32 vectors, quantization approximates values with fewer bits. Scalar quantization encodes each dimension separately. Product quantization (PQ) instead divides a vector into subspaces and represents each subvector by an entry in its subspace's codebook; it does not simply replace each dimension with a small integer.
 
-| 方式 | 压缩口径与误差来源 |
+| Method | Compression accounting and sources of error |
 |---|---|
-| Scalar int8 | 单维由 4 字节变为 1 字节，向量载荷约缩小 4 倍；另计校准参数，误差依数值分布 |
-| Product Quantization | 若 d 维 float32 向量拆成 m 个子向量，每个用 b 比特编码，载荷由 `4d` 字节变为 `mb/8` 字节；码本和原向量副本另算 |
-| Binary（1 bit） | 单维用 1 比特，载荷约缩小 32 倍；常需过采样与原向量重打分，召回损失依分布而异 |
+| Scalar int8 | Each dimension goes from 4 bytes to 1 byte, reducing vector payload by approximately 4×. Calibration parameters are additional; error depends on the value distribution |
+| Product Quantization | Split a d-dimensional float32 vector into m subvectors, each encoded with b bits: payload falls from `4d` bytes to `mb/8` bytes. Codebooks and any copies of the original vectors are additional |
+| Binary (1 bit) | Each dimension uses 1 bit, reducing payload by approximately 32×. Often requires oversampling and rescoring with original vectors; recall loss depends on the distribution |
 
-Binary 量化常配合过采样和原向量重打分。重打分只能修正已召回候选的次序，救不回未入选近邻；保留原向量也意味着总存储不会简单缩小 32 倍。
+Binary quantization is often paired with oversampling and rescoring using the original vectors. Rescoring can only reorder retrieved candidates; it cannot recover neighbors that never entered the candidate set. Retaining original vectors also means total storage does not simply shrink by 32×.
 
-> **量化的选择应该由内存预算倒推，而不是"能省就省"。** 先算清楚全精度需要多少内存，超预算了再考虑量化。
+> **Choose quantization by working backward from the memory budget, not by saving space wherever possible.** Estimate full-precision memory requirements first, then consider quantization if they exceed the budget.
 
-## 8.4 一个被严重低估的陷阱：带过滤的检索
+## 8.4 An underestimated pitfall: filtered retrieval
 
-这是生产环境中最容易踩、也最少被讨论的坑。
+This is one of the easiest production problems to encounter and one of the least discussed.
 
-**场景**：检索时要加条件——只在当前用户有权限的文档里搜、只搜今年的文档、只搜某个部门的资料。
+**Scenario**: retrieval must apply conditions—search only documents the current user is authorized to access, only this year's documents, or only material from a particular department.
 
-看起来只是加个 `WHERE`，但它会和 ANN 索引产生**严重的交互问题**。
+It looks like adding a `WHERE` clause, but filters can **interact badly with ANN indexes**.
 
 ```mermaid
 flowchart TB
-    F[带过滤的向量检索] --> PRE[预过滤]
-    F --> POST[后过滤]
+    F[Filtered vector retrieval] --> PRE[Pre-filtering]
+    F --> POST[Post-filtering]
 
-    PRE --> PRE1[先限定可返回的候选域]
-    PRE1 --> PRE2[过滤执行计划不合适时<br/>可能耗尽预算或增加扫描]
+    PRE --> PRE1[Restrict the eligible result set first]
+    PRE1 --> PRE2[An unsuitable filter execution plan<br/>may exhaust the budget or increase scanning]
 
-    POST --> POST1[先取 Top-K 再过滤]
-    POST1 --> POST2[高选择性时<br/>过滤后所剩无几甚至为空]
+    POST --> POST1[Retrieve top K, then filter]
+    POST1 --> POST2[Highly selective filters may leave<br/>very few results or none]
 ```
 
-### 8.4.1 问题出在哪里
+### 8.4.1 Where does the problem arise?
 
-假设过滤条件只有 0.1% 的文档满足。
+Suppose only 0.1% of documents satisfy the filter.
 
-- **后过滤**：ANN 先返回 Top-100，过滤后可能一条都不剩；
-- **预过滤/过滤感知搜索**：具体执行可能是子集精确扫描、允许不合格节点作为遍历桥梁，或专门的过滤图。若简单禁止访问不合格节点，确实可能破坏连通性，但这不是所有预过滤实现的定义。
+- **Post-filtering**: ANN returns the top 100 first; filtering may leave no results.
+- **Pre-filtering/filter-aware search**: execution may use an exact scan of the subset, allow ineligible nodes as traversal bridges, or use a specialized filtered graph. Simply forbidding traversal through ineligible nodes can break connectivity, but that is not the definition of every pre-filtering implementation.
 
-**关键在于：这个失败是静默的。** 系统不会报错，只是返回空结果或不相关结果，你会误以为是"知识库里没有这个内容"。
+**The critical point is that failure is silent.** The system raises no error; it returns empty or irrelevant results, which can be mistaken for “the knowledge base does not contain this information.”
 
-### 8.4.2 应对方案
+### 8.4.2 Responses
 
-| 方案 | 做法 | 代价 |
+| Approach | Method | Cost |
 |---|---|---|
-| 放大 K + 后过滤 | 取远大于需要的 K 再过滤 | 延迟上升，且仍无法保证 |
-| 兜底暴力扫描 | 候选不足时对满足条件的子集做精确搜索 | 需要额外的实现路径 |
-| **按维度分区建索引** | 每个租户/部门建独立索引 | 索引数量多，管理成本高 |
-| 过滤感知的索引 | 使用支持谓词无关过滤的索引结构 | 依赖数据库支持 |
+| Increase K + post-filter | Retrieve far more than the required K, then filter | Higher latency, still without a guarantee |
+| Fall back to brute-force search | When too few candidates remain, search the eligible subset exactly | Requires an additional execution path |
+| **Partition indexes by an attribute** | Build a separate index per tenant or department | Many indexes and higher management costs |
+| Filter-aware index | Use an index structure supporting predicate-agnostic filtering | Depends on database support |
 
-按租户分区可缩小搜索域并明确隔离边界，但大量小租户会增加索引管理成本，大租户还可能形成热点；部门、时间和文档 ACL 等过滤依然存在。应比较独立分区、共享索引加过滤以及分层路由，不能说分区就彻底解决过滤问题。
+Tenant partitioning reduces the search space and clarifies isolation boundaries, but many small tenants increase index-management costs, while large tenants can become hotspots. Department, time, and document ACL filters still apply. Compare separate partitions, shared indexes with filters, and hierarchical routing; partitioning does not completely solve filtering.
 
-## 8.5 选型：怎么挑向量数据库
+## 8.5 How to choose a vector database
 
-选型时比产品名单更重要的是判断维度。
+Selection criteria matter more than a list of products.
 
 ```mermaid
 flowchart TB
-    SEL[选型] --> D1[数据规模]
-    SEL --> D2[部署形态]
-    SEL --> D3[功能需求]
-    SEL --> D4[运维能力]
+    SEL[Selection] --> D1[Data scale]
+    SEL --> D2[Deployment model]
+    SEL --> D3[Functional requirements]
+    SEL --> D4[Operational capacity]
 
-    D1 --> A1[十万以下 / 百万级 / 亿级]
-    D2 --> A2[嵌入式 / 自托管 / 托管服务]
-    D3 --> A3[混合检索 / 元数据过滤 / 多租户]
-    D4 --> A4[团队能否承担独立组件的运维]
+    D1 --> A1[Below 100,000 / Millions /<br/>Hundreds of millions]
+    D2 --> A2[Embedded / Self-hosted /<br/>Managed service]
+    D3 --> A3[Hybrid retrieval / Metadata filtering /<br/>Multi-tenancy]
+    D4 --> A4[Can the team operate<br/>another independent component?]
 ```
 
-| 类型 | 代表 | 适用 |
+| Type | Examples | Suitable use |
 |---|---|---|
-| 嵌入式/库式方案 | Chroma、FAISS、LanceDB 等 | 形态与规模能力各异；FAISS 是索引库，不自带数据库事务、ACL 和完整服务层 |
-| 关系库扩展 | pgvector | **已有 PostgreSQL，希望向量与业务数据同库** |
-| 独立向量库 | Qdrant、Weaviate、Milvus | 百万到亿级，需要完整的过滤与混合检索能力 |
-| 托管服务 | Pinecone 等 | 不想运维，接受数据托管 |
+| Embedded/library-based solutions | Chroma, FAISS, LanceDB, and others | Deployment models and scaling capabilities vary. FAISS is an indexing library, not a database with transactions, ACLs, and a complete service layer |
+| Relational database extension | pgvector | **Existing PostgreSQL users who want vectors and application data in the same database** |
+| Standalone vector databases | Qdrant, Weaviate, Milvus | Millions to hundreds of millions of vectors, with comprehensive filtering and hybrid retrieval requirements |
+| Managed services | Pinecone and others | Teams that do not want to operate the service and accept hosted data |
 
-### 8.5.1 pgvector 值得特别说明
+### 8.5.1 Why pgvector deserves special attention
 
-如果你的业务本来就用 PostgreSQL，**pgvector 往往是最被低估的选择**：
+If your application already uses PostgreSQL, **pgvector is often an underestimated option**:
 
-- 向量与业务行可以在同一数据库事务里发布，减少跨库一致性问题；异步嵌入仍需绑定文档版本，不能把旧向量与新正文直接提交在一起；
-- 元数据过滤可以沿用 SQL、关系连接和已有权限机制；
-- **少运维一个组件**，这在小团队里价值极高。
+- Vectors and application rows can be published in the same database transaction, reducing cross-database consistency problems. Asynchronous embeddings must still be tied to document versions; do not commit an old vector with new document text.
+- Metadata filters can reuse SQL, relational joins, and existing authorization mechanisms.
+- **One fewer component to operate** is especially valuable for a small team.
 
-pgvector 没有通用的“千万条上限”。应结合 PostgreSQL 内存、分区、索引维护、复制及查询并发测试。官方 README 说明从 **0.8.0** 起可启用 iterative index scans，在过滤后结果不足时继续扫描，但仍受 `hnsw.max_scan_tuples`、`ivfflat.max_probes` 等预算限制。SQL `WHERE` 写在查询里，不代表物理执行一定先过滤再走 ANN；要看执行计划。
+pgvector has no universal “ten-million-vector limit.” Test PostgreSQL memory, partitioning, index maintenance, replication, and query concurrency together. The official README states that **0.8.0** introduced optional iterative index scans: scanning can continue when too few results remain after filtering, but still stops at budgets such as `hnsw.max_scan_tuples` and `ivfflat.max_probes`. A SQL `WHERE` clause does not guarantee that physical execution filters before ANN search; inspect the execution plan.
 
-> **常见问题是「按未来三年的假想规模选今天的方案」。** 先按当前规模选最简单的，把接口抽象好，规模真的上来了再迁移——迁移成本通常低于长期背负一个过重系统的成本。
+> **A common mistake is choosing today's system for an imagined scale three years away.** Start with the simplest approach that fits current scale and abstract the interface well. Migrate when growth actually demands it; migration usually costs less than carrying an unnecessarily heavyweight system for years.
 
-## 8.6 常见错误
+## 8.6 Common mistakes
 
-### 8.6.1 只会说索引名字
+### 8.6.1 Knowing only index names
 
-说不出 HNSW 和 IVF 的原理差异和参数含义，等于没答。
+Without explaining how HNSW and IVF differ or what their parameters mean, naming them does not answer the question.
 
-### 8.6.2 不知道 HNSW 的两个缺点
+### 8.6.2 Not understanding HNSW's two drawbacks
 
-内存占用和删除困难，是选型时的关键约束。
+Memory use and deletion complexity are important selection constraints.
 
-### 8.6.3 小数据量上强行用 ANN
+### 8.6.3 Forcing ANN onto small datasets
 
-FLAT 值得作为基线，但是否够快要在真实维度、并发与过滤子集上压测。
+FLAT deserves a baseline test, but whether it is fast enough requires load testing with realistic dimensions, concurrency, and filtered subsets.
 
-### 8.6.4 忽略带过滤检索的陷阱
+### 8.6.4 Ignoring filtered-retrieval pitfalls
 
-高选择性过滤会导致静默的召回崩塌，这是生产环境最隐蔽的故障之一。
+Highly selective filters can silently collapse recall, making this one of the least visible production failures.
 
-### 8.6.5 认为量化是纯收益
+### 8.6.5 Treating quantization as a free win
 
-量化损失没有固定百分比；需报告原向量基线、ANN Recall@K、任务指标和整体内存，不能只报压缩后的向量载荷。
+Quantization has no fixed percentage loss. Report the original-vector baseline, ANN Recall@K, task metrics, and total memory, not just the compressed vector payload.
 
-### 8.6.6 按最大可能规模选型
+### 8.6.6 Selecting for the largest imaginable scale
 
-过度设计带来的长期运维成本，通常高于未来的迁移成本。
+The ongoing operational costs of overengineering usually exceed the cost of a future migration.
 
-### 8.6.7 忘记向量库也需要备份和容灾
+### 8.6.7 Forgetting backups and disaster recovery
 
-索引重建往往需要数小时甚至数天，没有备份策略等于没有容灾。
+Rebuilding an index can take hours or even days. Without a backup strategy, there is no disaster recovery strategy.
 
-## 8.7 本章总结
+## 8.7 Summary
 
-1. **ANN 用近似搜索减少工作量**，速度收益与近邻损失都要在目标数据和硬件上测量；
-2. **HNSW** 是多层邻近图，空间、删除与回收语义需按实现核实；
-3. **IVF** 聚类分桶，搜索未覆盖的桶会漏召回，中心数、探测桶数、量化与分布需联调；
-4. **DiskANN** 减少内存需求；流式更新能力应与 FreshDiskANN 及具体实现区分；
-5. **先测 FLAT**，再根据规模、维度、并发与时延约束选择 ANN；
-6. **量化**要实测召回损失、过采样与原向量重打分成本，不能承诺固定损失比例；
-7. **过滤必须与索引一起评测**：结果不足不等于没有证据，租户分区也不能替代所有过滤与 ACL；
-8. **选型看四个维度**：数据规模、部署形态、功能需求、运维能力；已有 PostgreSQL 时 pgvector 值得作为候选基线；
-9. **按当前规模选型，把接口抽象好**，不要为想象中的规模过度设计。
+1. **ANN reduces work through approximation**. Measure both speed gains and missed neighbors on the target data and hardware.
+2. **HNSW** is a multilayer proximity graph. Verify storage, deletion, and reclamation semantics for the specific implementation.
+3. **IVF** clusters vectors into buckets; neighbors in unsearched buckets are missed. Tune centroid count, probes, quantization, and distribution-related settings together.
+4. **DiskANN** reduces memory requirements. Distinguish streaming-update support in FreshDiskANN from the capabilities of any particular implementation.
+5. **Test FLAT first**, then choose ANN according to scale, dimensions, concurrency, and latency constraints.
+6. **Quantization** requires measuring recall loss, oversampling, and original-vector rescoring costs. Do not promise a fixed percentage loss.
+7. **Evaluate filters and indexes together**. Too few results do not prove that evidence is absent; tenant partitioning cannot replace all filtering and ACL enforcement.
+8. **Use four selection criteria**: data scale, deployment model, functional requirements, and operational capacity. If PostgreSQL is already in use, pgvector deserves consideration as a baseline.
+9. **Select for current scale and abstract the interface well**. Do not overengineer for imagined growth.
 
 
-## 参考资料
+## References
 
 - [Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs](https://arxiv.org/abs/1603.09320)
-- [pgvector 官方 README：过滤、迭代扫描、VACUUM 与扩展](https://github.com/pgvector/pgvector)
+- [pgvector official README: filtering, iterative scans, VACUUM, and scaling](https://github.com/pgvector/pgvector)
 - [FreshDiskANN: A Fast and Accurate Graph-Based ANN Index for Streaming Similarity Search](https://arxiv.org/abs/2105.09613)
 - [ACORN: Performant and Predicate-Agnostic Search Over Vector Embeddings and Structured Data](https://arxiv.org/abs/2403.04871)
 - [Billion-scale similarity search with GPUs](https://arxiv.org/abs/1702.08734)

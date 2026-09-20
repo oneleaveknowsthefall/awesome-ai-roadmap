@@ -1,21 +1,21 @@
 ---
-description: 将概率性内容护栏与确定性授权分离，按拦截原因设计降级，评估误报、漏报和流式输出风险。
+description: Separate probabilistic content guardrails from deterministic authorization, choose degraded-service responses by the reason for a block, and evaluate false positives, false negatives, and streaming risks.
 ---
 
-# 第六章：Guardrails 与降级策略
+# Chapter 6: Guardrails and Graceful Degradation
 
-## 6.1 Guardrails 解决的是契约校验管不到的问题
+## 6.1 Guardrails address what contract validation cannot
 
-[第 5 章](05-structured-output-contracts.md)的契约校验回答"输出格式对不对",Guardrails 回答的是另一件事:**输出内容是否安全、是否符合业务允许的边界**——即使一段文本完全符合 JSON Schema,它仍然可能包含泄露的隐私信息、越权的操作指令,或者只是单纯地跑题了。
+Contract validation in [Chapter 5](05-structured-output-contracts.md) asks whether the output has the right format. Guardrails ask something different: **is the content safe, and is it within what the business permits?** Even text that fully conforms to a JSON Schema can disclose private information, include instructions for unauthorized actions, or simply go off topic.
 
 ```mermaid
 flowchart TB
-    IN["用户输入"] --> INGUARD["输入护栏:<br/>Prompt 注入检测 · 越权请求识别"]
-    INGUARD -->|拦截| REJECT1["拒绝 / 转人工"]
-    INGUARD -->|通过| MODEL["模型生成"]
-    MODEL --> OUTGUARD["输出护栏:<br/>PII 过滤 · 内容安全 · 事实边界"]
-    OUTGUARD -->|拦截| DEGRADE["降级路径"]
-    OUTGUARD -->|通过| RESP["返回用户"]
+    IN["User input"] --> INGUARD["Input guardrails:<br/>Prompt-injection detection · Unauthorized-request detection"]
+    INGUARD -->|Block| REJECT1["Refuse / Human review"]
+    INGUARD -->|Pass| MODEL["Model generation"]
+    MODEL --> OUTGUARD["Output guardrails:<br/>PII filtering · Content safety · Factual checks"]
+    OUTGUARD -->|Block| DEGRADE["Degraded-service path"]
+    OUTGUARD -->|Pass| RESP["Return to user"]
     DEGRADE --> RESP
 
     style INGUARD fill:#e8f0fe
@@ -23,24 +23,24 @@ flowchart TB
     style DEGRADE fill:#fff3cd
 ```
 
-## 6.2 输入护栏:在模型看到之前拦下风险
+## 6.2 Input guardrails: intercept risks before the model sees them
 
-| 检查项 | 防什么 | 常见实现 |
+| Check | What it addresses | Common implementation |
 |---|---|---|
-| Prompt 注入检测 | 用户或第三方内容试图改变任务、诱导越权 | 规则与分类器提供风险信号，不能证明未命中的输入可信 |
-| 越权请求识别 | 用户尝试让 Agent 执行超出其权限范围的操作 | 结合业务权限系统做前置校验,而非指望模型自己拒绝 |
-| 输入内容安全 | 违规、有害的输入内容 | 内容安全 API(如 OpenAI Moderation)前置调用 |
+| Prompt-injection detection | User or third-party content attempting to redirect the task or induce unauthorized behavior | Rules and classifiers supply risk signals; an undetected input is not thereby proven trustworthy |
+| Unauthorized-request detection | Attempts to make an agent act beyond the user's permissions | Check against the business authorization system before execution instead of relying on the model to refuse |
+| Input content safety | Prohibited or harmful input content | Call a content-safety API, such as OpenAI Moderation, before generation |
 
-> **越权识别不应该完全依赖模型自己判断该不该执行。** 模型的拒绝行为可以被对抗性 Prompt 绕过,权限边界应该在业务系统层面用确定性规则强制,模型层的拒绝只是第一道、不是唯一一道防线。
+> **Detecting unauthorized actions must not depend entirely on the model deciding whether to execute them.** Adversarial prompts can bypass model refusals. The business system should enforce permissions through deterministic rules; refusal by the model is only an initial safeguard, not the only one.
 
-## 6.3 输出护栏:模型生成之后、返回用户之前
+## 6.3 Output guardrails: after generation, before returning to the user
 
-| 检查项 | 防什么 |
+| Check | What it addresses |
 |---|---|
-| PII 检测与脱敏 | 模型在回答中意外复述了输入上下文里的身份证号、手机号等敏感信息 |
-| 内容安全审核 | 生成内容本身违规或有害 |
-| 事实边界检查 | 涉及金额、日期等强事实性字段时,与结构化数据源做交叉校验而非只信任模型输出 |
-| 引用完整性(RAG 场景) | 生成内容中的引用是否能在检索到的原文中找到依据,这部分详细展开见 [RAG · 生成与评估](../../rag/05-generation-evaluation/README.md) |
+| PII detection and redaction | Accidental repetition of sensitive information from the input context, such as identity-card or mobile-phone numbers |
+| Content-safety review | Generated content that is itself prohibited or harmful |
+| Factual checks | Cross-check strongly factual fields, such as amounts and dates, against structured data sources rather than trusting model output alone |
+| Citation integrity in RAG | Check whether citations in the answer are supported by the retrieved source text; see [RAG · Generation and Evaluation](../../rag/05-generation-evaluation/README.md) for details |
 
 ```python
 def output_guardrail(text: str, context: dict) -> GuardrailResult:
@@ -51,72 +51,72 @@ def output_guardrail(text: str, context: dict) -> GuardrailResult:
     return GuardrailResult(action="allow")
 ```
 
-`context` 必须来自可信的业务授权上下文，不是用户或模型自由填写的字典。上例仅演示决策优先级：阻断优先于脱敏，实际系统仍需聚合所有检查结果并复检脱敏后的文本。护栏超时或不可用也应有显式策略，高风险写操作应停止，低风险场景可返回受限模板并告警。
+`context` must come from trusted business authorization state, not a dictionary freely populated by the user or model. The example demonstrates only decision priority: blocking takes precedence over redaction. A real system must still aggregate all check results and recheck the redacted text. Guardrail timeouts and unavailability also need an explicit policy. High-risk writes should stop; low-risk scenarios may return a restricted template and raise an alert.
 
-流式输出一旦发出就无法撤回。逐段审核会增加延迟，也可能漏掉跨段组合的信息；高敏感回答应缓冲完整内容，或使用经过评估的分段放行策略。不要先发送原文、事后才打上「已拦截」标签。
+Once streamed output has been sent, it cannot be taken back. Reviewing chunks adds latency and may miss information that becomes sensitive only when chunks are combined. Highly sensitive answers should be buffered in full, or released using an evaluated chunk-review policy. Do not send the original text first and label it “blocked” afterward.
 
-## 6.4 降级不是"报错",而是一个有梯度的策略阶梯
+## 6.4 Graceful degradation offers graduated options, not just an error
 
-护栏拦截不一定是服务故障，也不必先返回 500。应按原因选择受限重试、缩小任务、有效缓存或明确拒绝/转人工；下列层级是可选处置，不是必须依次尝试的链路。能返回一段文字，也不代表原任务已经完成。
+A guardrail block is not necessarily a service failure, and need not start with a 500 response. Depending on the cause, choose a limited retry, a narrower task, a valid cached result, or an explicit refusal or human review. The levels below are options, not a mandatory sequence. Being able to return some text does not mean the original task was completed.
 
 ```mermaid
 flowchart TB
-    CAUSE{"按拦截原因和风险选处置"} --> L1["Lv1: 允许的任务有限重试<br/>政策不变"]
-    CAUSE --> L2["Lv2: 缩小到仍获授权的任务范围"]
-    CAUSE --> L3["Lv3: 返回经权限和时效核对的缓存"]
-    CAUSE --> L4["Lv4: 明确拒绝、模板兜底或转人工"]
+    CAUSE{"Choose by the reason for the block and the risk"} --> L1["Lv1: Limited retries for permitted tasks<br/>Keep the same policy"]
+    CAUSE --> L2["Lv2: Narrow the task to an authorized scope"]
+    CAUSE --> L3["Lv3: Return a cache entry checked for permission and freshness"]
+    CAUSE --> L4["Lv4: Explicit refusal, template response, or human review"]
 
     style L1 fill:#e6f4ea
     style L4 fill:#fce8e6
 ```
 
-| 阶梯 | 触发条件 | 用户感知 |
+| Level | Trigger | User experience |
 |---|---|---|
-| Lv1:换模型重试 | 仅对允许处理、疑似生成错误的任务，在相同政策下有限重试 | 延迟和费用增加，也可能再次失败 |
-| Lv2:缩小任务范围 | 仍有可独立完成、获准处理的子任务 | 明确说明未完成的部分，不把受限回答包装成完整结果 |
-| Lv3:返回缓存答案 | 缓存经当前租户权限、政策版本和有效期验证 | 标明缓存或信息时效；无法确认适用则不返回 |
-| Lv4:模板兜底/转人工 | 没有安全可用的替代结果，或已确认越权、泄密及禁止执行的风险 | 明确告知当前无法处理，必要时交给有权人员复核，不必先尝试前三种处置 |
+| Lv1: Retry with another model | Only for permitted tasks with a suspected generation error, with limited retries under the same policy | Higher latency and cost, with no guarantee of success |
+| Lv2: Narrow the task | An authorized subtask remains that can be completed independently | Explicitly identify unfinished portions; do not present a limited answer as a complete result |
+| Lv3: Return a cached answer | The cache entry passes checks against current tenant permissions, policy version, and expiry | Identify it as cached or state its freshness; do not return it if applicability cannot be confirmed |
+| Lv4: Template response / human review | No safe alternative result is available, or unauthorized access, data disclosure, or a prohibited action has been confirmed as a risk | Clearly state that the task cannot currently be handled; refer it to an authorized reviewer when needed, without having to try the first three options |
 
-**关键原则：按具体风险选择处置，不从 Lv1 机械地试到 Lv4。** 已确认越权、泄密或禁止执行的动作，应停止或进入有权人员的复核流程，不能换模型绕过拦截。涉及支付、医疗或法律的请求还要区分普通信息查询与高影响决定；是否允许提供受限信息由业务政策决定，不能只凭主题词把所有请求当成同一风险。
+**Choose the response for the specific risk; do not mechanically progress from Lv1 to Lv4.** Confirmed unauthorized access, data disclosure, or prohibited actions should stop or enter a review process staffed by authorized people. Switching models must not bypass a block. For payments, medical, or legal requests, distinguish general information requests from high-impact decisions. Business policy determines whether limited information may be provided; topic keywords alone do not make every request equally risky.
 
-## 6.5 护栏本身也需要评测和监控
+## 6.5 Guardrails also need evaluation and monitoring
 
-护栏不是配置一次就一劳永逸的规则集。**误报(把正常请求当成风险拦下)和漏报(真实风险没拦住)都需要持续监控**:
+Guardrails are not a set of rules configured once and forgotten. **Monitor both false positives—blocking legitimate requests as risky—and false negatives—letting real risks through:**
 
-| 指标 | 关注点 |
+| Metric | What to watch |
 |---|---|
-| 护栏拦截率 | 突然上升可能意味着上游输入分布变化,也可能是护栏规则误伤扩大 |
-| 正常请求误报率 | 真实正常请求中被误拦的比例；只复核被拦样本得到的是「拦截中误伤占比」，分母不同 |
-| 风险请求漏报率 | 已标注风险请求中被放行的比例；已知红队集只能估计该测试分布，线上还需抽查放行样本 |
+| Guardrail block rate | A sudden increase may indicate a change in upstream input distribution or growing overblocking by the rules |
+| False-positive rate on legitimate requests | The proportion of genuinely legitimate requests incorrectly blocked. Reviewing only blocked examples instead measures the proportion of blocks that were mistakes; the denominator is different |
+| False-negative rate on risky requests | The proportion of labeled risky requests allowed through. A known red-team set estimates performance only on that test distribution; production monitoring also needs sampling of allowed requests |
 
-## 6.6 常见错误
+## 6.6 Common mistakes
 
-### 6.6.1 把护栏完全交给模型自我审查
+### 6.6.1 Leaving guardrails entirely to model self-review
 
-依赖系统 Prompt 里一句"不要泄露隐私信息"来防止 PII 泄露,而不做程序化检测,对抗性输入很容易绕过这种"君子协定"。
+A system-prompt instruction such as “do not disclose private information,” without programmatic detection, is an easily bypassed promise when faced with adversarial input.
 
-### 6.6.2 拦截之后直接报错,没有降级路径
+### 6.6.2 Returning an error immediately after a block, with no degraded-service option
 
-用户体验是"这次系统崩了",而不是"系统换了个方式回答了我"。降级阶梯的价值就在于把安全拦截对用户体验的冲击降到最低。
+The user experiences “the system crashed” rather than “the system found another way to respond.” Graduated degradation options help minimize the impact of safety blocks on the user experience.
 
-### 6.6.3 所有触发原因都走同一个降级阶梯
+### 6.6.3 Using the same degradation ladder for every trigger
 
-高风险类别(涉及资金、医疗)不应该被允许通过"换模型重试"之类的手段绕过拦截,应直接进入最严格的兜底路径。
+Choose the degraded-service response according to the risk of the specific request or action, the reason for the block, and business policy. A financial or medical topic alone does not require the most restrictive response. High-impact advice, prohibited actions, and unauthorized requests remain subject to their respective restrictions; switching models and retrying must not bypass a block.
 
-### 6.6.4 护栏规则上线后不再监控误报率
+### 6.6.4 Deploying guardrail rules without continuing to monitor false positives
 
-规则集是静态的,但输入分布和攻击手法在持续变化,不做持续监控会导致规则逐渐失效或者误伤持续扩大而不自知。
+The rules are static, but input distributions and attack techniques keep changing. Without ongoing monitoring, rules can gradually lose effectiveness or block increasing numbers of legitimate requests without anyone noticing.
 
-## 6.7 本章总结
+## 6.7 Chapter summary
 
-1. **Guardrails 和契约校验是两回事**:前者管内容安全与业务边界,后者管格式是否可被程序消费;
-2. **输入护栏和输出护栏各有分工**:前者在模型生成之前拦截风险请求,后者在返回用户之前拦截风险输出;
-3. **权限边界不应完全依赖模型自我拒绝**,业务系统层面的确定性规则才是最后兜底的防线;
-4. **降级有多种可选处置，而非自动遍历的重试链**，返回模板也不能计作原任务完成;
-5. **处置取决于具体动作和拦截原因**，已确认越权或禁止执行的任务不能通过换模型放行;
-6. **护栏本身需要持续评测**:监控误报率、漏报率,并用红队测试集验证有效性。
+1. **Guardrails and contract validation do different jobs.** Guardrails address content safety and permitted business behavior; contract validation checks whether programs can consume the format.
+2. **Input and output guardrails have distinct responsibilities.** The former intercept risky requests before generation; the latter intercept risky outputs before they reach users.
+3. **Authorization must not rely entirely on model refusals.** Deterministic rules in the business system provide the final enforcement.
+4. **Graceful degradation offers several possible responses, not an automatically traversed retry chain.** Returning a template does not count as completing the original task.
+5. **The specific action and reason for the block determine the response.** Confirmed unauthorized or prohibited tasks must not be allowed through by switching models.
+6. **Guardrails need continuous evaluation:** monitor false-positive and false-negative rates, and use red-team test sets to assess effectiveness.
 
-## 参考资料
+## References
 
 - [OpenAI: Moderation API](https://platform.openai.com/docs/guides/moderation)
 - [OWASP Top 10 for LLM Applications](https://genai.owasp.org/llm-top-10/)

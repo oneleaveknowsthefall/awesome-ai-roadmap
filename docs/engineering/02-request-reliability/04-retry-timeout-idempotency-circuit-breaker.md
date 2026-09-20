@@ -1,16 +1,16 @@
 ---
-description: 区分可重试错误与结果未知，设计共享超时预算、动作级幂等、熔断和舱壁隔离。
+description: Distinguish retryable failures from unknown outcomes, and design shared timeout budgets, action-level idempotency, circuit breakers, and bulkhead isolation.
 ---
 
-# 第四章：重试、超时、幂等与熔断
+# Chapter 4: Retries, Timeouts, Idempotency, and Circuit Breakers
 
-## 4.1 为什么 LLM 调用的可靠性模式不能直接照搬传统 API
+## 4.1 Why reliability patterns for LLM calls need adaptation
 
-LLM 生成常有较长且不稳定的时延，重复尝试可能再次计费，具体取决于失败发生的阶段和供应商规则。纯生成不会自动产生订单等业务副作用，但应用执行工具、或调用托管工具后，超时可能意味着「已经执行，只是结果未送达」。因此要分别设计生成重试和业务动作重试。
+LLM generation often has long, variable latency. Another attempt may incur another charge, depending on when the failure occurred and the provider's rules. Generation alone does not automatically create business side effects such as orders. Once the application executes tools, or invokes hosted tools, however, a timeout may mean “the action already ran, but its result never arrived.” Generation retries and business-action retries therefore need separate designs.
 
-## 4.2 重试:指数退避 + 抖动,但要分清错误类型
+## 4.2 Retries: exponential backoff with jitter, guided by error type
 
-下面只演示退避逻辑；`ApiError` 是供应商适配层的异常类型，生产实现还需统一总时限、识别额度耗尽，并处理 `Retry-After`。
+The following example demonstrates only backoff logic. `ApiError` is an exception type from the provider adapter. A production implementation also needs a shared overall deadline, recognition of exhausted account quotas, and support for `Retry-After`.
 
 ```python
 import random
@@ -25,43 +25,43 @@ def call_with_retry(fn, max_retries=3, base_delay=1.0):
         except ApiError as e:
             if e.status not in RETRYABLE_STATUS or attempt == max_retries:
                 raise
-            # 指数退避 + 全抖动,避免大量客户端同时在同一时刻重试
+            # Exponential backoff with full jitter keeps clients from retrying together
             delay = base_delay * (2 ** attempt)
             time.sleep(random.uniform(0, delay))
 ```
 
-**不是所有错误都值得重试**:
+**Not every error warrants a retry:**
 
-| 错误类型 | 是否重试 | 原因 |
+| Error type | Retry? | Reason |
 |---|---|---|
-| 瞬时限流、部分 5xx | 有预算时 | 尊重 `Retry-After`，指数退避并设上限；账户额度耗尽等持久错误应停止重试 |
-| 400 参数错误、401 鉴权失败 | 否 | 重试结果必然相同,只会浪费时间和费用 |
-| 内容安全拦截 | 不自动重试 | 按统一政策拒绝或复核，不通过换供应商绕过拦截 |
-| 输出解析失败（见第 5 章） | 先归因，再决定 | 拒绝不能按格式错误重试；截断先检查输出预算，Schema 不兼容应修配置，偶发格式错误才考虑有限重试或回填脱敏后的校验信息 |
+| Transient rate limits and some 5xx errors | If budget remains | Respect `Retry-After`, use exponential backoff, and set a cap; stop retrying persistent errors such as exhausted account quotas |
+| 400 invalid parameters, 401 authentication failure | No | Repeating the request will produce the same outcome and only waste time and money |
+| Content-safety block | Not automatically | Refuse or seek review under the same policy; do not bypass the block by switching providers |
+| Output parsing failure (see Chapter 5) | Diagnose first, then decide | Do not retry a refusal as a formatting error. For truncation, check the output budget first; fix configuration for schema incompatibility. Consider limited retries or feeding back sanitized validation details only for occasional formatting errors |
 
-网关、SDK、业务层不要各自独立重试。例如三层各最多尝试 3 次，最坏可能放大为 27 次下游调用。指定重试责任层，并让排队、退避、主调用和回退共同消耗同一个 deadline；超时后向下游传播取消，但取消不保证已发生的动作撤销。
+The gateway, SDK, and business layer must not retry independently. For example, if each of three layers makes up to 3 attempts, the worst case can expand to 27 downstream calls. Assign retry ownership to one layer and make queuing, backoff, the primary call, and fallback consume the same deadline. Propagate cancellation downstream when it expires, but remember that cancellation does not guarantee that completed actions are undone.
 
-## 4.3 超时:要设置的不是一个值,而是一个预算
+## 4.3 Timeouts: a budget, not a single number
 
-一次 LLM 调用的耗时和输出长度强相关,固定超时容易在长输出场景下误杀正常请求。更稳健的做法是设置**分层超时预算**:
+An LLM call's duration is strongly related to its output length. A fixed timeout can incorrectly terminate healthy requests that produce long outputs. A more robust approach uses **layered timeout budgets**:
 
 ```mermaid
 flowchart LR
-    A["连接超时:2s<br/>示例预算"] --> B["首 token 超时:10s<br/>等待首个有效内容 token"]
-    B --> C["总耗时超时:60s<br/>整个流式响应的硬上限"]
+    A["Connection timeout: 2s<br/>Example budget"] --> B["First-token timeout: 10s<br/>Wait for the first meaningful content token"]
+    B --> C["Total timeout: 60s<br/>Hard limit for the entire streamed response"]
 ```
 
-| 超时层级 | 典型值 | 目的 |
+| Timeout layer | Typical value | Purpose |
 |---|---|---|
-| 连接超时 | 1–3 秒 | 网络层面是否可达 |
-| 首 token 超时 | 示例为 5–15 秒 | 首个有效内容 token 的等待时间；HTTP 首字节、响应头或心跳不等于首 token |
-| 总耗时超时 | 依据最大输出长度估算,通常 30–120 秒 | 防止极端情况下连接挂起不释放资源 |
+| Connection timeout | 1–3 seconds | Determine whether the service is reachable over the network |
+| First-token timeout | 5–15 seconds in this example | Limit the wait for the first meaningful content token; the first HTTP byte, response headers, and heartbeats are not the first token |
+| Total timeout | Estimate from maximum output length, usually 30–120 seconds | Prevent a stalled connection from holding resources indefinitely in extreme cases |
 
-表中数值仅用于展示层级，应由任务长度、负载实测与 SLO 决定。流式场景还需要 token 间空闲超时，防止首 token 后一直停顿；首响应、完成时间和取消后的资源释放都重要，不能靠不断发心跳维持表面可用。
+These numbers illustrate the layers, not recommended defaults. Choose them from task length, measured load behavior, and SLOs. Streaming also needs an inter-token idle timeout so that the stream cannot stall indefinitely after the first token. Initial response time, completion time, and resource release after cancellation all matter; continually sending heartbeats is not a substitute for actual availability.
 
-## 4.4 幂等:防止重试引发重复副作用
+## 4.4 Idempotency: preventing duplicate side effects on retry
 
-如果一次 LLM 调用之后跟着一个有副作用的动作(发邮件、下单、调用外部工具),简单重试可能导致该动作被执行两次。解决方案是**幂等键(idempotency key)**:
+If an LLM call is followed by a side-effecting action—sending an email, creating an order, or calling an external tool—a simple retry may execute that action twice. The solution is an **idempotency key**:
 
 ```python
 def create_order_via_agent(request_payload: dict, idempotency_key: str) -> dict:
@@ -73,71 +73,71 @@ def create_order_via_agent(request_payload: dict, idempotency_key: str) -> dict:
     )
 ```
 
-调用方应在首次执行前生成并持久化动作 ID，同一逻辑动作的重试复用该 ID；同一任务中的「创建订单」和「发送邮件」必须使用不同键。服务端还需要按租户隔离键空间、校验参数摘要、原子登记执行状态并保存结果。只有请求头、没有服务端去重实现，并不能提供幂等保证。
+The error message states that creating an order requires a persisted, action-level idempotency key. The caller should generate and persist the action ID before the first execution, then reuse it for retries of that logical action. “Create order” and “send email” within the same task must use different keys. The server must also isolate key namespaces by tenant, validate parameter digests, atomically register execution state, and retain results. A request header without server-side deduplication does not provide idempotency.
 
-Stripe 的文档明确区分执行开始前的失败、首次执行结果与键的保留期：保存的结果可能包括 `500`，键过期后再次使用也可能重新执行。结果未知时先查询动作状态或对账，不能更换键盲目重放。跨服务动作还可能需要 outbox、补偿或人工处理，不能宣称一个键实现端到端 exactly-once。
+Stripe's documentation distinguishes failures before execution begins, the result of the first execution, and key retention. Saved results can include `500` errors, and reusing an expired key may execute the request again. When the outcome is unknown, query action status or reconcile records before proceeding; do not blindly replay the action with a new key. Cross-service actions may also require an outbox, compensation, or manual handling. One key does not provide end-to-end exactly-once effects.
 
-## 4.5 熔断:防止对已经过载的服务继续加压
+## 4.5 Circuit breakers: stop adding load to an overloaded service
 
 ```mermaid
 stateDiagram-v2
     [*] --> Closed
-    Closed --> Open: 失败率超过阈值
-    Open --> HalfOpen: 冷却时间到
-    HalfOpen --> Closed: 探测请求成功
-    HalfOpen --> Open: 探测请求失败
+    Closed --> Open: Failure rate exceeds threshold
+    Open --> HalfOpen: Cooldown expires
+    HalfOpen --> Closed: Probe succeeds
+    HalfOpen --> Open: Probe fails
 ```
 
-熔断器有三种状态:**关闭(Closed)** 正常放行请求;失败率超过阈值后跳到**打开(Open)**,在冷却期内直接快速失败,不再实际调用下游;冷却期结束进入**半开(Half-Open)**,放行少量探测请求,成功则回到关闭状态,失败则回到打开状态继续冷却。
+A circuit breaker has three states. **Closed** permits requests normally. When the failure rate exceeds the threshold, it moves to **Open**, failing fast throughout the cooldown without calling the downstream service. After the cooldown, it enters **Half-Open** and allows a small number of probe requests. Successful probes close the circuit; failed probes reopen it for another cooldown.
 
-对 LLM 调用而言,熔断器的关键价值是**当某个供应商大规模故障时,让重试和回退不再对它发起新请求,直接走回退链路**(见[第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.md)),同时避免海量客户端的重试流量本身成为压垮供应商恢复的最后一根稻草。
+For LLM calls, the key benefit is **preventing retries and fallback attempts from sending new requests to a provider during a widespread outage, and moving directly to the fallback path**; see [Chapter 3](../02-request-reliability/03-model-gateway-routing-fallback.md). It also prevents retry traffic from large numbers of clients from overwhelming the provider just as it tries to recover.
 
-## 4.6 舱壁隔离:不同任务的故障不应互相传染
+## 4.6 Bulkhead isolation: keep one task's failures from spreading to others
 
-即使做了熔断,如果所有任务共用同一个连接池/线程池,一个慢任务占满资源,会拖慢所有其他任务。**舱壁隔离(bulkhead)**为不同优先级或不同类型的任务分配独立的资源池:
+Even with circuit breakers, a slow task can consume a shared connection or thread pool and delay every other task. **Bulkhead isolation** assigns separate resource pools to different priorities or task types:
 
-| 任务类型 | 独立资源池 |
+| Task type | Separate resource pool |
 |---|---|
-| 用户实时对话 | 高优先级连接池,严格超时 |
-| 后台批量摘要任务 | 低优先级连接池,宽松超时,可排队 |
-| 内部工具调用(如向量检索) | 独立池,防止被主链路的重试风暴挤占 |
+| Real-time user conversations | High-priority connection pool with strict timeouts |
+| Background batch summarization | Low-priority connection pool with more generous timeouts and queuing |
+| Internal tool calls, such as vector retrieval | Independent pool protected from retry storms on the main request path |
 
-## 4.7 常见错误
+## 4.7 Common mistakes
 
-### 4.7.1 对所有错误码一律重试
+### 4.7.1 Retrying every error code
 
-400、401 这类确定性错误重试没有意义,只会浪费时间和 token 费用,应该只重试瞬时性错误。
+Retrying deterministic failures such as 400 or 401 is pointless and wastes time and token costs. Retry only transient errors.
 
-### 4.7.2 重试不带抖动
+### 4.7.2 Retrying without jitter
 
-固定延迟重试会在故障恢复的瞬间制造流量尖峰,必须加入随机抖动。
+Fixed-delay retries create a traffic spike as the service recovers. Add random jitter.
 
-### 4.7.3 用单一超时值覆盖所有场景
+### 4.7.3 Using one timeout for every scenario
 
-短任务和长输出任务用同一个超时阈值,要么误杀正常的长输出请求,要么让异常请求挂起太久不释放资源。应按第 4.3 节分层设置。
+The same threshold for short tasks and long-output tasks either terminates healthy long-running requests or lets faulty requests retain resources for too long. Use the layered approach in Section 4.3.
 
-### 4.7.4 幂等键只覆盖最外层请求
+### 4.7.4 Applying an idempotency key only to the outermost request
 
-Agent 内部多轮工具调用如果各自生成新的幂等键,重试时下游副作用依然可能被重复触发。
+If an agent's internal rounds of tool calls each generate new idempotency keys, retries may still repeat downstream side effects.
 
-### 4.7.5 没有熔断机制,靠重试硬扛供应商故障
+### 4.7.5 Relying on retries to endure a provider outage without circuit breaking
 
-供应商大规模故障时,没有熔断器的系统会持续用重试请求给故障服务"添堵",延长故障恢复时间。
+During a widespread provider outage, a system without circuit breakers keeps adding retry traffic to the failing service and prolongs its recovery.
 
-### 4.7.6 所有任务共享同一资源池
+### 4.7.6 Sharing one resource pool across all tasks
 
-一个慢的后台任务占满连接池,会连带拖慢用户实时对话的响应,舱壁隔离是防止这种"故障传染"的基本手段。
+A slow background task can fill the connection pool and delay real-time user conversations. Bulkhead isolation is a basic defense against this propagation of failures.
 
-## 4.8 本章总结
+## 4.8 Chapter summary
 
-1. **LLM 调用的可靠性模式要重新校准参数**:耗时长、成本高、部分场景非幂等,不能直接照搬默认配置;
-2. **重试要区分错误类型**,只对瞬时性错误重试,且必须带抖动的指数退避;
-3. **超时是共享预算**：连接、首 token、流中停顿和总时限分别约束，覆盖排队与回退;
-4. **同一动作的重试复用幂等键，不同动作分键**，并依赖服务端原子去重和结果查询;
-5. **熔断器防止对已过载的服务继续加压**,配合回退链路使用;
-6. **舱壁隔离防止故障在不同任务类型之间传染**,不同优先级任务应有独立资源池。
+1. **Reliability patterns need retuned parameters for LLM calls.** Long durations, high costs, and non-idempotent scenarios make copied default configurations unsuitable.
+2. **Distinguish error types before retrying.** Retry only transient errors, using exponential backoff with jitter.
+3. **Timeouts form a shared budget:** separately constrain connection establishment, the first token, pauses within a stream, and total elapsed time, including queuing and fallback.
+4. **Reuse the same idempotency key for retries of one action, and different keys for different actions.** This depends on atomic server-side deduplication and result queries.
+5. **Circuit breakers stop additional load from reaching an overloaded service.** Use them alongside the fallback path.
+6. **Bulkhead isolation prevents failures from spreading across task types.** Give tasks of different priorities independent resource pools.
 
-## 参考资料
+## References
 
 - [Google Cloud: Implementing exponential backoff](https://cloud.google.com/storage/docs/retry-strategy)
 - [Stripe API: Idempotent requests](https://docs.stripe.com/api/idempotent_requests)

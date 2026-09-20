@@ -1,81 +1,81 @@
 ---
-description: 分析多模态基准污染、视觉攻击的威胁边界、内容凭证与水印，并区分媒体编码缓存、前缀 KV 缓存和分离式部署。
+description: Examine multimodal benchmark contamination, visual threat models, content credentials, and watermarking, distinguishing media-feature caches, prefix KV caches, and disaggregated serving.
 ---
 
-# 第十章：多模态评测、安全与推理服务
+# Chapter 10: Multimodal Evaluation, Safety, and Inference Serving
 
-> [LLM · 多模态模型 23.5–23.6 节](../../llm/06-multimodal/23-multimodal-models.md)已给出评测、安全与部署的整体框架（感知/推理/鲁棒性/安全维度拆分、encode-decode 成本结构、媒体输入限制）。本章不重复该框架，只补充三个该章未展开的具体问题：评测基准污染与动态化、图像/生成内容特有的攻击与溯源手段，以及推理服务的架构级工程实践。
+> [LLM · Multimodal Models, Sections 23.5–23.6](../../llm/06-multimodal/23-multimodal-models.md) provides the overall framework for evaluation, safety, and deployment: perception/reasoning/robustness/safety dimensions, encode–decode costs, and media-input limits. Rather than repeat it, this chapter develops three specific issues: benchmark contamination and updates, attacks and provenance mechanisms particular to images and generated content, and architectural practices for inference serving.
 
-## 10.1 怎样区分多模态能力提升与基准污染？
+## 10.1 How can we distinguish improved multimodal ability from benchmark contamination?
 
-单看分数无法区分，应结合素材来源、近重复排查和未参与训练或调参的保留集。输入扰动可以辅助诊断，但不能仅凭一次分数下降就断定模型记住了测试题。
+Scores alone cannot make that distinction. Combine source provenance, near-duplicate checks, and holdout sets excluded from training and tuning. Input perturbations can aid diagnosis, but one score drop does not prove the model memorized test questions.
 
-多模态评测基准（尤其是从网络图片和公开题库构建的基准）面临和纯文本基准类似但更隐蔽的**污染**问题：基准中的图像及其配对问答如果出现在预训练网络爬取数据中，模型可能"记住"了答案而非真正具备对应能力，导致基准分数虚高。这个问题在多模态场景下更难检测，因为图像的近似重复（不同分辨率、裁剪、水印版本）比文本的逐字重复更难用简单的哈希去重发现。
+Multimodal benchmarks—especially those built from web images and public question banks—face **contamination** similar to text-only benchmarks, but harder to detect. If benchmark images and their question–answer pairs appear in crawled pretraining data, a model may remember answers rather than possess the tested ability, inflating scores. Image near-duplicates at different resolutions, with different crops, or with watermarks are harder to find through simple hashing than verbatim text duplicates.
 
-缓解方法包括真正新采集且未公开的保留集、图像感知去重与文本匹配、来源分组和定期更新。**基准发布日期晚于训练截止日，不代表题目素材未曾出现**：旧教材图片和答案可以被重新包装发布；截止日未知或模型持续更新时，更无法据日期排除污染。
+Mitigations include genuinely newly collected, nonpublic holdouts, perceptual image deduplication and text matching, source grouping, and regular updates. **A benchmark release after the training cutoff does not establish that its source material was unseen**: old textbook images and answers may be repackaged and republished. Dates are even less conclusive when the cutoff is unknown or the model is continuously updated.
 
-MMMU 面向多学科学科知识，MathVista 面向视觉情境中的数学推理，它们并非动态基准，也不是靠题目复杂就能防污染。复杂题及其解答同样可被记忆。可以加入图像替换、数值扰动、遮蔽证据等对照，但性能下降只是诊断信号，不足以单独证明污染。报告模型/API 版本、提示模板、图像预算、工具权限和样本置信区间，才能把数据问题与推理预算差异分开。
+MMMU targets multidisciplinary academic knowledge, while MathVista targets mathematical reasoning in visual contexts. Neither is a dynamic benchmark, and difficult questions do not inherently prevent contamination: complex questions and solutions can also be memorized. Controls such as image substitution, numerical perturbation, and evidence masking can help, but a performance drop is a diagnostic signal, not standalone proof. Report the model/API version, prompt template, image budget, tool permissions, and sample confidence intervals to distinguish data issues from differences in inference budgets.
 
-## 10.2 图像特有的对抗与安全风险
+## 10.2 Image-specific adversarial and safety risks
 
-除 [LLM 第 23.6 节](../../llm/06-multimodal/23-multimodal-models.md)已提到的间接提示注入外，图像输入还存在两类更具体的攻击面：
+Beyond indirect prompt injection discussed in [LLM, Section 23.6](../../llm/06-multimodal/23-multimodal-models.md), image input introduces two more specific attack surfaces:
 
-- **Typographic Attack（图中文字攻击）**：在图像中加入与主体冲突的文字标签，可能让 CLIP 式分类器偏向文字概念。原始研究以零样本分类和线性探测等实验分析这一现象；成功与否依赖图像、文字和候选类别，不能断言任意贴字都能改变分类。这体现了视觉内容与文字线索之间的竞争，不等同于模型执行了文本中的恶意指令。
-- **图像越狱（Visual Jailbreak）**：相关论文在特定可访问模型和优化设置下构造视觉对抗样本，使对齐模型违反安全策略。扰动是否难以察觉、是否需要梯度、能否迁移到其他模型，都依赖威胁模型；不能把白盒实验直接表述为任意黑盒产品都可被同样绕过。失败也不能只归因于“视觉对齐数据不够”，视觉表示、跨模态接口和生成策略都可能参与。
+- **Typographic attacks** add text labels that conflict with an image's subject and may bias CLIP-style classifiers toward the written concept. The original research analyzes this through experiments including zero-shot classification and linear probes. Success depends on the image, text, and candidate classes; arbitrary added text does not necessarily change classification. This reflects competition between visual content and textual cues, not necessarily a model executing malicious written instructions.
+- **Visual jailbreaks**: published work constructs visual adversarial examples that cause aligned models to violate safety policies under particular model-access and optimization settings. Whether perturbations are hard to perceive, require gradients, or transfer to other models depends on the threat model. White-box experiments do not establish the same bypass for arbitrary black-box products. Nor can failure be attributed only to insufficient visual-alignment data; visual representations, cross-modal interfaces, and generation policies may all contribute.
 
-安全评测应覆盖视觉/音频通道，并区分文字贴图导致的语义混淆、截图中的间接提示注入和优化得到的对抗扰动。需要报告攻击者权限、扰动约束、请求次数、目标模型及正常输入误拒率；一种攻击的结果不能替代另一种威胁的测试。
+Safety evaluation should cover visual and audio channels, distinguishing semantic confusion from text embedded in an image, indirect prompt injection in screenshots, and optimized adversarial perturbations. Report attacker permissions, perturbation constraints, request counts, target models, and false-refusal rates on normal inputs. Results for one attack type do not replace testing another threat.
 
-## 10.3 生成内容的溯源与标识
+## 10.3 Provenance and labeling of generated content
 
-[第七、八章](../04-generation/README.md)讨论的图像和视频生成模型带来了新的溯源问题：生成内容和真实拍摄内容在视觉上可能难以区分。行业目前主要有两类应对方案：
+The image and video generators in [Chapters 7 and 8](../04-generation/README.md) create new provenance problems: generated media and real recordings may be difficult to distinguish visually. Two main approaches are used:
 
-- **内容凭证标准（Content Credentials / C2PA）**：以数字签名将来源和编辑声明绑定到媒体资产，验证者检查绑定、签名和签发者信任关系。它能证明某签发者作过该声明、相关内容是否被篡改，不证明画面中的事件真实，也不保证所有编辑历史完整。这里引用固定的 2.1 规范作为概念依据，不宣称它是最新版本；
-- **不可见水印（Invisible Watermarking）**：直接在生成内容的像素或时域信号中嵌入人眼不可见但可被专门检测器识别的标记，例如 Google DeepMind 的 SynthID 已应用于图像和视频生成产品，目标是即使内容经过常见的压缩、裁剪等编辑后仍能被检测出生成来源。
+- **Content Credentials / C2PA** binds provenance and editing assertions to media assets with digital signatures. Verifiers check the binding, signature, and trust in the issuer. This can establish that an issuer made an assertion and whether the associated content was altered. It does not establish the truth of events depicted or guarantee a complete editing history. The fixed version 2.1 specification is cited here as a conceptual basis, not as the latest version.
+- **Invisible watermarking** embeds markers directly in generated pixels or time-domain signals, imperceptible to people but recognizable by dedicated detectors. Google DeepMind's SynthID, for example, has been used in image and video generation products, aiming to retain detection of generated origin after common edits such as compression or cropping.
 
-两类方案互补：凭证验证的是来源声明，水印检测是在指定生成器和检测器体系内判断标记信号。凭证可能脱离文件，水印可能被编辑破坏，两者都不是绝对保证。**没有凭证或没检出水印，不能证明是真实拍摄**；检出结果也要结合误报率、置信度及媒体处理历史解释。
+These approaches complement one another. Credentials verify provenance assertions; watermark detection identifies a marker within a particular generator–detector system. Credentials can become detached from files, and editing can damage watermarks. Neither is an absolute guarantee. **Missing credentials or an undetected watermark do not prove real capture.** Positive detections also need interpretation alongside false-positive rates, confidence, and processing history.
 
-## 10.4 推理服务架构：编码与解码的资源画像不同
+## 10.4 Inference serving: encoding and decoding have different resource profiles
 
-多模态输入增加媒体解码、预处理和模态编码，但瓶颈取决于请求：高分辨率短回答可能受 encode/prefill 限制，长回答可能受自回归 decode 限制。应分别测量这些阶段，而不是默认编码永远是瓶颈：
+Multimodal input adds media decoding, preprocessing, and modality encoding, but the bottleneck depends on the request. High-resolution input with a short answer may be encode/prefill-bound; long answers may be autoregressive-decode-bound. Measure these stages separately rather than assume encoding is always the bottleneck:
 
-- **按实际工作量调度**：文字也有长短差异，媒体则增加解码尺寸、帧数、切图数等变量。压缩文件大小不是视觉 token 数的可靠替代；应限制解码后像素、帧数、时长及输出预算，按编码工作量和总 token 预算分桶，防止大请求拖慢同批小请求；
-- **区分三段计算**：媒体编码、语言模型 prefill、语言模型 decode 是不同阶段。媒体编码产生特征，prefill 产生语言 KV，不能合称一个“编码阶段”。DistServe 研究的是文本 LLM 的 prefill/decode 分离，不直接证明多模态 encoder 分离的收益。分离部署可能减轻资源争用，但特征/KV 传输、排队、低负载利用率会抵消收益，应以目标负载下的首 token 延迟（TTFT）、首 token 后的平均每输出 token 耗时（TPOT）与满足时延约束的有效吞吐验证；
-- **特征缓存不等于 KV 缓存**：相同媒体在相同编码器与预处理下可以复用编码特征，缓存键需含媒体内容哈希、模型/适配器版本、裁剪与采样参数。语言模型中的 KV 还依赖完整前缀、位置、注意力掩码和模型配置；图片相同但前面的系统提示或文本改变时，不能直接复用那段语言 KV。若固定共享前缀在问题之前，可以用前缀缓存，而不是任意跨上下文拼接媒体 KV。
+- **Schedule by actual work**: text already varies in length, while media adds decoded dimensions, frame counts, and tile counts. Compressed file size is not a reliable proxy for visual tokens. Limit decoded pixels, frames, duration, and output budgets; bucket requests by encoding work and total tokens so large requests do not delay smaller ones in the same batch.
+- **Separate three computations**: media encoding, language-model prefill, and language-model decode are distinct stages. Media encoding produces features; prefill produces language KV states. They should not be collapsed into a single “encoding stage.” DistServe studies prefill/decode disaggregation for text LLMs, not direct evidence of benefits from separating multimodal encoders. Disaggregation may reduce resource contention, but feature/KV transfer, queuing, and poor utilization at low load can offset the gains. Validate on target workloads using time to first token (TTFT), average time per output token after the first (TPOT), and goodput under latency constraints.
+- **Feature caching is not KV caching**: identical media with the same encoder and preprocessing can reuse encoded features. Cache keys should include a media-content hash, model/adapter version, crop settings, and sampling parameters. Language-model KV states also depend on the complete prefix, positions, attention masks, and model configuration. Identical images do not justify reusing that segment's language KV when preceding system prompts or text change. If a fixed shared prefix precedes the question, use prefix caching rather than splice media KV into arbitrary contexts.
 
-缓存还需租户隔离、权限检查、容量和过期策略，避免敏感媒体被跨用户复用或长期留存。流式音频和增量视频也不是一次性编码开销；持续到来的媒体必须占用独立预算。架构优化前先做压测，比较不同分辨率、帧数、回答长度和并发下的 P95 延迟、超时率、显存峰值与单请求成本。
+Caches also need tenant isolation, permission checks, capacity limits, and expiry policies to prevent sensitive media from being reused across users or retained indefinitely. Streaming audio and incremental video are not one-off encoding costs; continuously arriving media need a separate budget. Load-test before optimizing the architecture, comparing P95 latency, timeout rate, peak GPU memory, and per-request cost across resolutions, frame counts, answer lengths, and concurrency levels.
 
-## 10.5 常见错误
+## 10.5 Common mistakes
 
-### 10.5.1 把基准分数的提升等同于能力的真实提升
+### 10.5.1 Equating higher benchmark scores with genuine capability gains
 
-分数变化可能来自能力、数据泄漏、提示或测试时计算预算变化。应检查原始素材来源与近重复，而不只看基准发布日期；训练数据未知时应明确“无法排除污染”，不能反向断言一定污染。
+Scores may change because of capability, leakage, prompts, or test-time compute budgets. Check original sources and near-duplicates, not just benchmark release dates. When training data is unknown, state that contamination cannot be ruled out rather than asserting that it must have occurred.
 
-### 10.5.2 只对文本输入做安全红队测试
+### 10.5.2 Red-teaming only text input
 
-只测试文字提示无法覆盖视觉扰动、图中文字及音频中的指令，但这些风险也可能与文本指令遵循问题共享机制。应组合通道测试，而不是假定不同模态的漏洞完全独立。
+Text-only tests do not cover visual perturbations, text in images, or spoken instructions. These risks may nevertheless share mechanisms with text instruction-following failures. Test combinations of channels rather than assume vulnerabilities in different modalities are entirely independent.
 
-### 10.5.3 把水印或内容凭证当作不可绕过的技术保证
+### 10.5.3 Treating watermarks or content credentials as unbreakable guarantees
 
-裁剪、压缩或重编码对两类机制影响不同：水印信号可能变弱，签名绑定则可能验证失败，或需要编辑器重新签发凭证并保留来源链。不能把签名验证失败直接解释成内容虚假，也不能承诺所有生成内容都可检测。
+Cropping, compression, and re-encoding affect the two mechanisms differently. A watermark signal may weaken; a signature binding may fail verification or require an editor to issue new credentials while preserving the provenance chain. Failed signature verification does not directly mean the content is false, and no promise should be made that all generated content is detectable.
 
-### 10.5.4 用纯文本服务的批处理策略直接套用到多模态请求
+### 10.5.4 Reusing text-only batching policies unchanged for multimodal requests
 
-忽视媒体大小导致的编码阶段负载差异，大媒体请求会拖慢同批次的其他请求延迟，应结合 10.4 节的资源画像差异重新设计批处理和调度策略。
+Ignoring media-dependent encoding loads lets large-media requests delay others in the same batch. Redesign batching and scheduling around the different resource profiles in Section 10.4.
 
-## 10.6 本章总结
+## 10.6 Chapter summary
 
-1. 基准发布时间与题目来源时间不同；应结合保留集、近重复检测和输入对照评估污染风险；
-2. 图像输入存在 Typographic Attack 和视觉越狱等文本安全评测无法覆盖的特有攻击面，安全红队必须单独覆盖视觉/音频通道；
-3. C2PA 内容凭证和 SynthID 一类不可见水印是应对生成内容溯源问题的两类互补但非绝对可靠的工程手段；
-4. 媒体编码、语言 prefill、decode 应分开测量；特征缓存与前缀 KV 缓存有不同复用条件，分离部署需通过负载实验验证。
+1. Benchmark release dates differ from source-material dates. Combine holdouts, near-duplicate detection, and input controls to assess contamination risk.
+2. Image inputs introduce attack surfaces such as typographic attacks and visual jailbreaks that text-only safety tests do not cover; visual and audio channels need explicit red-team coverage.
+3. C2PA content credentials and invisible watermarks such as SynthID are complementary engineering approaches to provenance, but neither is absolutely reliable.
+4. Measure media encoding, language prefill, and decode separately. Feature caching and prefix KV caching have different reuse conditions, and disaggregation needs workload-based validation.
 
-## 参考资料
+## References
 
 - [MMMU: A Massive Multi-discipline Multimodal Understanding and Reasoning Benchmark](https://arxiv.org/abs/2311.16502)
 - [MathVista: Evaluating Mathematical Reasoning of Foundation Models in Visual Contexts](https://arxiv.org/abs/2310.02255)
 - [Multimodal Neurons in Artificial Neural Networks (Typographic Attack)](https://distill.pub/2021/multimodal-neurons/)
 - [Visual Adversarial Examples Jailbreak Aligned Large Language Models](https://arxiv.org/abs/2306.13213)
-- [C2PA 2.1 技术规范](https://spec.c2pa.org/specifications/specifications/2.1/specs/C2PA_Specification.html)
+- [C2PA 2.1 technical specification](https://spec.c2pa.org/specifications/specifications/2.1/specs/C2PA_Specification.html)
 - [Google DeepMind: SynthID](https://deepmind.google/models/synthid/)
 - [DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving](https://arxiv.org/abs/2401.09670)
-- [vLLM：前缀缓存设计与多模态哈希](https://docs.vllm.ai/en/stable/design/prefix_caching/)
+- [vLLM: Prefix caching design and multimodal hashing](https://docs.vllm.ai/en/stable/design/prefix_caching/)

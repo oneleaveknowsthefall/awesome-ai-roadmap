@@ -1,31 +1,31 @@
 ---
-description: "按状态、恢复、工具契约和评测遥测比较框架，以副作用测试、状态排空和可回滚灰度迁移降低锁定成本。"
+description: "Compare frameworks through state, recovery, tool contracts, evaluation, and telemetry, and reduce lock-in costs with side-effect tests, task draining, and reversible staged migration."
 ---
 
-# 框架与编排 · 框架选型与可移植架构
+# Frameworks and Orchestration · Framework Selection and Portable Architecture
 
-前面模块介绍各框架抽象，本模块改为横向比较四组问题：状态归属、持久化与恢复、工具执行契约、评测与可观测性。评测和观测在最后一组分别讨论；不按产品标签给出「最好/最成熟」排名，而是核对哪些约束会形成迁移成本。
+The preceding modules introduce individual frameworks' abstractions. This module compares four groups of concerns across them: state ownership, persistence and recovery, tool execution contracts, and evaluation and observability. Evaluation and observation are treated separately within the final group. Rather than ranking products as "best" or "most mature," the comparison examines which constraints create migration costs.
 
-对照表已纳入 [MAF 的后继关系](https://learn.microsoft.com/en-us/agent-framework/overview/)、AutoGen 维护模式和 PydanticAI 持久执行集成。它们影响候选范围，但无法替代应用自己的故障恢复与成本测试。
+The tables account for [MAF's role as a successor](https://learn.microsoft.com/en-us/agent-framework/overview/), AutoGen's maintenance mode, and PydanticAI's durable-execution integrations. These developments affect the candidate set, but they do not replace failure-recovery and cost tests for your own application.
 
-## 章节
+## Chapters
 
-1. [第二十二章：跨框架技术解构：状态、持久化、工具契约与可观测性](22-cross-framework-technical-taxonomy.md)
-2. [第二十三章：Lock-in 识别、可移植架构与迁移策略](23-lockin-and-portable-architecture.md)
+1. [Chapter 22: Comparing Framework Internals: State, Persistence, Tool Contracts, and Observability](22-cross-framework-technical-taxonomy.md)
+2. [Chapter 23: Identifying Lock-in, Designing Portable Architectures, and Planning Migrations](23-lockin-and-portable-architecture.md)
 
-## 模块关系
+## How the chapters connect
 
 ```mermaid
 flowchart LR
-    A["第二十二章<br/>四组工程维度"] --> B["识别每个框架的<br/>Lock-in 风险来源"]
-    B --> C["第二十三章<br/>可移植架构设计"]
-    C --> D["迁移策略：<br/>strangler-fig / 契约测试 / 双运行"]
+    A["Chapter 22<br/>Four groups of engineering concerns"] --> B["Identify each framework's<br/>sources of lock-in"]
+    B --> C["Chapter 23<br/>Portable architecture"]
+    C --> D["Migration strategies:<br/>Strangler Fig / contract tests / parallel operation"]
 ```
 
-## 阅读建议
+## Suggested reading paths
 
-- **正在选型，还没有动手写代码**：先读第二十二章对照表，明确关键约束，再用统一故障场景验证第二十三章的候选选择；
-- **已经用了某个框架，担心被锁死**：直接看第二十三章的 lock-in 识别清单和适配器架构；
-- **需要把现有系统从一个框架迁移到另一个框架**：看第二十三章 23.4 节的迁移策略部分。
+- **Choosing a framework before writing code**: start with Chapter 22's tables to identify the key constraints, then use the same failure scenario to test candidates from Chapter 23.
+- **Already using a framework and concerned about lock-in**: go directly to Chapter 23's lock-in checklist and adapter architecture.
+- **Moving an existing system between frameworks**: read the migration strategy in Chapter 23, Section 23.4.
 
-返回 [AI 框架与编排 相关知识点](../README.md)。
+Back to [AI Frameworks and Orchestration](../README.md).

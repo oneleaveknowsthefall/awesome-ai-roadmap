@@ -1,53 +1,61 @@
 ---
-title: 编辑、引用与纠错规范
-description: 说明 Awesome AI Roadmap 的来源选择、事实核验、版本标注、纠错流程和 CC BY 4.0 引用方式。
+title: Editorial, citation, and correction policy
+description: Source priorities, technical verification, bilingual editing, version labels, corrections, and citation rules for Awesome AI Roadmap.
 ---
 
-# 编辑、引用与纠错规范
+# Editorial, Citation, and Correction Policy
 
-## 书稿的阅读顺序
+## Reading and editing the handbook
 
-书稿先用简体中文完成，之后再准备英文版。各节围绕读者真正会问的问题展开：先给出回答，再解释机制、例子与适用边界。好的既有段落不因统一格式而重写，技术错误则应及时修正。
+English is the primary manuscript, accompanied by a complete Simplified Chinese edition. Each section develops a question a reader might actually ask: answer it first, then explain the mechanism, examples, and conditions. Do not rewrite good prose simply to impose a uniform template; do correct technical errors.
 
-网站允许按主题查阅，书稿按连续的篇章顺序阅读。正文不应要求读者反复跳转才能理解当前问题；交叉引用用于补充细节。电子书的图、公式、代码和表格也应在离线与窄屏条件下可读。
+The website supports topic-based browsing, while the book provides a continuous reading sequence. Readers should not need repeated detours to understand the current question. Cross-references provide further detail. Figures, formulas, code, and tables should also remain usable offline and on narrow screens.
 
-## 来源选择
+## Source priorities
 
-资料优先级依次为规范与标准、官方文档、原始论文、带完整环境说明的工程报告，以及能够交叉核验的从业者经验。厂商案例可以用于说明做法，但厂商自报的性能、成本和客户收益不会直接视为独立验证结果。
+During the bilingual migration, the Chinese manuscript preserves the intended scope and examples, while original English-language papers, specifications, and official documentation establish technical meaning. Neither should be replaced with a model's recollection. If they conflict, check the relevant source version, make justified corrections in both languages, and record the evidence and limitations.
 
-引用应尽量靠近对应事实。文末“参考资料”提供延伸阅读，不代表正文中的所有判断都由某一条链接单独支持。
+Prefer specifications and standards, official documentation, original papers, engineering reports with clear experimental conditions, and practitioner accounts that can be cross-checked. A vendor case can illustrate a method, but vendor-reported performance, cost, or customer benefit is not an independently verified result.
 
-## 时效性与版本
+Put citations close to the claims they support. A references section provides further reading; it does not mean that any one link establishes every claim in the chapter.
 
-模型能力、框架 API、协议规范和云服务配置变化很快。相关章节应注明核验时间、版本和适用条件。页面底部的创建与更新日期来自当前文件路径的 Git 历史；目录迁移可能改变创建日期，大规模排版或文风修改也可能刷新更新时间，因此判断技术时效性时仍应查看正文中的版本说明和上游链接。经典方法不因年代较早就被删除，但历史 API 不应当作当前推荐用法。
+## Versions and dates
 
-## 原创分析与外部事实
+Model capabilities, framework APIs, protocols, and hosted services change quickly. State the checked version, date, and applicable conditions. Page creation and update dates come from the Git history of the current file path. Moving or localizing a page can change those dates, and a large editorial revision can update the timestamp without rechecking every API. Use the version notes and primary links to assess technical currency. Retain useful classical methods, but do not present a historical interface as the current recommendation without qualification.
 
-架构分层、选型表和工程建议通常是作者根据公开材料做出的归纳。可核验的数字、产品能力和他人观点应附来源；由多个来源推导出的工程判断应明确适用条件，避免写成无边界结论。
+## Analysis, evidence, and examples
 
-虚构案例必须明确标注假设场景和模拟数据。验收目标是事先约定的门槛，模拟结果用于说明评测方法，真实生产效果则需要实测证据，三者不能相互替代。面试练习时应说明“如果面对这个场景，我会如何设计”，不能把虚构案例说成亲自交付的项目。
+Architecture layers, selection tables, and engineering recommendations are often a synthesis of public sources. Verifiable figures, product capabilities, and other people's findings need attribution. A judgment derived from several sources should state its conditions rather than become a universal claim.
 
-## 纠错流程
+Identify hypothetical scenarios and illustrative data. An acceptance target is a criterion agreed in advance; an illustrative result explains a method; a claim about production performance needs measurements. These are not interchangeable. Use a fictional case to explain how you would design a system, not to claim that you delivered it.
 
-发现问题时，请通过 [GitHub Issue](https://github.com/zongyangbigpolo/awesome-ai-roadmap/issues/new) 提供：
+## Keeping the language editions aligned
 
-1. 页面链接和具体段落；
-2. 认为有误或已经过时的内容；
-3. 可供核验的一手来源；
-4. 建议修改方式。
+Start substantive changes in English and review the corresponding Chinese update in the same PR. The editions share chapter identities, examples, and technical claims. Headings, explanations, and figure labels are localized; identifiers, protocol fields, units, data, and mathematical meaning must not drift.
 
-修正会通过公开提交记录保留。涉及争议性判断时，优先补充条件和来源，而不是直接删除不同观点。
+Synchronization records identify the English and Chinese revisions reviewed together. They detect missing or stale pairs, not the quality of a translation. Do not refresh a record without reviewing the text. An English wording-only edit may leave the Chinese wording unchanged if its meaning still matches.
 
-## 推荐引用格式
+## Reporting and correcting problems
 
-引用整个项目：
+When reporting a problem through a [GitHub issue](https://github.com/zongyangbigpolo/awesome-ai-roadmap/issues/new), include:
 
-> Polo Li. *Awesome AI Roadmap：中文 AI 工程知识图谱*. https://zongyangbigpolo.github.io/awesome-ai-roadmap/
+1. The page and specific passage.
+2. What appears incorrect, ambiguous, or outdated.
+3. A primary source that can be checked.
+4. A suggested correction.
 
-引用单篇章节时，应使用章节标题和该页面的规范链接。根据 CC BY 4.0 改编内容时，还需说明改动，并保留项目链接。
+Corrections remain visible in the commit history. For a disputed judgment, prefer clarifying the conditions and evidence over deleting an alternative view without explanation.
 
-## 许可范围
+## Citing the project
 
-仓库中的原创文档和图表采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.zh-hans) 许可。引用的第三方商标、截图、论文、代码片段和外部材料仍受各自权利人与原始许可约束。
+For the project as a whole:
 
-署名与通用许可说明集中放在项目说明和书末，不在技术章节之间重复出现。集中呈现不改变已有许可，也不免除保留第三方必要声明的义务。
+> Polo Li. *Awesome AI Roadmap: AI Engineering Interview Handbook*. https://zongyangbigpolo.github.io/awesome-ai-roadmap/
+
+For an individual chapter, use its title and the canonical URL for the language cited. An adaptation under CC BY 4.0 must also indicate changes and retain the project link.
+
+## License scope
+
+The repository's original text and diagrams are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Referenced third-party trademarks, screenshots, papers, code, and other material remain subject to their own rights and licenses.
+
+Author attribution and general license information belong in the project information and book closing matter, not between technical sections. Centralizing those notices does not change existing licenses or remove required third-party notices.

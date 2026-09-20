@@ -1,132 +1,132 @@
 ---
-description: 为模型与工具调用建立可关联的追踪，明确 TTFT、采样偏差、指标分母和敏感数据采集边界。
+description: Correlate model and tool calls through tracing, with precise definitions of TTFT, sampling bias, metric denominators, and limits on sensitive-data collection.
 ---
 
-# 第八章：在线可观测性与 Tracing
+# Chapter 8: Production Observability and Tracing
 
-## 8.1 为什么日志不够,需要 Trace
+## 8.1 Why use traces as well as logs?
 
-一次 Agent 请求可能包含多次模型、工具和检索调用。结构化日志也能通过请求 ID 关联，但 Tracing 更直接地展示子步骤的时序和依赖。常见调用形成父子 Span 树，异步队列、批任务和多来源合并还需要 Span links，不能强行用一个父子关系表示所有因果。
+A single agent request may involve several model, tool, and retrieval calls. Structured logs can also be correlated through a request ID, but tracing shows the timing and dependencies of individual steps more directly. Ordinary calls form a tree of parent and child spans. Asynchronous queues, batch jobs, and fan-in from multiple sources also need span links; not every causal relationship can be forced into a single parent-child relationship.
 
 ```mermaid
 flowchart TB
-    ROOT["根 Span: 一次用户请求"]
-    ROOT --> S1["Span: 模型调用#1(路由决策)"]
-    ROOT --> S2["Span: 工具调用(检索订单)"]
-    ROOT --> S3["Span: 模型调用#2(生成回答)"]
-    ROOT --> S4["Span: 输出契约校验"]
+    ROOT["Root span: one user request"]
+    ROOT --> S1["Span: model call #1 (routing decision)"]
+    ROOT --> S2["Span: tool call (order lookup)"]
+    ROOT --> S3["Span: model call #2 (answer generation)"]
+    ROOT --> S4["Span: output contract validation"]
 
     style ROOT fill:#e8f0fe
 ```
 
-## 8.2 三种可观测性信号的分工
+## 8.2 The roles of the three observability signals
 
-| 信号 | 回答什么问题 | 典型工具 |
+| Signal | Question it answers | Typical tools |
 |---|---|---|
-| **日志(Logs)** | 某个具体时刻发生了什么细节 | 结构化日志系统 |
-| **指标(Metrics)** | 整体趋势是好是坏(延迟、错误率、token 用量) | Prometheus / Grafana |
-| **追踪(Traces)** | 一次具体请求内部,时间和因果是怎么串起来的 | OpenTelemetry / LangSmith / Arize Phoenix |
+| **Logs** | What happened in detail at a particular moment? | Structured logging systems |
+| **Metrics** | Are overall trends improving or worsening—latency, error rate, token usage? | Prometheus / Grafana |
+| **Traces** | How do timing and causality connect the steps within a particular request? | OpenTelemetry / LangSmith / Arize Phoenix |
 
-指标能告诉你“过去一小时错误率上升了”，关联日志和 Trace 则帮助定位具体失败步骤。此图把模型 Span 限定为模型请求本身；编排层在返回后执行最终校验，因此另建一个请求子 Span。父子关系应反映实际插桩边界，不能只按输出被谁消费来连线。
+Metrics can tell you that the error rate rose over the past hour; correlated logs and traces help identify the failing step. In this diagram, a model span covers only the model request itself. The orchestration layer performs final validation after the model returns, so validation gets a separate child span under the request. Parent-child relationships should reflect the actual instrumentation scope, not merely who consumes an output.
 
-## 8.3 GenAI 场景下 Span 该记录什么字段
+## 8.3 What should a GenAI span record?
 
-OpenTelemetry 的生成式 AI [语义约定](https://github.com/open-telemetry/semantic-conventions-genai)提供跨实现的字段含义，但不能把滚动文档当成已稳定的统一接口。实施时固定约定版本和 instrumentation 版本，核对各字段稳定性与供应商支持；下面是需要采集的语义类别，不是可直接复制的标准字段表：
+OpenTelemetry’s generative AI [semantic conventions](https://github.com/open-telemetry/semantic-conventions-genai) define field meanings across implementations, but continuously updated documentation should not be mistaken for a stable, uniform interface. Pin both the convention and instrumentation versions, and check each field’s stability and provider support. The following table lists semantic categories to collect, not standard field names that can be copied directly:
 
-| 字段类别 | 示例 |
+| Field category | Examples |
 |---|---|
-| 请求参数 | 模型名、temperature、max_tokens |
-| Token 用量 | 输入 token 数、输出 token 数(直接对应第 11 章的成本核算) |
-| 响应特征 | 首 token 延迟（TTFT）、token 间延迟、总耗时、重试/回退；HTTP 首字节可能只是响应头或心跳 |
-| 内容(需脱敏) | Prompt 内容、输出内容的采样或脱敏版本 |
+| Request parameters | Model name, temperature, max_tokens |
+| Token usage | Input and output token counts, directly relevant to the cost accounting in Chapter 11 |
+| Response characteristics | Time to first token (TTFT), inter-token latency, total duration, retries/fallbacks; the first HTTP byte may be only a header or heartbeat |
+| Content requiring sanitization | Sampled or sanitized versions of prompts and outputs |
 
-**这套语义约定提供跨供应商、跨框架的共同字段语义**，但各实现仍需做映射；单位、用量缺失和版本差异不能仅靠统一字段名消除。
+**These conventions provide shared field semantics across providers and frameworks**, but implementations still need mappings. Consistent field names alone do not resolve differences in units, missing usage data, or versions.
 
-## 8.4 数据边界:可观测不等于收集一切
+## 8.4 Data collection limits: observability does not mean collecting everything
 
-Trace 天然会流经用户的原始输入,一旦不加限制地全量采集,Trace 系统本身会变成新的敏感数据面。数据边界应该在**发送 Trace 之前**就确定,而不是指望在后台控制台里再做隐藏:
+Tracing passes through code that handles raw user input. If everything is collected without restrictions, the tracing system itself becomes another place where sensitive data is exposed. Decide what may be collected **before traces are sent**, rather than relying on hiding it later in an administrative console:
 
-| 数据 | 默认策略 |
+| Data | Default policy |
 |---|---|
-| 密钥、令牌、Authorization header | 绝不写入 Trace 或错误堆栈 |
-| PII、订单正文、用户身份标识 | 尽量不采集;必须诊断时使用字段级脱敏、哈希、访问控制 |
-| 审批、支付等高风险动作 | 记录决策 ID、策略版本、结果,不记录不必要的原始材料 |
+| Secrets, tokens, Authorization headers | Never write them to traces or error stack traces |
+| PII, order contents, user identifiers | Avoid collecting them; where diagnosis requires them, use field-level sanitization, hashing, and access controls |
+| High-risk actions such as approvals and payments | Record the decision ID, policy version, and outcome, not unnecessary source material |
 
 ```python
 import hmac
 from hashlib import sha256
 
 def trace_metadata(tenant_id: str, prompt_version: str, trace_key: bytes) -> dict:
-    # trace_key 来自密钥管理系统,不能写进代码
+    # Obtain trace_key from a secrets manager; never hard-code it.
     tenant_hash = hmac.new(trace_key, tenant_id.encode(), sha256).hexdigest()[:24]
     return {"tenant_hash": tenant_hash, "prompt_version": prompt_version}
 ```
 
-HMAC 标识仍可关联用户，属于假名化而非匿名化；需要访问控制、密钥轮换和保留期限。具体平台的数据模型并不完全等同于 OpenTelemetry，选型时需确认映射、导出和删除能力，原则可参考 [LangSmith 生产质量闭环](../../frameworks/01-langchain/05-production/13-langsmith-production-loop.md)。
+An HMAC identifier can still link records to a user: this is pseudonymization, not anonymization. It requires access controls, key rotation, and retention limits. Individual platforms’ data models are not identical to OpenTelemetry’s. When choosing a platform, verify its mapping, export, and deletion capabilities; see [The LangSmith Production Quality Feedback Loop](../../frameworks/01-langchain/05-production/13-langsmith-production-loop.md) for relevant principles.
 
-## 8.5 采样策略:不是所有流量都值得全量记录
+## 8.5 Sampling strategies: not all traffic needs complete traces
 
-全量记录所有 Trace 在高流量场景下成本很高,需要按风险分层采样:
+Recording every trace becomes expensive at high traffic volumes. Use risk-based sampling:
 
-| 场景 | 采样建议 |
+| Scenario | Sampling guidance |
 |---|---|
-| 安全拦截、越权、支付 | 必要的决策审计不依赖调试 Trace 采样；限量、脱敏记录，明确保留与访问策略 |
-| 普通失败请求 | 尾部采样优先保留，考虑缓冲容量和导出丢失，不能无条件承诺 100% |
-| 新模型/新 Prompt 的灰度发布 | 按版本和租户分层采样,保留对照组用于[第 10 章](../05-release-pipeline/10-llm-cicd-canary-ab.md)的 A/B 分析 |
-| 普通低风险流量 | 随机采样,设置成本上限 |
+| Safety blocks, unauthorized access, payments | Required decision audits must not depend on debug-trace sampling; minimize and sanitize records, with explicit retention and access policies |
+| Ordinary failed requests | Prioritize retention through tail sampling; account for buffer capacity and export loss rather than promising unconditional 100% retention |
+| Staged rollout of a new model or prompt | Stratify sampling by version and tenant, retaining a control group for the A/B analysis in [Chapter 10](../05-release-pipeline/10-llm-cicd-canary-ab.md) |
+| Ordinary low-risk traffic | Random sampling with a cost cap |
 
-## 8.6 从 Trace 到告警:指标聚合与阈值
+## 8.6 From traces to alerts: metric aggregation and thresholds
 
-SLO 指标优先由采样前的计数器与直方图产生。若成功只采 1%、失败全采，直接用留下的 Trace 计算错误率会严重高估；确需从采样数据估计时，要保留采样概率并使用适当权重。不能平均各实例的 p99 得到全局 p99，应合并兼容的直方图分桶。
+Prefer counters and histograms collected before sampling for SLO metrics. If only 1% of successes are sampled but all failures are retained, calculating the error rate directly from retained traces will substantially overestimate it. If an estimate must use sampled data, retain sampling probabilities and apply appropriate weights. Averaging instance-level p99 values does not produce a global p99; merge compatible histogram buckets instead.
 
 ```python
-# 伪代码：使用采样前、同一窗口且分母非零的聚合量
+# Pseudocode: use pre-sampling aggregates from one window with nonzero denominators.
 metrics = {
     "p50_latency_ms": percentile(latencies, 50),
     "p99_latency_ms": percentile(latencies, 99),
     "error_rate": failed_count / total_count,
     "contract_violation_rate": violations / completed_structured_outputs,
-    "fallback_rate": fallback_count / total_count,          # 对应第3章
+    "fallback_rate": fallback_count / total_count,          # See Chapter 3.
     "cost_per_request": total_billed_cost / total_count,
 }
 ```
 
-契约违反率不应混入未要求结构化输出的请求；拒绝、截断和供应商错误另行计数。费用按输入、输出、缓存、工具和重试各自价格求和，未知用量要标记缺失而不是填零。用户 ID、完整 URL 和 Prompt 不适合作为指标标签，会造成高基数与泄密；这些信息如确需保留，应放入受控的日志或 Trace。
+The contract violation rate should exclude requests that did not require structured output. Count refusals, truncation, and provider errors separately. Sum costs using the applicable prices for input, output, caching, tools, and retries; mark unknown usage as missing, not zero. User IDs, full URLs, and prompts are unsuitable metric labels because they create high cardinality and risk disclosing sensitive information. If these details must be retained, put them in access-controlled logs or traces.
 
-## 8.7 常见错误
+## 8.7 Common mistakes
 
-### 8.7.1 为了排障记录全部 Prompt 和工具输出
+### 8.7.1 Recording every prompt and tool output for troubleshooting
 
-Trace 本身会成为新的敏感数据面。应在发送前按白名单投影、脱敏,而不是采集全部再指望后台隐藏。
+Traces themselves become another source of sensitive-data exposure. Select only allowlisted fields and sanitize them before sending, rather than collecting everything and expecting the console to hide it.
 
-### 8.7.2 只有日志,没有 Trace
+### 8.7.2 Keeping logs without traces
 
-复杂链路失败时,缺少关联 ID 的日志难以还原跨步骤关系；Trace 也必须正确传播上下文，且不能把外部传入的 Trace ID 当作身份凭证。
+When a complex request path fails, logs without correlation IDs make it difficult to reconstruct relationships across steps. Traces also require correct context propagation, and an externally supplied trace ID must never be treated as an identity credential.
 
-### 8.7.3 全量采集所有流量的 Trace
+### 8.7.3 Collecting traces for all traffic without sampling
 
-高流量场景下成本可能失控。调试 Trace 按风险分层采样，必要的决策审计独立采集；不要把日志保留范围扩大成敏感原文全量留存。
+Costs can become unmanageable at high traffic volumes. Sample debug traces by risk and collect required decision audits independently. Do not turn a log-retention policy into blanket retention of sensitive raw content.
 
-### 8.7.4 采集了数据却没有转化为可告警的聚合指标
+### 8.7.4 Collecting data without turning it into metrics that can trigger alerts
 
-Trace 堆积如山但没有形成 p99 延迟、错误率这类可以设阈值告警的指标,故障发生时仍然要靠人工翻查才能发现。
+If traces accumulate without producing metrics such as p99 latency and error rate that can trigger threshold-based alerts, someone still has to search through them manually to discover an incident.
 
-### 8.7.5 把可观测性当成事后补救,而非架构设计的一部分
+### 8.7.5 Treating observability as an afterthought rather than part of the architecture
 
-参见[第 2 章](../01-foundations/02-production-architecture-overview.md),可观测性的数据边界和采样策略应该在系统设计阶段就规划好。
+As discussed in [Chapter 2](../01-foundations/02-production-architecture-overview.md), plan observability data collection limits and sampling policies during system design.
 
-## 8.8 本章总结
+## 8.8 Chapter summary
 
-1. **Tracing 用父子 Span 和 links 表达调用关系**，与带关联 ID 的结构化日志互补;
-2. **日志、指标、追踪三种信号分工不同**,分别回答"细节是什么""趋势如何""这次具体发生了什么";
-3. **GenAI 场景的 Span 应遵循 OpenTelemetry 语义约定**,统一记录模型参数、Token 用量、延迟等字段;
-4. **数据边界必须在采集前确定**,密钥、PII 等敏感信息默认不采集或脱敏后采集;
-5. **采样按风险分层，审计与调试分开**，采集系统自身的丢失也需要监控;
-6. **SLO 优先使用采样前指标**，不能直接用偏向失败的 Trace 样本计算整体错误率。
+1. **Tracing represents call relationships with parent-child spans and links**, complementing structured logs with correlation IDs.
+2. **Logs, metrics, and traces serve different purposes:** details, trends, and the sequence of events in a particular request.
+3. **GenAI spans should follow OpenTelemetry semantic conventions** for consistent recording of model parameters, token usage, latency, and related fields.
+4. **Decide what may be collected before collection begins.** By default, exclude sensitive information such as secrets and PII, or sanitize it where collection is permitted.
+5. **Sample by risk and separate auditing from debugging.** Monitor data loss within the collection system itself.
+6. **Prefer pre-sampling metrics for SLOs.** Do not calculate the overall error rate directly from a trace sample biased toward failures.
 
-## 参考资料
+## References
 
-原 GenAI 文档入口已迁移至独立仓库，旧入口不再维护；本次于 2026-09-15 核对迁移说明。
+The original GenAI documentation has moved to a dedicated repository, and the old location is no longer maintained. The Chinese source manuscript records a check of the migration notice on 2026-09-15.
 
 - [OpenTelemetry: Semantic conventions for generative AI systems](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
 - [OpenTelemetry: GenAI semantic conventions repository](https://github.com/open-telemetry/semantic-conventions-genai)

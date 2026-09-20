@@ -1,81 +1,81 @@
 ---
-description: 解释 MCP 模型上下文协议解决的问题、Host-Client-Server 架构，以及它与 Function Calling 的职责边界。
+description: Explains the problems MCP solves, its Host–Client–Server architecture, and the boundary between MCP and function calling.
 ---
 
-# 第四章：MCP 模型上下文协议的核心内容
+# Chapter 4: The Core of the Model Context Protocol
 
-## 4.1 MCP 解决的不是 Function Calling 解决的问题
+## 4.1 MCP does not solve the same problem as function calling
 
-MCP 要先和 Function Calling 分开看。
+Start by separating MCP from function calling.
 
-[Function Calling](../01-function-calling/01-function-calling.md) 解决的是「**模型怎么表达调用意图**」——一个模型层的输出格式约定。
+[Function calling](../01-function-calling/01-function-calling.md) answers **how a model expresses its intent to call a tool**. It is a model-level output-format convention.
 
-MCP 解决的是完全不同的一组问题：
+MCP addresses a different set of questions:
 
-- 工具**在哪里**？怎么被发现，而不是硬编码在应用代码里；
-- 工具**怎么跨进程提供**？能不能装在另一台机器上；
-- 同一个工具，**能不能被不同的 AI 应用复用**？
-- 工具变更了，**接入方要不要改代码**？
+- **Where are the tools?** How can an application discover them rather than hard-code them?
+- **How are tools provided across processes?** Can they run on another machine?
+- Can **different AI applications reuse the same tool**?
+- When a tool changes, **must every consuming application change its code**?
 
-边界可以概括成：
+The boundary is:
 
-> **Function Calling 是一种常见的模型—应用接口；MCP 是 Host/Client—Server 的开放协议。二者可在同一应用中配合，但 MCP 本身不规定、更不必然依赖某家模型的 Function Calling。**
+> **Function calling is a common model–application interface; MCP is an open Host/Client–Server protocol. They can work together in one application, but MCP neither specifies nor necessarily depends on a particular model provider's function-calling interface.**
 
-## 4.2 重复适配的 M×N 成本模型
+## 4.2 The M×N cost model of repeated integration
 
-假设你要把 GitHub 接进一个 AI 应用。你得自己写 GitHub API 的调用代码、处理 OAuth 认证、把各种返回格式转成模型能理解的 Schema、写错误处理。好不容易接完了，接下来会发生三件事：
+Suppose you want to connect GitHub to an AI application. You write the GitHub API calls, handle OAuth authentication, map response formats into schemas the model can understand, and implement error handling. Once that works, three things happen:
 
-1. **同一个应用接第二个工具**：Slack 的认证方式、返回格式、错误码跟 GitHub 完全不同，整套逻辑重写一遍；
-2. **同一个工具给第二个应用用**：Cursor 的接入方式和你原来那个应用完全不同，再重写一遍；
-3. **工具方升级 API**：所有接入方各自改代码。
+1. **The same application needs a second tool.** Slack has different authentication, response formats, and error codes, so you implement another integration.
+2. **A second application needs the same tool.** Cursor's integration differs from that of your original application, so you do the work again.
+3. **The tool provider upgrades its API.** Every consuming application updates its own code.
 
 ```mermaid
 flowchart LR
-    subgraph BEFORE["分别适配的简化模型：M×N 条对接关系"]
+    subgraph BEFORE["Separate integrations: a simplified model with M×N relationships"]
         A1[Claude Desktop] --- T1[GitHub]
         A1 --- T2[Slack]
         A1 --- T3[Postgres]
         A2[Cursor] --- T1
         A2 --- T2
         A2 --- T3
-        A3[自研 Agent] --- T1
+        A3[Custom agent] --- T1
         A3 --- T2
         A3 --- T3
     end
 ```
 
-如果每个应用都独立适配每个工具，接口组合数为 M×N。这是说明重复劳动的简化模型，不是历史统计；共享 SDK、内部 API 和适配层本来也能减少重复实现。
+If every application independently integrates every tool, there are M×N interface combinations. This is a simplified model of duplicated work, not a historical measurement. Shared SDKs, internal APIs, and adapter layers can also reduce duplication.
 
-## 4.3 MCP 的核心思路：把 M×N 变成 M+N
+## 4.3 MCP's central idea: turn M×N into M+N
 
-可以把 MCP 类比为 **USB 这样的通用接口**：参与方遵守共同约定，就能减少专用适配。不过 USB 仍有驱动、版本和设备能力差异，MCP 也一样。
+Think of MCP as a **common interface such as USB**: shared conventions reduce the need for bespoke adapters. USB still has drivers, versions, and differences in device capabilities; MCP has comparable limitations.
 
-MCP 为「AI 接工具」定了同一种标准：
+MCP gives AI applications and tool providers a common standard:
 
 ```mermaid
 flowchart LR
-    subgraph AFTER["共享协议的简化模型：M 个 Client + N 个 Server"]
-        A1[Claude Desktop] --> P((MCP 协议))
+    subgraph AFTER["Shared protocol: a simplified model with M Clients + N Servers"]
+        A1[Claude Desktop] --> P((MCP))
         A2[Cursor] --> P
-        A3[自研 Agent] --> P
+        A3[Custom agent] --> P
         P --> S1[GitHub MCP Server]
         P --> S2[Slack MCP Server]
         P --> S3[Postgres MCP Server]
     end
 ```
 
-工具方实现 Server 后，支持相同版本、传输和能力的应用可复用接入。认证、数据映射、权限和部署仍要配置，不能承诺“任意客户端零代码接入”。
+Once a provider implements a Server, applications supporting compatible versions, transports, and capabilities can reuse that integration. Authentication, data mapping, permissions, and deployment still need configuration. This is not a promise of “zero-code integration with any client.”
 
-`tools/list` 用于发现**已知 Server** 的工具，不负责在互联网寻找 Server。结果可能分页；工具更新后还需刷新缓存、审阅描述及权限、重新测试模型路由，而不是自动信任新增工具。
+`tools/list` discovers tools on a **known Server**; it does not find Servers on the internet. Results may be paginated. Tool updates also require cache refreshes, review of descriptions and permissions, and new model-routing tests—not automatic trust in newly added tools.
 
-## 4.4 Host、Client、Server 三个角色
+## 4.4 The three roles: Host, Client, and Server
 
-MCP 采用 client-host-server 架构，注意是三个角色而不是两个——这里最容易被讲错。
+MCP uses a client-host-server architecture. There are three roles, not two—an easy distinction to miss.
 
 ```mermaid
 flowchart TB
-    subgraph HOST["Host 进程（如 Claude Desktop / Cursor / 你的 Agent）"]
-        H["Host<br/>协调者：管理生命周期、执行安全策略、处理用户授权"]
+    subgraph HOST["Host process: Claude Desktop / Cursor / your agent"]
+        H["Host<br/>Coordinator: lifecycle, security policies, user authorization"]
         C1["Client 1"]
         C2["Client 2"]
         C3["Client 3"]
@@ -84,13 +84,13 @@ flowchart TB
         H --> C3
     end
 
-    subgraph LOCAL["本地"]
-        S1["Server 1<br/>文件系统"]
-        S2["Server 2<br/>数据库"]
+    subgraph LOCAL["Local"]
+        S1["Server 1<br/>Filesystem"]
+        S2["Server 2<br/>Database"]
     end
 
-    subgraph REMOTE["远程"]
-        S3["Server 3<br/>外部 API"]
+    subgraph REMOTE["Remote"]
+        S3["Server 3<br/>External API"]
     end
 
     C1 --> S1
@@ -98,55 +98,55 @@ flowchart TB
     C3 --> S3
 ```
 
-| 角色 | 职责 | 数量关系 |
+| Role | Responsibilities | Typical count |
 |---|---|---|
-| **Host** | AI 应用本身。管理 Client 生命周期、执行安全策略、处理用户授权、协调 LLM 调用、聚合多个 Server 的上下文 | 1 |
-| **Client** | Host 内的协议连接器，通常对应一个 Server 连接 | N |
-| **Server** | 工具实现方。独立运行，职责聚焦，暴露 Tools / Resources / Prompts | N |
+| **Host** | The AI application itself. Manages Client lifecycles, enforces security policies, handles user authorization, coordinates LLM calls, and aggregates context from multiple Servers | 1 |
+| **Client** | A protocol connector inside the Host, usually corresponding to one Server connection | N |
+| **Server** | The tool provider. Runs independently with a focused responsibility and exposes Tools / Resources / Prompts | N |
 
-Host 通常为每个 Server 维护独立 Client/连接，便于生命周期和错误隔离；但这不是协议自动提供的安全沙箱。Server 能看到什么仍取决于 Host 传入的参数、进程与网络权限，隔离必须由 Host、操作系统和网络策略共同实现。
+A Host typically maintains a separate Client/connection for each Server to manage lifecycles and isolate failures. This is not a security sandbox supplied by the protocol. What a Server can see still depends on the arguments the Host sends and on process and network permissions. Isolation requires the Host, operating system, and network policies to work together.
 
-**Host 与 Server 都要授权**。Host 决定工具可见性、用户确认和数据分享；Server 仍必须校验令牌、租户和对象级权限，不能相信 Client 已经检查过。
+**Both Host and Server must enforce authorization.** The Host controls tool visibility, user confirmation, and data sharing. The Server must still validate tokens, tenants, and object-level permissions; it cannot assume that the Client already checked them.
 
-## 4.5 三类核心能力：Tools、Resources、Prompts
+## 4.5 Three core capabilities: Tools, Resources, and Prompts
 
-MCP Server 可以暴露三类能力。规范强调的是**默认发起方/控制路径**，而不是以副作用给能力定性；实际调用始终由 Host 许可、执行与审计。
+An MCP Server can expose three kinds of capabilities. The specification distinguishes their **default initiator or control path**, not their side effects. Actual invocations remain subject to Host permission, execution, and auditing.
 
-| 能力 | 有副作用吗 | 谁来触发 | 类比 |
+| Capability | Side effects | Who initiates it | Analogy |
 |---|---|---|---|
-| **Tools** | 可读、可写或有外部副作用，取决于实现 | 模型或 Host 工作流可建议调用，Host 最终决定 | 手 |
-| **Resources** | 面向应用提供可读取的上下文；通常应设计为安全读取 | Host/Client 决定何时列出、读取或注入 | 资料室 |
-| **Prompts** | 返回提示模板或消息 | 用户或 Host 选择并取得 | 模板库 |
+| **Tools** | May read, write, or cause external side effects, depending on implementation | A model or Host workflow may propose a call; the Host makes the final decision | Hands |
+| **Resources** | Readable context for applications; normally designed for safe reads | The Host/Client decides when to list, read, or inject them | Reference room |
+| **Prompts** | Return prompt templates or messages | The user or Host selects and retrieves them | Template library |
 
-### 4.5.1 Tools：模型控制
+### 4.5.1 Tools: model-controlled
 
-Tools 是可由模型或工作流选择的可执行能力：可以是只读搜索，也可以是创建文件、提交代码、发消息等写操作。是否有副作用**不能**从 `tools/call` 这一类型本身推断。
+Tools are executable capabilities that a model or workflow can select. A Tool may perform a read-only search, or write by creating files, committing code, or sending messages. You **cannot** infer side effects from the `tools/call` method alone.
 
-对转账、删除、发布等高风险 Tool，Host 应在执行前要求明确授权或审批；Server 执行前再次验证实际参数与权限。低风险读取也要遵循最小权限。
+For high-risk Tools such as transfers, deletion, or publishing, the Host should require explicit authorization or approval before execution. The Server must then revalidate the actual arguments and permissions. Even low-risk reads need least-privilege access.
 
-### 4.5.2 Resources：应用控制
+### 4.5.2 Resources: application-controlled
 
-Resources 是 Server 暴露给 Client 的、由 URI 标识的上下文数据。它们通常用于读取文档、日志或记录；“Resource”不是对底层实现绝无副作用的安全保证，Host 不应仅凭类别跳过信任与访问控制。
+Resources are URI-identified context data that a Server exposes to a Client. They commonly provide documents, logs, or records. “Resource” is not a security guarantee that the underlying implementation has no side effects; the Host must not skip trust and access checks just because of the category.
 
-Resource 的协议读取由 Client 执行，内容是否进入上下文由 Host 决定。Host 可以接受模型建议去读资源；“应用控制”是默认交互模型，不是禁止模型参与选择。
+The Client performs the protocol read, and the Host decides whether the content enters the model's context. A Host may accept a model's suggestion to read a resource. “Application-controlled” describes the default interaction model; it does not prohibit model involvement in selection.
 
-### 4.5.3 Prompts：用户控制
+### 4.5.3 Prompts: user-controlled
 
-带参数占位符的预定义提示词模板。团队有一套固定的代码审查标准 Prompt，接受「编程语言」和「代码内容」两个参数，调用时传参就能展开成完整提示词。
+Prompts are predefined prompt templates with parameter placeholders. For example, a team's standard code-review prompt may take “programming language” and “code” as arguments. Supplying those arguments expands it into a complete prompt.
 
-Prompts 通常以「斜杠命令」或菜单项的形式暴露给用户，由**用户**主动选择触发，而不是模型自己决定用哪个。把公司积累的优质 Prompt 封装成 MCP Prompts，全团队复用同一套标准，这在实际工程里比想象中有用。
+Prompts are often exposed as slash commands or menu items that the **user** selects, rather than something the model chooses on its own. Packaging a company's useful prompts as MCP Prompts lets the whole team reuse the same standards—a practical benefit that is easy to overlook.
 
-## 4.6 底层通信：JSON-RPC 2.0
+## 4.6 The message format: JSON-RPC 2.0
 
-MCP 的消息格式是 JSON-RPC 2.0——一种用 JSON 表达「远程函数调用」的轻量协议。
+MCP messages use JSON-RPC 2.0, a lightweight protocol for expressing remote procedure calls in JSON.
 
-以下仅展示方法与数据关系，省略当前版本必需的 `_meta`、`resultType` 及列表缓存字段，不是完整报文；完整请求见[第十二章](12-mcp-transport.md)。
+The following example shows only the relationship between methods and data. It omits the `_meta`, `resultType`, and list-cache fields required by the current version, so these are not complete wire messages. See [Chapter 12](12-mcp-transport.md) for a complete request.
 
 ```jsonc
-// 请求：客户端列出所有工具
+// Request: the Client lists all tools
 {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
 
-// 响应
+// Response
 {"jsonrpc": "2.0", "id": 1, "result": {"tools": [
   {"name": "create_issue", "inputSchema": {
     "type": "object",
@@ -155,48 +155,48 @@ MCP 的消息格式是 JSON-RPC 2.0——一种用 JSON 表达「远程函数调
   }}
 ]}}
 
-// 请求：调用某个工具
+// Request: call a tool
 {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
  "params": {"name": "create_issue", "arguments": {"title": "Bug", "body": "..."}}}
 ```
 
-JSON-RPC 使用可读的 JSON 和统一的请求、结果、错误结构，便于跨语言调试。但解析几条 JSON 只是起点，完整 Client 还要处理版本、能力、授权、取消和故障恢复；不能用教学代码行数衡量实现成本。
+JSON-RPC combines readable JSON with consistent request, result, and error structures, making cross-language debugging easier. Parsing a few JSON messages is only the start: a complete Client must also handle versions, capabilities, authorization, cancellation, and recovery. A teaching example's line count is not a measure of implementation cost.
 
-传输方式（stdio / Streamable HTTP）的细节见 [第十二章](12-mcp-transport.md)。
+For the details of stdio and Streamable HTTP, see [Chapter 12](12-mcp-transport.md).
 
-## 4.7 生命周期与版本兼容
+## 4.7 Lifecycle and version compatibility
 
-本章固定采用 **2026-07-28** 规范。此版改为无状态、请求自包含：每个请求携带协议版本与 Client capabilities；Server 必须实现 `server/discover`，Client 可选调用。旧版 `initialize` 属于兼容路径，不是本版核心握手。
+This chapter is pinned to specification **2026-07-28**. This version is stateless, with self-contained requests: every request carries the protocol version and Client capabilities. Servers must implement `server/discover`, which Clients may optionally call. The old `initialize` method belongs to a compatibility path, not the core handshake for this version.
 
-官方将 Current 定义为“ready for use”，仍可接收向后兼容修改；Draft 是尚未可供使用的修订，Final 则指不再修改的历史版本。因此这里的 Current 既不是草案，也不意味着规范已冻结。
+The official status **Current** means “ready for use” and still allows backward-compatible changes. **Draft** denotes an in-progress revision not yet ready for use; **Final** denotes a historical version that will no longer change. Current therefore means neither draft nor frozen.
 
-### 4.7.1 版本时间线
+### 4.7.1 Version timeline
 
-| 版本 | 关键变化 |
+| Version | Key changes |
 |---|---|
-| 2024-11-05 | 初版。HTTP + SSE 双端点传输 |
-| 2025-03-26 | Streamable HTTP 取代 HTTP+SSE 双端点 |
-| 2025-06-18 | 授权规范完善，结构化工具输出 |
-| 2025-11-25 | 引入实验性 Tasks 等能力，仍采用初始化和会话模型 |
-| 2026-07-28 | 改为无状态、每请求携带版本与能力；引入 `server/discover` 和订阅流，旧初始化模型进入兼容路径 |
+| 2024-11-05 | Initial version, with a two-endpoint HTTP + SSE transport |
+| 2025-03-26 | Streamable HTTP replaces the two-endpoint HTTP + SSE transport |
+| 2025-06-18 | Authorization improvements and structured tool output |
+| 2025-11-25 | Introduces capabilities such as experimental Tasks; still uses initialization and sessions |
+| 2026-07-28 | Becomes stateless, with versions and capabilities on each request; introduces `server/discover` and subscription streams; moves the old initialization model to a compatibility path |
 
-### 4.7.2 每请求协商与旧版兼容
+### 4.7.2 Per-request negotiation and legacy compatibility
 
-新规范中，请求通过 `_meta.io.modelcontextprotocol/*` 携带协议版本和 Client capabilities。Client 可先调用 `server/discover` 获取 Server 支持的版本与能力，也可直接发起带元数据的业务请求。需要持续通知时，Client 显式建立 subscription；需要模型或用户补充输入时，Server 在响应中返回 `InputRequiredResult`，Client 补齐输入后重发原请求。
+In the new specification, requests carry the protocol version and Client capabilities through `_meta.io.modelcontextprotocol/*`. A Client may first call `server/discover` to learn the Server's supported versions and capabilities, or send an application request with that metadata directly. For ongoing notifications, the Client explicitly establishes a subscription. When the Server needs model or user input, it returns an `InputRequiredResult`; the Client supplies the missing input and resubmits the original request.
 
-与旧版 Server 互操作时，只有明确支持新旧两代协议的实现（dual-era）才能按兼容矩阵回退到 `initialize`、`notifications/initialized` 和旧版会话语义。现代协议专用 SDK 不一定具备这条路径，不能把旧握手继续写成所有 MCP 调用的必经步骤。
+Interoperating with legacy Servers requires a **dual-era** implementation that explicitly supports both generations. Only such implementations can follow the compatibility matrix to fall back to `initialize`, `notifications/initialized`, and legacy session semantics. A modern-only SDK may have no such path. Do not describe the old handshake as a mandatory step in every MCP interaction.
 
-2026-07-28 所有结果还要求 `resultType`；读取与列表结果有 `ttlMs`、`cacheScope`。Sampling、Roots、Logging 已 **Deprecated**，仍保留兼容但新实现不应再采用；Tasks 已移到 `io.modelcontextprotocol/tasks` 官方可选扩展。扩展、草案 SEP 和核心协议不是同一发布层级，详见[变更记录](https://modelcontextprotocol.io/specification/2026-07-28/changelog)。
+In 2026-07-28, all results also require `resultType`; read and list results carry `ttlMs` and `cacheScope`. Sampling, Roots, and Logging are **Deprecated**: retained for compatibility, but not recommended for new implementations. Tasks have moved to the official optional extension `io.modelcontextprotocol/tasks`. Extensions, draft SEPs, and the core protocol are different release categories; see the [changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog).
 
-### 4.7.3 工程上要注意什么
+### 4.7.3 Engineering implications
 
-**多版本共存是常态**。涉及 transports、authorization、sampling 或任务等特性时，应核对 Client、Server 与目标发布版本的兼容性，不能凭教程假定其存在或不存在。
+**Multiple versions routinely coexist.** For features such as transports, authorization, sampling, or tasks, check the Client, Server, and target protocol revision together. A tutorial is not evidence that a feature is either present or absent.
 
-## 4.8 MCP 生态为什么起得这么快
+## 4.8 Why the MCP ecosystem grew quickly
 
-MCP 由 Anthropic 在 2024 年 11 月发布。SDK 与可复用 Server 降低了适配门槛，但生态采用度不能替代版本和安全核查。
+Anthropic introduced MCP in November 2024. SDKs and reusable Servers lowered integration costs, but adoption is no substitute for version and security checks.
 
-**SDK 简化协议代码**。下面保留 FastMCP 风格的教学示例；运行时应固定 SDK 发布版并核对它支持的协议版本，函数可运行不代表已实现完整授权和治理：
+**SDKs simplify protocol code.** This FastMCP-style example is for teaching. Pin the SDK release when running it and verify its supported protocol versions. A working function does not establish complete authorization or governance:
 
 ```python
 from mcp.server.fastmcp import FastMCP
@@ -205,16 +205,16 @@ mcp = FastMCP("demo")
 
 @mcp.tool()
 def add(a: int, b: int) -> int:
-    """将两个整数相加"""
+    """Add two integers."""
     return a + b
 
 if __name__ == "__main__":
     mcp.run()
 ```
 
-这里的工具参数类型用于生成输入 JSON Schema，docstring 用于工具描述。SDK 省去了部分报文构造，但不代替业务权限检查和部署配置。
+The parameter types generate the input JSON Schema, and the docstring supplies the tool description. The SDK saves some message-construction work, but does not replace business permission checks or deployment configuration.
 
-**工具接入可复用**。要区分官方维护、社区实现和归档示例。旧 `@modelcontextprotocol/server-github` 已归档，GitHub 官方实现是 [github/github-mcp-server](https://github.com/github/github-mcp-server)。下面用本地自有 Server 示意宿主配置，而不是安装归档包：
+**Tool integrations can be reused.** Distinguish officially maintained Servers, community implementations, and archived examples. The old `@modelcontextprotocol/server-github` is archived; GitHub's official implementation is [github/github-mcp-server](https://github.com/github/github-mcp-server). The following Host configuration uses a locally owned Server rather than installing an archived package:
 
 ```json
 {
@@ -227,54 +227,54 @@ if __name__ == "__main__":
 }
 ```
 
-`mcpServers` 是一些宿主使用的配置约定，不是 MCP 线上报文。安装目录、热加载、密钥注入和模型端桥接方式均须查宿主文档。
+`mcpServers` is a configuration convention used by some Hosts, not an MCP wire message. Consult the Host's documentation for installation paths, hot reload, credential injection, and the model-side bridge.
 
-## 4.9 常见错误
+## 4.9 Common mistakes
 
-### 4.9.1 认为 MCP 取代了 Function Calling
+### 4.9.1 Assuming MCP replaces function calling
 
-许多 LLM Host 会把 MCP Tool 转为该模型的 Function Calling schema，再将模型输出路由为 `tools/call`。但这只是常见适配方式：Host 也可用结构化输出、规则工作流或人工选择调用 MCP。**MCP 不把 Function Calling 作为协议前提。**
+Many LLM Hosts convert MCP Tools into a model's function-calling schema, then route the model's output to `tools/call`. This is just one common adaptation. A Host can also invoke MCP through structured output, rule-based workflows, or human selection. **Function calling is not a prerequisite of MCP.**
 
-### 4.9.2 把 Host 和 Client 混为一谈
+### 4.9.2 Confusing Host and Client
 
-Client 是 Host 内的协议连接器，不是安全沙箱。Host 控制用户同意与数据共享；Server 验证调用者和资源访问权限，二者不可相互替代。
+A Client is a protocol connector within the Host, not a security sandbox. The Host controls user consent and data sharing; the Server verifies the caller and resource permissions. Neither responsibility replaces the other.
 
-### 4.9.3 认为只读查询不能是 Tool
+### 4.9.3 Assuming a read-only query cannot be a Tool
 
-只读数据常适合用 Resources 提供，而需要模型选择并执行的查询也可以是 Tool。不要从类别推导「无副作用」或「无需授权」：按数据敏感度、调用者身份与实际动作做最小授权和审批。
+Read-only data often fits Resources, but a query that the model selects and executes can also be a Tool. Do not infer “no side effects” or “no authorization needed” from the category. Apply least privilege and approval according to data sensitivity, caller identity, and the actual action.
 
-### 4.9.4 以为 Resources 是模型主动读的
+### 4.9.4 Assuming the model reads Resources directly
 
-协议调用由 Client 发起；Host 可以让用户、固定工作流或模型决策触发 `resources/read`，再决定哪些内容进入上下文。MCP 不规定某种 UI，也不能据此假定 Resource 天然可信或无需授权。
+The Client initiates the protocol call. The Host may let a user, fixed workflow, or model decision trigger `resources/read`, then decide what enters context. MCP does not mandate a particular UI, nor does the Resource category establish trust or remove authorization requirements.
 
-### 4.9.5 按旧规范理解 MCP 的状态模型
+### 4.9.5 Applying an old state model to current MCP
 
-2026-07-28 规范是每请求自包含的无状态模型；`initialize` 和连接级 session 属于旧版兼容语义。应固定目标协议版本并按官方兼容矩阵实现，不能混用不同年代的消息流。
+The 2026-07-28 specification uses stateless, self-contained requests. `initialize` and connection-level sessions are legacy compatibility semantics. Pin the target protocol version and implement the official compatibility matrix rather than combining message flows from different eras.
 
-### 4.9.6 忽视 MCP Server 的信任边界
+### 4.9.6 Ignoring the MCP Server trust boundary
 
-启动本地 Server 会运行第三方代码；连接远程 Server 则会向对端传递数据，两者风险不同。工具描述可能被投毒，详见[工具协议安全](15-tool-protocol-security.md)。
+Starting a local Server executes third-party code; connecting to a remote Server sends data to another party. These are different risks. Tool descriptions can also be poisoned; see [tool protocol security](15-tool-protocol-security.md).
 
-## 4.10 本章总结
+## 4.10 Chapter summary
 
-1. **MCP 与 Function Calling 可以配合但并非依赖关系**：前者定义 Host/Client 与 Server 的互操作，后者是常见的模型调用接口；
-2. **M×N 到 M+N 是适配成本模型**，不消除认证、业务映射与互操作测试；
-3. **工具发现面向已知 Server**，要处理分页、缓存更新和新增工具审查；
-4. **三个角色**：Host 管策略与生命周期，Client 连接 Server，Server 提供能力并复核调用权限；独立连接不替代运行时隔离；
-5. **三类能力按默认控制路径区分**：Tools 可由模型/工作流选择，Resources 由 Client 加载，Prompts 由用户/Host 取得；副作用须逐项声明和治理；
-6. **消息格式是 JSON-RPC 2.0**，标准传输为 stdio 与 Streamable HTTP；
-7. **版本语义发生过结构性变化**：当前版本按请求携带版本与能力，旧初始化/会话模型只在兼容路径出现；
-8. **核查规范、SDK 和宿主三个层面**，不要用归档示例代替维护中的实现。
+1. **MCP and function calling can cooperate without depending on each other.** MCP defines Host/Client–Server interoperability; function calling is a common model interface.
+2. **M×N to M+N is an integration-cost model.** It does not eliminate authentication, business mapping, or interoperability tests.
+3. **Tool discovery targets known Servers.** Handle pagination, cache updates, and review of new tools.
+4. **There are three roles.** The Host manages policies and lifecycles; Clients connect to Servers; Servers provide capabilities and recheck invocation permissions. Separate connections do not replace runtime isolation.
+5. **The three capabilities differ by default control path.** Models/workflows may select Tools, Clients load Resources, and users/Hosts retrieve Prompts. Declare and govern side effects individually.
+6. **The message format is JSON-RPC 2.0.** The standard transports are stdio and Streamable HTTP.
+7. **Version semantics have changed structurally.** The current version carries versions and capabilities on each request; the old initialization/session model appears only in compatibility paths.
+8. **Check the specification, SDK, and Host separately.** Archived examples are not substitutes for maintained implementations.
 
 
-## 参考资料
+## References
 
-- 版本状态核对：2026-09-15 复核下列固定版变更与兼容说明；采用固定协议基准，不将动态页面的“最新”当作 SDK 已支持的证明。
-- [MCP 版本状态](https://modelcontextprotocol.io/specification/versioning)
-- [MCP 2026-07-28 变更记录](https://modelcontextprotocol.io/specification/2026-07-28/changelog)
-- [Model Context Protocol 官方文档](https://modelcontextprotocol.io/docs/getting-started/intro)
-- [MCP 规范 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)
-- [MCP 版本兼容说明](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning)
-- [MCP 架构说明](https://modelcontextprotocol.io/specification/2026-07-28/architecture)
+- Version-status review: the original manuscript rechecked the following pinned-version changes and compatibility notes on 2026-09-15. It uses a fixed protocol baseline; a dynamic page saying “latest” is not evidence of SDK support.
+- [MCP version status](https://modelcontextprotocol.io/specification/versioning)
+- [MCP 2026-07-28 changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)
+- [Model Context Protocol documentation](https://modelcontextprotocol.io/docs/getting-started/intro)
+- [MCP specification 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)
+- [MCP version compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning)
+- [MCP architecture](https://modelcontextprotocol.io/specification/2026-07-28/architecture)
 - [Anthropic: Introducing the Model Context Protocol](https://www.anthropic.com/news/model-context-protocol)
-- [JSON-RPC 2.0 规范](https://www.jsonrpc.org/specification)
+- [JSON-RPC 2.0 specification](https://www.jsonrpc.org/specification)

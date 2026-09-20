@@ -1,127 +1,127 @@
 ---
-description: 区分训练数据记忆化、成员推断与应用记忆泄漏，解释差分隐私、数据留存、删除与跨境处理的边界。
+description: Distinguish training data memorization, membership inference, and application memory leakage, and explain the limits of differential privacy, retention, deletion, and cross-border processing.
 ---
 
-# 第六章：隐私、PII 与记忆泄漏
+# Chapter 6: Privacy, PII, and Memory Leakage
 
-## 6.1 AI 系统的隐私攻击面比传统应用更宽
+## 6.1 AI Systems Have a Broader Privacy Attack Surface
 
-传统应用的隐私风险也包括日志、缓存和第三方处理。LLM 场景需区分：权重中的训练数据记忆化，以及应用存储中的会话、摘要和长期记忆。前者可能通过模型输出泄漏，后者往往就是检索授权、租户隔离或生命周期治理失败；不能说记忆泄漏与访问控制无关。
+Privacy risks in traditional applications also include logs, caches, and third-party processing. In LLM systems, distinguish training data memorized in model weights from conversations, summaries, and long-term memories kept in application storage. The former may leak through model output; the latter often reflects failures in retrieval authorization, tenant isolation, or lifecycle governance. Memory leakage is not separate from access control.
 
 ```mermaid
 flowchart TB
-    P[AI 隐私风险] --> P1[训练数据记忆化<br/>6.2]
-    P --> P2[推理阶段的 PII 处理<br/>6.3]
-    P --> P3[记忆机制泄漏<br/>6.4]
-    P --> P4[数据驻留与跨境合规<br/>6.5]
+    P[AI privacy risks] --> P1[Training data memorization<br/>6.2]
+    P --> P2[PII handling during inference<br/>6.3]
+    P --> P3[Memory mechanism leakage<br/>6.4]
+    P --> P4[Data residency and cross-border compliance<br/>6.5]
 ```
 
-## 6.2 训练数据记忆化与抽取攻击
+## 6.2 Training Data Memorization and Extraction Attacks
 
-### 6.2.1 为什么模型会"背下"训练数据
+### 6.2.1 Why Models Memorize Training Data
 
-训练优化并不保证只学习可泛化的规律，也可能记住具体序列。相关研究发现，模型规模、重复曝光与提示前缀长度会影响可抽取程度；不能简单断言「参数量远超数据」或「所有低频样本更易被记住」。去重通常降低重复样本风险，但一次出现的敏感材料也不能因此被视为安全。
+Training optimization does not guarantee that a model learns only generalizable patterns; it may also memorize specific sequences. Research has found that model size, repeated exposure, and prompt-prefix length affect extractability. It is not enough to claim that a model has far more parameters than data, or that all rare examples are easier to memorize. Deduplication generally reduces the risk from repeated examples, but that does not make sensitive material safe simply because it appears only once.
 
-### 6.2.2 抽取攻击（Extraction Attack）
+### 6.2.2 Extraction Attacks
 
-攻击者不需要访问训练数据本身，只需要通过精心设计的 Prompt（例如让模型"续写"一段已知开头，或大量重复采样同一个前缀）就可能让模型输出训练数据中记忆化的原文，包括：
+An attacker may not need access to the training data itself. Carefully constructed prompts—for example, asking the model to continue a known opening, or repeatedly sampling from the same prefix—may elicit memorized training text, including:
 
-- 个人身份信息（姓名、地址、联系方式）；
-- 硬编码在代码仓库里的密钥或凭据（如果这些仓库被爬取进了训练语料）；
-- 版权内容的大段复现。
+- Personally identifiable information, such as names, addresses, and contact details.
+- Secrets or credentials hardcoded in code repositories, if those repositories were crawled into the training corpus.
+- Extensive verbatim passages of copyrighted content.
 
-### 6.2.3 成员推断攻击（Membership Inference Attack, MIA）
+### 6.2.3 Membership Inference Attacks (MIA)
 
-成员推断不追求还原原文，而是判断某条数据是否在训练集中，例如某人的病历是否参与过训练。它可能利用损失、困惑度或置信度，但 API 未必提供这些观测量。推断结果是统计证据：需控制非成员样本的来源、时间和分布，否则低损失可能只意味着文本通用或重复，不能据一次得分认定训练成员身份。成员身份可能敏感，但完成成员推断不是履行删除义务的必要前置条件。
+Membership inference does not seek to reconstruct the original text. It asks whether a particular record was in the training set—for example, whether someone's medical record was used for training. It may use loss, perplexity, or confidence, although an API may not expose those observations. The result is statistical evidence. Control the source, time period, and distribution of nonmember examples; otherwise, low loss may simply reflect common or repeated text. A single score cannot establish training membership. Membership itself may be sensitive, but successfully inferring it is not a prerequisite for fulfilling deletion obligations.
 
-### 6.2.4 防御
+### 6.2.4 Defenses
 
-| 手段 | 说明 |
+| Control | Explanation |
 |---|---|
-| 训练数据 PII 检测与脱敏 | 入库前对可识别个人信息做检测、屏蔽或替换为占位符 |
-| 差分隐私训练（DP-SGD 等） | 梯度裁剪、校准噪声和隐私会计共同提供特定相邻数据集定义下的保证；只加噪声不等于 DP |
-| 去重 | 大幅降低重复样本的记忆化概率，是性价比很高的基础手段 |
-| 记忆化审计 | 训练后对模型做已知敏感样本的抽取测试（见第九章），评估记忆化程度 |
-| 机器遗忘（Machine Unlearning） | 在无法整体重新训练的前提下，尝试消除特定数据对模型的影响，目前仍是活跃研究方向，效果因方法而异，不应作为唯一的合规保证 |
+| PII detection and redaction in training data | Detect identifiable personal information before ingestion and mask it or replace it with placeholders |
+| Differentially private training, such as DP-SGD | Gradient clipping, calibrated noise, and privacy accounting together provide a guarantee under a specified definition of neighboring datasets; adding noise alone is not differential privacy |
+| Deduplication | Substantially reduces the likelihood of memorizing repeated examples and is a cost-effective foundational control |
+| Memorization audits | After training, test extraction of known sensitive examples to assess memorization (see Chapter 9) |
+| Machine unlearning | Attempts to remove the influence of particular data when full retraining is not feasible; this remains an active research area, results vary by method, and it should not be the sole compliance guarantee |
 
-DP 要报告 epsilon、delta、样本级还是用户级保护，以及训练步骤、采样与重复发布的组合预算。一个用户贡献多条记录时，样本级保证不能直接当作用户级保证。DP 限制个体参与带来的可辨识变化，并不阻止系统推断总体规律，也不替代推理时的授权。
+Report epsilon, delta, whether protection is record-level or user-level, and the composed privacy budget across training steps, sampling, and repeated releases. When one user contributes multiple records, a record-level guarantee is not automatically a user-level guarantee. Differential privacy limits distinguishable changes attributable to an individual's participation. It does not prevent inference of population-level patterns or replace authorization at inference time.
 
-## 6.3 推理阶段的 PII 处理
+## 6.3 Handling PII During Inference
 
-即便模型本身没有记忆化问题，运行时上下文中依然会流经大量 PII：用户输入、检索到的文档、工具返回的记录。
+Even a model with no memorization problem can encounter substantial PII in runtime context: user input, retrieved documents, and records returned by tools.
 
-- **最小化原则**：只把完成当前任务必需的字段放进上下文，而不是整份记录；
-- **脱敏与令牌化**：对不需要模型"理解"具体值、只需要模型"引用"该字段的场景（如订单号、身份证号），可以用占位符替换，模型操作占位符，真实值由确定性代码在边界处替换回来；
-- **日志与可观测性**：默认记录必要元数据，不落盘 Prompt、检索片段和输出原文；确需诊断时再按授权采集、脱敏并限期保留。日志可能聚合多个用户的信息，需要独立的最小权限和访问审计，不能让能排障的人默认读到全部业务数据；
-- **第三方模型调用**：调用外部托管的模型 API 时，需要明确该次调用的数据是否会被用于训练、保留多久、是否有区域限制，并在合同和数据处理协议（DPA）中落实。
+- **Minimization:** include only the fields needed for the current task, not the entire record.
+- **Redaction and tokenization:** when the model only needs to refer to a field, rather than understand its precise value—an order number or national ID number, for example—replace it with a placeholder. The model operates on the placeholder, and deterministic code restores the real value at the appropriate interface.
+- **Logging and observability:** record necessary metadata by default, without persisting raw prompts, retrieved passages, or outputs. Collect diagnostic content only when needed and authorized, redact it, and set a retention limit. Logs can aggregate information from multiple users and require independent least-privilege access and access auditing. Permission to troubleshoot should not automatically grant access to all business data.
+- **Third-party model calls:** when calling an externally hosted model API, establish whether that request's data will be used for training, how long it will be retained, and whether regional restrictions apply. Put those terms in the contract and data processing agreement (DPA).
 
-## 6.4 记忆机制的跨会话/跨用户泄漏
+## 6.4 Cross-Session and Cross-User Leakage Through Memory
 
-Agent 系统普遍引入了长期记忆机制（见 [Agent 记忆](../../agent/03-memory-context/07-agent-memory.md)），这带来了传统无状态问答系统没有的隐私风险：
+Agent systems commonly introduce long-term memory (see [Agent Memory](../../agent/03-memory-context/07-agent-memory.md)), creating privacy risks absent from traditional stateless question-answering systems:
 
 ```mermaid
 flowchart LR
-    U1[用户 A 的会话] --> W[写入共享记忆存储]
-    W --> R[检索阶段未做用户维度过滤]
-    R --> U2[用户 B 的会话读到 A 的信息]
+    U1[User A's conversation] --> W[Write to shared memory storage]
+    W --> R[Retrieval without user-level filtering]
+    R --> U2[User B's conversation receives A's information]
 ```
 
-| 风险 | 场景 |
+| Risk | Scenario |
 |---|---|
-| 记忆存储缺少用户/租户隔离 | 共享的长期记忆库检索时未按用户 ID 过滤，导致跨用户信息串场 |
-| 记忆写入未做审核 | 用户在对话中提到的临时性、敏感性内容被无差别写入长期记忆，被同一用户未来的完全不相关会话意外召回 |
-| 记忆投毒 | 攻击者故意写入误导性"记忆"，影响该用户或该 Agent 未来的行为，这是 [Agent 安全 15.6.2](../../agent/05-production/15-agent-security.md) 提到的记忆投毒问题的隐私侧影响 |
-| 摘要/压缩泄漏 | 记忆压缩（见 [Agent 记忆与上下文压缩](../../agent/03-memory-context/10-agent-memory-compression.md)）过程中，多个用户的会话被同一压缩模型处理，若隔离不当可能出现信息串场 |
+| Memory storage without user/tenant isolation | Retrieval from a shared long-term memory store does not filter by user ID, allowing information to cross between users |
+| Unreviewed memory writes | Temporary or sensitive information mentioned in a conversation is indiscriminately saved to long-term memory, then unexpectedly retrieved in an unrelated future conversation with the same user |
+| Memory poisoning | An attacker deliberately writes misleading memories to influence a user's or agent's future behavior; this is the privacy impact of memory poisoning discussed in [Agent Security, Section 15.6.2](../../agent/05-production/15-agent-security.md) |
+| Summary / compression leakage | During memory compression (see [Agent Memory and Context Compression](../../agent/03-memory-context/10-agent-memory-compression.md)), a shared compression model processes multiple users' conversations; inadequate isolation can mix information between them |
 
-**防御要点**：记忆存储的检索必须带用户/租户维度过滤，这与 [RAG 安全](../../rag/06-operations-security/20-rag-challenges-security.md) 强调的"权限过滤必须在检索阶段生效"是同一原则；写入长期记忆前应有敏感度分级，明确哪些内容不应被长期保留；提供用户可见、可控的记忆管理入口（查看、编辑、删除），这既是隐私最佳实践，也常常是合规义务的一部分。
+**Key defenses:** memory retrieval must enforce user/tenant filtering, following the same principle as the retrieval-time permission filtering in [RAG Security](../../rag/06-operations-security/20-rag-challenges-security.md). Classify sensitivity before writing long-term memory and state which content must not be retained long term. Provide a visible, user-controlled way to view, edit, and delete memories. This is both a privacy best practice and often part of compliance obligations.
 
-用户与租户 ID 应来自认证上下文，而非模型生成的参数；检索结果、缓存命中、摘要生成和占位符还原都需限制在同一授权范围。相同模型处理多个独立请求不会自动共享对话状态，发生串场时应查应用的会话、存储和批处理隔离。
+User and tenant IDs must come from the authenticated context, not model-generated arguments. Retrieval results, cache hits, summary generation, and placeholder restoration must all remain within the same authorized scope. Using the same model for independent requests does not automatically share conversation state. When information crosses between users, inspect the application's session, storage, and batch-processing isolation.
 
-## 6.5 数据驻留与跨境合规
+## 6.5 Data Residency and Cross-Border Compliance
 
-AI 应用往往涉及跨区域的模型服务、向量数据库和日志存储，数据驻留（data residency）问题因此变得复杂：
+AI applications often involve model services, vector databases, and log stores in multiple regions, making data residency more complex:
 
-| 关注点 | 说明 |
+| Concern | Explanation |
 |---|---|
-| 推理请求的物理路径 | 用户输入是否经过、存储于特定司法辖区之外的区域 |
-| 向量与记忆存储位置 | Embedding 和长期记忆是否被复制到跨境的向量数据库实例 |
-| 模型托管方的数据使用政策 | 是否会将请求数据用于模型改进/训练，是否有合同约束和可审计的保证 |
-| 删除与被遗忘权的落地 | 追踪原文、索引、缓存、日志、备份和摘要的派生关系；依法保留的例外要隔离用途，备份设置到期删除及恢复后重放删除标记 |
-| 分级路由 | 对敏感数据分级，高敏感场景强制路由到符合驻留要求的区域部署或私有化模型 |
+| Physical path of inference requests | Whether user input passes through or is stored outside a particular jurisdiction |
+| Location of vector and memory stores | Whether embeddings and long-term memories are replicated to vector database instances across borders |
+| Model host's data-use policy | Whether requests are used for model improvement or training, with contractual restrictions and auditable assurances |
+| Implementing deletion and the right to erasure | Track derivation from source text to indexes, caches, logs, backups, and summaries; restrict the purposes of data retained under legal exceptions, expire backups, and reapply deletion markers after restoration |
+| Sensitivity-based routing | Classify sensitive data and require highly sensitive use cases to use regional deployments or privately deployed models that meet residency requirements |
 
-跨境合规没有一刀切的技术方案，先要**明确数据分类和适用的监管要求（如 GDPR、区域性数据保护法规），再反推架构上需要满足的驻留和访问控制约束**，并把这些约束写进供应商合同和内部数据流转策略。
+There is no universal technical solution for cross-border compliance. **First classify the data and identify applicable requirements, such as the GDPR and regional data protection laws. Then derive the architecture's residency and access-control constraints.** Include those constraints in supplier contracts and internal data-handling policies.
 
-「不用于训练」「不留存」「数据驻留」是三个不同承诺。例如 OpenAI API 数据默认不用于训练（除主动选择分享），仍可能保留滥用监控日志和应用状态；Zero Data Retention 也有资格、端点和功能限制，必须查具体合同与配置。指定推理区域不自动解决日志、支持访问、备份及子处理者的跨境问题。
+“Not used for training,” “not retained,” and “data residency” are three different commitments. For example, OpenAI API data is not used for training by default unless sharing is explicitly enabled, but abuse-monitoring logs and application state may still be retained. Zero Data Retention has eligibility, endpoint, and feature limitations; check the specific contract and configuration. Selecting an inference region does not automatically resolve cross-border issues involving logs, support access, backups, or subprocessors.
 
-GDPR 的目的限制、数据最小化、合法依据、删除权及其例外、向第三国传输分别需要判断；假名化的标识、Embedding 或可还原占位符不自动成为匿名数据。删除训练源文件不等于删除模型影响，应记录可执行措施、审计证据及剩余风险，由隐私与法律责任方判断适用义务。
+Under the GDPR, purpose limitation, data minimization, lawful basis, the right to erasure and its exceptions, and transfers to third countries require separate assessment. Pseudonymized identifiers, embeddings, and reversible placeholders are not automatically anonymous data. Deleting a training source file does not erase its influence on a model. Record feasible measures, audit evidence, and remaining risks, and leave the determination of applicable obligations to those responsible for privacy and legal matters.
 
-## 6.6 常见错误
+## 6.6 Common Mistakes
 
-### 6.6.1 仅凭模型或数据规模判断隐私安全
+### 6.6.1 Judging Privacy Safety by Model or Dataset Size Alone
 
-记忆化与曝光、模型、任务和可观察接口共同相关。去重、审计和满足条件的 DP 训练各有用途，不能把某一种措施写成所有应用都必须或都能采用的保证。
+Memorization depends jointly on exposure, the model, the task, and the observable interface. Deduplication, audits, and appropriately implemented differentially private training each have a role. None should be presented as a guarantee that every application must or can adopt.
 
-### 6.6.2 把机器遗忘当作确定性的合规保证
+### 6.6.2 Treating Machine Unlearning as a Deterministic Compliance Guarantee
 
-现有机器遗忘方法效果因场景而异，不应作为满足"被遗忘权"的唯一技术保证，仍需要配合可验证的删除流程。
+Current unlearning methods vary in effectiveness by setting. They should not be the sole technical guarantee for the right to erasure; verifiable deletion processes are still necessary.
 
-### 6.6.3 共享记忆库不做用户维度过滤
+### 6.6.3 Using Shared Memory Without User-Level Filtering
 
-这是 Agent 系统最容易被忽视的隐私漏洞之一，检索阶段必须按用户/租户过滤，而不是依赖"不会出现无关内容"的假设。
+This is one of the easily overlooked privacy weaknesses in agent systems. Enforce user/tenant filtering during retrieval rather than assuming unrelated content will never appear.
 
-### 6.6.4 只关注推理请求的数据驻留，忽略日志和记忆存储
+### 6.6.4 Considering Only Inference Request Residency and Ignoring Logs and Memory
 
-日志、缓存、向量索引和长期记忆往往比推理请求本身留存更久、复制更广，是跨境合规审计中最容易被漏掉的部分。
+Logs, caches, vector indexes, and long-term memory often persist longer and are replicated more widely than inference requests themselves. They are among the easiest components to miss in cross-border compliance audits.
 
-## 6.7 本章总结
+## 6.7 Chapter Summary
 
-1. 区分权重中的训练数据记忆化与应用记忆存储泄漏；后者仍需要会话、租户和资源授权，不能因冠以“记忆”就脱离传统访问控制；
-2. 抽取攻击试图还原训练数据原文，成员推断攻击判断某条数据是否被用于训练，两者都可能构成隐私泄漏，去重、差分隐私训练和记忆化审计是核心防御；
-3. 推理阶段最小化 PII，按任务选择脱敏与令牌化；日志默认不保存原文，必要诊断材料另设授权与保留期限；
-4. Agent 长期记忆存储必须带用户/租户维度过滤，写入前做敏感度分级，并提供用户可控的记忆管理入口；
-5. 数据驻留与跨境合规需要先做数据分类，再反推架构约束，且必须覆盖日志、缓存、向量索引和记忆存储的完整删除链路，而不只是推理请求本身。
+1. Distinguish training data memorized in weights from leakage through application memory stores. The latter still requires session, tenant, and resource authorization; calling it memory does not remove the need for conventional access control.
+2. Extraction attempts to recover original training text; membership inference asks whether a record was used in training. Both can leak private information. Deduplication, differentially private training, and memorization audits are core defenses.
+3. Minimize PII during inference and choose redaction or tokenization according to the task. Do not log raw content by default; necessary diagnostic material needs separate authorization and retention limits.
+4. Agent long-term memory stores must filter by user/tenant, classify sensitivity before writes, and provide user-controlled memory management.
+5. Data residency and cross-border compliance begin with data classification, from which architectural constraints follow. Deletion must cover logs, caches, vector indexes, and memory stores—not just inference requests.
 
-## 参考资料
+## References
 
 - [Extracting Training Data from Large Language Models](https://arxiv.org/abs/2012.07805)
 - [Quantifying Memorization Across Neural Language Models](https://arxiv.org/abs/2202.07646)
@@ -130,4 +130,4 @@ GDPR 的目的限制、数据最小化、合法依据、删除权及其例外、
 - [OWASP LLM02:2025 Sensitive Information Disclosure](https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/)
 - [NIST AI 600-1: Generative AI Profile — Privacy risks](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence)
 - [OpenAI: Data controls in the API platform](https://developers.openai.com/api/docs/guides/your-data)
-- [GDPR 原文：第 5、6、17 条及第五章](https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng)
+- [GDPR original text: Articles 5, 6, 17, and Chapter V](https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng)

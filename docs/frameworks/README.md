@@ -1,40 +1,40 @@
 ---
-description: 比较 LangChain、LangGraph、LlamaIndex、DSPy 与微软等 Agent 框架的状态模型、工具契约、迁移边界和生产成本。
+description: Compare state models, tool contracts, migration boundaries, and production costs across LangChain, LangGraph, LlamaIndex, DSPy, Microsoft's frameworks, and other agent frameworks.
 ---
 
-# AI 框架与编排
+# AI Frameworks and Orchestration
 
-本主题聚焦「框架实现层」：[Agent](../agent/README.md) 与 [RAG](../rag/README.md) 主题讨论原理与取舍，[Tools](../tools/README.md) 主题单独说明协议；这里关注这些原理和协议在不同框架中的落地方式，以及框架不再适合项目时的迁移成本和路径。
+This topic focuses on the **framework implementation layer**. The [Agent](../agent/README.md) and [RAG](../rag/README.md) topics discuss principles and tradeoffs, while [Tools](../tools/README.md) covers protocols separately. Here, the question is how different frameworks implement those principles and protocols—and what it costs to migrate when a framework no longer fits a project.
 
-当前内容按六个子模块组织。[LangChain 生态](01-langchain/README.md) 沿用原有 LangChain/LangGraph 路径，其余模块分别展开 LlamaIndex、DSPy、Semantic Kernel、轻量级 Agent 框架，以及跨框架的选型与可移植架构。
+The material is organized into six modules. The [LangChain ecosystem](01-langchain/README.md) retains the existing LangChain/LangGraph paths. The remaining modules cover LlamaIndex, DSPy, Semantic Kernel, lightweight agent frameworks, and cross-framework selection and portable architecture.
 
-目录中的「轻量级」是阅读分组，不表示 AutoGen、CrewAI 的运行时、依赖或运维成本一定更小。选型应比较同一任务的工具正确率、恢复语义、延迟与费用，而不是把框架名称当作能力保证。
+"Lightweight" is a reading category, not a claim that AutoGen or CrewAI necessarily has a smaller runtime, fewer dependencies, or lower operating costs. Compare tool-use correctness, recovery semantics, latency, and cost on the same task rather than treating a framework's name as a capability guarantee.
 
-## 子模块
+## Modules
 
-1. [LangChain 生态（第 1–13 章）](01-langchain/README.md)——Chain/LCEL、Agent 构建、LangGraph 状态编排、LangSmith 生产闭环
-2. [LlamaIndex 生态（第 14–15 章）](02-llamaindex/README.md)——数据与索引抽象、查询引擎与事件驱动 Workflows
-3. [DSPy 声明式优化（第 16–17 章）](03-dspy/README.md)——Signature/Module 声明式编程、编译器与优化器
-4. [Semantic Kernel 企业级编排（第 18–19 章）](04-semantic-kernel/README.md)——Kernel/Plugin/Planner、Process Framework 与 Agent Framework
-5. [轻量级 Agent 框架（第 20–21 章）](05-lightweight-agent-frameworks/README.md)——AutoGen、CrewAI 的多智能体抽象、PydanticAI 的类型安全范式
-6. [框架选型与可移植架构（第 22–23 章）](06-selection-portability/README.md)——跨框架技术解构、Lock-in 识别与迁移策略
+1. [LangChain Ecosystem (Chapters 1–13)](01-langchain/README.md)—Chain/LCEL, building agents, state orchestration with LangGraph, and production feedback with LangSmith
+2. [LlamaIndex Ecosystem (Chapters 14–15)](02-llamaindex/README.md)—data and index abstractions, query engines, and event-driven Workflows
+3. [Declarative Optimization with DSPy (Chapters 16–17)](03-dspy/README.md)—declarative programming with Signature/Module, compilers, and optimizers
+4. [Enterprise Orchestration with Semantic Kernel (Chapters 18–19)](04-semantic-kernel/README.md)—Kernel/Plugin/Planner, Process Framework, and Agent Framework
+5. [Lightweight Agent Frameworks (Chapters 20–21)](05-lightweight-agent-frameworks/README.md)—multi-agent abstractions in AutoGen and CrewAI, and PydanticAI's type-safe approach
+6. [Framework Selection and Portable Architecture (Chapters 22–23)](06-selection-portability/README.md)—cross-framework technical comparison, identifying lock-in, and migration strategies
 
-## 主题定位
+## Where this topic fits
 
 ```mermaid
 flowchart TB
-    subgraph L3["应用架构层（讲原理）"]
-        AGENT["Agent 主题"]
-        RAG["RAG 主题"]
-        TOOLS["Tools 主题"]
+    subgraph L3["Application architecture layer: principles"]
+        AGENT["Agent topic"]
+        RAG["RAG topic"]
+        TOOLS["Tools topic"]
     end
-    subgraph L4["框架实现层（讲具体落地，本主题）"]
-        LC["LangChain / LangGraph<br/>通用 Agent 编排"]
-        LI["LlamaIndex<br/>数据与上下文"]
-        DS["DSPy<br/>声明式优化"]
-        SK["Semantic Kernel / Microsoft Agent Framework<br/>企业级编排与迁移"]
-        LW["AutoGen / CrewAI / PydanticAI<br/>轻量级 Agent 框架"]
-        SEL["选型与可移植架构<br/>跨框架统一解构"]
+    subgraph L4["Framework implementation layer: this topic"]
+        LC["LangChain / LangGraph<br/>General-purpose agent orchestration"]
+        LI["LlamaIndex<br/>Data and context"]
+        DS["DSPy<br/>Declarative optimization"]
+        SK["Semantic Kernel / Microsoft Agent Framework<br/>Enterprise orchestration and migration"]
+        LW["AutoGen / CrewAI / PydanticAI<br/>Lightweight agent frameworks"]
+        SEL["Selection and portable architecture<br/>A shared basis for comparing frameworks"]
     end
     AGENT --> LC
     AGENT --> LW
@@ -48,27 +48,27 @@ flowchart TB
     LW --> SEL
 ```
 
-## 模块之间的技术关系，而非并列产品清单
+## Technical connections between modules, not a product catalog
 
-六个模块不是六个互相独立的框架介绍，而是围绕同一组技术维度（状态模型、持久化、工具契约、评测与可观测性、lock-in 风险）反复展开：
+The six modules are not independent product introductions. Each revisits the same engineering dimensions: state models, persistence, tool contracts, evaluation and observability, and lock-in risk.
 
-| 问题 | 先读哪里 | 后续怎样比较 |
+| Question | Start here | How to extend the comparison |
 |---|---|---|
-| 状态如何更新与恢复 | LangGraph（第 10 章）、LlamaIndex Workflows（第 15 章） | 第 19、22 章比较状态归属、合并和恢复语义，不把图形相似当成运行时等价 |
-| 多 Agent 如何协作 | SK（第 19 章）、AutoGen / CrewAI（第 20 章） | 第 21 章比较消息、任务和类型化调用的边界 |
-| 模型怎样调用工具 | Tools 主题的 Function Calling 章 | 本主题说明框架注册、执行与错误处理；相似 Schema 不代表协议和重试语义一致 |
-| 评测怎样推动改进 | LangSmith（第 13 章）、DSPy（第 17 章） | 前者提供开发与生产的评测证据，后者搜索程序参数；第 22 章再区分评测与观测 |
-| 哪些资产值得跨框架保留 | 第 23 章 | 回查各框架的状态、工具和运维约束，估算迁移成本 |
+| How is state updated and recovered? | LangGraph (Chapter 10), LlamaIndex Workflows (Chapter 15) | Chapters 19 and 22 compare state ownership, merging, and recovery semantics; similar diagrams do not imply equivalent runtimes |
+| How do multiple agents collaborate? | SK (Chapter 19), AutoGen / CrewAI (Chapter 20) | Chapter 21 compares boundaries around messages, tasks, and typed calls |
+| How do models call tools? | The Function Calling chapter in the Tools topic | This topic covers registration, execution, and error handling in frameworks; similar schemas do not imply the same protocol or retry semantics |
+| How does evaluation drive improvement? | LangSmith (Chapter 13), DSPy (Chapter 17) | The former supplies evaluation evidence for development and production; the latter searches program parameters. Chapter 22 separates evaluation from observation |
+| Which assets are worth preserving across frameworks? | Chapter 23 | Revisit each framework's state, tool, and operational constraints to estimate migration costs |
 
-## 阅读建议
+## Suggested reading paths
 
-首次通读可按第 1–23 章顺序前进。LangChain 目录按主题分组，第 8 章之后先读第 9–10 章，再回到第 11 章理解版本演进，不必把目录分组误当成章号顺序。
+For a first read, follow Chapters 1–23 in numerical order. The LangChain directory is grouped by topic: after Chapter 8, read Chapters 9–10, then return to Chapter 11 for version evolution. Directory grouping is not chapter order.
 
-- **只关心 LangChain/LangGraph 生态**：直接进入 [LangChain 生态](01-langchain/README.md)；
-- **做 RAG / 知识库类项目的技术选型**：[LlamaIndex 生态](02-llamaindex/README.md) → [LangChain 生态 · 生态与演进](01-langchain/03-ecosystem/README.md) → [框架选型与可移植架构](06-selection-portability/README.md)；
-- **需要系统化提升 Prompt 质量、而不是手工调参**：[DSPy 声明式优化](03-dspy/README.md)；
-- **.NET 技术栈与存量 SK 维护**：[Semantic Kernel 企业级编排](04-semantic-kernel/README.md)；**Java 技术栈**可先读[第八章 LangChain4j](01-langchain/03-ecosystem/08-langchain4j.md)；
-- **需要多智能体协作或强调类型安全**：[轻量级 Agent 框架](05-lightweight-agent-frameworks/README.md)；
-- **正在做框架选型或迁移决策**：直接从[框架选型与可移植架构](06-selection-portability/README.md)开始，按需回查具体框架章节。
+- **Only interested in LangChain/LangGraph**: go directly to the [LangChain ecosystem](01-langchain/README.md).
+- **Selecting technology for RAG or a knowledge base**: [LlamaIndex ecosystem](02-llamaindex/README.md) → [LangChain: Ecosystem and Evolution](01-langchain/03-ecosystem/README.md) → [Framework Selection and Portable Architecture](06-selection-portability/README.md).
+- **Improving prompts systematically rather than tuning them by hand**: [Declarative Optimization with DSPy](03-dspy/README.md).
+- **Working in .NET or maintaining an existing SK system**: [Enterprise Orchestration with Semantic Kernel](04-semantic-kernel/README.md). **Java teams** can start with [Chapter 8: LangChain4j](01-langchain/03-ecosystem/08-langchain4j.md).
+- **Building multi-agent collaboration or prioritizing type safety**: [Lightweight Agent Frameworks](05-lightweight-agent-frameworks/README.md).
+- **Choosing a framework or planning a migration**: start with [Framework Selection and Portable Architecture](06-selection-portability/README.md), then consult individual framework chapters as needed.
 
-返回[文档主题索引](../README.md)。
+Back to the [documentation topic index](../README.md).

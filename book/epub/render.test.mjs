@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { localPath, render, tiles, validateJob } from "./render.mjs";
 
+
 test("detail tiles preserve the entire large figure, with overlap", () => {
   assert.deepEqual(tiles(400, 400), []);
   const panels = tiles(1300, 1700);
@@ -18,37 +19,46 @@ test("detail tiles preserve the entire large figure, with overlap", () => {
     key: "a".repeat(64), kind: "mermaid",
     source: 'flowchart LR\n A["<img src=\\"https://example.org/image.png\\">"]',
   }), /explicit static conversion/);
+  assert.throws(() => validateJob({
+    key: "a".repeat(64), kind: "inline", source: "x", language: "fr",
+  }), /invalid render job/);
 });
 
-test("real offline Chinese diagram and math, deduplicated cache, and hard math errors", async () => {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "epub-render-test-"));
+test("real offline bilingual diagrams and math, language-safe cache, and hard math errors", async () => {
+  const scratch = await fs.mkdtemp(path.join(os.tmpdir(), "epub-render-test-"));
   try {
-    const request = path.join(directory, "jobs.json");
+    const request = path.join(scratch, "jobs.json");
     const jobs = [
-      { kind: "mermaid", source: 'flowchart LR\n A["中文：检索"] --> B["生成"]' },
-      { kind: "inline", source: "x_i^2" },
-      { kind: "display", source: "\\frac{e^{z_i}}{\\sum_j e^{z_j}}" },
+      { kind: "mermaid", source: 'flowchart LR\n A["中文：检索"] --> B["生成"]', language: "zh-CN" },
+      { kind: "inline", source: "x_i^2", language: "zh-CN" },
+      { kind: "display", source: "\\frac{e^{z_i}}{\\sum_j e^{z_j}}", language: "zh-CN" },
+      { kind: "mermaid", source: 'flowchart LR\n A["Retrieve supporting documents"] --> B["Generate a grounded answer"]', language: "en" },
+      { kind: "inline", source: "x_i^2", language: "en" },
+      { kind: "display", source: "\\frac{e^{z_i}}{\\sum_j e^{z_j}}", language: "en" },
     ].map((job) => ({ ...job, key: createHash("sha256").update(job.kind + "\0" + job.source).digest("hex") }));
     await fs.writeFile(request, JSON.stringify(jobs));
-    const first = await render(request, directory);
-    assert.equal(first.results.length, 3);
+    const first = await render(request, scratch);
+    assert.equal(first.results.length, 6);
     assert.equal(first.network_requests_blocked, 0);
+    assert.equal(new Set(first.results.map((image) => image.file)).size, 6,
+      "identical formulas in different languages must have separate cache entries");
     for (const image of first.results) {
-      const png = await fs.readFile(path.join(directory, image.file));
+      const png = await fs.readFile(path.join(scratch, image.file));
       assert.equal(png.subarray(1, 4).toString(), "PNG");
+      assert.ok(["en", "zh-CN"].includes(image.language));
       assert.ok(image.width > 10 && image.height > 10);
       if (image.kind !== "mermaid") {
         assert.equal(image.svgCount, 1, "capture exactly one rendered formula");
         assert.equal(image.mathmlCount, 0, "assistive MathML must not be visibly captured");
       }
     }
-    assert.deepEqual(await render(request, directory), first);
-    await fs.writeFile(path.join(directory, `${jobs[0].key}.json`), '{"truncated":');
-    assert.deepEqual(await render(request, directory), first);
+    assert.deepEqual(await render(request, scratch), first);
+    await fs.writeFile(path.join(scratch, `${jobs[0].key}-${jobs[0].language}.json`), '{"truncated":');
+    assert.deepEqual(await render(request, scratch), first);
     const invalid = { kind: "inline", source: "\\notARealCommand{x}", key: "a".repeat(64) };
     await fs.writeFile(request, JSON.stringify([invalid]));
-    await assert.rejects(render(request, directory), /Undefined control sequence|merror/);
+    await assert.rejects(render(request, scratch), /Undefined control sequence|merror/);
   } finally {
-    await fs.rm(directory, { recursive: true, force: true });
+    await fs.rm(scratch, { recursive: true, force: true });
   }
 });

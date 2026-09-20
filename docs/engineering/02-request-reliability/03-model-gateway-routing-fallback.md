@@ -1,64 +1,64 @@
 ---
-description: 设计受质量、数据驻留和容量约束的模型路由与回退，避免相关故障、重试放大及安全策略绕过。
+description: Design model routing and fallback under quality, data-residency, and capacity constraints, avoiding correlated failures, retry amplification, and safety-policy bypasses.
 ---
 
-# 第三章：模型网关、路由与回退
+# Chapter 3: Model Gateways, Routing, and Fallback
 
-## 3.1 路由决策：网关之上的一层策略
+## 3.1 Routing decisions: a policy layer above the gateway
 
-[Tools · LLM 网关](../../tools/05-transport-gateway/14-llm-gateway.md)讲过网关**这个组件本身**要具备统一接口、负载均衡、限流配额等能力。更麻烦的是请求到了网关以后:**应该按什么策略决定打给哪个模型、什么时候放弃当前模型换下一个**。这是一层建立在网关基础设施之上的**路由策略**,也是 LLMOps 团队日常调整最频繁的配置之一。
+[Tools · LLM Gateways](../../tools/05-transport-gateway/14-llm-gateway.md) covers the capabilities of **the gateway component itself**: a unified interface, load balancing, rate limits, quotas, and so on. The harder question arises after a request reaches the gateway: **what policy should decide which model receives it, and when to abandon that model and try another?** This **routing policy** sits on top of gateway infrastructure and is among the configurations LLMOps teams adjust most frequently.
 
 ```mermaid
 flowchart TB
-    REQ["请求进入网关"] --> POLICY{"路由策略"}
-    POLICY -->|按成本| CHEAP["优先低成本模型"]
-    POLICY -->|按能力| CAPABLE["需要强推理→路由到旗舰模型"]
-    POLICY -->|按延迟| FAST["延迟敏感→路由到最快供应商"]
-    POLICY -->|按灰度| CANARY["按比例分流到新版本"]
-    CHEAP --> CALL["发起调用"]
+    REQ["Request enters gateway"] --> POLICY{"Routing policy"}
+    POLICY -->|Cost| CHEAP["Prefer a lower-cost model"]
+    POLICY -->|Capability| CAPABLE["Strong reasoning needed → flagship model"]
+    POLICY -->|Latency| FAST["Latency-sensitive → fastest provider"]
+    POLICY -->|Canary rollout| CANARY["Send a share of traffic to the new version"]
+    CHEAP --> CALL["Make the call"]
     CAPABLE --> CALL
     FAST --> CALL
     CANARY --> CALL
-    CALL -->|失败| CHECK{"允许回退且<br/>还有预算与合规候选?"}
-    CHECK -->|是| FALLBACK["按回退链路尝试下一个候选"]
-    CHECK -->|否| STOP["明确失败或受限降级"]
+    CALL -->|Failure| CHECK{"Fallback allowed, with<br/>budget and eligible candidates remaining?"}
+    CHECK -->|Yes| FALLBACK["Try the next candidate in the fallback chain"]
+    CHECK -->|No| STOP["Explicit failure or limited service"]
     FALLBACK --> CALL
-    CALL -->|成功| DONE["返回"]
+    CALL -->|Success| DONE["Return"]
 ```
 
-## 3.2 三种常见路由策略
+## 3.2 Three common routing policies
 
-### 3.2.1 成本优先路由
+### 3.2.1 Cost-first routing
 
-把任务按复杂度分级,简单任务(分类、格式转换、短摘要)路由到小模型,只有复杂推理任务才打旗舰模型。
+Classify tasks by complexity. Route simple tasks, such as classification, format conversion, and short summaries, to small models; reserve flagship models for complex reasoning tasks.
 
 ```python
 def route_by_complexity(task_type: str) -> str:
     cheap_tasks = {"classification", "extraction", "short_summary"}
     if task_type in cheap_tasks:
-        return "small-model"   # 逻辑名,由网关映射到具体供应商
+        return "small-model"   # Logical name mapped to a provider by the gateway
     return "flagship-model"
 ```
 
-先按业务切片评估小模型是否满足质量下限和预先约定的可接受退化，而不是要求所有指标都不低于旗舰模型。把路由分类器的误判、两次调用的升级成本、延迟一起计算：如果小模型经常失败后再升级，端到端成本可能更高。
+First evaluate whether the small model meets the minimum quality requirement and the previously agreed acceptable degradation for each business slice. It need not match the flagship on every metric. Include routing-classifier errors, the cost of two calls when escalating, and latency in the calculation. If the small model frequently fails and requires escalation, the end-to-end cost may be higher.
 
-### 3.2.2 能力优先路由
+### 3.2.2 Capability-first routing
 
-某些任务(代码生成、多步推理)只有少数模型能稳定完成,路由策略需要维护一张「模型-能力」映射表,而不是简单的成本阈值判断。这张表本身要跟随[第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)的评测结果持续更新——模型能力会随供应商升级而变化。
+Only a few models may reliably handle certain tasks, such as code generation or multi-step reasoning. Routing therefore needs a model-to-capability map rather than a simple cost threshold. Keep that map updated using the evaluation results in [Chapter 7](../04-evaluation-observability/07-offline-eval-eval-driven-development.md), because provider upgrades can change model capabilities.
 
-能力映射还要覆盖推理档位。同一个模型换了 effort 档位，成功率、延迟和成本都可能变化，因此应把「模型 × 档位」作为路由候选。简单任务可以比较低档位与非推理模型，高难任务再考虑升档；选择要有第 7 章的评测数据支持，不能只凭模型对这一次请求的难度自报。
+The map must also cover reasoning effort. Changing the effort setting on the same model can alter success rates, latency, and cost, so treat each “model × effort setting” combination as a routing candidate. For simple tasks, compare lower-effort settings with non-reasoning models; consider higher effort for difficult tasks. Base the choice on evaluation data from Chapter 7, not merely on the model's own assessment of the current request's difficulty.
 
-模型名没变，也不等于上一轮的推理会自动接上。OpenAI 的 reasoning 项只能在兼容的同一模型族内复用，还要确认当前模式支持，并通过 `previous_response_id` 或完整重放会话输出项显式传递状态。同模型降档也要满足这些条件。请求失败后，若没有收到可用状态，也没有可引用的已保存响应，就不能把重试当作从中断处续跑。
+Keeping the same model name does not mean the next call automatically continues the previous call's reasoning. OpenAI reasoning items can be reused only within a compatible model family. The current mode must support reuse, and state must be passed explicitly through `previous_response_id` or by replaying the complete conversation output items. Lowering effort on the same model still requires these conditions. After a request fails, if no usable state was received and no saved response can be referenced, a retry cannot be treated as resuming from the point of interruption.
 
-换模型时，应按新候选重新检查输出契约和剩余预算；跨供应商切换尤其不能假定内部推理状态可以通用。每次尝试都要记录档位和实际用量：OpenAI 的推理 token 按输出 token 计费，也占用上下文窗口，只看可见答案长度会低估开销。
+When switching models, recheck the output contract and remaining budget for the new candidate. In particular, do not assume that internal reasoning state transfers across providers. Record the effort setting and actual usage for every attempt. OpenAI reasoning tokens are billed as output tokens and occupy context-window space, so measuring only the visible answer's length understates the cost.
 
-### 3.2.3 灰度路由
+### 3.2.3 Canary routing
 
-发布新 Prompt 或切换模型版本时,按用户 ID 哈希或请求比例分流一部分流量到新版本,这是[第 10 章](../05-release-pipeline/10-llm-cicd-canary-ab.md)灰度发布的路由层实现基础。
+When releasing a new prompt or changing model versions, send a portion of traffic to the new version using a user-ID hash or a request allocation ratio. This is the routing-layer foundation for the gradual releases in [Chapter 10](../05-release-pipeline/10-llm-cicd-canary-ab.md).
 
-## 3.3 回退链路的设计
+## 3.3 Designing a fallback chain
 
-### 3.3.1 回退链路是有序候选列表,不是简单的「A 不行就 B」
+### 3.3.1 A fallback chain is an ordered candidate list, not just “if A fails, use B”
 
 ```yaml
 fallback_chain:
@@ -70,69 +70,69 @@ fallback_chain:
     model_snapshot: pinned-model-b
 ```
 
-以上是逻辑配置，不是可直接调用的模型 ID。同模型跨部署可以减少迁移工作，但模型快照、审核策略、工具协议和区域配额仍可能不同，不能假定输出分布一致或故障独立。先过滤不满足数据驻留、合同、上下文长度和工具能力要求的候选，再按故障相关性、预留容量、质量和剩余时限排序。
+This is a logical configuration, not a list of directly callable model IDs. Using the same model across deployments can reduce migration work, but model snapshots, moderation policies, tool protocols, and regional quotas may still differ. Do not assume identical output distributions or independent failures. First exclude candidates that fail data-residency, contractual, context-length, or tool-capability requirements. Then rank the remaining candidates by failure correlation, reserved capacity, quality, and the time left.
 
-### 3.3.2 什么条件触发回退
+### 3.3.2 What should trigger fallback?
 
-| 触发条件 | 说明 |
+| Trigger | Explanation |
 |---|---|
-| HTTP 5xx / 超时 | 最直接的失败信号 |
-| 429 限流 | 供应商配额耗尽,不代表模型本身有问题 |
-| 输出未通过契约校验 | 先区分拒绝、截断、Schema 不兼容与偶发格式错误；只有可恢复且预算允许时才修复或回退，见[第 5 章](../03-output-safety/05-structured-output-contracts.md) |
-| 内容安全拦截 | 不自动回退；先按统一业务政策判断是否拒绝、缩小任务或复核，不能轮询供应商直到有一家放行 |
+| HTTP 5xx / timeout | The most direct failure signals |
+| 429 rate limit | Provider quota exhaustion does not mean the model itself is faulty |
+| Output fails contract validation | First distinguish refusals, truncation, schema incompatibility, and occasional formatting errors. Repair or fall back only if the problem is recoverable and the budget allows it; see [Chapter 5](../03-output-safety/05-structured-output-contracts.md) |
+| Content-safety block | Do not fall back automatically. First apply the same business policy to decide whether to refuse, narrow the task, or seek review. Do not cycle through providers until one allows the request |
 
-### 3.3.3 回退要防止「雪崩式重试」
+### 3.3.3 Prevent fallback from becoming a retry storm
 
-主模型过载时，集中回退可能压垮备用部署。应为所有重试与回退共享总 deadline、最大尝试次数和费用预算，并在备用端做准入控制。熔断 Open 状态跳过原路径，Half-Open 仅允许受控探测。已向用户发送流式内容后，不应把另一模型的续文直接拼上去；先结束本次流并明确失败，或通过可识别的新响应重新开始。
+When the primary model is overloaded, a surge of fallback traffic can overwhelm backup deployments. All retries and fallback attempts should share one overall deadline, maximum attempt count, and cost budget, with admission control on the backup side. Skip the original route when its circuit breaker is Open; allow only controlled probes when it is Half-Open. Once streamed content has reached the user, do not simply append another model's continuation. End the current stream and clearly report failure, or start again with a distinctly identifiable new response.
 
-## 3.4 路由与回退的可观测性要求
+## 3.4 Observability requirements for routing and fallback
 
-路由决策必须记录清楚,否则出问题时无法定位:
+Routing decisions must be recorded clearly; otherwise failures cannot be diagnosed:
 
-| 需要记录的字段 | 用途 |
+| Field to record | Purpose |
 |---|---|
-| 实际路由到的供应商与模型版本 | 排查「为什么这次输出风格不一样」 |
-| 触发路由的策略名称 | 区分是成本路由、能力路由还是灰度路由 |
-| 是否发生了回退,回退了几层 | 判断某个供应商是否持续不稳定 |
-| 端到端延迟(含回退耗时) | 回退会显著拉长尾延迟,需要单独监控 |
-| 推理档位与 reasoning token 用量 | 排查「模型没换、账单和延迟却上涨」 |
+| Actual provider and model version used | Investigate why the output style changed |
+| Name of the policy that selected the route | Distinguish cost-first, capability-first, and canary routing |
+| Whether fallback occurred and how many candidates it traversed | Determine whether a provider is persistently unstable |
+| End-to-end latency, including fallback time | Monitor the substantial tail-latency increase that fallback can cause |
+| Reasoning effort and reasoning-token usage | Investigate rising bills and latency even when the model has not changed |
 
-OpenAI 返回的 `reasoning_tokens` 已包含在 `output_tokens` 中，只用于拆分用量，不能再与总输出相加。其他供应商要按各自的 `usage` 定义映射，不能套用同一套账单计算规则。网关侧的用量记录见 [Tools · LLM 网关](../../tools/05-transport-gateway/14-llm-gateway.md)。
+OpenAI's `reasoning_tokens` are already included in `output_tokens`. They provide a usage breakdown and must not be added to the output total again. Map other providers according to their own `usage` definitions rather than applying the same billing calculation to all of them. Gateway-side usage recording is covered in [Tools · LLM Gateways](../../tools/05-transport-gateway/14-llm-gateway.md).
 
-这些字段是[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md) Trace 数据模型的一部分。
+These fields form part of the trace data model in [Chapter 8](../04-evaluation-observability/08-online-observability-tracing.md).
 
-## 3.5 常见错误
+## 3.5 Common mistakes
 
-### 3.5.1 把路由策略和网关基础设施混为一谈
+### 3.5.1 Conflating routing policy with gateway infrastructure
 
-网关(统一接口、Key 管理、限流)是基础设施,路由策略(什么任务用什么模型)是运营决策,后者需要频繁调整,不应该和网关代码耦合在一起,而应做成可独立更新的配置。
+The gateway—a unified interface, key management, and rate limiting—is infrastructure. Routing policy—which model should handle which task—is an operational decision. It changes frequently and should be independently updateable configuration, not tightly coupled to gateway code.
 
-### 3.5.2 成本路由没有评测背书
+### 3.5.2 Using cost-based routing without evaluation evidence
 
-把任务降级到便宜模型前不做离线评测验证质量,等同于用生产流量做未经验证的实验。
+Sending tasks to a cheaper model without first validating quality through offline evaluation amounts to running an unvalidated experiment on production traffic.
 
-### 3.5.3 回退链路只考虑「换模型」,没考虑「跨部署」
+### 3.5.3 Considering only model changes, not deployment changes, in fallback
 
-同一模型的不同入口可能共享模型服务、网络或配额故障域。多部署是否更可靠，要看依赖和演练结果；不能仅凭品牌或域名不同判断。
+Different endpoints for the same model may share model-serving, network, or quota failure domains. Whether multiple deployments improve reliability depends on their dependencies and the results of failure drills, not simply on different brands or domain names.
 
-### 3.5.4 过载时无脑重试导致雪崩
+### 3.5.4 Retrying blindly under overload and causing cascading failures
 
-主模型过载引发的失败,应结合熔断器判断是否应该跳过重试直接回退,而不是对一个已经过载的服务继续发起探测流量。
+When the primary model fails because it is overloaded, use circuit-breaker state to decide whether to skip retries and fall back immediately, rather than sending more probe traffic to an already overloaded service.
 
-### 3.5.5 路由决策不落日志
+### 3.5.5 Failing to log routing decisions
 
-出现「同样的请求这次和上次结果不一样」时,如果没有记录实际路由到的模型版本,几乎无法排查根因。
+When the same request produces different results on two occasions, identifying the cause is nearly impossible without a record of the model version that actually handled each request.
 
-## 3.6 本章总结
+## 3.6 Chapter summary
 
-1. **路由策略建立在网关基础设施之上**,前者是运营决策,后者是基础设施,两者应解耦;
-2. **三类常见路由策略**:成本优先、能力优先、灰度路由,各自服务不同目标;
-3. **成本路由必须有评测背书**,否则质量退化会悄悄发生;
-4. **回退先满足权限、驻留和能力约束，再比较故障域和容量**，同模型跨部署不是通用最优顺序;
-5. **回退要结合熔断机制**,避免在供应商过载时继续加压导致雪崩;
-6. **路由决策必须可观测**:记录实际路由目标、策略名称、回退次数和延迟。
+1. **Routing policy sits on top of gateway infrastructure.** The former is an operational decision and the latter is infrastructure; keep them decoupled.
+2. **Three common routing policies are cost-first, capability-first, and canary routing.** Each serves a different objective.
+3. **Cost-first routing needs evaluation evidence.** Otherwise, quality can regress unnoticed.
+4. **Fallback candidates must first satisfy authorization, residency, and capability requirements; then compare failure domains and capacity.** Trying the same model across deployments first is not universally optimal.
+5. **Combine fallback with circuit breaking** to avoid worsening provider overload and triggering cascading failures.
+6. **Make routing decisions observable:** record the actual destination, policy name, fallback count, and latency.
 
-## 参考资料
+## References
 
 - [LiteLLM: Routing](https://docs.litellm.ai/docs/routing)
 - [OpenAI: Reasoning models](https://developers.openai.com/api/docs/guides/reasoning)

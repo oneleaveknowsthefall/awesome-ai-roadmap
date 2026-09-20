@@ -1,227 +1,227 @@
 ---
-description: 按索引、查询、召回、上下文与生成五层定位 RAG 失败，通过证据追踪和人工证据对照实验决定优化顺序。
+description: Diagnose RAG failures across indexing, queries, retrieval, context, and generation, using evidence tracing and controlled comparisons with human-selected evidence to prioritize improvements.
 ---
 
-# 第十四章：RAG 优化的五层框架
+# Chapter 14: A Five-Layer Framework for RAG Optimization
 
-## 14.1 为什么需要一个框架
+## 14.1 Why use a framework?
 
-「RAG 效果不好怎么优化」通常牵涉多个环节。
+“How do we improve a RAG system that performs poorly?” usually involves several stages.
 
-常见问题不是缺少可选手段，而是把「调 chunk 大小、换模型、加 rerank、做 query 改写」混在一起讨论。单纯罗列选项信息量很低，因为它没有回答问题究竟出在哪一层。
+The common problem is not a lack of options, but discussing “change chunk size, switch models, add reranking, and rewrite queries” as one undifferentiated list. Listing options tells us little because it does not identify where the failure occurs.
 
-分层框架的作用，就是把优化手段按所处环节归类，再据此定位问题发生的位置。
-
-```mermaid
-flowchart TB
-    L1[第一层 索引层<br/>存的东西对不对] --> L2[第二层 查询层<br/>问的方式对不对]
-    L2 --> L3[第三层 召回层<br/>找的路径全不全]
-    L3 --> L4[第四层 重排与上下文层<br/>排得准、装得好吗]
-    L4 --> L5[第五层 生成与 Grounding 层<br/>答案被证据支持吗]
-
-    L1 -.-> P1[矛盾: 粒度大小]
-    L2 -.-> P2[鸿沟: 表述差异]
-    L3 -.-> P3[盲区: 单路系统性缺失]
-    L4 -.-> P4[精度: 排序与上下文污染]
-    L5 -.-> P5[可信: 引用、冲突与拒答]
-```
-
-每层提供不同的诊断入口，但问题并不独立，也没有所有项目都适用的优化顺序。先找证据丢失或失真的位置，再修相应层；安全、观测和评估是横切能力。
-
-## 14.2 第一层：索引层
-
-**要解决的核心矛盾**：粒度太小语义碎片化，粒度太大语义被稀释（第四章 4.2）。
-
-| 手段 | 说明 | 详见 |
-|---|---|---|
-| 调整 chunk size 与 overlap | 建立简单基线，检查局部证据与上下文预算 | 4.5 |
-| 结构化切分 | 利用可靠标题层级，结构恢复仍有成本 | 4.4 |
-| 父子切分 | 检索用小的，生成用大的 | 5.3.2 |
-| 上下文增强 | 给每个 chunk 加背景说明 | 5.3.4 |
-| 文档解析质量 | **上限就在这里定死** | 第三章 |
-| 元数据完整性 | 支撑过滤、溯源、时效 | 3.6.1 |
-
-这一层经常被跳过，但它是所有效果的地基。很多团队花几周调 Rerank，最后才发现知识库里的表格全是乱码。
-
-## 14.3 第二层：查询层
-
-**要解决的核心问题**：用户的表达方式和文档的表达方式之间的鸿沟（第十二章 12.1）。
-
-| 手段 | 治哪种鸿沟 |
-|---|---|
-| 指代消解 | 多轮对话的省略 |
-| 直接改写 | 口语与书面、术语差异 |
-| 多 Query 扩展 | 表述采样的随机性 |
-| HyDE | 问题与文档的形式差异 |
-| Step-back | 抽象层级不匹配 |
-| 查询分解 | 复合问题的粒度不匹配 |
-| 路由 | 不同问题需要不同策略 |
-
-这一层要核算改写、分解和检索的实际调用图；多个动作可以同次生成，也可能依赖多轮。先按问题类型选择，再用消融判断组合是否带来新增证据，而不是按方法数估算固定调用次数。
-
-## 14.4 第三层：召回层
-
-**要解决的核心问题**：单路召回的系统性盲区（第十三章 13.1）。
-
-| 手段 | 说明 |
-|---|---|
-| BM25 + 向量混合召回 | 常用对照基线，按增益和成本决定是否启用 |
-| RRF 融合 | 无需训练，仍需设置候选窗口、平滑常数和权重 |
-| 元数据过滤 | 按时间、部门、权限缩小范围 |
-| 多知识库路由 | 按问题类型选库 |
-| 调整各路 Top-K | 平衡召回与后续成本 |
-| 后期交互作为第三路 | 前两路调到位后仍不够时再考虑 |
-
-**这一层的关键指标是召回率**——如果正确答案根本没被召回，后面所有环节都无能为力。
-
-候选证据覆盖约束当前链路的可达上限，而不是保证效果下限。重排找不回候选外的证据，后续也可能继续丢失已召回证据。
-
-## 14.5 第四层：重排与上下文层
-
-**要解决的核心问题**：双塔粗排的精度局限（第十三章 13.4.1）。
-
-| 手段 | 说明 |
-|---|---|
-| Cross-encoder 重排 | 候选已有完整证据但排序不佳时尝试 |
-| 校准的证据充分性规则 | 不把跨 Query 裸分当成答案正确概率 |
-| 上下文裁剪与排序 | 控总量但不切断必要条件，比较排序策略 |
-| 去重与去冗余 | 去重复，保留实体、数值和否定差异 |
-| 时效选择 | 先按查询时刻和适用范围选版本，再考虑排序；不是总选最新 |
-
-**这一层的关键指标是精度和排序质量**（MRR、NDCG）。
-
-## 14.6 第五层：生成与 Grounding 层
-
-**要解决的核心问题**：检索结果相关，不代表最终回答正确。模型仍可能忽略证据、混淆冲突版本、错配引用，或在证据不足时强行回答。
-
-| 手段 | 解决什么问题 | 详见 |
-|---|---|---|
-| 证据化回答与 claim-citation 对齐 | 每个关键结论能回指支持证据 | 第十七、十八章 |
-| 冲突与时效规则 | 避免把旧版本或冲突材料拼成结论 | 第十七章 |
-| 组合式拒答 | 证据覆盖不足时停止，而非只看单一分数 | 第十三、十七章 |
-| 结构化上下文与来源标签 | 降低上下文污染和引用错配 | 第十七章 |
-| 输出验证与安全策略 | 检查事实支持、ACL 泄漏和注入影响 | 第十八、二十章 |
-
-## 14.7 怎么定位问题在哪一层
-
-框架本身只负责分类，真正能指导优化的是定位能力。
+A layered framework groups improvements by pipeline stage, giving us a way to locate the problem.
 
 ```mermaid
 flowchart TB
-    BAD[答案质量差] --> C1{正确 chunk<br/>在 Top-50 里吗?}
-    C1 -->|不在| C2{知识库里<br/>有这个信息吗?}
-    C2 -->|没有| FIX1[索引层: 解析或切分问题<br/>或语料本身缺失]
-    C2 -->|有| C3{换个说法问<br/>能召回吗?}
-    C3 -->|能| FIX2[查询层: 表述鸿沟]
-    C3 -->|不能| FIX3[召回层: 换/加召回路]
-    C1 -->|在| C4{Top-5 里有吗?}
-    C4 -->|没有| FIX4[重排层: 加或换 Rerank]
-    C4 -->|有| C5{实际 Prompt 中<br/>证据完整且有效吗?}
-    C5 -->|否| FIX5[上下文层: 截断、去重<br/>父块扩展或版本过滤]
-    C5 -->|是| FIX6[生成与校验层<br/>检查误读、错引与拒答]
+    L1[Layer 1: Indexing<br/>Did we store the right material?] --> L2[Layer 2: Queries<br/>Are we asking the right way?]
+    L2 --> L3[Layer 3: Retrieval<br/>Do the paths cover the evidence?]
+    L3 --> L4[Layer 4: Reranking and context<br/>Is evidence ordered and assembled well?]
+    L4 --> L5[Layer 5: Generation and grounding<br/>Does evidence support the answer?]
+
+    L1 -.-> P1[Tradeoff: chunk granularity]
+    L2 -.-> P2[Gap: different wording]
+    L3 -.-> P3[Blind spots:<br/>systematic single-path misses]
+    L4 -.-> P4[Precision:<br/>ranking and context contamination]
+    L5 -.-> P5[Trust:<br/>citations, conflicts, and abstention]
 ```
 
-这个决策树的价值在于：它把一个模糊的「效果不好」，变成了一系列可以用数据回答的是非题。
+Each layer offers a different diagnostic starting point, but the problems are not independent, and no optimization order fits every project. Find where evidence is lost or distorted, then fix that layer. Security, observability, and evaluation cut across all five.
 
-图中的 Top-50/Top-5 是示例预算。排查“库里有却没找到”前，先确认该证据在查询时已发布且用户有权访问，再查过滤计划、索引滞后和 ANN 近似损失。合法的权限过滤不是应被“优化掉”的漏召回。
+## 14.2 Layer 1: indexing
 
-具体操作方法：
+**The central tradeoff**: small chunks fragment meaning; large chunks dilute it (Section 4.2).
 
-1. **取一批效果差的真实 Query**（不要用凭空构造的）；
-2. **人工标注每个 Query 的正确答案在哪个 chunk**；
-3. **检查这个 chunk 出现在检索结果的第几位**：
-   - **根本不在候选里** → 索引层或召回层；
-   - **在候选里但排名靠后** → 重排层；
-   - **排在前列但答案还是错** → 继续查实际 Prompt，区分上下文装配和生成失真。
+| Method | Explanation | See |
+|---|---|---|
+| Adjust chunk size and overlap | Establish a simple baseline and check local evidence coverage against the context budget | 4.5 |
+| Structure-aware chunking | Use reliable heading hierarchies, while accounting for the cost of recovering structure | 4.4 |
+| Parent–child chunking | Retrieve small chunks; generate with larger ones | 5.3.2 |
+| Contextual enrichment | Add background explanations to each chunk | 5.3.4 |
+| Document parsing quality | **This sets the quality ceiling** | Chapter 3 |
+| Metadata completeness | Support filtering, source tracing, and freshness | 3.6.1 |
 
-再做两个受控实验：把人工完整证据直接交给生成器，检查其阅读与引用上限；固定生成器、逐一替换实际召回与人工证据，估算检索损失。记录候选集、重排结果、父块扩展和最终 Prompt 的版本化证据 ID，才知道证据到底在哪一步消失。多跳问题需要完整证据组，不能只跟踪一个正确 chunk。
+This layer is often skipped, yet it underpins everything else. Teams can spend weeks tuning rerankers only to discover that every table in the knowledge base was parsed into garbled text.
 
-**统计一批 Query 的分布**，就能看出该优先投入哪一层。很多情况下，诊断本身比盲目加新组件更重要。
+## 14.3 Layer 2: queries
 
-## 14.8 优化顺序建议
+**The central problem**: the gap between how users ask and how documents are written (Section 12.1).
 
-下面是排查顺序的示例，不是上线依赖关系。ACL、基本拒答、引用校验和评测应从第一版就具备，不能等检索调优结束再补：
-
-| 观察到的问题 | 优先验证的动作 |
+| Method | Gap addressed |
 |---|---|
-| 没有可复核的基线 | 建评测集、记录证据链与预算 |
-| 原件有证据，入库内容却没有 | 修解析、结构和元数据映射 |
-| 边界丢失限定条件 | 调整 size/overlap，比较父子块或窗口扩展 |
-| 型号或同义说法持续漏检 | 比较 BM25、向量及 RRF 融合的独占召回 |
-| 完整证据已召回但排名靠后 | 比较 Rerank 与候选截断预算 |
-| 多轮省略或复合问题漏证据 | 做指代消解、改写或查询分解 |
-| 片段缺少文档背景 | 比较上下文增强及其构建、更新成本 |
-| 证据完整却答错或错引 | 修生成约束、引用校验与拒答，不继续堆检索 |
-| 表示或控制流仍有结构性缺口 | 再评估 Embedding 微调和对应高级范式 |
+| Reference resolution | Omitted information in multi-turn conversations |
+| Direct rewriting | Conversational versus written language and terminology differences |
+| Multi-query expansion | Randomness in the particular wording chosen |
+| HyDE | Differences in form between questions and documents |
+| Step-back questions | Mismatched abstraction levels |
+| Query decomposition | Granularity mismatches in compound questions |
+| Routing | Different questions need different strategies |
 
-评测集本身不修改答案，但让每次投入有可比较的结果。成本应包含标注、重建、在线计算与维护，不能通用地把混合召回或重排标成“低成本、高收益”。
+Account for the actual call graph of rewriting, decomposition, and retrieval. Several actions can be generated in one call, or they may depend on multiple rounds. Choose by question type, then use ablations to determine whether combinations add evidence. Do not infer a fixed call count merely from the number of methods.
 
-## 14.9 一个典型的组合方案
+## 14.4 Layer 3: retrieval
 
-下面是一种可作为实验起点的组合，不是所有企业系统必然收敛的架构：
+**The central problem**: systematic blind spots in a single retrieval path (Section 13.1).
+
+| Method | Explanation |
+|---|---|
+| Hybrid BM25 + vector retrieval | A common comparison baseline; enable it according to gains and costs |
+| RRF fusion | No training required, but candidate windows, the smoothing constant, and weights still need configuration |
+| Metadata filtering | Narrow the scope by time, department, and permissions |
+| Multi-knowledge-base routing | Choose a knowledge base by question type |
+| Adjust Top-K for each path | Balance recall against downstream cost |
+| Late interaction as a third path | Consider it if the first two paths remain insufficient after proper tuning |
+
+**Recall is the key metric at this layer.** If the evidence containing the correct answer is never retrieved, later stages cannot recover it.
+
+Candidate evidence coverage constrains the current pipeline's attainable ceiling; it does not guarantee a minimum level of quality. Reranking cannot find evidence outside the candidate set, and later stages can still lose evidence that was retrieved.
+
+## 14.5 Layer 4: reranking and context
+
+**The central problem**: the precision limits of dual-encoder first-stage retrieval (Section 13.4.1).
+
+| Method | Explanation |
+|---|---|
+| Cross-encoder reranking | Try it when the candidates contain complete evidence but rank it poorly |
+| Calibrated evidence-sufficiency rules | Do not treat raw scores across queries as probabilities that answers are correct |
+| Context trimming and ordering | Control volume without cutting essential conditions; compare ordering strategies |
+| Deduplication and redundancy removal | Remove duplicates while preserving differences in entities, numbers, and negation |
+| Temporal applicability | Select versions by query time and applicability before ordering; do not always choose the newest |
+
+**The key metrics here are precision and ranking quality**, including MRR and NDCG.
+
+## 14.6 Layer 5: generation and grounding
+
+**The central problem**: relevant retrieval results do not guarantee a correct answer. A model may still ignore evidence, confuse conflicting versions, attach the wrong citations, or answer despite insufficient support.
+
+| Method | Problem addressed | See |
+|---|---|---|
+| Evidence-based answers and claim–citation alignment | Trace every key conclusion back to supporting evidence | Chapters 17 and 18 |
+| Conflict and temporal-applicability rules | Avoid combining obsolete or conflicting material into a conclusion | Chapter 17 |
+| Abstention based on multiple signals | Stop when evidence coverage is insufficient rather than relying on a single score | Chapters 13 and 17 |
+| Structured context and source labels | Reduce context contamination and citation mismatches | Chapter 17 |
+| Output validation and security policies | Check factual support, unauthorized disclosure across ACL boundaries, and the influence of prompt injection | Chapters 18 and 20 |
+
+## 14.7 How to locate the failing layer
+
+A framework only classifies methods. Diagnosis is what makes it useful for optimization.
+
+```mermaid
+flowchart TB
+    BAD[Poor answer quality] --> C1{Is the correct chunk<br/>in Top-50?}
+    C1 -->|No| C2{Does the knowledge base<br/>contain the information?}
+    C2 -->|No| FIX1[Indexing: parsing or chunking problem,<br/>or missing source material]
+    C2 -->|Yes| C3{Can a rephrased query<br/>retrieve it?}
+    C3 -->|Yes| FIX2[Queries: wording gap]
+    C3 -->|No| FIX3[Retrieval: change or add paths]
+    C1 -->|Yes| C4{Is it in Top-5?}
+    C4 -->|No| FIX4[Reranking: add or change reranker]
+    C4 -->|Yes| C5{Is evidence complete and applicable<br/>in the actual prompt?}
+    C5 -->|No| FIX5[Context: truncation, deduplication,<br/>parent expansion, or version filtering]
+    C5 -->|Yes| FIX6[Generation and validation:<br/>check misreading, citations, and abstention]
+```
+
+The value of this decision tree is that it turns a vague “poor performance” complaint into a sequence of yes/no questions that data can answer.
+
+Top-50 and Top-5 are illustrative budgets. Before investigating evidence that “exists in the knowledge base but was not found,” confirm that it was published at query time and that the user was authorized to access it. Then examine the filter execution plan, indexing lag, and ANN approximation loss. Legitimate access filtering is not a retrieval miss to be “optimized away.”
+
+In practice:
+
+1. **Collect real queries with poor results**, rather than inventing examples.
+2. **Manually label which chunk contains the correct answer for each query.**
+3. **Check where that chunk appears in the retrieval results**:
+   - **Absent from the candidates** → indexing or retrieval.
+   - **Present but ranked too low** → reranking.
+   - **Ranked near the top, but the answer is still wrong** → inspect the actual prompt to distinguish context-assembly failures from generation errors.
+
+Then run two controlled experiments. Give complete, human-selected evidence directly to the generator to test its reading and citation ceiling. Hold the generator fixed and substitute actual retrieved evidence and human-selected evidence in turn to estimate retrieval losses. Record versioned evidence IDs for the candidate set, reranked results, parent expansion, and final prompt so you can identify exactly where evidence disappears. Multi-hop questions require complete evidence sets; tracking one correct chunk is not enough.
+
+**Aggregate the failure distribution across a set of queries** to see which layer deserves investment first. Diagnosis is often more valuable than blindly adding another component.
+
+## 14.8 A suggested optimization order
+
+The following is an example diagnostic order, not a deployment dependency graph. ACLs, basic abstention, citation validation, and evaluation must exist from the first version; do not postpone them until retrieval tuning is finished.
+
+| Observed problem | First action to test |
+|---|---|
+| No reproducible baseline | Build an evaluation set and record evidence traces and budgets |
+| Evidence exists in the original but not in the ingested content | Fix parsing, structure, and metadata mapping |
+| Chunk boundaries lose qualifying conditions | Adjust size/overlap and compare parent–child chunks or window expansion |
+| Repeated misses on model numbers or synonymous wording | Compare evidence uniquely retrieved by BM25, vectors, and RRF fusion |
+| Complete evidence is retrieved but ranked too low | Compare reranking and candidate truncation budgets |
+| Multi-turn omissions or compound questions miss evidence | Apply reference resolution, rewriting, or query decomposition |
+| Passages lack document context | Compare contextual enrichment and its construction and update costs |
+| Evidence is complete but answers or citations are wrong | Fix generation constraints, citation validation, and abstention instead of adding retrieval components |
+| Structural gaps remain in representations or control flow | Then evaluate embedding fine-tuning and the relevant advanced paradigms |
+
+An evaluation set does not itself change answers, but it makes the results of each investment comparable. Cost includes annotation, rebuilding, query-time computation, and maintenance. Hybrid retrieval and reranking cannot universally be labeled “low cost, high return.”
+
+## 14.9 A representative combination
+
+The following is one starting point for experiments, not an architecture every enterprise system must eventually adopt:
 
 ```mermaid
 flowchart LR
-    subgraph 离线
-        A[分层解析 + 质量校验] --> B[结构化切分 + 父子块]
-        B --> C[上下文增强]
-        C --> D[稠密 + 稀疏双索引]
+    subgraph 离线["Offline"]
+        A[Hierarchical parsing<br/>and quality checks] --> B[Structure-aware chunking<br/>and parent–child chunks]
+        B --> C[Contextual enrichment]
+        C --> D[Dense and sparse indexes]
     end
-    subgraph 在线
-        E[指代消解 + 轻量路由] --> F[BM25 + 向量并行召回]
-        F --> G[RRF 融合去重]
-        G --> H[Cross-encoder 重排 + 校准拒答策略]
-        H --> I[受约束生成 + 引用校验]
+    subgraph 在线["Online"]
+        E[Reference resolution<br/>and lightweight routing] --> F[Parallel BM25<br/>and vector retrieval]
+        F --> G[RRF fusion and deduplication]
+        G --> H[Cross-encoder reranking<br/>and calibrated abstention]
+        H --> I[Constrained generation<br/>and citation validation]
     end
     D -.-> F
 ```
 
-**这套方案没有依赖实验性组件**，但覆盖了五层里的主要手段。每个组件是否适合，仍需由业务评测集、延迟与成本预算验证。
+**This design does not depend on experimental components**, yet it covers the main methods across all five layers. Whether each component belongs in a particular system still needs validation against its evaluation set, latency targets, and cost budget.
 
-> **RAG 优化通常先把基础环节做对，再考虑高级范式。** 第十五、十六章提到的方案，更适合在这一基础上解决额外的结构性问题。
+> **RAG optimization usually starts by getting the fundamentals right before adopting advanced paradigms.** The approaches in Chapters 15 and 16 are better considered as ways to address additional structural problems on top of that foundation.
 
-## 14.10 常见错误
+## 14.10 Common mistakes
 
-### 14.10.1 罗列手段但不分层
+### 14.10.1 Listing methods without assigning them to layers
 
-这种写法无法体现问题定位和取舍判断。
+A list alone demonstrates neither diagnosis nor an understanding of tradeoffs.
 
-### 14.10.2 不会定位问题在哪一层
+### 14.10.2 Not knowing how to locate the failing layer
 
-有框架但不会归因，优化动作通常会失焦。
+A framework without attribution usually leads to unfocused optimization.
 
-### 14.10.3 跳过评测集直接优化
+### 14.10.3 Optimizing before building an evaluation set
 
-无法判断改动是好是坏，只能凭感觉。这是最常见也最致命的错误。
+Without one, it is impossible to tell whether a change helps or hurts; decisions rely on intuition. This is one of the most common and damaging mistakes.
 
-### 14.10.4 从最复杂的手段开始
+### 14.10.4 Starting with the most complex approach
 
-上 GraphRAG 之前，先确认解析、切分、混合召回、Rerank 都做对了。
+Before introducing GraphRAG, check that parsing, chunking, hybrid retrieval, and reranking are working properly.
 
-### 14.10.5 忽略索引层
+### 14.10.5 Ignoring the indexing layer
 
-后面四层再优化，也救不回解析错误的文档。
+No amount of optimization in the other four layers can recover documents that were parsed incorrectly.
 
-### 14.10.6 只优化检索不优化生成
+### 14.10.6 Optimizing retrieval but not generation
 
-检索完美时模型仍可能过度发挥（第十七章）。
+Even with perfect retrieval, a model can go beyond what the evidence supports (Chapter 17).
 
-### 14.10.7 一次改多个变量
+### 14.10.7 Changing several variables at once
 
-无法归因是哪个改动起了作用，也无法回退。
+This prevents attribution of gains to a specific change and makes rollback difficult.
 
-## 14.11 本章总结
+## 14.11 Summary
 
-1. **五层框架**：索引层、查询层、召回层、重排与上下文层、生成与 Grounding 层；
-2. **每层提供一个诊断入口**：数据质量、表述鸿沟、召回盲区、排序与装配、证据支持与拒答；它们会相互影响；
-3. **候选覆盖限制可达上限**，且需继续检查重排后和最终 Prompt 中的证据保留；
-4. **定位方法**：标注正确 chunk 的排名位置，按「不在候选 / 在候选但靠后 / 在前列但答案错」三分法归因到具体层；
-5. **按失败位置选择下一步**，不把组件清单当作固定升级顺序；ACL、拒答和引用要求从第一版就要落实；
-6. **建立评测集本身不带来效果提升，但没有它后面全是盲目试错**；
-7. **按失败归因决定投入**，基础方案和高级方法都需要相同预算下的消融与回归。
+1. **The five layers are indexing, queries, retrieval, reranking and context, and generation and grounding.**
+2. **Each layer provides a diagnostic entry point**: data quality, wording gaps, retrieval blind spots, ordering and assembly, or evidence support and abstention. These problems influence one another.
+3. **Candidate coverage limits attainable quality.** Continue checking whether evidence survives reranking and reaches the final prompt.
+4. **Locate failures by tracking the correct chunk's rank.** Distinguish “not in the candidates,” “present but ranked too low,” and “near the top but the answer is wrong,” then attribute the failure to a specific layer.
+5. **Choose the next action by failure location**, not a fixed component-upgrade checklist. ACLs, abstention, and citation requirements apply from the first version.
+6. **An evaluation set does not improve answers by itself, but without it, later work is blind trial and error.**
+7. **Invest according to failure attribution.** Basic and advanced methods alike need ablation and regression tests under the same budgets.
 
 
-## 参考资料
+## References
 
 - [Searching for Best Practices in Retrieval-Augmented Generation](https://arxiv.org/abs/2407.01219)
 - [Retrieval-Augmented Generation for Large Language Models: A Survey](https://arxiv.org/abs/2312.10997)

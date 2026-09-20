@@ -1,89 +1,89 @@
 ---
-description: 比较时间层与时空 patch 视频生成，解释序列成本、长视频漂移、条件控制和 FVD、VBench 的评测边界。
+description: Compare temporal layers and spatiotemporal patches for video generation, explaining sequence costs, long-video drift, conditioning, and the evaluation limits of FVD and VBench.
 ---
 
-# 第八章：视频生成模型
+# Chapter 8: Video Generation Models
 
-> 本章讨论视频生成相对图像生成新增的时序维度问题；扩散与 Flow Matching 的基础生成原理见 [第七章](07-diffusion-flow-matching-image.md)，本章默认读者已了解该基础，只展开视频特有的架构扩展与评测。
+> This chapter covers the temporal dimension that video adds to image generation. For the generative foundations of diffusion and flow matching, see [Chapter 7](07-diffusion-flow-matching-image.md). We assume that background and focus on video-specific architectural extensions and evaluation.
 
-## 8.1 视频比图像多出的维度
+## 8.1 The extra dimension in video
 
-把图像生成模型直接逐帧独立应用于视频，会产生帧与帧之间闪烁、物体形状漂移、运动不连贯等问题——因为逐帧生成没有任何机制保证相邻帧属于"同一个连续物理过程"。视频生成模型必须显式建模**时间维度**，核心新增问题是：
+Applying an image-generation model independently to each video frame produces flicker, drifting object shapes, and discontinuous motion. Independent generation provides no mechanism ensuring that adjacent frames belong to the same continuous physical process. Video models must explicitly represent the **time dimension**, introducing these central problems:
 
-| 问题 | 说明 |
+| Problem | Explanation |
 |---|---|
-| 时序一致性 | 主体身份与场景状态应连续合理；遮挡、快速运动或切镜可以导致不平滑变化 |
-| 运动建模 | 需要生成合理的物体运动轨迹，而不只是静态外观的堆叠 |
-| 计算与显存成本 | 视频比单张图像多一个时间轴，序列长度和显存占用随时长、帧率显著增长 |
-| 长时长生成 | 超出训练时长后的外推容易出现内容漂移、遗忘早期帧的信息 |
+| Temporal consistency | Subject identity and scene state should remain coherently continuous; occlusion, fast motion, and shot changes can legitimately cause nonsmooth changes |
+| Motion modeling | Generate plausible object trajectories rather than a stack of static appearances |
+| Compute and GPU-memory cost | The added time axis makes sequence length and memory use grow substantially with duration and frame rate |
+| Long-duration generation | Extrapolating beyond training durations can cause content drift and forgetting of early-frame information |
 
-## 8.2 架构路线：从"加时间层"到"时空一体建模"
+## 8.2 Architectural approaches: from temporal layers to spatiotemporal modeling
 
-一种路线在图像网络中增加时间注意力或时间卷积，使帧之间共享信息。Video Diffusion Models 使用空间与时间分解的架构并联合训练图像和视频；Imagen Video 使用视频扩散与时空超分辨率级联。它们说明时序扩展可行，但不能都概括成“冻结已有图像模型，只插入时间层”。Stable Video Diffusion 则明确研究图像预训练、视频预训练和高质量视频微调等阶段。
+One approach adds temporal attention or temporal convolutions to an image network so frames share information. Video Diffusion Models uses a factorized spatial–temporal architecture and joint image/video training. Imagen Video uses video diffusion with spatial and temporal super-resolution cascades. These demonstrate the feasibility of temporal extensions, but cannot all be reduced to “freeze an existing image model and insert temporal layers.” Stable Video Diffusion explicitly studies stages including image pretraining, video pretraining, and high-quality video fine-tuning.
 
-另一条路线把压缩后的视频表示切成时空 patch，再交给 Transformer。OpenAI **2024 年 Sora 技术报告**公开了这种设计及可变时长、分辨率、宽高比训练，但没有完整披露每层注意力实现，不能据此断言“不再区分空间层和时间层”，也不应外推到所有后续 Sora 产品。可变尺寸仍需要位置编码、分桶或打包、掩码及显存预算配合，不是用了 patch 就自动成立。两条路线可以结合，不是严格的第一代、第二代替代关系。
+Another approach divides compressed video representations into spatiotemporal patches and feeds them to a Transformer. OpenAI's **2024 Sora technical report** describes this design and training with variable durations, resolutions, and aspect ratios. It does not fully disclose attention implementations at every layer, so it does not justify claiming that spatial and temporal layers are no longer distinguished, nor should it be extrapolated to every later Sora product. Variable sizes still need positional encodings, bucketing or packing, masks, and memory budgets; patches alone do not make them work automatically. The two approaches can be combined rather than treated as a strict first-generation/second-generation replacement.
 
-## 8.3 时空 Patch 与 Transformer 骨干的扩展性
+## 8.3 Spatiotemporal patches and Transformer scalability
 
-Transformer 骨干可配合扩散或 Flow Matching，但 **Sora 2024 报告不能作为其采用 Flow Matching 的证据**。从图像扩展到视频还涉及时间压缩、时空位置编码、帧率条件和注意力范围，不只是换一种 patch 名字：
+A Transformer backbone can support diffusion or flow matching, but **the 2024 Sora report is not evidence that Sora uses flow matching**. Moving from images to video also involves temporal compression, spatiotemporal positional encodings, frame-rate conditioning, and attention scope—not merely a different patch name:
 
-1. **扩展性**：相关报告观察到增加训练计算后的质量变化，但不证明数据量、参数量与视频时长可以无限按同一规律增长。视频数据质量、运动分布和压缩损失仍可能成为瓶颈；
-2. **计算成本**：若 latent 尺寸为 $T'\times H'\times W'$，patch 尺寸为 $p_t\times p_h\times p_w$，整除时序列长度为：
+1. **Scalability**: relevant reports observe quality changes with increased training compute. This does not prove that data volume, parameter count, and video duration can grow indefinitely under the same scaling rule. Video data quality, motion distributions, and compression losses can still become bottlenecks.
+2. **Compute cost**: for latent dimensions $T'\times H'\times W'$ and patch dimensions $p_t\times p_h\times p_w$, with exact divisibility, sequence length is:
 
 $$
 N=\frac{T'}{p_t}\frac{H'}{p_h}\frac{W'}{p_w}
 $$
 
-全注意力的注意力部分计算量为 $O(N^2d)$，但投影、前馈层、编解码器与采样次数也有成本；FlashAttention 减少中间矩阵存储，不消除全注意力的二次计算。局部、分解或稀疏注意力会改变成本，所以不能一概声称视频必然比图像贵某个数量级。
+The attention part of full attention costs $O(N^2d)$, but projections, feed-forward layers, codecs, and sampling steps also incur costs. FlashAttention reduces intermediate-matrix storage without eliminating full attention's quadratic computation. Local, factorized, or sparse attention changes the cost, so video cannot universally be declared a fixed number of orders of magnitude more expensive than images.
 
-## 8.4 一致性、可控性与长视频生成的局限
+## 8.4 Consistency, controllability, and the limits of long-video generation
 
-控制输入可以是文本、首帧、参考图、姿态或相机轨迹，具体支持范围取决于训练数据和模型接口。Stable Video Diffusion 论文研究文本到视频和图像到视频，初期发布的图像条件权重不能与整篇论文的任务范围混为一谈。常见局限包括：
+Control inputs may include text, a first frame, reference images, poses, or camera trajectories; support depends on training data and model interfaces. The Stable Video Diffusion paper studies text-to-video and image-to-video. Its initial image-conditioned weight release should not be confused with the task scope of the entire paper. Common limitations include:
 
-- **长视频的漂移**：训练时长有限，超出训练时长范围的外推生成容易出现内容主体漂移、物体消失重现、场景突变等不一致现象；
-- **物理规律的近似性**：技术报告和公开评测都强调，这类模型学到的是对物理世界规律的统计近似，而非显式的物理模拟，复杂的碰撞、液体、多物体交互等场景仍容易出现不符合物理直觉的结果，评测和产品说明应明确这一局限，避免夸大为"世界模拟器"的确定性能力；
-- **成本与延迟**：同类模型、同分辨率和相近采样设置下，多帧通常比单帧更昂贵，需明确时长、帧率、分辨率、采样预算与排队策略，不能跨模型直接比较。
+- **Long-video drift**: limited training durations make extrapolation prone to shifting subjects, objects disappearing and reappearing, abrupt scene changes, and other inconsistencies.
+- **Approximate physical regularities**: technical reports and public evaluations emphasize that these models learn statistical approximations to the physical world, not explicit physical simulations. Complex collisions, fluids, and multi-object interactions can still violate physical intuition. Evaluations and product descriptions should state this limitation rather than claim a dependable “world simulator.”
+- **Cost and latency**: for similar models, equal resolution, and comparable sampling settings, multiple frames usually cost more than one. Specify duration, frame rate, resolution, sampling budget, and queue policy rather than directly comparing different models.
 
-长视频可采用重叠窗口、关键帧或分层生成、历史片段条件等方法。窗口重叠能缓解接缝，却可能累计错误；压缩历史节省显存，却会遗忘主体细节；更强参考图约束有利于身份保持，也可能抑制运动。这些都是权衡，不是时序一致性的保证。还应把“保持主体身份”和“相机运动时像素保持不变”区分开，后者反而会阻碍合理运动。
+Long videos can use overlapping windows, keyframes or hierarchical generation, and conditioning on past clips. Overlap can soften seams while accumulating errors; compressed history saves memory while losing subject details; stronger reference-image constraints support identity preservation but may suppress motion. These are tradeoffs, not guarantees of temporal consistency. Also distinguish preserving subject identity from keeping pixels unchanged during camera movement—the latter can prevent plausible motion.
 
-## 8.5 评测
+## 8.5 Evaluation
 
-| 维度 | 指标 | 说明 |
+| Dimension | Metric | Considerations |
 |---|---|---|
-| 分布层面的视觉/时序质量 | FVD（Fréchet Video Distance） | 比较视频编码器特征的分布统计，不保证细微运动或物理错误可被发现 |
-| 文本一致性 | 图文/图像-视频对齐分数、人工评估 | 衡量生成内容是否遵循文本描述的主体、动作、风格 |
-| 运动与一致性 | VBench 分项指标 + 人工评估 | 分开看动态程度、运动平滑、闪烁、主体一致性；物理合理性仍需专门验证 |
-| 时长与分辨率鲁棒性 | 分时长/分辨率分别报告的质量下降曲线 | 避免只展示最佳条件下的少量精选样本 |
+| Distribution-level visual/temporal quality | FVD (Fréchet Video Distance) | Compares distribution statistics of video-encoder features; subtle motion or physical errors may go undetected |
+| Text consistency | Image–text / image–video alignment scores and human evaluation | Whether generated subjects, actions, and styles follow the text |
+| Motion and consistency | VBench component metrics plus human evaluation | Separate dynamic degree, motion smoothness, flicker, and subject consistency; physical plausibility still needs dedicated validation |
+| Robustness to duration and resolution | Quality-degradation curves reported separately by duration/resolution | Avoid presenting only a few selected examples under optimal conditions |
 
-VBench 已提供主体一致性、运动平滑、时间闪烁等自动化维度，不能把运动评测描述为只有人工方法。但静止视频也可能取得很好的平滑分数，因此必须同时检查动态程度和提示要求。FVD 比较还应固定样本量、帧数、帧率、裁剪和特征提取器；不同条件的总分不宜直接排序。
+VBench already provides automated dimensions for subject consistency, motion smoothness, and temporal flicker, so motion evaluation is not limited to human methods. However, a static video may achieve excellent smoothness scores; dynamic degree and the prompt's requirements must also be checked. FVD comparisons should fix sample size, frame count, frame rate, cropping, and feature extractor. Overall scores from different conditions should not be directly ranked.
 
-## 8.6 常见错误
+## 8.6 Common mistakes
 
-### 8.6.1 把"能生成长视频"等同于"长视频质量稳定"
+### 8.6.1 Equating the ability to generate long videos with stable long-video quality
 
-超过训练时长的外推生成经常伴随漂移和一致性下降，评测和宣传都应明确报告不同时长区间下的质量变化，而非只展示精选的最佳片段。
+Extrapolation beyond training durations often brings drift and reduced consistency. Evaluation and publicity should explicitly report quality changes across duration ranges rather than show only selected best clips.
 
-### 8.6.2 把展示视频当作物理仿真能力的证据
+### 8.6.2 Treating demonstration videos as proof of physical simulation
 
-视觉上合理不证明具有可验证的物理模拟能力。需要物理正确性的应用应测试守恒、接触、遮挡后状态和动作后果等约束，并统计失败率；精选演示既不能给出失败率，也不能证明模型内部机制。
+Visual plausibility does not prove verifiable physical simulation. Applications requiring physical correctness should test conservation, contact, post-occlusion state, and action consequences, and report failure rates. Selected demonstrations establish neither failure rates nor the model's internal mechanism.
 
-### 8.6.3 忽视计算成本对产品设计的约束
+### 8.6.3 Ignoring compute constraints in product design
 
-应根据生成长度与实际时延选择同步返回或异步任务。较长任务需要进度、取消、配额、失败重试和产物保留策略，不能只把图像接口的返回类型改成视频。
+Choose synchronous responses or asynchronous jobs according to generation length and measured latency. Longer jobs need progress reporting, cancellation, quotas, failure retries, and artifact-retention policies. Simply changing an image API's return type to video is not enough.
 
-## 8.7 本章总结
+## 8.7 Chapter summary
 
-1. 视频生成新增时序一致性与运动建模，多帧计算通常还会增加资源需求；
-2. 时间层与时空 patch 是可组合的设计；可变时长和分辨率需要训练、位置表示与调度共同支持；
-3. 固定压缩与 patch 设置时，序列长度随空间尺寸和时长乘性增长；成本还取决于注意力结构和采样预算；
-4. 长视频生成存在内容漂移，模型对物理规律的建模是统计近似而非精确仿真，两者都需要在产品说明中明确边界；
-5. FVD、VBench 与人工评测互补，应同时检查画质、运动量、主体一致性及不同生成预算下的退化。
+1. Video adds temporal consistency and motion modeling, and multi-frame computation usually increases resource needs.
+2. Temporal layers and spatiotemporal patches are compatible design choices. Variable duration and resolution need support from training, positional representations, and scheduling.
+3. With fixed compression and patch settings, sequence length grows multiplicatively with spatial dimensions and duration. Attention structure and sampling budgets also affect cost.
+4. Long videos can drift, and learned physical regularities are statistical approximations rather than exact simulation. Product descriptions must make both limits clear.
+5. FVD, VBench, and human evaluation complement one another. Check image quality, amount of motion, subject consistency, and degradation under different generation budgets together.
 
-## 参考资料
+## References
 
 - [Video Diffusion Models](https://arxiv.org/abs/2204.03458)
 - [Imagen Video: High Definition Video Generation with Diffusion Models](https://arxiv.org/abs/2210.02303)
-- [OpenAI: Video generation models as world simulators (Sora 技术报告)](https://openai.com/index/video-generation-models-as-world-simulators/)
+- [OpenAI: Video generation models as world simulators (Sora technical report)](https://openai.com/index/video-generation-models-as-world-simulators/)
 - [Stable Video Diffusion: Scaling Latent Video Diffusion Models to Large Datasets](https://arxiv.org/abs/2311.15127)
 - [Towards Accurate Generative Models of Video: A New Metric & Challenges (FVD)](https://arxiv.org/abs/1812.01717)
 - [VBench: Comprehensive Benchmark Suite for Video Generative Models](https://arxiv.org/abs/2311.17982)

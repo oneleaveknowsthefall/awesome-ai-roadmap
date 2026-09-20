@@ -1,0 +1,102 @@
+---
+description: 区分视觉问答、指代表达定位与开放词表检测，说明坐标协议、负样本、定位评测及分辨率取舍。
+---
+
+# 第二章：视觉语言模型与视觉 Grounding
+
+> 本章的“Grounding”特指**视觉定位**：把语言指代（“左上角的红色按钮”）映射到图像中的具体坐标或区域。这与 RAG 领域"Grounding = 答案落回可验证证据"是同一个词的不同含义，后者见 [RAG · 多模态 RAG 第 21.5 节](../../rag/04-advanced/21-multimodal-rag.zh.md)。多模态模型的通用架构与训练流程见 [第一章](../01-foundations/01-multimodal-fusion-architecture.zh.md)与 [LLM · 多模态模型](../../llm/06-multimodal/23-multimodal-models.zh.md)，本章只展开视觉理解与定位这条能力线。
+
+## 2.1 VLM 的能力谱系
+
+视觉语言模型（Vision-Language Model, VLM）对外呈现为"看图回答问题"，但内部能力可以拆成一条由粗到细的谱系：
+
+| 能力 | 输出形式 | 代表任务 |
+|---|---|---|
+| 图像描述（Captioning） | 自然语言 | 生成一句话描述整张图 |
+| 视觉问答（VQA） | 自然语言 | 回答关于图像内容的开放式问题 |
+| 指代表达理解（Referring Expression Comprehension） | 坐标/区域 | 给定"图中戴帽子的人"，定位对应区域 |
+| 开放词表检测（Open-Vocabulary Detection） | 多组坐标 + 类别 | 用文本查询指定类别，对未作为固定训练标签的类别尝试迁移 |
+| 像素级定位（Grounded Segmentation） | 分割掩码 | 定位到像素而非矩形框 |
+
+这不是能力必然逐级包含的排行榜。检测输出多个框，分割输出掩码，VQA 也可能涉及空间推理；区别在于任务是否要求提供**可验证的空间对应关系**。Grounding 不限于语言模型生成坐标，专用检测器和分割器也能完成。
+
+## 2.2 坐标怎么被语言模型"说"出来
+
+自回归语言模型本身只会生成 token 序列，要让它输出边界框，通常有两条路径：
+
+1. **坐标序列化**：初代 Qwen-VL 论文将坐标归一化到 $[0,1000)$，以数字文本及特殊边界标记表示框，如 `<box>(102,304),(560,812)</box>`。PaliGemma 则把归一化坐标量化为 1024 个专用位置 token，顺序是 `ymin, xmin, ymax, xmax`，不是直接生成相同格式的十进制数字。两者都自回归生成，但坐标顺序、词表、量化规则不能互换。
+2. **语言条件检测器**：检测头输出框和匹配分数，文本编码器表示查询，不要求再接一个生成式 LLM。Grounding DINO 在特征增强、查询选择、跨模态解码三个阶段紧密融合图文信息，并非视觉与语言“弱耦合”。
+
+序列化路线便于统一对话和结构化输出，但长列表有生成延迟、非法格式和量化误差；检测器更适合并行产生候选框，仍需阈值选择、去重及短语匹配。多轮指代消解还需要对话状态，是否具备这项能力不能只从有没有检测头推断。
+
+边界框重合程度常用 **IoU（Intersection over Union）**，无论使用像素坐标还是归一化坐标，都必须先转换到同一参考图像：
+
+$$
+\mathrm{IoU}(B_{\mathrm{pred}},B_{\mathrm{gt}})=\frac{\lvert B_{\mathrm{pred}}\cap B_{\mathrm{gt}}\rvert}{\lvert B_{\mathrm{pred}}\cup B_{\mathrm{gt}}\rvert}
+$$
+
+RefCOCO 系列通常以 IoU 超过 0.5 判断单目标定位正确，边界等号的处理应以具体评测脚本为准。GUI 点击常用“点是否落在可操作目标内”而非框 IoU，见 [第四章](04-computer-use.zh.md)。
+
+## 2.3 开放词表检测：跳出固定类别表
+
+闭集训练的 Faster R-CNN、YOLO 等检测器通常只输出预设类别，不能由此断言这些架构的所有扩展版本都不支持开放词表。GLIP 将目标检测和短语定位统一为区域—文本匹配，在检测、定位和伪标注数据上训练。OWL-ViT 则把图文对比预训练迁移到检测，增加预测头并做检测微调。“开放词表”表示可更换文本查询，不保证识别任意新概念，罕见类别、否定条件、关系表达仍可能失败。
+
+追问“为什么 CLIP 分类改成区域裁剪还不够”时，需要区分**全图对齐**与**区域监督**：全图匹配不直接教会模型框的边界、多个实例的分离和背景抑制。检测训练、区域级样本及目标不存在的负例，才把相似度变成可用的定位能力。
+
+开放词表检测与前一节的"坐标文本化"路线可以结合：先用开放词表检测器产出候选区域，再交给语言模型做筛选、排序或多轮追问，兼顾检测精度和语言推理的灵活性。
+
+## 2.4 训练数据：指代表达与像素级标注
+
+Grounding 能力高度依赖专门标注的数据集，通用图文对（如网页爬取的 alt-text）几乎不包含精确坐标：
+
+- **RefCOCO / RefCOCO+ / RefCOCOg**：基于 COCO 对象构建指代表达；RefCOCO+ 的收集限制位置描述，RefCOCOg 的描述通常更长，收集流程和数据划分也不同。报告结果必须写明数据集与 split；
+- **Visual Genome**：提供密集区域描述、对象、属性和关系标注，但不是每个可见区域都有穷尽标注，不能把未标注对象一律视作不存在；
+- **像素级标注**：分割式 Grounding 需要掩码级标注，通常成本远高于框级标注，一部分工作采用检测框加分割模型（如 SAM）自动生成掩码再人工核验的半自动流程降低成本。
+
+## 2.5 评测：不能只看整体 VQA 分数
+
+Grounding 能力需要独立评测，原因是它和普通 VQA 分数经常不同步：一个模型可能"知道图里有什么"但"说不准在哪里"。常见评测维度：
+
+| 维度 | 指标 | 说明 |
+|---|---|---|
+| 单目标定位 | RefCOCO/+/g 的 Acc@IoU>0.5 | 单个指代表达对应单个目标框 |
+| 多目标检测/计数 | mAP；计数另报准确率或绝对误差 | mAP 衡量框与类别匹配，不直接等同于数量正确 |
+| 细粒度/小目标 | 分辨率敏感的定位准确率 | 高分辨率切图或动态分辨率策略下的表现差异 |
+| 幻觉定位 | 目标不存在时是否正确拒绝 | 防止模型在图中不存在目标时仍"编造"一个框 |
+
+“幻觉定位”尤其容易被忽视：评测集如果只包含目标确实存在的样本，无法区分"模型真的定位准确"还是"模型倾向于给任何提示都返回一个框"。
+
+## 2.6 常见错误
+
+### 2.6.1 把 VQA 能力等同于 Grounding 能力
+
+模型能正确回答"图里有几只猫"不代表它能准确框出每一只猫的位置。两者依赖的表示粒度不同，必须分别评测，见 2.5 节。
+
+### 2.6.2 固定阈值直接跨任务比较 IoU
+
+IoU 超过 0.5 是 RefCOCO 类基准的常见约定，不是普适标准。小目标、密集场景或需要像素级精度的任务（如医学影像、GUI 元素点击）应使用该任务自己的容错标准，而不是套用同一个阈值下结论。
+
+### 2.6.3 忽视坐标系统与分辨率归一化的差异
+
+不同模型使用归一化坐标、量化位置 token 或绝对像素，端点约定也不同。预处理若含缩放、补边、旋转或切图，必须记录逆变换，才能把输出映射回原图；只乘原图宽高会在补边、局部裁剪场景中错位。高分辨率能保留小字和小目标，但增加 token 与推理成本；应比较同一任务在不同输入预算下的准确率，而不只报告最大分辨率成绩。
+
+## 2.7 本章总结
+
+1. 图像描述、VQA、指代表达、检测与分割要求不同输出，不能由某一项得分推断其余能力；
+2. 坐标输出可采用自回归序列化或语言条件检测头；数值文本、位置 token 与坐标顺序必须按模型协议解码；
+3. 开放词表检测（GLIP、OWL-ViT）通过图文对齐让检测跳出固定类别表；
+4. Grounding 需要区域级监督，可来自人工标注或经核验的伪标签；全图相似度本身不提供精确边界；
+5. 评测必须独立于整体 VQA 分数，并纳入幻觉定位（目标不存在时的拒绝能力）。
+
+## 参考资料
+
+- [Grounding DINO: Marrying DINO with Grounded Pre-Training for Open-Set Object Detection](https://arxiv.org/abs/2303.05499)
+- [Grounded Language-Image Pre-training (GLIP)](https://arxiv.org/abs/2112.03857)
+- [Simple Open-Vocabulary Object Detection with Vision Transformers (OWL-ViT)](https://arxiv.org/abs/2205.06230)
+- [PaliGemma: A versatile 3B VLM for transfer](https://arxiv.org/abs/2407.07726)
+- [Qwen-VL: A Versatile Vision-Language Model](https://arxiv.org/abs/2308.12966)
+- [Molmo and PixMo: Open Weights and Open Data for State-of-the-Art Multimodal Models](https://arxiv.org/abs/2409.17146)
+- [Visual Genome: Connecting Language and Vision Using Crowdsourced Dense Image Annotations](https://arxiv.org/abs/1602.07332)
+- [Generation and Comprehension of Unambiguous Object Descriptions（RefCOCOg）](https://arxiv.org/abs/1511.02283)
+- [ReferItGame: Referring to Objects in Photographs of Natural Scenes](https://aclanthology.org/D14-1086/)
+- [REFER：数据集来源与划分说明](https://github.com/lichengunc/refer)

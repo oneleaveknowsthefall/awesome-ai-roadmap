@@ -1,159 +1,159 @@
 ---
-description: 区分组织风险分级与 AI Act 法定义务，核对适用时间和角色，明确审计、人工监督及 C2PA 出处验证的边界。
+description: Distinguish internal risk classifications from AI Act obligations, check applicable dates and roles, and understand the limits of auditing, human oversight, and C2PA provenance verification.
 ---
 
-# 第十章：AI 治理、风险分级、审计与内容出处
+# Chapter 10: AI Governance, Risk Classification, Auditing, and Content Provenance
 
-## 10.1 治理是把前九章的技术控制"制度化"
+## 10.1 Governance Makes Technical Controls an Organizational Responsibility
 
-前九章讨论的都是具体的技术防御。但技术控制要长期有效，需要制度保证：谁批准一个高风险 Agent 上线、谁对模型行为负责、出了事故按什么流程处理、监管要求怎么落地为内部checklist。这正是 NIST AI RMF 中 **Govern** 功能覆盖的范畴：把这些责任、流程和检查项固定下来。
+The preceding nine chapters cover specific technical defenses. Keeping those controls effective over time requires organizational arrangements: who approves the release of a high-risk agent, who is accountable for model behavior, which process applies when an incident occurs, and how regulatory requirements become internal checklists. This is the role of the **Govern** function in the NIST AI RMF: establish those responsibilities, processes, and checks.
 
 ```mermaid
 flowchart TB
-    G[治理] --> G1[风险分级<br/>10.2]
-    G --> G2[审计与可追溯<br/>10.3]
-    G --> G3[透明度文档<br/>10.4]
-    G --> G4[内容出处<br/>10.5]
-    G --> G5[事件响应与披露<br/>10.6]
-    G --> G6[供应商与第三方风险<br/>10.7]
+    G[Governance] --> G1[Risk classification<br/>10.2]
+    G --> G2[Auditing and traceability<br/>10.3]
+    G --> G3[Transparency documentation<br/>10.4]
+    G --> G4[Content provenance<br/>10.5]
+    G --> G5[Incident response and disclosure<br/>10.6]
+    G --> G6[Vendor and third-party risk<br/>10.7]
 ```
 
-## 10.2 风险分级方法论
+## 10.2 Risk Classification
 
-不是所有 AI 应用都需要同等强度的管控，风险分级的作用是把有限的安全资源投向真正高风险的场景。
+Not every AI application needs the same intensity of controls. Risk classification directs limited security resources toward genuinely high-risk situations.
 
-### 10.2.1 按用例风险分级（呼应监管实践）
+### 10.2.1 Classifying Risk by Use Case, with Regulatory Practice in Mind
 
-用例有助于内部风险分级，但下表是工程管理示意，**不是 EU AI Act 的自动分类器**。法律判断还取决于预期用途、角色、地域适用、产品类别及例外；通用 AI 模型（GPAI）的义务也不能放进单一的应用风险金字塔后就忽略：
+Use cases help with internal risk classification, but the following table is an engineering-management illustration, **not an automatic classifier for the EU AI Act**. Legal determinations also depend on intended purpose, role, territorial scope, product category, and exceptions. Obligations for general-purpose AI (GPAI) models cannot be set aside by fitting everything into a single pyramid of application risk:
 
-| 等级 | 特征 | 示例 | 管控强度 |
+| Category | Characteristics | Examples | Level of control |
 |---|---|---|---|
-| 禁止用途 | 满足适用法律明确禁止的构成条件 | 特定有害操纵、社会评分等，不是所有评分都一律禁止 | 停止相应用途，确认法定条件 |
-| 高影响用途 | 可能影响安全、权利或重大利益 | 招聘筛选、信贷决策、医疗器械相关应用 | 评估、监督、记录、监控与退出机制，逐项映射法定义务 |
-| 透明度相关用途 | 用户需要了解 AI 参与方式 | 对话系统、特定生成内容 | 披露与标识，不排除同时属于高风险 |
-| 较低影响用途 | 暂无明显高影响路径 | 受限的内部草稿辅助 | 基线控制；仍需数据保护、访问控制和复核 |
+| Prohibited uses | Meet the conditions of an express prohibition under applicable law | Certain harmful manipulation or social scoring; not all scoring is prohibited | Stop the relevant use and confirm the statutory conditions |
+| High-impact uses | May affect safety, rights, or significant interests | Recruitment screening, credit decisions, and medical-device-related applications | Assessment, oversight, records, monitoring, and exit mechanisms; map each applicable legal obligation |
+| Transparency-related uses | Users need to understand how AI is involved | Conversational systems and certain generated content | Disclosure and labeling; the use may also be high-risk |
+| Lower-impact uses | No evident high-impact path at present | Restricted internal drafting assistance | Baseline controls, including data protection, access control, and review |
 
-**不能用一个“AI Act 生效日”决定所有上线要求。** Regulation (EU) 2026/1744 已修订原始 AI Act 的部分适用时间：第三章第 1、2、3 节（第 6(5) 条除外），对第 6(2) 条及附件 III 高风险系统从 **2027-12-02** 适用，对第 6(1) 条及附件 I 高风险系统从 **2028-08-02** 适用。
+**A single “AI Act effective date” cannot determine every release requirement.** Regulation (EU) 2026/1744 amended some of the original AI Act's application dates. Chapter III, Sections 1, 2, and 3, except Article 6(5), apply from **2027-12-02** to high-risk systems under Article 6(2) and Annex III, and from **2028-08-02** to high-risk systems under Article 6(1) and Annex I.
 
-这不是全部义务的统一延期。一般适用日期、禁止行为、GPAI、透明度与既有系统的过渡安排要分别判断。实际部署应建立「主体角色—用途—条款—适用日期—证据」清单，由法律责任方确认，不能仅凭内部风险等级推导法定义务。
+This is not a blanket postponement of all obligations. General application dates, prohibited practices, GPAI requirements, transparency requirements, and transitional arrangements for existing systems must be assessed separately. For an actual deployment, maintain a register linking the entity's role, use, legal provision, application date, and supporting evidence, and have the legally responsible party confirm it. Internal risk categories alone do not determine statutory obligations.
 
-### 10.2.2 内部风险评估的输入维度
+### 10.2.2 Inputs to an Internal Risk Assessment
 
-除了用例场景，具体的技术架构选择也应纳入风险评估：是否具备自主执行高风险动作的能力（第七、八章）、是否处理敏感个人数据（第六章）、是否依赖不受控的第三方数据/模型来源（第四、五章）、是否面向公开互联网暴露（第二、三章）。风险评估应综合损害程度、发生可能性、暴露面和缓解能力；没有经定义和校准的量表，不应把「场景风险乘架构暴露」当作定量公式。
+Alongside the use case, assess the actual architecture: can it autonomously execute high-risk actions (Chapters 7 and 8), does it process sensitive personal data (Chapter 6), does it depend on uncontrolled third-party data or models (Chapters 4 and 5), and is it exposed to the public internet (Chapters 2 and 3)? Assessments should consider severity of harm, likelihood, exposure, and mitigation capability together. Without defined and calibrated scales, “use-case risk multiplied by architectural exposure” is not a quantitative formula.
 
-### 10.2.3 分级驱动的治理动作
+### 10.2.3 Letting Risk Classification Drive Governance Actions
 
-内部风险分级应驱动治理动作，例如要求高影响场景经过评审、红队验证、额外变更审批和独立复核。这些是组织可采用的治理政策，不能据此声称每种法律高风险系统都被同一条法规强制要求采用完全相同的红队流程。
+Internal risk categories should trigger governance actions, such as requiring review, red-team validation, additional change approvals, and independent assessment for high-impact uses. These are policies an organization may adopt. They do not establish that a single legal provision mandates exactly the same red-teaming process for every legally high-risk system.
 
-## 10.3 审计与可追溯性
+## 10.3 Auditing and Traceability
 
-### 10.3.1 组织级审计日志的最低要求
+### 10.3.1 Minimum Requirements for Organization-Wide Audit Logs
 
-单个应用/协议层面的审计字段要求已在 [Tool Protocol 安全 15.4](../../tools/02-mcp/15-tool-protocol-security.md) 给出。组织级治理需要在此基础上，确保**跨应用、跨团队的审计数据可以被统一查询和关联**：
+[Tool Protocol Security, Section 15.4](../../tools/02-mcp/15-tool-protocol-security.md) specifies audit fields at the application or protocol level. Organization-wide governance builds on that foundation to ensure **audit data can be queried and correlated across applications and teams**:
 
-- 统一的请求关联 ID 规范，使一次用户交互跨越多个 Agent、多个工具调用时仍可追溯为同一条链路；
-- 审计数据的留存周期、访问权限和防篡改保护由统一的安全团队制定基线，而非各团队各自决定；
-- 定期做审计数据的完整性抽查，确认没有关键字段缺失或被绕过。
+- Use a common request correlation ID convention so that a user interaction spanning multiple agents and tool calls remains traceable as one sequence.
+- Have a central security team set baselines for audit-data retention, access rights, and tamper protection, rather than leaving each team to decide independently.
+- Regularly sample audit data to check its completeness and integrity, confirming that no critical fields are missing and no essential logging has been bypassed.
 
-### 10.3.2 可解释性与可追溯性的区别
+### 10.3.2 Explainability and Traceability Are Different
 
-可追溯回答发生了什么、谁授权、用了哪个版本；可解释关注依据与影响因素，两者不能互相代替。先建立最小充分的证据链：输入或受控证据引用、版本、工具动作、策略决定与人工干预。不能为了审计无条件复制全部原文，也不能把模型事后生成的解释或思维链当作真实因果记录。适用法律要求理由说明或申诉时，不能以「日志齐全」替代。
+Traceability answers what happened, who authorized it, and which version was used. Explainability concerns the basis for a decision and the factors influencing it. Neither replaces the other. Start with the minimum sufficient evidence trail: inputs or controlled references to evidence, versions, tool actions, policy decisions, and human interventions. Auditing does not justify indiscriminately copying all original content, and a model's post-hoc explanation or chain of thought is not a reliable causal record. Where applicable law requires reasons or an appeal mechanism, complete logs are not a substitute.
 
-人工监督也不只是加一个确认按钮：审批者需要看到原始目标与实际参数，有足够时间、专业能力和拒绝权限，并能暂停系统或切换人工流程。高风险决定的审批、执行和审计职责应适当分离，避免开发团队单独批准自己的剩余风险。
+Human oversight also requires more than a confirmation button. Approvers must see the original objective and actual parameters, have enough time and expertise, and possess the authority to refuse, pause the system, or switch to a manual process. Approving, executing, and auditing high-risk decisions should be appropriately separated so that a development team does not accept its own residual risk without independent involvement.
 
-## 10.4 透明度文档：模型卡、系统卡与使用披露
+## 10.4 Transparency Documentation: Model Cards, System Cards, and User Disclosures
 
-| 文档类型 | 面向对象 | 内容 |
+| Document type | Audience | Content |
 |---|---|---|
-| 模型卡（Model Card） | 内部团队、下游集成方 | 训练数据特征、已知局限、评测结果、适用/不适用场景，是第五章 ML-BOM 治理的配套文档 |
-| 系统卡（System Card） | 更广泛的利益相关方 | 完整应用系统（而非单个模型）的能力边界、安全测试摘要、已知风险和缓解措施 |
-| 面向终端用户的披露 | 最终用户 | 明确告知用户正在与 AI 交互、AI 生成内容的标识、申诉/人工复核的入口 |
+| Model card | Internal teams and downstream integrators | Training-data characteristics, known limitations, evaluation results, and suitable/unsuitable uses; complements the ML-BOM governance discussed in Chapter 5 |
+| System card | A broader set of stakeholders | The capabilities and limits of the complete application, not just one model, along with a summary of safety testing, known risks, and mitigations |
+| End-user disclosures | End users | Clear notice that users are interacting with AI, identification of AI-generated content, and access to appeals or human review |
 
-透明度文档不是"发布后就不再更新"的静态物料，模型微调、System Prompt 调整、新工具接入都应该触发文档更新，这与第五章"可复现构建"和第九章"版本变更触发安全回归"是同一治理节奏的不同侧面。
+Transparency documents are not static artifacts to publish once and forget. Model fine-tuning, system prompt changes, and new tool integrations should all trigger updates. This follows the same governance cadence as reproducible builds in Chapter 5 and version-triggered security regression testing in Chapter 9.
 
-## 10.5 内容出处与可验证性
+## 10.5 Content Provenance and Verifiability
 
-生成式 AI 大规模普及后，"这段内容是不是 AI 生成的""这张图片有没有被篡改"成为独立的信任问题，这是内容出处（Content Provenance）要解决的范畴。
+As generative AI becomes widespread, questions such as “Was this content AI-generated?” and “Has this image been altered?” become distinct matters of trust. Content provenance addresses this problem space.
 
 ```mermaid
 flowchart LR
-    C[内容生成/编辑] --> M[附加可验证的出处元数据]
-    M --> D[分发]
-    D --> V[下游验证工具核实元数据签名]
-    V --> T{完整性是否保持}
-    T -->|是| TRUST[展示经签名验证的出处声明<br/>不证明内容事实为真]
-    T -->|否| WARN[标记为不可验证]
+    C[Content creation/editing] --> M[Attach verifiable provenance metadata]
+    M --> D[Distribution]
+    D --> V[Downstream verifier checks metadata signatures]
+    V --> T{Is integrity preserved?}
+    T -->|Yes| TRUST[Display signature-verified provenance claims<br/>Not proof of factual truth]
+    T -->|No| WARN[Mark as unverifiable]
 ```
 
-- **数字签名式出处标准**（如 C2PA）：将来源与编辑等声明绑定到资产，验证签名、资产绑定和信任链。签名不是加密，不保证元数据保密；签名有效也不保证声明所描述的事实真实或编辑历史完整；
-- **可见水印/隐性水印**：可见水印容易被裁剪去除，隐性水印试图在不明显改变内容的前提下嵌入可检测的标记，但目前技术上都存在被特定攻击手法擦除或伪造的可能性，应作为纵深防御的一层而非唯一保证；
-- **出处不是内容审核**：内容出处解决的是"来源是否可核实"，不解决"内容本身是否有害"，两者是独立的治理维度，不能互相替代。
+- **Digitally signed provenance standards, such as C2PA:** bind claims about origin and editing to an asset, and validate signatures, asset binding, and the trust chain. Signing is not encryption and does not ensure metadata confidentiality. A valid signature also does not establish the truth of the claimed facts or the completeness of the editing history.
+- **Visible and invisible watermarks:** visible watermarks are easily cropped out. Invisible watermarks aim to embed detectable marks without noticeably changing the content, but both remain susceptible to removal or forgery by particular attack methods. Treat them as a layer of defense in depth, not the sole assurance.
+- **Provenance is not content moderation:** provenance addresses whether a source can be verified, not whether the content itself is harmful. These are separate governance concerns, and neither replaces the other.
 
-Content Credentials 可因截图、转码或剥离元数据而丢失：无凭据不代表伪造，有凭据也不代表真实。水印和 AI 内容检测器还存在误报、漏报与变换鲁棒性问题，不应单独用于认定作者违规。保留适当的来源证据，并结合事实核查与人工复核。
+Content Credentials can be lost through screenshots, transcoding, or metadata removal. Their absence does not prove forgery, and their presence does not prove truth. Watermarks and AI-content detectors also have false positives, false negatives, and limited robustness to transformations; they should not be used alone to find an author in violation of a policy. Retain appropriate evidence of origin and combine it with fact-checking and human review.
 
-## 10.6 事件响应与披露
+## 10.6 Incident Response and Disclosure
 
-- **AI 特有事件类型**：除了传统安全事件（数据泄漏、系统入侵），还应建立针对模型行为异常（大规模越狱成功、后门被触发、严重幻觉导致的错误决策）的响应流程；
-- **响应流程的特殊要求**：先限制损害、暂停危险能力并保存必要证据，再判断攻击、配置错误或能力局限。回滚到已验证版本不等于消除已发生的外泄或撤销业务动作，仍需凭据撤销、数据处置与对账；
-- **披露义务**：个人数据事件按适用的数据保护法规判断通知对象、风险门槛与时限，不以发生跨境传输为前提；严重 AI 事件还需核对适用的行业与 AI 法规。即使没有数据泄漏，也可能需要通知监管机构或受影响方，不能只当作自愿公关。
+- **AI-specific incident types:** alongside conventional security incidents such as data breaches and intrusions, establish response procedures for abnormal model behavior, including widespread jailbreak success, activated backdoors, and serious hallucinations that lead to incorrect decisions.
+- **Response requirements specific to these systems:** first contain harm, suspend dangerous capabilities, and preserve necessary evidence; then determine whether the cause was an attack, misconfiguration, or a capability limitation. Rolling back to a validated version does not undo prior exfiltration or reverse business actions. Credential revocation, data remediation, and reconciliation may still be necessary.
+- **Disclosure obligations:** determine notification recipients, risk thresholds, and deadlines for personal-data incidents under applicable data-protection law; a cross-border transfer is not a prerequisite. Serious AI incidents also require checking applicable sector-specific and AI legislation. Even without a data breach, notification to regulators or affected parties may be required. It is not merely voluntary public relations.
 
-## 10.7 供应商与第三方风险管理
+## 10.7 Vendor and Third-Party Risk Management
 
-前几章讨论的模型供应链（第五章）、数据来源（第四章）都落在第三方风险管理的技术侧面，治理层面需要把它们纳入统一的供应商准入流程：
+The model supply chain in Chapter 5 and data sources in Chapter 4 are technical aspects of third-party risk management. Governance must bring them into a common vendor onboarding process:
 
-- 采购/接入任何外部模型 API、第三方微调服务、MCP Server/工具、数据标注供应商前，走统一的安全评估流程而非各团队自行决定；
-- 合同中明确数据处理边界（是否用于训练、保留期限、区域限制）、安全责任划分、事件通知时限；
-- 建立供应商名录和定期复审机制，供应商自身发生安全事件时能快速评估对本组织的影响面。
+- Before procuring or integrating an external model API, third-party fine-tuning service, MCP server or tool, or data-labeling vendor, use a common security assessment process rather than letting each team decide independently.
+- Contracts should specify permitted data handling—training use, retention periods, and regional restrictions—along with security responsibilities and incident notification deadlines.
+- Maintain a vendor inventory and periodic review process so that the organization's exposure can be assessed quickly if a vendor suffers a security incident.
 
-## 10.8 上线检查表
+## 10.8 Release Checklist
 
-以下为内部治理建议，具体法定义务需按 10.2 节逐项映射。
+The following are internal governance recommendations. Map specific legal obligations individually as described in Section 10.2.
 
-- [ ] 每个 AI 应用/Agent 有明确的风险等级，等级评估同时考虑用例场景和技术架构暴露面；
-- [ ] 高风险场景具备强制的安全评审、红队测试和人工监督点；
-- [ ] 审计日志具备跨应用、跨团队统一的关联 ID 规范和留存基线；
-- [ ] 关键模型和系统具备模型卡/系统卡，且随重大变更更新；
-- [ ] 面向用户的界面明确披露 AI 交互身份和申诉入口；
-- [ ] 高价值或高风险场景的生成内容具备可验证的出处元数据；
-- [ ] 存在覆盖模型行为异常的事件响应流程，具备快速回滚能力；
-- [ ] 第三方模型/数据/工具供应商纳入统一的安全评估与合同管理流程。
+- [ ] Every AI application or agent has an explicit risk classification that considers both its use case and architectural exposure.
+- [ ] High-risk uses require security review, red-team testing, and human oversight points.
+- [ ] Audit logs follow common correlation ID conventions and retention baselines across applications and teams.
+- [ ] Critical models and systems have model cards or system cards that are updated after major changes.
+- [ ] User-facing interfaces clearly disclose AI interaction and provide access to an appeal process.
+- [ ] Generated content in high-value or high-risk uses has verifiable provenance metadata.
+- [ ] Incident response procedures cover abnormal model behavior, with rapid rollback capability.
+- [ ] Third-party model, data, and tool vendors follow a common security assessment and contract-management process.
 
-## 10.9 常见错误
+## 10.9 Common Mistakes
 
-### 10.9.1 风险分级只看用例场景，不看技术架构暴露面
+### 10.9.1 Classifying Risk by Use Case Alone
 
-同一用例场景下，是否具备自主执行能力、是否处理敏感数据会显著改变实际风险，分级必须综合两个维度。
+Within the same use case, autonomous execution capabilities and sensitive-data processing can substantially change the actual risk. Classification must consider both use case and architectural exposure.
 
-### 10.9.2 把透明度文档当作一次性交付物
+### 10.9.2 Treating Transparency Documentation as a One-Time Deliverable
 
-模型、Prompt、工具集持续变化，模型卡/系统卡不更新很快就会失去参考价值。
+Models, prompts, and toolsets keep changing. Model cards and system cards quickly lose their value if they are not updated.
 
-### 10.9.3 把内容出处等同于内容审核
+### 10.9.3 Equating Content Provenance with Content Moderation
 
-出处解决"来源是否可核实"，不解决"内容是否有害"，两者需要独立的治理动作。
+Provenance addresses whether a source can be verified, not whether content is harmful. The two require separate governance actions.
 
-### 10.9.4 供应商风险管理各团队各自为政
+### 10.9.4 Leaving Each Team to Manage Vendor Risk Independently
 
-缺乏统一评估流程会导致同一个有问题的供应商在不同团队重复被引入，且供应商事件发生时无法快速评估影响面。
+Without a common assessment process, different teams may repeatedly onboard the same problematic vendor. When that vendor has an incident, the organization cannot quickly determine its exposure.
 
-## 10.10 本章总结
+## 10.10 Chapter Summary
 
-1. 治理的作用是把前九章的技术控制制度化——明确谁负责、什么时候评估、评估不通过怎么办，这是 NIST AI RMF「Govern」功能的核心；
-2. 风险分级应结合用例场景（呼应监管的分级思路）和技术架构暴露面两个维度，并直接驱动安全评审、红队测试和监督强度等具体治理动作；
-3. 组织级审计需要统一关联 ID 和最小充分的证据链；可追溯与可解释互补，日志齐全不能替代适用的理由说明和申诉要求；
-4. 模型卡、系统卡和用户披露构成透明度文档体系，需要随模型和系统的重大变更持续更新；
-5. C2PA 验证出处声明的绑定、完整性与签署信任，不证明内容为真；水印、事实审核、事件响应和供应商治理各自解决不同问题。
+1. Governance makes the technical controls from the preceding nine chapters an organizational responsibility: define who is accountable, when assessment occurs, and what happens if it fails. This is central to the NIST AI RMF's Govern function.
+2. Risk classification should combine the use case, informed by regulatory approaches, with architectural exposure. It should directly determine concrete actions such as security reviews, red-team testing, and the intensity of oversight.
+3. Organization-wide auditing needs common correlation IDs and a minimum sufficient evidence trail. Traceability and explainability complement one another; complete logs do not replace applicable requirements to give reasons or provide appeals.
+4. Model cards, system cards, and user disclosures form a transparency documentation system that must be updated as models and systems undergo major changes.
+5. C2PA verifies the binding and integrity of provenance claims and trust in their signer; it does not prove that content is true. Watermarks, fact-checking, incident response, and vendor governance each address different problems.
 
-## 参考资料
+## References
 
-法规核对日期：2026-09-15。2026/1744 于 2026-07-24 刊登《欧盟官方公报》，依第 4 条在公布后第三日（2026-07-27）生效；第 1 条 (40) 项修改 AI Act 第 113 条，第 (39) 项涉及既有系统过渡安排。正文引用的是已生效修订，不是提案或政治协议。C2PA 的能力说明采用下列 2.2 版，不声称它是最新版本。
+Regulatory review date: 2026-09-15. Regulation 2026/1744 was published in the Official Journal of the European Union on 2026-07-24 and, under Article 4, entered into force on the third day after publication, 2026-07-27. Article 1, point (40), amends Article 113 of the AI Act; point (39) concerns transitional arrangements for existing systems. The discussion above cites an amendment already in force, not a proposal or political agreement. The description of C2PA's capabilities uses version 2.2 below and does not claim that it is the latest version.
 
 - [NIST AI RMF: Govern Function](https://www.nist.gov/itl/ai-risk-management-framework)
-- [EU AI Act：Regulation (EU) 2024/1689 原文](https://eur-lex.europa.eu/eli/reg/2024/1689/oj/eng)
-- [Regulation (EU) 2026/1744：第 1 条 (39)、(40) 项与第 4 条](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ:L_202601744)
-- [GDPR：第 33、34 条，数据事件通知的条件与时限](https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng)
+- [EU AI Act: original text of Regulation (EU) 2024/1689](https://eur-lex.europa.eu/eli/reg/2024/1689/oj/eng)
+- [Regulation (EU) 2026/1744: Article 1, points (39) and (40), and Article 4](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ:L_202601744)
+- [GDPR: Articles 33 and 34, breach notification conditions and deadlines](https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng)
 - [European Commission: AI Act policy overview](https://digital-strategy.ec.europa.eu/en/policies/regulatory-framework-ai)
-- [C2PA 2.2: Explainer，验证能力与非目标](https://spec.c2pa.org/specifications/specifications/2.2/explainer/Explainer.html)
+- [C2PA 2.2: Explainer, verification capabilities and non-goals](https://spec.c2pa.org/specifications/specifications/2.2/explainer/Explainer.html)
 - [Model Cards for Model Reporting](https://arxiv.org/abs/1810.03993)
 - [System Cards: A New Resource for Understanding How AI Systems Work](https://openai.com/index/system-card/)
 - [OWASP LLM Applications Cybersecurity and Governance Checklist](https://genai.owasp.org/resource/llm-ai-cybersecurity-governance-checklist/)

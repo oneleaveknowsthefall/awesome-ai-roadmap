@@ -1,214 +1,214 @@
 ---
-description: 区分推理模型、工具调用 API 和 MCP 支持，解释工具往返时的状态回传、KV Cache 与兼容性排查。
+description: Distinguish reasoning models, tool-calling APIs, and MCP support, including state round trips, KV caches, and compatibility checks.
 ---
 
-# 第七章：为什么有些推理模型不支持 MCP
+# Chapter 7: Why Some Reasoning Models Seem Not to Support MCP
 
-## 7.1 问题的传导链
+## 7.1 Tracing the dependency
 
-先把这条传导链拆开看：
+First, separate the links in the chain:
 
 ```mermaid
 flowchart LR
-    A["推理模型不支持<br/>某个 Function Calling 接口"] --> B["该 Host 的 FC 桥接不可用"]
-    B --> C["改用其他模型接口<br/>或确定性 MCP 调用"]
+    A["Reasoning model does not support<br/>a particular function-calling interface"] --> B["This host's FC bridge is unavailable"]
+    B --> C["Use another model interface<br/>or deterministic MCP calls"]
 
     style A fill:#fce8e6
 ```
 
-[第六章](../02-mcp/06-mcp-vs-function-calling.md) 讲过，很多 Host 会把 Server 的工具定义转换成模型原生的 Function Calling 格式。这条**模型驱动**的桥接路径依赖模型接口；若该接口不可用，Host 可以改用结构化输出、规则工作流或人工触发 `tools/call`。MCP 本身并未要求模型具备 Function Calling。
+As [Chapter 6](../02-mcp/06-mcp-vs-function-calling.md) explains, many hosts convert a server's tool definitions into the model's native function-calling format. This **model-driven** bridge depends on the model interface. If that interface is unavailable, the host can instead use structured output, a rule-based workflow, or a human-triggered `tools/call`. MCP itself does not require a model with function calling.
 
-需要核查的是：**哪个模型快照、哪个 API、哪个 Host 适配器不支持什么能力**。厂商未公开的实现原因，不能用“推理架构冲突”自行补全。
+Ask precisely **which model snapshot, API, and host adapter lack which capability**. Do not fill gaps in a provider's unpublished implementation details with an assumed "conflict in the reasoning architecture."
 
-## 7.2 推理模型特殊在哪
+## 7.2 What is different about reasoning models?
 
-部分模型提供显式的 reasoning/thinking 模式，在最终输出前或工具调用之间进行额外推理。内部推理、公开思考文本和 API 返回的摘要不是同一物；也不能据此认为普通模型“完全没有推理”。
+Some models offer an explicit reasoning/thinking mode that performs additional reasoning before a final answer or between tool calls. Internal reasoning, publicly visible thinking text, and API-returned summaries are different things. Their existence does not imply that ordinary models do no reasoning at all.
 
 ```mermaid
 flowchart TB
-    subgraph NORMAL["普通模型"]
-        N1[问题] --> N2[直接生成答案]
+    subgraph NORMAL["Ordinary model"]
+        N1[Question] --> N2[Generate an answer directly]
     end
 
-    subgraph REASONING["推理模型"]
-        R1[问题] --> R2["额外推理<br/>预算和可见性依接口而定"]
-        R2 --> R3[最终答案]
+    subgraph REASONING["Reasoning model"]
+        R1[Question] --> R2["Additional reasoning<br/>Budget and visibility depend on the interface"]
+        R2 --> R3[Final answer]
     end
 ```
 
-工具返回值是后续输入的一部分。关键工程问题是如何保留模型 API 要求的历史项和关联标识，而非保证某块 GPU 显存一直不释放。
+Tool results become part of subsequent input. The central engineering issue is preserving the history items and correlation identifiers required by the model API, not keeping a particular allocation of GPU memory alive indefinitely.
 
-## 7.3 工具往返中的状态保存
+## 7.3 Preserving state across tool round trips
 
-工具调用天然是多轮的：
+Tool calling naturally spans multiple turns:
 
-1. 模型生成调用请求；
-2. **停下来**，等宿主程序执行；
-3. 拿到结果；
-4. 继续生成。
+1. The model generates a call request.
+2. It **pauses** while the host executes the call.
+3. It receives the result.
+4. It continues generating.
 
-第二步意味着一次推理请求可能结束，待工具执行后再发下一次请求。普通模型和推理模型都需要正确回填历史；推理模型还可能要求保留 reasoning 项、签名块或不透明状态。
+At the second step, one inference request may finish, with another submitted after tool execution. Both ordinary and reasoning models need correctly reconstructed history. Reasoning models may additionally require reasoning items, signed blocks, or opaque state.
 
-OpenAI Responses 指南要求将工具调用响应中的 reasoning 项与调用输出一起传回。可以使用服务端响应链，或按接口要求完整管理 `response.output`；不能只拷贝最终文本或自行改写不透明项。
+OpenAI's Responses guidance requires reasoning items from tool-calling responses to be carried forward along with tool outputs. Use a server-side response chain or manage the complete `response.output` as required by the interface. Do not copy only the final text or rewrite opaque items yourself.
 
-### 7.3.1 对话状态不等于 KV Cache
+### 7.3.1 Conversation state is not a KV cache
 
-KV Cache 是已处理 token 的 key/value 张量缓存，是推理优化，不是完整的业务会话记录。
+A KV cache stores key/value tensors for tokens already processed. It is an inference optimization, not a complete business-session record.
 
-运行时可选择保留、卸载或淘汰缓存，也可从历史重新预填充：
+A runtime may retain, offload, or evict the cache, or rebuild it by prefilling from history:
 
-| 代价 | 说明 |
+| Choice | Implication |
 |---|---|
-| 保留缓存 | 减少后续预填充，但占内存，需考虑并发和工具等待时间 |
-| 卸载或淘汰 | 释放显存，但有搬运或重新计算开销 |
-| API 状态管理 | 保存完整调用链及提供方要求的 reasoning 项，不应依赖请求命中同一 GPU |
+| Retain the cache | Reduces later prefill work but occupies memory; account for concurrency and time spent waiting for tools |
+| Offload or evict | Frees GPU memory but incurs transfer or recomputation overhead |
+| Manage API state | Preserve the complete call chain and required reasoning items; do not depend on the next request reaching the same GPU |
 
-追加工具结果不会自动使历史前缀的 KV 失效；修改前缀才会影响相应缓存。模型能否修正早先假设是训练与上下文使用问题。不能无条件断言“必须占住显存”或“吞吐减半”。
+Appending a tool result does not automatically invalidate the historical prefix's KV cache. Modifying that prefix affects the corresponding cached entries. Whether the model can revise an earlier assumption is a question of training and context use. Claims that tool calls "must hold GPU memory" or "halve throughput" are not universally valid.
 
-## 7.4 训练与接口支持并非必然冲突
+## 7.4 Training and interface support are not inherently in conflict
 
-推理与工具调用可在同一任务轨迹里训练。要解决的是调用格式、工具选择、恢复和奖励设计，而不是两个目标天生相反。
+Reasoning and tool use can be trained within the same task trajectory. The challenges are call formatting, tool selection, recovery, and reward design—not intrinsically opposing objectives.
 
-| 问题 | 可以检查什么 |
+| Problem | What to inspect |
 |---|---|
-| 调用格式错误 | 模板、解析器、Schema 支持和训练轨迹 |
-| 过早猜测工具结果 | 是否覆盖先调用后推理的轨迹，是否奖励真实执行结果 |
-| 工具返回后重复调用 | 历史项是否完整、关联 ID 是否正确、结果是否被截断 |
+| Incorrect call format | Templates, parsers, schema support, and training trajectories |
+| Guessing a tool result before execution | Coverage of call-then-reason trajectories and whether rewards depend on actual execution results |
+| Repeating a call after its result arrives | Complete history, correct correlation IDs, and whether the result was truncated |
 
-ReTool 等论文研究将执行反馈纳入推理训练，但论文的特定实验不能用来解释所有闭源模型的上线顺序。早期产品缺少工具 API 是可核查的能力限制；厂商为什么当时未发布，则需要独立证据。
+Work such as ReTool studies how execution feedback can be incorporated into reasoning training. Its particular experiments do not explain every closed model's release sequence. A missing tool API in an early product is a verifiable capability limitation; why the provider had not released it at that time requires separate evidence.
 
-## 7.5 历史接口限制应如何表述
+## 7.5 How should historical interface limits be described?
 
-| 模型 | 时间 | 工具调用支持 |
+| Model | Time | Tool-calling support |
 |---|---|---|
-| OpenAI o1-preview 初期 API | 2024 年 9 月 | 早期工具/结构化接口能力有限；官方早期 Cookbook 明确当时不支持 Structured Outputs |
-| OpenAI o1 正式版 API | 快照 `o1-2024-12-17` | 当前模型页明确列出 Function Calling 支持 |
-| DeepSeek-R1 | 2025 年 1 月 | 开源权重论文不等于所有托管接口的支持声明，应查具体 API 版本 |
-| 后续推理模型/思考模式 | 按模型与接口 | 已有工具调用实现；并行、strict、思考回传要求不同 |
+| Early OpenAI o1-preview API | September 2024 | Early tool/structured interfaces were limited; the early official Cookbook explicitly said Structured Outputs was unsupported at that time |
+| Released OpenAI o1 API | Snapshot `o1-2024-12-17` | The current model page explicitly lists function-calling support |
+| DeepSeek-R1 | January 2025 | The open-weights paper is not a support statement for every hosted interface; check the specific API version |
+| Later reasoning models / thinking modes | Model- and interface-specific | Tool-calling implementations exist; parallelism, strict mode, and thinking-state round-trip requirements differ |
 
-应区分预览期、正式模型与今天的 API 页面。当前 o1-preview 模型页和早期教程的能力表述并不完全一致，本章不据动态页面倒推 2024 年的全部限制；历史例子只用来说明“模型名相似不代表接口相同”。Structured Outputs 的历史缺失也不能单独证明 Function Calling 缺失。
+Distinguish preview releases, released models, and today's API pages. The current o1-preview page and early tutorials do not describe capabilities in exactly the same way. This chapter does not infer every 2024 limitation from a changing page. The historical examples illustrate only that similar model names do not imply identical interfaces. Historical absence of Structured Outputs alone also does not prove absence of function calling.
 
-## 7.6 后来是怎么解决的
+## 7.6 How have systems addressed this?
 
-### 7.6.1 方案一：思考结束后再调工具
+### 7.6.1 Approach one: call tools after thinking finishes
 
-一种常见折中是：**让工具调用发生在思考阶段完全结束之后**。
+One common compromise is to **issue tool calls only after the thinking phase has finished**.
 
 ```mermaid
 flowchart LR
-    Q[问题] --> T["本轮先思考<br/>再输出工具调用"]
-    T --> TC[输出 tool_calls]
-    TC --> EX[执行工具]
-    EX --> A[生成最终答案]
+    Q[Question] --> T["Think first in this turn<br/>then issue a tool call"]
+    T --> TC[Output tool_calls]
+    TC --> EX[Execute tool]
+    EX --> A[Generate final answer]
 
     style T fill:#e8f0fe
 ```
 
-这是一个应用流程选择，不是保证推理质量的通用方案。
+This is an application-flow choice, not a general guarantee of reasoning quality.
 
-调用前的推理当然看不到尚未取得的结果，但结果返回后可以再次推理；只有应用主动禁止后续推理时，才退化成简单总结。
+Reasoning before a call cannot see results that have not yet been retrieved, but reasoning can resume after those results arrive. The process becomes a simple summary only if the application actively prevents further reasoning.
 
-需要外部数据的任务应先获取证据，再做依赖该证据的推理，避免把查询前的假设直接当成最终结论。
+Tasks requiring external data should obtain evidence before performing reasoning that depends on it, rather than treating assumptions made before the query as final conclusions.
 
-### 7.6.2 方案二：交错思考
+### 7.6.2 Approach two: interleaved thinking
 
-Anthropic 的 [Claude 4 发布说明](https://www.anthropic.com/news/claude-4)明确描述了思考与工具交替的能力，当时以 beta 发布。相较之下，早期 Claude 3.7 官方 Cookbook 的工具示例注明同一工具结果轮次不再输出新的 thinking 块；不能把旧示例当作当前所有模型的行为。
+Anthropic's [Claude 4 announcement](https://www.anthropic.com/news/claude-4) explicitly describes alternating thinking and tool use, introduced in beta at the time. By contrast, the early official Claude 3.7 Cookbook tool example states that no new thinking block appears in the same tool-result round. That old example must not be treated as the behavior of every current model.
 
 ```mermaid
 flowchart LR
-    Q[问题] --> T1[思考片段 1]
-    T1 --> C1[调工具 A]
-    C1 --> T2["思考片段 2<br/>基于工具 A 的结果"]
-    T2 --> C2[调工具 B]
-    C2 --> T3[思考片段 3]
-    T3 --> A[最终答案]
+    Q[Question] --> T1[Thinking segment 1]
+    T1 --> C1[Call tool A]
+    C1 --> T2["Thinking segment 2<br/>Based on tool A's result"]
+    T2 --> C2[Call tool B]
+    C2 --> T3[Thinking segment 3]
+    T3 --> A[Final answer]
 
     style T2 fill:#e6f4ea
 ```
 
-这在很大程度上缓解了「思考阶段感知不到工具结果」的局限——模型可以边查边想。
+This substantially reduces the limitation of a thinking phase that cannot access tool results: the model can retrieve evidence and reason about it in alternation.
 
-代价包括多轮推理、外部 I/O 和状态保存，但总成本不一定更高：更合理的规划也可能减少无用调用。具体 thinking 块的保留、签名与 token 计费规则以模型 API 为准。
+Costs include repeated reasoning, external I/O, and state preservation, but total cost need not increase. Better planning may eliminate unnecessary calls. Rules for retaining thinking blocks, signatures, and token billing depend on the specific model API.
 
-### 7.6.3 方案三：把工具调用训进推理链
+### 7.6.3 Approach three: train tool use into reasoning trajectories
 
-另一条路线是在训练阶段把工具交互作为推理轨迹的一部分，而不是仅在应用侧安排调用顺序。
+Another approach makes tool interaction part of the reasoning trajectory during training, rather than arranging calls only at the application layer.
 
-例如 ReTool 让模型在推理中使用代码执行工具，再用结果继续推理和学习。ToolRL 则研究工具选择、参数等细粒度奖励；二者不能概括成同一个训练环境。最终答案奖励、调用格式奖励和真实业务状态校验也要分开看。
+For example, ReTool lets a model execute code during reasoning and use the results to continue reasoning and learning. ToolRL investigates fine-grained rewards for tool selection, arguments, and related aspects. They should not be described as the same training environment. Final-answer rewards, call-format rewards, and validation of actual business state are also distinct.
 
-这把工具调用作为策略可选动作，用任务奖励优化何时调用、用多少次、如何利用结果；奖励是否充分仍须验证，见[第二章](02-tool-learning.md)。
+Tool invocation becomes an action available to the policy. Task rewards can optimize when to call, how often to call, and how to use results. Whether the reward is sufficient still needs validation; see [Chapter 2](02-tool-learning.md).
 
-公开研究说明两类能力可以结合，不构成对各家训练流程的统一结论。
+Public research shows that these capabilities can be combined, not that every provider follows the same training process.
 
-## 7.7 现在还需要关心这个问题吗
+## 7.7 Does this issue still matter?
 
-仍需核查实际接口。例如 OpenAI 指南为 GPT-6 Astra 的工具调用指定了 Responses，不能因为模型能调工具就假定 Chat Completions 路径也可用。更持久的检查项有三类：
+You still need to verify the actual interface. For example, OpenAI's guidance specifies Responses for GPT-6 Astra tool calling. A model's ability to use tools does not imply that its Chat Completions path supports them. Three longer-lived concerns remain:
 
-**第一，分解成本**。测量推理 token、工具等待、缓存命中、总轮数和最终任务成功率；不要只比较单次调用价格或给出没有工作负载的倍数。
+**First, break down the cost.** Measure reasoning tokens, tool wait time, cache hits, total turns, and final task success. Do not compare only per-call prices or quote cost multipliers without a defined workload.
 
-**第二，支持程度有差异**。「支持工具调用」是个粗粒度的描述。实际要看：
+**Second, support varies in detail.** "Supports tool calling" is a coarse description. Examine:
 
-| 能力 | 说明 |
+| Capability | Why it matters |
 |---|---|
-| 是否支持并行调用 | 有些推理模型只能串行 |
-| 是否支持交错思考 | 决定了能不能「边查边想」 |
-| 思考内容是否可见 | 有些厂商只返回摘要，影响调试和审计 |
-| 多轮工具调用后思考是否连贯 | 长任务里差异明显 |
+| Parallel calls | Some reasoning models support only sequential calls |
+| Interleaved thinking | Determines whether the model can alternate retrieval and reasoning |
+| Visibility of thinking | Some providers return only summaries, affecting debugging and auditing |
+| Reasoning continuity after multiple tool rounds | Differences become pronounced on long tasks |
 
-**第三，选型判断**。不是所有 Agent 任务都该用推理模型。判断标准是：
+**Third, choose the model for the task.** Not every agent task needs a reasoning model:
 
-- 任务的难点在**规划和推理**（复杂问题分解、多步逻辑）→ 推理模型收益大；
-- 任务的难点在**执行和调度**（调很多工具、流程清晰）→ 普通模型加显式的 Agent 框架更划算。
+- If the difficulty lies in **planning and reasoning**—complex decomposition or multi-step logic—a reasoning model can provide substantial benefit.
+- If the difficulty lies in **execution and scheduling**—many tools but a clear workflow—an ordinary model with an explicit agent framework can be more economical.
 
-这两类都需要实测，不能只按模型名称推定性价比。
+Measure both options. A model name alone does not establish cost-effectiveness.
 
-## 7.8 常见错误
+## 7.8 Common mistakes
 
-### 7.8.1 把模型接口限制说成「不支持 MCP」
+### 7.8.1 Calling a model-interface limitation "no MCP support"
 
-要说清楚：某些 Host 的模型驱动桥接依赖 FC；模型不支持该接口时，这条桥接不可用。直接说「模型不支持 MCP」混淆了模型 API 与 MCP Host—Server 协议。
+Be precise: some hosts' model-driven bridges depend on function calling, and that bridge is unavailable if the model lacks the required interface. Saying simply that "the model does not support MCP" confuses the model API with the MCP host–server protocol.
 
-### 7.8.2 用未证实的架构原因解释产品限制
+### 7.8.2 Explaining product limits with unverified architectural claims
 
-“必须保留 GPU KV Cache”“推理目标与工具目标相反”都不是工具调用缺失的必然原因。先给出模型快照、接口文档和可复现请求，再分析适配器与运行时。
+Neither "GPU KV cache must be retained" nor "reasoning and tool objectives oppose each other" is a necessary explanation for missing tool support. Establish the model snapshot, interface documentation, and a reproducible request before analyzing adapters and runtimes.
 
-### 7.8.3 混淆 o1-preview 和 o1 正式版
+### 7.8.3 Confusing o1-preview with the released o1 model
 
-应标注具体快照、接口和资料日期。当前 o1 正式版支持工具调用，不能从预览期教程推导整个 o1 系列“不支持”。
+State the exact snapshot, interface, and source date. The released o1 model supports tool calling; preview-era tutorials cannot establish that the whole o1 family does not.
 
-### 7.8.4 认为现在还普遍不支持
+### 7.8.4 Assuming tool use is still generally unsupported
 
-不能把 o1-preview 的历史限制推广到当前模型，也不能把某个接口支持推广到同模型的全部端点。
+Do not generalize o1-preview's historical limitations to current models, or support on one interface to every endpoint for the same model.
 
-### 7.8.5 不知道折中方案的代价
+### 7.8.5 Ignoring the cost of a compromise
 
-工具返回后只做文字总结、还是继续推理，是流程与模型能力共同决定的。核查结果回填、reasoning 项保留、最大轮数以及用户取消如何传到实际执行层。
+Whether the model merely summarizes after a tool returns or continues reasoning depends on both the flow and model capabilities. Check result submission, preservation of reasoning items, maximum turns, and how user cancellation reaches the actual execution layer.
 
-### 7.8.6 不评测就启用推理模式
+### 7.8.6 Enabling reasoning mode without evaluation
 
-流程明确的任务可先比较普通模型加确定性调度，复杂规划任务再比较推理模式；用成功率、费用和尾延迟共同决策。
+For clearly defined workflows, first compare an ordinary model with deterministic scheduling; for complex planning, compare reasoning mode. Decide using success rate, cost, and tail latency together.
 
-## 7.9 本章总结
+## 7.9 Chapter summary
 
-1. **传导链只适用于 FC 桥接**：模型接口不可用会影响该 Host 的模型驱动调用，不会使 MCP 协议本身失效；
-2. **保留 API 要求的推理状态**，不要只回填最终文本；
-3. **KV Cache 是可重建的推理缓存**，不等于业务会话或必须常驻显存的思考；
-4. **历史限制按模型快照和端点陈述**，不臆测未公开的产品实现原因；
-5. **工具结果返回后可以继续推理**，单次思考后调用只是流程选择；
-6. **交错思考支持多次取证与推理**，保留要求由具体 API 定义；
-7. **联合训练是一条公开研究路线**，不能推广成所有模型的配方；
-8. **现在的实际关注点**是成本、支持粒度和选型，而不是「支不支持」。
+1. **The dependency chain applies only to an FC bridge.** An unavailable model interface can break that host's model-driven calls without invalidating MCP itself.
+2. **Preserve the reasoning state required by the API**, not just the final text.
+3. **A KV cache is a reconstructible inference cache**, not a business session or reasoning that must stay in GPU memory.
+4. **State historical limits by model snapshot and endpoint**, without inventing unpublished implementation reasons.
+5. **Reasoning can continue after tool results arrive**; thinking once before calling is only a workflow choice.
+6. **Interleaved thinking supports repeated evidence gathering and reasoning**, with preservation rules defined by each API.
+7. **Joint training is a public research direction**, not a universal model-training recipe.
+8. **Today's practical concerns** are cost, the details of support, and model selection—not a single yes-or-no label.
 
 
-## 参考资料
+## References
 
-- [OpenAI: Reasoning Models 指南](https://developers.openai.com/api/docs/guides/reasoning)
-- [OpenAI: Function Calling 与 reasoning 项回传](https://developers.openai.com/api/docs/guides/function-calling)
-- [OpenAI: o1-preview 模型页](https://developers.openai.com/api/docs/models/o1-preview)
-- [OpenAI: o1 模型与快照](https://developers.openai.com/api/docs/models/o1)
-- [OpenAI Cookbook：o1-preview 初期结构化输出限制](https://github.com/openai/openai-cookbook/blob/main/examples/o1/Using_chained_calls_for_o1_structured_outputs.ipynb)
-- [Anthropic：Claude 4 交错工具使用发布说明](https://www.anthropic.com/news/claude-4)
-- [Anthropic Cookbook：早期 Claude 3.7 thinking 块保留示例](https://github.com/anthropics/anthropic-cookbook/blob/main/extended_thinking/extended_thinking_with_tool_use.ipynb)
+- [OpenAI: Reasoning Models guide](https://developers.openai.com/api/docs/guides/reasoning)
+- [OpenAI: Function Calling and returning reasoning items](https://developers.openai.com/api/docs/guides/function-calling)
+- [OpenAI: o1-preview model page](https://developers.openai.com/api/docs/models/o1-preview)
+- [OpenAI: o1 model and snapshots](https://developers.openai.com/api/docs/models/o1)
+- [OpenAI Cookbook: Early o1-preview limitations on structured outputs](https://github.com/openai/openai-cookbook/blob/main/examples/o1/Using_chained_calls_for_o1_structured_outputs.ipynb)
+- [Anthropic: Claude 4 announcement of interleaved tool use](https://www.anthropic.com/news/claude-4)
+- [Anthropic Cookbook: Early Claude 3.7 example of thinking-block preservation](https://github.com/anthropics/anthropic-cookbook/blob/main/extended_thinking/extended_thinking_with_tool_use.ipynb)
 - [Anthropic: Extended Thinking](https://docs.claude.com/en/docs/build-with-claude/extended-thinking)
 - [DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning](https://arxiv.org/abs/2501.12948)
 - [ReTool: Reinforcement Learning for Strategic Tool Use in LLMs](https://arxiv.org/abs/2504.11536)

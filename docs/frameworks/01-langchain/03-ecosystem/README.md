@@ -1,15 +1,15 @@
 ---
-description: 比较 LangChain 与 LlamaIndex 的组合成本、LangChain4j 的 Java 抽象，以及 Python LangChain v1 的迁移接口。
+description: Compare the costs of combining LangChain and LlamaIndex, LangChain4j's Java abstractions, and the interfaces involved in migrating to Python LangChain v1.
 ---
 
-# LangChain · 生态与演进
+# LangChain · Ecosystem and Evolution
 
-比较 LlamaIndex、LangChain4j 并理解版本演进与迁移。
+Compare LlamaIndex and LangChain4j, and understand version evolution and migration.
 
-## 章节
+## Chapters
 
-1. [第七章：LangChain 与 LlamaIndex 的分工](07-langchain-vs-llamaindex.md)
-2. [第八章：LangChain4j 与 Java 生态](08-langchain4j.md)
-3. [第十一章：LangChain 的版本演进](11-version-evolution.md)
+1. [Chapter 7: Dividing Responsibilities Between LangChain and LlamaIndex](07-langchain-vs-llamaindex.md)
+2. [Chapter 8: LangChain4j and the Java Ecosystem](08-langchain4j.md)
+3. [Chapter 11: LangChain's Version Evolution](11-version-evolution.md)
 
-返回 [LangChain 生态](../README.md)。
+Return to the [LangChain Ecosystem](../README.md).

@@ -1,153 +1,153 @@
 ---
-description: 设计工具描述、strict JSON Schema 和返回值，控制工具发现与上下文成本，并建立业务校验及回归测试。
+description: Design tool descriptions, strict JSON schemas, and results; manage discovery and context cost; and establish business validation and regression tests.
 ---
 
-# 第三章：工具定义与 Schema 工程
+# Chapter 3: Tool Definitions and Schema Engineering
 
-## 3.1 为什么值得单独开一章
+## 3.1 Why does this deserve a chapter?
 
-[第一章](01-function-calling.md) 说明了工具名、描述、Schema 与上下文共同影响模型选择。工具定义还影响：
+[Chapter 1](01-function-calling.md) explained how tool names, descriptions, schemas, and context jointly affect the model's selection. Tool definitions also affect:
 
-- 模型选错工具的概率；
-- 参数填错的概率；
-- 每次请求固定消耗多少 token；
-- 出错时模型能不能自己恢复；
-- 上下文被工具结果撑爆的速度。
+- How often the model chooses the wrong tool.
+- How often it supplies incorrect arguments.
+- The fixed token overhead of each request.
+- Whether the model can recover from an error.
+- How quickly tool results fill the context window.
 
-一个反直觉的经验是：**很多被归因为「模型不行」的问题，根源是工具定义写得不行**。换更强的模型能盖住一部分，但成本高得多，而且盖不住全部。
+A counterintuitive lesson is that **many problems blamed on the model actually begin with poor tool definitions**. A stronger model may compensate for some of them, but at greater cost—and not for all of them.
 
-> **工具定义是 Prompt 的一部分，应该按 Prompt 的标准去设计、评测和迭代。**
+> **Tool definitions are part of the prompt. Design, evaluate, and iterate on them accordingly.**
 
-## 3.2 工具描述的写法
+## 3.2 Writing tool descriptions
 
-### 3.2.1 写清楚能力边界，而不只是能力
+### 3.2.1 Explain limits, not just capabilities
 
-描述应同时说明能力、返回内容、输入前提和不支持的范围。下面展示预期的路由差异，不是对模型行为的保证。
+A description should state what the tool does, what it returns, its input prerequisites, and what it does not support. The examples below illustrate intended routing differences, not guaranteed model behavior.
 
-| 写法 | 模型行为 |
+| Description | Model behavior |
 |---|---|
-| `"查询订单信息"` | 用户问「我上个月的订单」也调，拿回单条数据后编造月度汇总 |
-| `"根据订单号查询单个订单的详情。不支持按时间范围、用户 ID 或状态批量查询。"` | 模型识别边界，转而去找批量查询工具或向用户要订单号 |
+| `"Look up order information"` | Calls it for "My orders from last month," receives one record, and invents a monthly summary |
+| `"Look up details of a single order by order number. Does not support batch queries by time range, user ID, or status."` | Recognizes the boundary, looks for a batch-query tool, or asks for the order number |
 
-描述通常可以按这个顺序写：
+A useful order for the description is:
 
 ```
-<这个工具做什么>。<返回什么内容>。<明确不支持什么>。<什么情况下应该改用其他工具>。
+<What this tool does>. <What it returns>. <What it explicitly does not support>. <When to use another tool instead>.
 ```
 
-最后一句尤其有用。当工具库里有多个相近工具时，在描述里直接写「如果需要模糊搜索，请改用 `search_orders`」，比指望模型自己悟出区别可靠得多。
+The final sentence is especially useful. If several tools have similar capabilities, explicitly saying "For fuzzy search, use `search_orders` instead" is more reliable than expecting the model to infer the distinction.
 
-### 3.2.2 用工具名承载语义
+### 3.2.2 Make the tool name meaningful
 
-工具名是重要的选择信号。名称过于相似或没有业务含义时，模型更难区分：
+Names are an important selection signal. Tools are harder to distinguish when their names are too similar or carry no business meaning:
 
 ```python
-# 差：名字看不出区别，模型只能靠 description 猜
+# Poor: the names reveal no distinction; the model must rely on descriptions
 query_1, query_2, do_search
 
-# 好：动词 + 对象 + 限定，名字本身就在分流
+# Better: verb + object + qualifier; the name itself guides selection
 get_order_by_id
 search_orders_by_date_range
 cancel_order
 ```
 
-命名约定尽量在整个工具库里保持一致：例如 `get_*` 按标识精确取，`search_*` 按检索条件查找，`list_*` 枚举集合（也可带筛选和分页），`create_/update_/delete_*` 表示写操作。这是团队接口约定，不是协议规定；名称也不能替代副作用和权限检查。
+Keep naming conventions consistent across the tool library. For example, `get_*` retrieves an exact object by identifier; `search_*` finds objects by search criteria; `list_*` enumerates a collection, possibly with filtering and pagination; and `create_/update_/delete_*` indicates writes. These are team conventions, not protocol requirements. Names cannot replace side-effect or permission checks.
 
-### 3.2.3 在描述里给出使用示例
+### 3.2.3 Include usage examples in the description
 
-对语义复杂的工具，可在 `description` 里加入一两个有代表性的调用示例，并与不加示例的版本比较：
+For semantically complex tools, add one or two representative examples to `description` and compare against a version without them:
 
 ```python
 {"description": (
-    "执行 SQL 查询并返回结果。只支持 SELECT，不支持写操作。\n"
-    "示例：查询昨天订单数 -> "
+    "Execute a SQL query and return its results. Supports SELECT only, not writes.\n"
+    "Example: count yesterday's orders -> "
     "SELECT COUNT(*) FROM orders WHERE created_at >= CURRENT_DATE - 1 "
     "AND created_at < CURRENT_DATE"
 )}
 ```
 
-它相当于把 few-shot 示例塞进了工具定义里。代价是 token，收益是参数准确率，值不值得取决于这个工具被调用的频率和出错的成本。
+This embeds few-shot examples in the tool definition. The cost is tokens; the potential benefit is argument accuracy. Whether it is worthwhile depends on how often the tool is used and how costly mistakes are.
 
-上例采用 PostgreSQL 日期语法，以数据库会话时区为准，并假定已限制为当前租户。描述中的“只支持 SELECT”不是安全措施：还需只读凭据、查询限制和对象级权限，不能只靠关键字过滤 SQL。
+The example uses PostgreSQL date syntax, follows the database session's time zone, and assumes queries are already scoped to the current tenant. "Supports SELECT only" is not a security control. Read-only credentials, query limits, and object-level permissions are still necessary; keyword filtering alone is insufficient.
 
-## 3.3 参数设计
+## 3.3 Designing parameters
 
-### 3.3.1 扁平优于嵌套
+### 3.3.1 Prefer flat structures to unnecessary nesting
 
-不必要的深层嵌套会增加填写与验证复杂度。若扁平字段能清楚表达语义，可优先采用；错误率是否更低仍需目标模型评测：
+Unnecessary nesting makes arguments harder to fill and validate. Prefer flat fields when they express the meaning clearly, but evaluate whether they actually reduce errors for the target model:
 
 ```python
-# 差：三层嵌套
+# Poor: three levels of nesting
 {"filter": {"conditions": {"date": {"gte": "2026-01-01"}}}}
 
-# 好：扁平
+# Better: flat fields
 {"start_date": "2026-01-01", "end_date": "2026-01-31"}
 ```
 
-如果内部结构包含不必要的包装，可在宿主侧转换；若嵌套表达的是收货地址、多个订单项等真实关系，应保留必要结构，避免扁平化后反而难以配对。工具 Schema 不必是内部数据结构的镜像。
+The host can translate away unnecessary internal wrappers. Preserve nesting when it expresses real relationships, such as a shipping address or multiple line items; flattening them may make associations harder to maintain. A tool schema need not mirror internal data structures.
 
-### 3.3.2 能用 enum 就不用自由文本
+### 3.3.2 Use enums instead of free text for finite choices
 
 ```python
-# 差：模型可能填 "已完成"、"completed"、"DONE"、"finish"
-{"status": {"type": "string", "description": "订单状态"}}
+# Poor: the model might supply "已完成" (completed), "completed", "DONE", or "finish"
+{"status": {"type": "string", "description": "Order status"}}
 
-# 好
+# Better
 {"status": {"type": "string", "enum": ["pending", "paid", "shipped", "completed", "cancelled"]}}
 ```
 
-支持 strict 或结构化输出的运行时可利用 Schema 做约束解码；仅提供 `enum` 不代表该路径已启用。即使格式有效，`cancelled` 与 `completed` 仍可能被选错，业务状态需单独校验。
+A runtime supporting strict mode or structured outputs can use the schema for constrained decoding. Merely supplying an `enum` does not enable that path. Even a well-formed value can be wrong—for example, `cancelled` instead of `completed`—so business state needs separate validation.
 
-### 3.3.3 required 要诚实
+### 3.3.3 Be precise about required fields
 
-一般 JSON Schema 用 `required` 区分必需字段；OpenAI strict 模式则要求所有 `properties` 都列入 `required`，业务可选字段用可空类型表达。信息不足时应先澄清，不能用“格式必填”迫使模型猜测业务值。
+General JSON Schema uses `required` to distinguish mandatory fields. OpenAI strict mode requires every field in `properties` to appear in `required`; business-optional values are expressed through nullable types. If information is missing, ask for clarification rather than letting a formatting requirement force the model to guess a business value.
 
-非 strict 示例可在描述中说明缺省行为，但实际默认值和范围由服务端实现：
+In non-strict examples, descriptions can explain default behavior, but the server implements the actual defaults and limits:
 
 ```python
-{"limit": {"type": "integer", "description": "返回条数，默认 20，最大 100"}}
+{"limit": {"type": "integer", "description": "Number of results; defaults to 20, maximum 100"}}
 ```
 
-#### strict 的具体约束
+#### Specific strict-mode constraints
 
-以下为 OpenAI Function Calling 的 strict 约束，不是所有模型接口通用的 JSON Schema 要求：
+The following are constraints of OpenAI Function Calling strict mode, not universal JSON Schema requirements across model APIs:
 
-- 显式设 `strict: true`；每层 object 都设置 `additionalProperties: false`，每个属性都在 `required` 中。
-- 可选值可写成 `{"type":["string","null"],"enum":["paid","shipped",null]}`；`enum` 也必须允许 `null`。字段出现但值为空，与字段缺失不是一回事。
-- 只支持 JSON Schema 子集，拒绝、输出截断和 API 错误也必须处理。Schema 校验不能替代授权、日期先后关系、余额或对象归属检查。
-- 省略 `strict` 时，Chat Completions 默认非严格；Responses 尝试归一化为严格模式，不兼容时可能回退为 best effort。依赖稳定行为应显式指定，而不是赌默认值。
-- 流式参数需要按调用 ID 聚合至完成后再解析、校验和执行；收到半段合法 JSON 也不能提前触发写操作。
+- Explicitly set `strict: true`. Set `additionalProperties: false` on every object, and include every property in `required`.
+- An optional value can use `{"type":["string","null"],"enum":["paid","shipped",null]}`. The `enum` must also permit `null`. A present field with a null value is not the same as an absent field.
+- Only a subset of JSON Schema is supported. Refusals, truncated output, and API errors still need handling. Schema validation cannot replace authorization or checks on date ordering, balances, or object ownership.
+- If `strict` is omitted, Chat Completions defaults to non-strict behavior. Responses attempts to normalize the schema into strict mode and may fall back to best effort when incompatible. Specify it explicitly when behavior must be stable rather than relying on defaults.
+- Aggregate streamed arguments by call ID until complete, then parse, validate, and execute. Receiving a partial stream that happens to form valid JSON is not permission to trigger a write early.
 
-### 3.3.4 日期与时间是重灾区
+### 3.3.4 Dates and times are a frequent source of errors
 
-模型没有可靠的「今天是几号」的概念。两种解法：
+A model does not have a reliable built-in notion of today's date. Two approaches are:
 
-- **在 System Prompt 里注入当前时间**，让模型自己算；
-- **提供相对时间参数**，如 `{"period": {"enum": ["today", "last_7_days", "this_month"]}}`，把日期计算收回到代码里。
+- **Inject the current time into the system prompt** and let the model calculate.
+- **Provide relative-time parameters**, such as `{"period": {"enum": ["today", "last_7_days", "this_month"]}}`, and perform date calculations in code.
 
-第二种更稳，尤其是涉及时区和月末边界的场景。
+The second is more robust, particularly around time zones and month-end boundaries.
 
-## 3.4 工具返回值的设计
+## 3.4 Designing tool results
 
-工具的**输出**同样重要，但经常被忽略——它直接决定了上下文消耗和模型的下一步判断。
+Tool **output** is just as important, yet often overlooked. It directly determines context consumption and the model's next decision.
 
-### 3.4.1 返回值也是给模型看的
+### 3.4.1 Results are also an interface for the model
 
 ```python
-# 差：把 ORM 对象整个序列化，30 个字段模型只用得到 3 个
+# Poor: serialize the entire ORM object when the model needs only 3 of its 30 fields
 {"id": 1, "uuid": "...", "created_at": "...", "updated_at": "...",
  "deleted_at": None, "tenant_id": 7, "shard_key": "..."}
 
-# 好：只返回模型需要的
+# Better: return only what the model needs
 {"order_id": "A1001", "status": "shipped", "total": 299.0,
  "eta": "2026-09-02"}
 ```
 
-宿主决定哪些返回值进入模型上下文。若持续回传历史，冗余内容会反复作为输入；但单轮上下文长度与多轮累计输入计费不是同一件事，字节数也不是 token 数。可用分页、摘要、资源引用和缓存降低开销，同时保留完整结果的可追溯位置。
+The host decides which results enter the model's context. If history is sent repeatedly, redundant content is repeatedly supplied as input. However, a single turn's context length is not the same as cumulative input billing across turns, and bytes are not tokens. Pagination, summaries, resource references, and caching can reduce overhead while preserving a traceable location for the complete result.
 
-### 3.4.2 大结果要截断并告知
+### 3.4.2 Truncate large results and say so
 
-大结果可以分页返回，并明确还有多少内容未展示。下面假设 `page_items` 是已取得的前 20 条订单摘要，总数 517 已由查询确认：
+Large results can be paginated, with a clear indication of how much remains unseen. Here, `page_items` contains the first 20 order summaries already retrieved, and the query has confirmed a total of 517:
 
 ```python
 {"items": page_items,
@@ -157,115 +157,115 @@ cancel_order
  "note": "结果过多，仅返回前 20 条。请缩小时间范围或增加筛选条件后重试。"}
 ```
 
-`has_more`、返回数和 `note` 让下游知道结果尚不完整，以及如何继续查询。拿不到准确总数时应明确未知，不能把已返回数量当成总数；汇总整批订单的金额或数量，通常应交给数据库聚合，而不是只对这一页计算。
+The original Chinese `note` says, "Too many results; only the first 20 are returned. Narrow the time range or add filters and try again." `has_more`, the returned count, and `note` tell downstream consumers that the result is incomplete and how to continue. If the total is unknown, say so; do not substitute the returned count for the total. Summing amounts or counting orders across the entire result set should generally be delegated to a database aggregate, not calculated from this page alone.
 
-### 3.4.3 错误必须结构化
+### 3.4.3 Make errors structured
 
 ```python
-# 预期业务错误若未被适配层处理，可能中断整个流程
+# An expected business error can interrupt the whole flow if the adapter does not handle it
 raise ValueError("city not found")
 
-# 对可纠正的业务错误，可转成结构化工具结果
+# A correctable business error can become a structured tool result
 {"error": "city_not_found",
  "message": "未找到城市「广洲」",
  "hint": "可能的正确拼写：广州。请确认后重试。"}
 ```
 
-结构化错误让模型有机会修正参数，但不要求底层函数停止使用异常。适配层可以将已知业务异常转换为有限、脱敏的错误码与提示；非预期异常应显式上报，不能宽泛捕获后伪装成可继续的成功结果。`hint` 提供下一步建议，不授予额外权限。
+The original Chinese `message` says, "City ‘广洲’ was not found," and the `hint` says, "Possible correct spelling: 广州. Confirm and try again." The example preserves `广洲`, a misspelling of `广州` (Guangzhou). Structured errors give the model a chance to correct arguments; they do not require underlying functions to stop using exceptions. The adapter can translate known business exceptions into bounded, sanitized error codes and hints. Unexpected exceptions should be reported explicitly, not caught indiscriminately and disguised as successful results that allow the flow to continue. A `hint` suggests a next step; it grants no additional permission.
 
-设定**重试次数与总时间预算**，检测重复参数错误。鉴权或策略拒绝通常应停止，网络超时需区分未提交、已提交和结果未知；写操作只有具备幂等或可核对状态时才可自动重试。
+Set **retry limits and an overall time budget**, and detect repeated argument errors. Authentication or policy denials should normally stop the flow. Network timeouts must be distinguished by whether the operation was not submitted, was submitted, or has an unknown outcome. Automatic retries for writes require idempotency or a way to inspect the resulting state.
 
-## 3.5 工具数量与上下文成本
+## 3.5 Tool count and context cost
 
-### 3.5.1 工具发现、模型可见性与计费分开算
+### 3.5.1 Account separately for discovery, model visibility, and billing
 
-在每轮全量传入工具定义的实现里，Schema 会占用上下文并计入输入。下面是假设每个定义平均 150 token 的算术例子，不是实测，也不代表所有 API 必须如此：
+In implementations that send every tool definition on every turn, schemas occupy context and count as input. The following arithmetic example assumes an average of 150 tokens per definition; it is not a measurement or a requirement imposed by every API:
 
-| 工具数 | 平均每个 Schema | 每次请求的固定开销 |
+| Tool count | Average schema size | Fixed overhead per request |
 |---|---|---|
-| 5 | 150 token | 750 token |
-| 30 | 150 token | 4,500 token |
-| 100 | 150 token | 15,000 token |
+| 5 | 150 tokens | 750 tokens |
+| 30 | 150 tokens | 4,500 tokens |
+| 100 | 150 tokens | 15,000 tokens |
 
-此假设下 100 个工具每轮增加 15,000 输入 token，十轮累计 150,000；单轮窗口并未因此变成 150,000。前缀缓存可能降低输入费用或预填充开销，工具搜索/延迟加载则改变实际注入数量。
+Under this assumption, 100 tools add 15,000 input tokens per turn, totaling 150,000 over ten turns. That does not make any single turn's context window 150,000 tokens. Prefix caching may reduce input charges or prefill work, while tool search or deferred loading changes how many definitions are actually injected.
 
-### 3.5.2 工具变多时，如何控制选择混淆
+### 3.5.2 Reducing selection confusion as the tool library grows
 
-除了成本，还要评测选择准确率。新增工具若能补足原本缺失的能力，成功率也可能提高；功能相近的工具（`search_docs`、`search_wiki`、`search_kb`）则容易增加混淆。
+Evaluate selection accuracy as well as cost. A new tool can improve success if it fills a missing capability, while similar tools such as `search_docs`, `search_wiki`, and `search_kb` can increase confusion.
 
-主流解法是**动态工具筛选**：
+A common solution is **dynamic tool filtering**:
 
 ```mermaid
 flowchart LR
-    Q[用户请求] --> R["路由层<br/>轻量分类 或 向量检索"]
-    POOL[("工具库")] --> R
-    R --> SEL["按任务筛选<br/>数量由评测确定"]
-    SEL --> M[模型]
+    Q[User request] --> R["Routing layer<br/>Lightweight classification or vector retrieval"]
+    POOL[("Tool library")] --> R
+    R --> SEL["Filter by task<br/>Choose count through evaluation"]
+    SEL --> M[Model]
     M --> CALL[tool_calls]
 ```
 
-路由可用规则、检索或模型。图中的筛选应先排除无权使用的工具，再评测召回漏失与额外时延。检索把必要工具漏掉时，主模型也无法从当前候选集中调用它。
+Routing can use rules, retrieval, or a model. First exclude tools the user is not authorized to use, then evaluate missed candidates and added latency. If retrieval omits a necessary tool, the main model cannot call it from the current candidate set.
 
-### 3.5.3 把工具定义放在 Prompt 最前面
+### 3.5.3 Put stable tool definitions at the front of the prompt
 
-工具 Schema 常是多轮对话中较稳定的部分。将稳定内容放在前面可提高支持前缀缓存的提供方/运行时的命中机会，但是否命中、计费和 TTL 以具体服务为准。
+Tool schemas are often a stable part of multi-turn conversations. Placing stable content first can improve cache-hit opportunities with providers or runtimes that support prefix caching. Actual hits, billing, and TTL depend on the service.
 
-原则是尽量稳定可缓存前缀；工具与消息的底层序列化顺序由提供方控制，不是手动调整字段顺序即可改变。详见 [KV Cache 与 Prompt Caching](../../llm/03-inference-serving/14-kv-cache.md)。
+The principle is to keep cacheable prefixes stable. The provider controls how tools and messages are serialized internally; rearranging request fields does not control that order. See [KV Cache and Prompt Caching](../../llm/03-inference-serving/14-kv-cache.md).
 
-## 3.6 工具粒度：粗一点还是细一点
+## 3.6 Tool granularity: fine or coarse?
 
-这是设计工具库时的核心取舍。
+This is a central tradeoff in tool-library design.
 
-| | 细粒度 | 粗粒度 |
+| | Fine-grained | Coarse-grained |
 |---|---|---|
-| 例子 | `get_user`、`get_orders`、`get_address` 三个工具 | `get_user_profile` 一个工具返回全部 |
-| 灵活性 | 高，模型可自由组合 | 低 |
-| 调用轮次 | 多，延迟高 | 少 |
-| 出错风险 | 多步选择与组合可能出错 | 少轮次，但参数、结果或业务事务可能更复杂 |
-| 上下文消耗 | 多轮累积 | 可能少轮次，也可能返回大量无关数据 |
+| Example | Three tools: `get_user`, `get_orders`, and `get_address` | One `get_user_profile` tool returns everything |
+| Flexibility | High; the model can combine tools freely | Low |
+| Call rounds | More, with higher latency | Fewer |
+| Error risk | Multi-step selection and composition can fail | Fewer rounds, but arguments, results, or business transactions may be more complex |
+| Context consumption | Accumulates over multiple turns | May require fewer turns, but may return much irrelevant data |
 
-可以先看这些操作是否经常一起出现，再检查权限、失败恢复和事务边界。总是连用的只读查询可考虑合并；若订单与地址的访问权限不同，或调用方经常只需其中一项，保留分开的工具通常更清楚。
+Start by examining whether the operations frequently occur together, then check permissions, failure recovery, and transaction boundaries. Read-only queries that are always used together may be worth combining. If orders and addresses have different access permissions, or callers frequently need only one, keeping tools separate is usually clearer.
 
-一个常见的错误是把内部微服务的接口边界直接照搬成工具边界。内部服务的拆分依据是团队职责和数据归属，跟「模型该怎么用」没有关系。
+A common mistake is copying internal microservice boundaries directly into the tool library. Internal services are divided by team responsibilities and data ownership, not by how a model should use them.
 
-## 3.7 一个完整的工具定义模板
+## 3.7 A complete tool-definition template
 
-下面使用 Chat Completions 的函数包装格式，显式关闭 strict 以演示可省略字段。迁移到 Responses 需调整外层字段；启用 strict 需按 3.3.3 改写可空参数。
+The following uses the Chat Completions function wrapper and explicitly disables strict mode to demonstrate omittable fields. Migrating to Responses requires changing the outer fields; enabling strict mode requires rewriting optional parameters as nullable, as explained in Section 3.3.3.
 
 ```python
 {
     "type": "function",
     "function": {
-        "name": "search_orders",                      # 动词_对象，语义自解释
+        "name": "search_orders",                      # verb_object; meaningful on its own
         "strict": False,
         "description": (
-            "按时间范围和状态搜索订单，返回订单摘要列表。"      # 做什么
-            "每条包含订单号、状态、金额、下单时间。"            # 返回什么
-            "最多返回 50 条，超出时需要缩小范围。"              # 限制
-            "不支持按商品名搜索；若需按订单号精确查询，"        # 边界
-            "请改用 get_order_by_id。"                       # 替代方案
+            "Search orders by date range and status; return a list of order summaries. "  # Purpose
+            "Each includes order number, status, amount, and creation time. "             # Result
+            "Returns at most 50 orders; narrow the range if there are more. "              # Limit
+            "Does not support search by product name; for an exact order-number lookup, " # Boundary
+            "use get_order_by_id instead."                                                # Alternative
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "start_date": {
                     "type": "string",
-                    "description": "起始日期，格式 YYYY-MM-DD，如 2026-08-01"
+                    "description": "Start date in YYYY-MM-DD format, such as 2026-08-01"
                 },
                 "end_date": {
                     "type": "string",
-                    "description": "结束日期，格式 YYYY-MM-DD，含当天"
+                    "description": "End date in YYYY-MM-DD format, inclusive"
                 },
                 "status": {
                     "type": "string",
                     "enum": ["pending", "paid", "shipped", "completed", "cancelled"],
-                    "description": "订单状态筛选，不传则返回所有状态"
+                    "description": "Filter by order status; omit to return all statuses"
                 },
                 "limit": {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 50,
-                    "description": "返回条数，默认 20，最大 50"
+                    "description": "Number of results; defaults to 20, maximum 50"
                 }
             },
             "required": ["start_date", "end_date"],
@@ -275,70 +275,70 @@ flowchart LR
 }
 ```
 
-## 3.8 工具定义要做回归测试
+## 3.8 Tool definitions need regression tests
 
-工具描述改一个字，模型行为就可能变。这意味着它需要和代码一样被测试。
+Changing a single word in a tool description can change model behavior. Tool definitions therefore need tests just as code does.
 
-最简单的落地方式，是维护一套用例集：
+The simplest starting point is a maintained set of cases:
 
-| 用例 | 期望行为 |
+| Test case | Expected behavior |
 |---|---|
-| 「查一下 A1001 这个订单」 | 调 `get_order_by_id`，不调 `search_orders` |
-| 「我这个月的订单有哪些」 | 调 `search_orders`，日期范围正确 |
-| 「1+1 等于几」 | **不调任何工具** |
-| 「帮我把订单 A1001 取消」 | 调 `cancel_order`，且触发人工确认 |
+| `查一下 A1001 这个订单` ("Look up order A1001") | Call `get_order_by_id`, not `search_orders` |
+| `我这个月的订单有哪些` ("What are my orders this month?") | Call `search_orders` with the correct date range |
+| `1+1 等于几` ("What is 1+1?") | **Do not call any tool** |
+| `帮我把订单 A1001 取消` ("Cancel order A1001 for me") | Call `cancel_order` and trigger human confirmation |
 
-第三行是必须有的。没有「不该调工具」的用例，你测不出过度调用。
+The third row is essential. Without cases where no tool should be called, you cannot measure overcalling.
 
-改工具描述、加新工具、换模型这三种情况下都应该重跑这套用例。尤其是**加新工具**——一个新工具的描述可能意外地和已有工具重叠，导致原本正确的路由开始出错，而你不会在任何地方看到报错。
+Rerun these cases whenever you change a description, add a tool, or switch models. **Adding a tool** deserves particular attention: its description may unexpectedly overlap with an existing one, breaking previously correct routing without producing an explicit error anywhere.
 
-## 3.9 常见错误
+## 3.9 Common mistakes
 
-### 3.9.1 把内部 API 文档直接当 description
+### 3.9.1 Using internal API documentation directly as the description
 
-内部文档面向的是知道上下文的工程师，模型没有这些上下文。术语、缩写、隐含约定都要展开写。
+Internal documentation assumes an engineer who already knows the surrounding context. The model does not have that context. Expand jargon, abbreviations, and implicit conventions.
 
-### 3.9.2 只写能力不写边界
+### 3.9.2 Describing capabilities without their limits
 
-不写「不支持什么」，模型会在能力边界外硬调，然后基于错误数据编造答案。
+Without a statement of what is unsupported, the model may invoke the tool outside its capabilities and fabricate an answer from unsuitable data.
 
-### 3.9.3 把 ORM 对象整个返回给模型
+### 3.9.3 Returning the entire ORM object
 
-冗余字段会持续占用上下文并被重复计费。返回值应该按「模型需要什么」裁剪，而不是按「数据库里有什么」。
+Redundant fields keep occupying context and incur repeated input charges. Tailor results to what the model needs, not everything the database contains.
 
-### 3.9.4 大结果只截断不提示
+### 3.9.4 Truncating large results without saying so
 
-模型可能误把前 20 条当全部。返回 `has_more`、分页游标或明确截断说明；只有实际可计算总数时才返回 `total`，不要编造计数。
+The model may mistake the first 20 records for the complete set. Return `has_more`, a pagination cursor, or an explicit truncation notice. Include `total` only when it can actually be computed; do not invent counts.
 
-### 3.9.5 用异常代替结构化错误
+### 3.9.5 Using exceptions instead of structured errors
 
-已知、可纠正的业务异常可由适配层转换为结构化结果，并设重试上限。非预期故障应上报，权限拒绝不应让模型换个说法继续尝试；不是所有异常都要交给模型自行修复。
+The adapter can convert known, correctable business exceptions into structured results with bounded retries. Unexpected failures should be reported, and permission denials should not invite the model to try again with different wording. Not every exception should be left for the model to repair.
 
-### 3.9.6 注册几十个工具不做筛选
+### 3.9.6 Registering dozens of tools without filtering
 
-工具多时评估动态筛选或延迟加载。OpenAI 文档建议初始可用工具少于 20 个，但明确是软建议，不是协议上限或性能拐点。
+Evaluate dynamic filtering or deferred loading for large tool sets. OpenAI's documentation suggests starting with fewer than 20 available tools, explicitly as a soft recommendation—not a protocol limit or performance threshold.
 
-### 3.9.7 改了工具描述不回归
+### 3.9.7 Changing descriptions without regression tests
 
-这是最隐蔽的一类。工具描述的改动不会触发任何编译错误或类型检查，问题只会在线上以「模型偶尔选错工具」的形式出现。
+This is especially hard to notice. A description change triggers neither compiler errors nor type-check failures; the problem appears in production as occasional incorrect tool selection.
 
-## 3.10 本章总结
+## 3.10 Chapter summary
 
-1. **工具定义是 Prompt 的一部分**，很多「模型不行」的问题实际是工具定义不行；
-2. **描述要写清能力、边界和替代方案**，通过正反例检验是否改善选择；
-3. **减少无意义嵌套，有限取值用 enum**；OpenAI strict 要求属性全部 required，业务可选项用 nullable；
-4. **返回值按模型需求裁剪**，大结果要截断并给出处理建议；
-5. **可纠正错误提供结构化说明与必要提示**，其他故障明确停止或上报，并限制重试；
-6. **区分工具发现与注入**，按实际 token、缓存和路由召回评估成本；
-7. **工具粒度综合调用习惯、权限和事务边界判断**，不要照搬内部微服务边界；
-8. **工具定义需要回归测试**，用例集里必须包含「不该调工具」的场景。
+1. **Tool definitions are part of the prompt**; many apparent model limitations begin with poor definitions.
+2. **Descriptions should state capabilities, boundaries, and alternatives**; use positive and negative cases to test whether selection improves.
+3. **Remove meaningless nesting and use enums for finite choices.** OpenAI strict mode requires every property in `required`; business-optional values should be nullable.
+4. **Return what the model needs**, truncating large results with guidance on what to do next.
+5. **Explain correctable errors in structured form with useful hints**; stop or report other failures explicitly and bound retries.
+6. **Distinguish tool discovery from schema injection**, and evaluate cost using actual tokens, caching, and routing recall.
+7. **Choose granularity using usage patterns, permissions, and transaction boundaries**, not a direct copy of internal microservices.
+8. **Regression-test tool definitions**, including scenarios where no tool should be called.
 
 
-## 参考资料
+## References
 
 - [Anthropic: Writing Effective Tools for Agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
-- [OpenAI: Function Calling 指南](https://developers.openai.com/api/docs/guides/function-calling)
-- [OpenAI: Structured Outputs 支持的 Schema](https://developers.openai.com/api/docs/guides/structured-outputs)
-- [JSON Schema 规范](https://json-schema.org/)
+- [OpenAI: Function Calling guide](https://developers.openai.com/api/docs/guides/function-calling)
+- [OpenAI: Schemas supported by Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
+- [JSON Schema specification](https://json-schema.org/)
 - [Berkeley Function Calling Leaderboard](https://gorilla.cs.berkeley.edu/leaderboard.html)

@@ -1,104 +1,104 @@
 ---
-description: 比较 CTC、RNN-T、Whisper 与编解码器语音生成，区分连续声学特征、语义 token 和声学 token 的作用及评测。
+description: Compare CTC, RNN-T, Whisper, and codec-based speech generation, distinguishing the roles and evaluation of continuous acoustic features, semantic tokens, and acoustic tokens.
 ---
 
-# 第五章：语音识别、合成与音频语言模型
+# Chapter 5: Speech Recognition, Synthesis, and Audio Language Models
 
-> 本章覆盖语音/音频领域的三类核心任务——ASR（自动语音识别）、TTS（语音合成）与通用音频理解——的架构演进与评测方式。实时对话场景下的全双工交互与打断处理是独立的工程问题，见 [第六章](06-realtime-duplex-voice.md)。
+> This chapter covers architectures and evaluation for three core speech/audio tasks: automatic speech recognition (ASR), text-to-speech synthesis (TTS), and general audio understanding. Full-duplex interaction and interruption handling in real-time conversations are separate engineering problems; see [Chapter 6](06-realtime-duplex-voice.md).
 
-## 5.1 语音任务谱系
+## 5.1 The spectrum of speech tasks
 
-| 任务 | 输入 → 输出 | 核心难点 |
+| Task | Input → output | Main challenges |
 |---|---|---|
-| ASR（自动语音识别） | 语音 → 文字 | 口音、噪声、重叠语音、专有名词 |
-| TTS（语音合成） | 文字 → 语音 | 自然度、韵律、说话人相似度、可控性 |
-| 音频理解 | 语音/环境声/音乐 → 文字描述或结构化结果 | 非语音声学事件、说话人识别、音乐结构 |
-| Audio-Language 模型 | 音频 + 文字 → 文字 | 跨模态推理（"这段录音里谁在生气"） |
+| ASR (automatic speech recognition) | Speech → text | Accents, noise, overlapping speech, proper nouns |
+| TTS (text-to-speech synthesis) | Text → speech | Naturalness, prosody, speaker similarity, controllability |
+| Audio understanding | Speech / environmental sound / music → text descriptions or structured results | Non-speech acoustic events, speaker identification, musical structure |
+| Audio-language models | Audio + text → text | Cross-modal reasoning, such as “这段录音里谁在生气” (“Who sounds angry in this recording?”) |
 
-这些任务共享部分声学表示，但没有统一成唯一的离散 token 路线。音频理解可将连续编码器特征接入 LLM；音频生成可以预测 codec token，也可以预测连续声学表示。应先看输出是转写、声学事件还是波形，再选择训练目标，不能把“音频语言模型”都等同于 TTS。
+These tasks share some acoustic representations, but have not converged on a single discrete-token approach. Audio understanding can connect continuous encoder features to an LLM; audio generation can predict codec tokens or continuous acoustic representations. First determine whether the output is a transcript, an acoustic event, or a waveform, then choose the training objective. Not every audio language model is a TTS model.
 
-## 5.2 ASR 架构演进
+## 5.2 The evolution of ASR architectures
 
-早期端到端 ASR 主要有两条路线：
+Early end-to-end ASR had two main approaches:
 
-- **CTC（Connectionist Temporal Classification）**：对所有能折叠为目标转写的单调对齐路径求和，处理音频帧多于标签的问题。先合并相邻重复符号，再删除 blank，因此连续相同字符需要 blank 分隔。其条件独立假设是“给定编码器表示后，各位置标签概率可分解”，不代表编码器看不到上下文；外接语言模型可改善解码。
-- **RNN-Transducer（RNN-T）**：编码网络表示音频，预测网络表示已输出标签，联合网络决定发出标签还是 blank。预测网络类似语言模型，但不必作为独立 LM 预训练。是否能低延迟流式运行还取决于编码器的右侧上下文，不能仅凭 RNN-T 损失保证流式。
+- **Connectionist Temporal Classification (CTC)** sums over all monotonic alignment paths that collapse to the target transcript, handling cases with more audio frames than labels. It first merges adjacent repeated symbols, then removes blanks, so consecutive identical characters need a blank between them. Its conditional-independence assumption says that label probabilities at each position factorize given the encoder representations—not that the encoder cannot see context. An external language model can improve decoding.
+- **RNN-Transducer (RNN-T)** uses an encoder network to represent audio, a prediction network to represent previously emitted labels, and a joint network to choose whether to emit a label or a blank. The prediction network resembles a language model but need not be pretrained as a standalone LM. Low-latency streaming also depends on the encoder's right context; the RNN-T loss alone does not guarantee streamability.
 
-Whisper 原始论文使用 68 万小时多语言、多任务弱监督音频训练 encoder-decoder Transformer，以任务 token 统一转写、译为英语、语种识别和时间戳等任务。这个数字属于原始 Whisper，不应外推到后续版本。它在无需下游微调的零样本迁移中展示了鲁棒性，但不证明弱监督对所有语言和噪声都优于强监督。原始模型按音频片段处理，并非原生因果流式 ASR；滑窗部署会引入重复、修订和额外计算。静音或非语音段也可能产生幻觉转写，需要单独测试。
+The original Whisper paper trains an encoder–decoder Transformer on 680,000 hours of multilingual, multitask, weakly supervised audio. Task tokens unify transcription, translation into English, language identification, timestamps, and related tasks. That figure belongs to original Whisper and should not be extrapolated to later versions. The model demonstrates robust zero-shot transfer without downstream fine-tuning, but does not prove that weak supervision beats strong supervision for every language and noise condition. The original model processes audio segments rather than providing natively causal streaming ASR. Sliding-window deployment introduces repetition, revisions, and extra computation. Silence and non-speech segments can also produce hallucinated transcripts and need separate testing.
 
-流式场景（边说边出文字）与离线场景（录完整句再识别）的架构约束不同：流式 ASR 必须在看到有限右侧上下文（甚至完全看不到）的情况下增量输出，天然存在"准确率 vs 延迟"的权衡；离线 ASR 可以用完整上下文做双向建模换取更高准确率。
+Streaming recognition, which outputs text as someone speaks, and offline recognition, which waits for a complete utterance, impose different architectural constraints. Streaming ASR must emit incremental results with limited or no right context, creating an inherent accuracy–latency tradeoff. Offline ASR can use the full context for bidirectional modeling to improve accuracy.
 
-## 5.3 TTS 架构演进
+## 5.3 The evolution of TTS architectures
 
-一种经典 TTS 管线是文本到 Mel 频谱，再由声码器生成波形，Tacotron 2 就组合了频谱预测网络和修改版 WaveNet。Mel 频谱是压缩表示，但不能把音色、韵律问题全部归因于它：文本—音频对齐、时长预测、训练覆盖、说话人条件和声码器质量都会影响结果。
+One classic TTS pipeline maps text to a Mel spectrogram and then uses a vocoder to generate a waveform. Tacotron 2 combines a spectrogram prediction network with a modified WaveNet. Mel spectrograms are compressed representations, but they are not responsible for every timbre or prosody problem: text–audio alignment, duration prediction, training coverage, speaker conditioning, and vocoder quality all affect the result.
 
-VALL-E 把 TTS 表述为文本与参考语音条件下的 codec token 建模，原始实现用自回归模型生成第一层声学码，再用非自回归模型预测其余量化层，最后经 codec 解码为波形，并非全部码本逐 token 串行生成。论文展示了以 3 秒未见说话人录音为提示的零样本合成；该结论有英语语料和评测设置边界，不保证任意语言、嘈杂录音或任意说话人都能可靠克隆。参考语音还可能携带环境噪声和情绪，音色相似不等于内容读对。
+VALL-E formulates TTS as codec-token modeling conditioned on text and reference speech. Its original implementation uses an autoregressive model for the first layer of acoustic codes and a non-autoregressive model for the remaining quantization layers, then decodes the codes into a waveform. It does not generate every codebook token in one fully serial sequence. The paper demonstrates zero-shot synthesis prompted by a 3-second recording of an unseen speaker. This result is bounded by its English corpus and evaluation setup; it does not guarantee reliable cloning for every language, noisy recording, or speaker. Reference speech may also convey environmental noise and emotion. Similar timbre does not mean the content was spoken correctly.
 
-## 5.4 音频 Token 化：连接感知与生成的公共表示
+## 5.4 Audio tokenization: a shared representation for perception and generation
 
-神经音频编解码器提供一种适合波形重建和离散生成的表示，但音频理解不必须先做离散化。SoundStream 和 EnCodec 采用编码器、残差向量量化（RVQ）和解码器，多层 codebook 逐级编码残差；重建质量取决于码率、数据类型和模型，并非无损压缩。
+Neural audio codecs provide representations suited to waveform reconstruction and discrete generation, but audio understanding does not require discretization first. SoundStream and EnCodec use an encoder, residual vector quantization (RVQ), and a decoder. Multiple codebooks progressively encode residuals. Reconstruction quality depends on bitrate, data type, and model; this is not lossless compression.
 
 $$
 z=E(x),\qquad \hat z=\sum_{l=1}^{L}q_l(r_{l-1}),\quad r_0=z,\ r_l=r_{l-1}-q_l(r_{l-1})
 $$
 
-其中 $q_l$ 返回第 $l$ 个码本的量化向量，实际传输或预测的是其离散索引。更多量化层通常能降低重建误差，却增加码率与生成负担。若每秒有 $f$ 个声学帧、每帧使用 $L$ 个大小为 $K$ 的码本，且 $K$ 是 2 的幂，忽略熵编码与封装时，名义码率为：
+Here, $q_l$ returns the quantized vector from codebook $l$; the transmitted or predicted value is its discrete index. More quantization layers usually reduce reconstruction error but increase bitrate and generation work. If there are $f$ acoustic frames per second, each frame uses $L$ codebooks of size $K$, and $K$ is a power of 2, the nominal bitrate, ignoring entropy coding and framing, is:
 
 $$
 R=fL\log_2 K
 $$
 
-`R` 的单位是 bit/s：`f` 的单位是帧/秒，每个码本索引占 `log₂K` bit。它描述码流速率，不是采样率，也不等于将多个码本联合预测时语言模型的生成步数。
+`R` is in bit/s: `f` is in frames/second, and each codebook index occupies `log₂K` bits. This is a bitstream rate, not a sampling rate, and it is not the number of language-model generation steps when multiple codebooks are predicted jointly.
 
-这解释了为什么把全部码本展平成一个序列可能代价很高：模型可采用时间—码本分层或延迟排列，而不必完全串行。还要区分**语义 token**（偏内容和长期结构）与**声学 token**（偏音色、韵律和波形细节），两者并非可互换。Qwen-Audio 的输入是连续音频编码特征，不是 EnCodec/RVQ 码。
+This explains why flattening all codebooks into one sequence can be expensive. A model can use time–codebook hierarchies or delayed patterns instead of fully serial generation. Also distinguish **semantic tokens**, which emphasize content and long-term structure, from **acoustic tokens**, which emphasize timbre, prosody, and waveform detail. They are not interchangeable. Qwen-Audio takes continuous audio-encoder features as input, not EnCodec/RVQ codes.
 
-## 5.5 通用音频理解与 Audio-Language 模型
+## 5.5 General audio understanding and audio-language models
 
-AudioLM 将自监督音频模型产生的语义 token 与 codec 声学 token 分层建模，在没有文本转写监督的设置中生成音频续写。Qwen-Audio 是另一类音频到文本模型，连接音频编码器与 LLM；SALMONN 则组合 Whisper 与 BEATs 编码器，通过窗口级 Q-Former 对接语言模型，以兼顾语音和一般声学事件。它们不是简单地“在 AudioLM 上增加问答”，也不能用单一“MLP 投影”概括所有连接器。
+AudioLM hierarchically models semantic tokens from a self-supervised audio model and acoustic codec tokens, generating audio continuations without text-transcription supervision. Qwen-Audio takes a different audio-to-text approach, connecting an audio encoder to an LLM. SALMONN combines Whisper and BEATs encoders and connects them to a language model through a window-level Q-Former to support both speech and general acoustic events. These systems are not simply “AudioLM with question answering added,” and their connectors cannot all be described as MLP projections.
 
-这类模型的评测必须区分"听清楚说了什么"（等价于 ASR 能力）和"听懂了什么"（副语言信息、事件、音乐结构等更高层理解），两者对模型架构和训练数据的要求并不相同。
+Evaluation must distinguish recognizing what was said—ASR—from understanding what was heard, including paralinguistic information, events, and musical structure. These require different architectures and training data.
 
-## 5.6 评测
+## 5.6 Evaluation
 
-| 任务 | 指标 | 说明 |
+| Task | Metric | Considerations |
 |---|---|---|
-| ASR | WER（词错误率）/ CER（字符错误率） | 固定文字归一化、分词和语料条件；中文通常另报 CER |
-| TTS 自然度 | MOS（Mean Opinion Score）及其变体 | 依赖人工评分，主观性强，需报告评分人数与协议 |
-| TTS 相似度 | 说话人相似度（Speaker Similarity） | 衡量零样本音色克隆是否忠实于参考音频 |
-| 音频理解 | 任务专用准确率/F1 | 声学事件分类、情绪识别等各有独立基准，不能混用 ASR 指标 |
+| ASR | WER (word error rate) / CER (character error rate) | Fix text normalization, tokenization, and corpus conditions; Chinese usually also reports CER |
+| TTS naturalness | MOS (mean opinion score) and variants | Human ratings are subjective; report the number of raters and the protocol |
+| TTS similarity | Speaker similarity | Measures whether zero-shot voice cloning is faithful to the reference audio |
+| Audio understanding | Task-specific accuracy/F1 | Acoustic-event classification, emotion recognition, and other tasks have separate benchmarks; ASR metrics cannot substitute for them |
 
-WER 极低不代表语音助手体验好：延迟、韵律自然度和打断处理体验同样重要，这些维度需要结合 [第六章](06-realtime-duplex-voice.md)的实时交互评测一起看。
+Very low WER does not guarantee a good voice-assistant experience. Latency, natural prosody, and interruption handling matter too and should be assessed alongside the real-time interaction evaluation in [Chapter 6](06-realtime-duplex-voice.md).
 
-WER 为 `(替换数 + 删除数 + 插入数) / 参考词数`，插入过多时可以超过 100%，不是“1 减准确率”。TTS 还应报告合成语音的可懂度或回转写错误率；只用说话人 embedding 相似度，无法发现漏读、重读和错误数字。MOS 要说明评分量表、听者人群及置信区间，不能跨协议直接比较。
+WER is `(substitutions + deletions + insertions) / reference word count`. It can exceed 100% with many insertions and is not “1 minus accuracy.” TTS should also report intelligibility or the error rate when synthesized speech is transcribed back into text. Speaker-embedding similarity alone misses omissions, repetitions, and incorrect numbers. MOS reports need the rating scale, listener population, and confidence intervals; results from different protocols are not directly comparable.
 
-## 5.7 常见错误
+## 5.7 Common mistakes
 
-### 5.7.1 用离线 WER 评测流式产品体验
+### 5.7.1 Evaluating a streaming product with offline WER
 
-流式 ASR 的中间识别结果（partial hypothesis）会随后续语音修正，仅用最终转录的 WER 评测无法反映用户实际看到的"实时上屏文字是否频繁跳变"体验，应额外报告中间结果的稳定性。
+Streaming ASR revises its partial hypotheses as more speech arrives. Final-transcript WER alone does not capture the user's experience of live on-screen text repeatedly changing. Report the stability of intermediate results as well.
 
-### 5.7.2 忽视训练数据口音/语言分布与实际使用场景不匹配
+### 5.7.2 Ignoring mismatches between training accents/languages and actual use
 
-模型在标准口音、常见语种上的 WER 很低，不代表在方言、口音混杂或低资源语言上同样可靠，上线前必须用目标人群的真实录音单独核验。
+Low WER for standard accents and common languages does not establish reliability for dialects, mixed accents, or low-resource languages. Validate separately on real recordings from the target population before deployment.
 
-### 5.7.3 把"音色克隆能力"当成没有风险的功能默认开放
+### 5.7.3 Enabling voice cloning by default as though it were risk-free
 
-零样本音色克隆技术（如 VALL-E 一类方法）存在被用于语音伪造和身份冒用的风险，产品化时应设置授权确认、水印或使用范围限制，而不是默认对任意参考音频开放克隆能力。
+Zero-shot voice-cloning methods such as VALL-E can be misused for voice forgery and impersonation. Product deployment should include authorization checks, watermarking, or usage restrictions rather than make cloning available for arbitrary reference recordings by default.
 
-## 5.8 本章总结
+## 5.8 Chapter summary
 
-1. CTC、RNN-T 和注意力 encoder-decoder 是并存路线，应按对齐假设、右侧上下文与延迟预算选型；
-2. TTS 从"声学特征 + 声码器"两阶段管线演进出神经编解码器语言模型路线（VALL-E），把语音生成转化为离散 token 的语言建模问题；
-3. RVQ codec 适合离散声学生成；连续编码特征、语义 token 和声学 token 各有用途，不能混用；
-4. Audio-Language 模型（Qwen-Audio、SALMONN）在识别文字之上还要理解副语言信息，需要与纯 ASR 分开评测；
-5. TTS 音色克隆能力应配合授权与滥用防护，不能默认无限制开放。
+1. CTC, RNN-T, and attention-based encoder–decoders coexist; choose according to alignment assumptions, right context, and latency budgets.
+2. Alongside the acoustic-features-plus-vocoder pipeline, neural codec language models such as VALL-E turn speech generation into language modeling over discrete tokens.
+3. RVQ codecs suit discrete acoustic generation. Continuous encoder features, semantic tokens, and acoustic tokens serve distinct roles and must not be conflated.
+4. Audio-language models such as Qwen-Audio and SALMONN must understand paralinguistic information as well as recognize words, so they need evaluation beyond ASR.
+5. TTS voice cloning should be paired with authorization and abuse prevention, not unrestricted default access.
 
-> 选择音频表示时先问：要保留文字内容、声学细节，还是两者都要？这决定压缩方式，也决定哪些错误必须单独评测。
+> When choosing an audio representation, first ask whether it must preserve linguistic content, acoustic detail, or both. That determines the compression method and the errors that need separate evaluation.
 
-## 参考资料
+## References
 
 - [Whisper: Robust Speech Recognition via Large-Scale Weak Supervision](https://arxiv.org/abs/2212.04356)
-- [Connectionist Temporal Classification（原论文）](https://www.cs.toronto.edu/~graves/icml_2006.pdf)
+- [Connectionist Temporal Classification (original paper)](https://www.cs.toronto.edu/~graves/icml_2006.pdf)
 - [Sequence Transduction with Recurrent Neural Networks (RNN-T)](https://arxiv.org/abs/1211.3711)
 - [Natural TTS Synthesis by Conditioning WaveNet on Mel Spectrogram Predictions (Tacotron 2)](https://arxiv.org/abs/1712.05884)
 - [Neural Codec Language Models are Zero-Shot Text to Speech Synthesizers (VALL-E)](https://arxiv.org/abs/2301.02111)

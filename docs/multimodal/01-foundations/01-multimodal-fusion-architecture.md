@@ -1,145 +1,145 @@
 ---
-description: 比较视觉特征拼接、交叉注意力与离散多模态生成，解释训练边界、上下文成本及对比表征的局限。
+description: Compare visual feature concatenation, cross-attention, and discrete multimodal generation, including training boundaries, context costs, and the limits of contrastive representations.
 ---
 
-# 第一章：多模态表征与融合架构
+# Chapter 1: Multimodal Representations and Fusion Architectures
 
-> 本章聚焦"不同模态的信号如何在架构层面接入同一个模型"这一具体问题。多模态模型的整体训练/推理/评测/安全概览见 [LLM · 多模态模型](../../llm/06-multimodal/23-multimodal-models.md)，本章只展开其中的融合架构维度，不重复该章已有内容。
+> This chapter asks a specific question: how do signals from different modalities enter the same model at the architectural level? For an overview of multimodal training, inference, evaluation, and safety, see [LLM · Multimodal Models](../../llm/06-multimodal/23-multimodal-models.md). Here we develop the fusion architectures without repeating that broader discussion.
 
-## 1.1 融合发生在流水线的哪一步
+## 1.1 Where does fusion happen in the pipeline?
 
-“融合”指的是不同模态的表示开始共同参与计算的位置。需要分开判断**表示是连续还是离散、交互发生在哪些层、哪些参数参与训练**：输入层拼接的视觉特征也能在后续每层自注意力中参与计算，不能按“接入越早就越强”给架构排序。文献中的 Early/Late Fusion 命名并不统一，下面按具体计算路径比较；传统的 late fusion 还常指各模态独立预测后的决策级融合，不应与 projector 拼接混称。
+“Fusion” is the point at which representations from different modalities begin participating in a shared computation. Three questions must be considered separately: **are the representations continuous or discrete, which layers allow them to interact, and which parameters are trained?** Visual features concatenated at the input can participate in self-attention at every subsequent layer; architectures cannot be ranked by assuming that earlier integration is always stronger. The literature does not use Early/Late Fusion consistently, so the comparison below follows the actual computation paths. Traditional late fusion often means combining decisions after each modality makes an independent prediction; this should not be confused with projector-based concatenation.
 
 ```mermaid
 flowchart LR
-    subgraph Late["连续特征投影与拼接"]
-        L1[冻结或微调的视觉编码器] --> L2[Projector] --> L3[语言模型主干]
+    subgraph Late["Continuous feature projection<br/>and concatenation"]
+        L1[Frozen or fine-tuned<br/>vision encoder] --> L2[Projector] --> L3[Language model backbone]
     end
     subgraph Cross["Cross-Attention Fusion"]
-        C1[视觉编码器] --> C2[Resampler] --> C3["语言模型<br/>交叉注意力层"]
+        C1[Vision encoder] --> C2[Resampler] --> C3["Language model<br/>cross-attention layers"]
     end
-    subgraph Early["Early Fusion / 统一 Token 化"]
-        E1[图像离散化] --> E4[统一 Token 序列]
-        E2["音频离散化<br/>可选扩展，非 Chameleon 配置"] --> E4
-        E3[文本 Token] --> E4
-        E4 --> E5[单一 Transformer<br/>联合建模]
+    subgraph Early["Early Fusion /<br/>Unified Tokenization"]
+        E1[Image discretization] --> E4[Unified token sequence]
+        E2["Audio discretization<br/>Optional extension,<br/>not the Chameleon configuration"] --> E4
+        E3[Text tokens] --> E4
+        E4 --> E5[Joint modeling with<br/>a single Transformer]
     end
 ```
 
-三条路线并非互斥的历史阶段，而是当前同时在用的三类工程取舍：
+These are not mutually exclusive historical stages. They are three sets of engineering tradeoffs in use alongside one another:
 
-| 路线 | 融合位置 | 典型代表 | 核心取舍 |
+| Approach | Fusion location | Examples | Main tradeoff |
 |---|---|---|---|
-| 连续特征投影与拼接 | 视觉特征映射到语言隐藏维度，再与文本嵌入拼接 | LLaVA、初代 Qwen-VL | 可复用预训练组件；视觉位置增加 self-attention 与 KV 成本 |
-| Cross-Attention Fusion | 语言模型中间层通过新增交叉注意力读取视觉表示 | Flamingo、初代 IDEFICS | 视觉表示不逐个占用文本序列位置，但仍有编码、跨注意力及缓存开销 |
-| 离散 Token Early Fusion | 图像编码为离散索引，与文本构成混合序列 | Chameleon | 可用自回归目标建模图文输出；需处理量化损失、序列长度及训练稳定性 |
+| Continuous feature projection and concatenation | Map visual features to the language hidden dimension, then concatenate them with text embeddings | LLaVA, original Qwen-VL | Reuses pretrained components; visual positions add self-attention and KV costs |
+| Cross-Attention Fusion | New cross-attention layers within the language model read visual representations | Flamingo, original IDEFICS | Visual representations do not each occupy a text sequence position, but encoding, cross-attention, and caching still cost resources |
+| Discrete-token Early Fusion | Encode images as discrete indices and mix them with text in one sequence | Chameleon | An autoregressive objective can model image and text outputs; quantization loss, sequence length, and training stability need attention |
 
-## 1.2 连续特征投影与拼接架构
+## 1.2 Continuous feature projection and concatenation
 
-投影拼接架构先用编码器 $E_v$ 提取视觉特征，再用连接器 $C$ 映射到语言模型的隐藏维度，与文本嵌入共同送入语言模型。LLaVA 使用线性层或 MLP；初代 Qwen-VL 的连接器则包含基于可学习查询的交叉注意力压缩，不能把两者都简化成 MLP：
+A projection-and-concatenation architecture first extracts visual features with an encoder $E_v$, then uses a connector $C$ to map them to the language model's hidden dimension. They enter the language model alongside text embeddings. LLaVA uses a linear layer or MLP; the original Qwen-VL connector includes cross-attention compression based on learnable queries, so both should not be reduced to “an MLP”:
 
 $$
 z=E_v(x_{\mathrm{img}}),\qquad h=C(z),\qquad
 u=[h;\mathrm{Embed}(x_t)]
 $$
 
-这里的 `u` 是视觉与文本的输入嵌入序列。对于自回归文本输出，条件分布还需包含已生成前缀：
+Here, `u` is the input embedding sequence containing visual and text representations. For autoregressive text output, the conditional distribution must also include the already-generated prefix:
 
 $$
 p_\theta(y\mid x_{\mathrm{img}},x_t)
 =\prod_{i=1}^{T}p_\theta(y_i\mid u,y_1,\ldots,y_{i-1})
 $$
 
-首个输出位置的已生成前缀为空。不能把语言模型的一次前向结果直接等同于任意完整回答的概率。
+The generated prefix is empty at the first output position. The result of one language-model forward pass is not the probability of an arbitrary complete answer.
 
-原始 LLaVA 先冻结视觉编码器和语言模型、训练投影层，再保持视觉编码器冻结，联合训练投影层与语言模型做指令微调。LoRA 是可选的参数高效改造，并非原论文第二阶段的必选步骤。“对齐”指生成损失使视觉表示可被语言模型利用，不保证它与某个词嵌入逐点对应；文本预训练也不自动赋予计数、空间关系或细粒度视觉推理能力。
+The original LLaVA first freezes the vision encoder and language model while training the projection layer. It then keeps the vision encoder frozen and jointly trains the projector and language model for instruction tuning. LoRA is an optional parameter-efficient adaptation, not a required step in the original paper's second stage. “Alignment” means that the generation loss makes visual representations usable by the language model; it does not guarantee a pointwise correspondence with particular word embeddings. Text pretraining also does not automatically confer counting, spatial-relation, or fine-grained visual reasoning abilities.
 
-这条路线的重要成本变量是**视觉位置数量**：固定 patch 尺寸时，图像宽高同时增大，会乘性增加 patch 数，多图和切图又进一步延长序列。是否占满上下文取决于模型预算及压缩策略；Resampler（见 1.3 节）和 token 压缩/剪枝是常见缓解手段。
+An important cost variable is the **number of visual positions**. With a fixed patch size, increasing both image width and height multiplies the patch count; multiple images and image tiling extend the sequence further. Whether this exhausts the context depends on the model's budget and compression strategy. Resamplers (Section 1.3) and token compression or pruning are common mitigations.
 
-## 1.3 交叉注意力怎样读取视觉特征，是否就没有上下文成本？
+## 1.3 How does cross-attention read visual features, and does it eliminate context costs?
 
-交叉注意力让语言侧查询独立保存的视觉表示，减少视觉特征对文本序列位置的占用，但仍有视觉编码、跨注意力和缓存成本。Flamingo 提出的架构把语言模型本身冻结，在其内部插入新的 **gated cross-attention** 层：语言 token 作为 Query，通过交叉注意力从视觉特征中按需读取信息，而不是把视觉特征逐个拼接进输入序列；文本序列中仍可有媒体边界等标记。
+Cross-attention lets the language side query separately stored visual representations, reducing the number of text sequence positions occupied by visual features. Visual encoding, cross-attention, and caching costs remain. Flamingo freezes the language model itself and inserts new **gated cross-attention** layers: language tokens act as queries that retrieve information from visual features as needed, instead of concatenating every visual feature into the input sequence. The text sequence can still contain media-boundary markers.
 
 $$
 \mathrm{Attn}(Q,K,V)=\mathrm{softmax}\left(\frac{QK^{\top}}{\sqrt{d_k}}\right)V,\qquad
 Q=h_tW_q,\ K=zW_k,\ V=zW_v
 $$
 
-这里按行存放序列：`h_t` 是形状为 `(N_text, d_text)` 的语言隐藏状态矩阵，`z` 是 `(N_visual, d_visual)` 的视觉特征矩阵，下标 `t` 表示文本侧而非时间步。投影后 Q/K 的最后一维均为 `d_k`，所以 `QKᵀ` 的形状是 `(N_text, N_visual)`，softmax 沿视觉位置维度计算。
+Sequences are stored as rows here: `h_t` is the language hidden-state matrix of shape `(N_text, d_text)`, and `z` is the visual feature matrix of shape `(N_visual, d_visual)`. The subscript `t` denotes the text side, not a time step. After projection, the last dimension of both Q and K is `d_k`, so `QKᵀ` has shape `(N_text, N_visual)`. Softmax operates over visual positions.
 
-新增残差分支用可学习的 $\tanh(\alpha)$ 门控， $\alpha$ 初始化为零，因此初始时不改变原有语言模型的计算输出；这有助于稳定训练，但不保证训练后语言能力完全不变。交叉层插入频率和图文因果掩码同样属于架构设计，不能默认每层、每个词都能看到全部图像。
+The new residual branch uses a learnable $\tanh(\alpha)$ gate, with $\alpha$ initialized to zero. It therefore initially leaves the original language model's output unchanged. This helps stabilize training but does not guarantee that language abilities remain entirely unchanged after training. Cross-attention insertion frequency and image–text causal masks are also architectural choices; not every word at every layer necessarily sees all images.
 
-Flamingo 用 **Perceiver Resampler** 将每个图像或视频输入的视觉特征压缩为固定数量的 latent，原论文设置为 64 个。这是具体模型的超参数，不是所有 Resampler 的规定。其可学习查询反复读取视觉特征；下式只示意交叉注意力与残差，省略了归一化、前馈层等实现细节：
+Flamingo uses a **Perceiver Resampler** to compress visual features from each image or video input into a fixed number of latents—64 in the original paper. This is a model-specific hyperparameter, not a rule for all resamplers. Learnable queries repeatedly read the visual features. The following equation illustrates only cross-attention and the residual connection, omitting normalization, feed-forward layers, and other implementation details:
 
 $$
 \ell^{(i+1)}=\mathrm{CrossAttn}(\ell^{(i)},z)+\ell^{(i)}
 $$
 
-固定 latent 控制了**每个媒体输入**交给语言侧的表示长度，而不是让整个请求成本恒定：多张图像仍可能对应多组 latent，视觉编码和 Resampler 读取原始特征的成本仍随分辨率、帧数增长。压缩还可能损失小物体、密集文字与短暂事件。
+A fixed latent count controls the representation length passed to the language side **per media input**, not the cost of the entire request. Multiple images may still require multiple sets of latents, and the cost of visual encoding and resampler access to the original features still grows with resolution and frame count. Compression can also lose small objects, dense text, and brief events.
 
-## 1.4 Early Fusion：统一 Token 化架构
+## 1.4 Early Fusion: unified tokenization
 
-与只把视觉作为条件的架构不同，Chameleon 式 Early Fusion 把图像离散化为符号序列，与文本一起用同一个 Transformer 和自回归目标建模。这里只讨论离散生成路线；更广义的早期融合不要求所有模态都必须离散化。
+Unlike architectures that use vision only as a condition, Chameleon-style Early Fusion discretizes images into symbol sequences and models them together with text using the same Transformer and autoregressive objective. This section concerns the discrete generation approach; early fusion in the broader sense does not require every modality to be discrete.
 
-离散化通常基于 VQ-VAE / VQGAN 一类向量量化方法：编码器把图像映射到连续特征，再从一个学习到的 codebook $\lbrace e_k\rbrace_{k=1}^{K}$ 中找最近邻，把每个位置替换成离散编码索引：
+Discretization commonly uses vector quantization methods such as VQ-VAE or VQGAN. An encoder maps an image to continuous features, then finds the nearest neighbor in a learned codebook $\lbrace e_k\rbrace_{k=1}^{K}$, replacing each position with a discrete code index:
 
 $$
 z_q=e_k,\quad k=\arg\min_j\lVert z_e-e_j\rVert_2
 $$
 
-图像索引和文本 token 可以纳入同一词表，但仍有不同的 token ID 区段与模态边界；“统一预测”不等于无法区分模态。Chameleon 从混合图文序列开始训练共享 Transformer，图像仍需专门的 tokenizer 与解码器。GPT-4o 系统卡描述了文本、视觉、音频端到端训练，但未公开足以判断其是否采用 Chameleon 式离散词表的细节，不能据此把两者归为相同内部架构。
+Image indices and text tokens can share a vocabulary while retaining distinct token-ID ranges and modality boundaries. “Unified prediction” does not mean the modalities become indistinguishable. Chameleon trains a shared Transformer on mixed image–text sequences from the outset, but images still require a dedicated tokenizer and decoder. The GPT-4o System Card describes end-to-end training across text, vision, and audio without revealing enough detail to establish whether it uses a Chameleon-style discrete vocabulary. It therefore does not justify assigning the two models the same internal architecture.
 
-这条路线的特点是可以在一个序列中交错生成图像与文本，而不只是以图像为条件生成文本。代价包括图像量化误差、自回归图像序列的解码成本，以及不同模态 token 数量对损失占比的影响。它并不证明交互比连续特征拼接“更深”：后者同样会在多层自注意力中融合信息。数据配比与任务覆盖见 [第九章](../05-data-training-evaluation/09-multimodal-data-alignment.md)。
+This approach can interleave generated images and text in one sequence, rather than only generate text conditioned on an image. Costs include image quantization error, autoregressive image-sequence decoding, and the effect of different modality token counts on their shares of the loss. It does not establish that interaction is “deeper” than with continuous feature concatenation: the latter also fuses information across multiple self-attention layers. For data mixtures and task coverage, see [Chapter 9](../05-data-training-evaluation/09-multimodal-data-alignment.md).
 
-## 1.5 统一 Embedding 空间：对齐而非生成
+## 1.5 A shared embedding space: alignment rather than generation
 
-以上三条路线都服务于"理解或生成"，还有一类架构目标不同：不产出文本，而是把不同模态映射到**同一个可比较的向量空间**，用于检索、路由和跨模态匹配。
+The three approaches above serve understanding or generation. Another family has a different objective: rather than produce text, it maps modalities into **a shared vector space in which they can be compared**, supporting retrieval, routing, and cross-modal matching.
 
-CLIP 用图文对比学习训练一对独立编码器 $E_v,E_t$，让匹配的图文对在同一空间里余弦相似度更高：
+CLIP trains two independent encoders $E_v,E_t$ through image–text contrastive learning, giving matching image–text pairs higher cosine similarity in the shared space:
 
 $$
 \mathcal{L}=-\frac{1}{N}\sum_{i=1}^{N}\log\frac{\exp(\mathrm{sim}(v_i,t_i)/\tau)}{\sum_{j=1}^{N}\exp(\mathrm{sim}(v_i,t_j)/\tau)}
 $$
 
-上式只是图像到文本方向的 InfoNCE；原始 CLIP 对图像到文本、文本到图像两个方向取平均。 $\mathrm{sim}$ 为归一化向量点积， $\tau$ 为温度。批内其余配对被视作负样本，但两张图都对应同一句合理描述时会出现假负例。SigLIP 改用逐图文对的 sigmoid 二分类损失，包含相似度缩放和偏置，不需要批内 softmax 全局归一化；这改变了分布式通信与正负样本配比的设计空间，不等于批次无限扩大就持续获益。
+This equation is only the image-to-text InfoNCE term; original CLIP averages the image-to-text and text-to-image directions. $\mathrm{sim}$ is the dot product of normalized vectors, and $\tau$ is the temperature. Other pairings within the batch are treated as negatives, but false negatives arise when the same description legitimately fits two images. SigLIP instead uses a sigmoid binary classification loss for individual image–text pairs, including similarity scaling and a bias, without global within-batch softmax normalization. This changes the design space for distributed communication and positive-to-negative sampling ratios; it does not imply that indefinitely larger batches keep bringing gains.
 
-ImageBind 研究图像、文本、音频、深度、热成像、IMU 六种模态，以图像为桥建立配对训练，展示了未直接配对模态之间的迁移能力。这是特定数据和任务上的实验结果，不是“分别对齐图像就保证任意模态两两可靠匹配”的定理，细粒度关系和域外数据仍需验证。这类 embedding 可用于检索，若接入生成系统仍需要另一个生成器；应用见 [RAG · 多模态 RAG](../../rag/04-advanced/21-multimodal-rag.md)。
+ImageBind studies six modalities—images, text, audio, depth, thermal images, and IMU measurements—using images as a bridge for paired training. It demonstrates transfer between modalities that were not directly paired. This is an experimental result on particular data and tasks, not a theorem that separately aligning everything to images guarantees reliable matching between any two modalities. Fine-grained relationships and out-of-domain data still require validation. These embeddings can support retrieval, but a generative system still needs a separate generator; see [RAG · Multimodal RAG](../../rag/04-advanced/21-multimodal-rag.md) for applications.
 
-## 1.6 架构对比与选型
+## 1.6 Comparing and selecting architectures
 
-| 维度 | 连续特征拼接 | Cross-Attention | 离散 Token Early Fusion |
+| Dimension | Continuous feature concatenation | Cross-Attention | Discrete-token Early Fusion |
 |---|---|---|---|
-| 训练成本 | 取决于冻结范围与视觉序列长度 | 需训练新增层；可冻结已有骨干 | 联合生成训练与 tokenizer 均有成本 |
-| 上下文占用 | 视觉位置占用语言序列与 KV | 视觉记忆独立保存，仍有跨注意力成本 | 图文共享序列预算 |
-| 跨模态交互 | 后续多层自注意力，受掩码约束 | 在指定交叉层查询视觉特征 | 混合序列多层自注意力，受掩码约束 |
-| 主要工程变量 | 分辨率、切图、压缩率、解冻范围 | latent 数、交叉层频率、媒体可见性 | 量化质量、模态配比、生成长度 |
-| 典型场景 | 快速在现有 LLM 上加视觉能力 | 需要处理多图/多帧、控制上下文成本 | 追求原生统一的多模态生成与理解 |
+| Training cost | Depends on which parameters are frozen and the visual sequence length | New layers require training; existing backbones can remain frozen | Joint generative training and the tokenizer both incur costs |
+| Context use | Visual positions occupy the language sequence and KV cache | Visual memory is stored separately; cross-attention still costs resources | Images and text share a sequence budget |
+| Cross-modal interaction | Multiple subsequent self-attention layers, subject to masks | Queries visual features at designated cross-attention layers | Multiple self-attention layers over a mixed sequence, subject to masks |
+| Main engineering variables | Resolution, tiling, compression ratio, parameters to unfreeze | Latent count, cross-attention frequency, media visibility | Quantization quality, modality mixture, generation length |
+| Typical use | Quickly adding vision to an existing LLM | Handling multiple images or frames while controlling context costs | Native unified multimodal generation and understanding |
 
-选型不是"哪个更先进"的问题，而是应该先问：现有语言模型能否复用、上下文预算是否紧张、是否需要模型原生生成图像/音频（而不仅是理解）。这三个问题的答案共同决定了合适的融合位置。
+Selection is not a contest over which architecture is “more advanced.” Start with three questions: can the existing language model be reused, is the context budget tight, and must the model natively generate images or audio rather than merely understand them? Together, these answers determine a suitable fusion location.
 
-## 1.7 常见错误
+## 1.7 Common mistakes
 
-### 1.7.1 把"能接收图片输入"等同于某种特定融合架构
+### 1.7.1 Equating image input support with a particular fusion architecture
 
-接口层面支持多模态输入的产品，底层可能是上述任意一种架构，甚至是"先用独立模型做 caption 再喂给纯文本 LLM"的外部管线。不看架构报告或技术卡片就假设某个能力（如多图交互、细粒度定位）默认存在，是常见的评测误判来源。
+A product that accepts multimodal input may use any of these architectures—or an external pipeline that captions the image with a separate model and feeds the caption to a text-only LLM. Assuming capabilities such as multi-image interaction or fine-grained localization without consulting an architecture report or technical card is a common source of evaluation errors.
 
-### 1.7.2 混淆"统一 Embedding 空间"与"统一生成架构"
+### 1.7.2 Confusing a shared embedding space with a unified generation architecture
 
-CLIP、SigLIP、ImageBind 的 embedding 本身不生成图像或文本；Chameleon 则显式学习混合图文序列的生成分布。产品对外支持哪些输入输出，与内部如何融合、哪些权重被共享，是不同的问题。
+CLIP, SigLIP, and ImageBind embeddings do not themselves generate images or text. Chameleon explicitly learns a distribution over mixed image–text sequences. A product's supported inputs and outputs are separate questions from how its internals fuse information and which weights are shared.
 
-### 1.7.3 认为 Resampler 压缩没有代价
+### 1.7.3 Assuming resampler compression is free
 
-固定数量的 latent token 控制语言侧序列长度，但压缩可能损失密集文字、小物体和精细空间关系；未压缩模型也不保证能有效利用全部细节。需要 OCR 级别精度的任务应比较压缩率、资源预算与实际准确率，相关评测口径见 [OCR 与 Document AI](../02-vision-document/03-ocr-document-ai.md)。
+A fixed number of latent tokens controls sequence length on the language side, but compression can lose dense text, small objects, and precise spatial relationships. An uncompressed model is not guaranteed to use all details effectively either. Tasks requiring OCR-level precision should compare compression ratio, resource budget, and actual accuracy; see [OCR and Document AI](../02-vision-document/03-ocr-document-ai.md) for evaluation definitions.
 
-## 1.8 本章总结
+## 1.8 Chapter summary
 
-1. 比较架构应看连续/离散表示、交互层与训练范围，不能只按 Early/Late 标签排序；
-2. projector 拼接后的视觉表示会参与后续多层自注意力，不是“只融合一次”；
-3. Cross-Attention 可将视觉记忆移出文本序列，但编码、压缩、跨注意力及缓存仍有成本；
-4. Chameleon 式离散融合支持混合图文生成，需承担量化误差与序列生成开销；未公开的产品架构应保留未知；
-5. 统一 Embedding 空间（CLIP、SigLIP、ImageBind）解决的是对齐与检索问题，与上述生成式架构是不同的问题维度，不应混为一谈。
+1. Compare continuous versus discrete representations, interaction layers, and trainable parameters—not just Early/Late labels.
+2. Visual representations concatenated through a projector participate in subsequent self-attention layers; fusion does not happen “only once.”
+3. Cross-attention can move visual memory outside the text sequence, but encoding, compression, cross-attention, and caching still have costs.
+4. Chameleon-style discrete fusion supports mixed image–text generation at the cost of quantization error and sequence generation overhead; undisclosed product architectures should remain unknown.
+5. Shared embedding spaces such as CLIP, SigLIP, and ImageBind address alignment and retrieval, a different dimension from the generative architectures above.
 
-## 参考资料
+## References
 
 - [CLIP: Learning Transferable Visual Models From Natural Language Supervision](https://arxiv.org/abs/2103.00020)
 - [Sigmoid Loss for Language Image Pre-Training (SigLIP)](https://arxiv.org/abs/2303.15343)
@@ -147,9 +147,9 @@ CLIP、SigLIP、ImageBind 的 embedding 本身不生成图像或文本；Chamele
 - [Flamingo: a Visual Language Model for Few-Shot Learning](https://arxiv.org/abs/2204.14198)
 - [Perceiver IO: A General Architecture for Structured Inputs & Outputs](https://arxiv.org/abs/2107.14795)
 - [LLaVA: Visual Instruction Tuning](https://arxiv.org/abs/2304.08485)
-- [Qwen-VL：位置感知视觉语言适配器](https://arxiv.org/abs/2308.12966)
+- [Qwen-VL: Position-aware vision–language adapter](https://arxiv.org/abs/2308.12966)
 - [Chameleon: Mixed-Modal Early-Fusion Foundation Models](https://arxiv.org/abs/2405.09818)
 - [Neural Discrete Representation Learning (VQ-VAE)](https://arxiv.org/abs/1711.00937)
 - [Taming Transformers for High-Resolution Image Synthesis (VQGAN)](https://arxiv.org/abs/2012.09841)
 - [OpenAI GPT-4o System Card](https://openai.com/index/gpt-4o-system-card/)
-- [GPT-4o System Card（原始报告）](https://arxiv.org/abs/2410.21276)
+- [GPT-4o System Card (original report)](https://arxiv.org/abs/2410.21276)

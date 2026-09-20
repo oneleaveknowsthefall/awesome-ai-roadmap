@@ -1,17 +1,17 @@
 ---
-description: 从提示词的可验证约束到思维链与幻觉治理，区分模型生成、证据核查、结构校验和系统权限的职责。
+description: Move from verifiable prompt constraints to chain of thought and hallucination mitigation, distinguishing generation, evidence checks, structure validation, and system authorization.
 ---
 
-# LLM · Prompt 与可靠性
+# LLM · Prompting and Reliability
 
-讨论 Prompt 工程、CoT 与幻觉的能力边界和工程缓解。
+Explore the capabilities, limits, and engineering mitigations of prompt engineering, CoT, and hallucinations.
 
-阅读时可沿着一个问题追问：回答不可靠，是任务没说明白、中间计算出错，还是事实缺少证据？三个章节分别讨论提示与约束、推导与验证、事实性与选择性回答；长 Prompt、更多推理和附带引用都不自动构成正确性保证。
+Keep one question in mind: is an unreliable answer caused by an unclear task, an incorrect intermediate calculation, or a factual claim without evidence? The three chapters address prompts and constraints, reasoning and verification, and factuality and selective answering. Longer prompts, more reasoning, and attached citations do not automatically guarantee correctness.
 
-## 章节
+## Chapters
 
-1. [第十六章：Prompt 工程](16-prompt-engineering.md)
-2. [第十七章：CoT 思维链](17-cot.md)
-3. [第十八章：幻觉的成因与缓解](18-hallucination.md)
+1. [Chapter 16: Prompt Engineering](16-prompt-engineering.md)
+2. [Chapter 17: Chain of Thought](17-cot.md)
+3. [Chapter 18: Hallucinations—Causes and Mitigation](18-hallucination.md)
 
-返回 [LLM 相关知识点](../README.md)。
+Return to [LLM Topics](../README.md).

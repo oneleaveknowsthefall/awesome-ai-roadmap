@@ -1,280 +1,280 @@
 ---
-description: 从 KV 管理、连续批处理和前缀复用比较推理运行时，澄清 TGI 维护状态、llama.cpp 与 TensorRT-LLM 能力，并给出基于 SLO 的压测方法。
+description: Compare inference runtimes through KV management, continuous batching, and prefix reuse, clarify TGI maintenance status and llama.cpp/TensorRT-LLM capabilities, and design SLO-based load tests.
 ---
 
-# 第二十章：部署框架选型
+# Chapter 20: Choosing a Serving Framework
 
-## 20.1 部署框架到底解决什么问题
+## 20.1 What problems does a serving framework solve?
 
-`transformers` 的 `model.generate()` 可以作为正确性基线，也支持多种缓存与 attention 优化；它本身不是一个完整的多租户在线调度服务。下面讨论朴素服务封装可能遇到的瓶颈，而不是把它们当成 Transformers 所有配置的固有缺陷。
+The `transformers` method `model.generate()` can serve as a correctness baseline and supports various cache and attention optimizations. By itself, it is not a complete multi-tenant online scheduling service. The following bottlenecks concern naive serving wrappers, not inherent defects in every Transformers configuration.
 
-### 20.1.1 三大痛点
+### 20.1.1 Three major pain points
 
-| 痛点 | 表现 |
+| Pain point | Symptoms |
 |---|---|
-| **① KV Cache 显存碎片严重** | 朴素实现可能为请求预留接近最大长度的连续空间，而实际长度短得多，导致可用并发下降 |
-| **② 批量推理调度低效** | 静态 batch 的成员通常保持不变；短请求完成后可能留下空槽或 padding，无法立刻纳入新请求，长度不均时利用率下降 |
-| **③ 重复计算** | 例如用户共享同一段系统提示，但服务没有跨请求缓存，每次仍需计算相同前缀的 KV |
+| **① Severe KV cache memory fragmentation** | A naive implementation may reserve contiguous space near the maximum request length even when actual sequences are much shorter, reducing available concurrency |
+| **② Inefficient batch scheduling** | Static batches usually keep the same members; completed short requests may leave empty slots or padding that cannot immediately accept new requests, reducing utilization when lengths vary |
+| **③ Repeated computation** | Users may share the same system prompt, but without cross-request caching, the service recomputes the prefix's KV state every time |
 
-**因此常见优化方向是**：内存高效（缓解碎片）+ 批量调度（提高利用率）+ 缓存复用（避免重复计算）。各框架的覆盖与实现随版本变化。
+**Common optimization directions are therefore** memory efficiency to reduce fragmentation, batch scheduling to improve utilization, and cache reuse to avoid redundant computation. Each framework's coverage and implementation change over time.
 
-还要区分 **prefill** 与 **decode**：前者批量处理输入，通常有较高算术强度；低批量 decode 常受权重或 KV 带宽限制。高并发、长上下文和不同架构会改变瓶颈，不能把全部推理都称为 memory-bound。
+Also distinguish **prefill** from **decode**. Prefill processes input in bulk and usually has higher arithmetic intensity; low-batch decode is often limited by weight or KV bandwidth. High concurrency, long contexts, and different architectures change the bottleneck, so not all inference is memory-bound.
 
-服务选型最终要满足服务级别目标（SLO），例如首 token 延迟（TTFT）和相邻输出 token 的时间间隔（ITL）上限。后文比较缓存和调度时，既看总吞吐，也看用户等待和流式输出是否卡顿。
+Framework selection must ultimately satisfy service-level objectives (SLOs), such as limits on time to first token (TTFT) and inter-token latency (ITL). When comparing caching and scheduling below, consider not only aggregate throughput but also user waiting time and stalls in streamed output.
 
-## 20.2 vLLM：PagedAttention + Continuous Batching
+## 20.2 vLLM: PagedAttention and continuous batching
 
-### 20.2.1 PagedAttention 的灵感来自操作系统虚拟内存
+### 20.2.1 PagedAttention takes inspiration from operating-system virtual memory
 
-**操作系统怎么管内存**？不是给每个进程预分配大块连续物理内存（那会有大量碎片），而是把物理内存切成固定大小的「页」，进程拿到「逻辑地址」，通过页表映射到真实物理页。
+**How does an operating system manage memory?** Rather than preallocating a large contiguous physical region for every process, which would create substantial fragmentation, it divides physical memory into fixed-size pages. Processes use logical addresses mapped to physical pages through page tables.
 
-**PagedAttention 把这个思路搬到 KV Cache 上**：
+**PagedAttention applies that idea to KV caching**:
 
 ```mermaid
 flowchart LR
-    subgraph L["请求的逻辑 KV 序列"]
-        A1["块 0"] --> A2["块 1"] --> A3["块 2"]
+    subgraph L["A request's logical KV sequence"]
+        A1["Block 0"] --> A2["Block 1"] --> A3["Block 2"]
     end
-    L --> BT["Block Table<br/>逻辑 → 物理映射"]
-    BT --> P["物理显存池<br/>固定大小 Block<br/>可非连续分布，按引用回收"]
+    L --> BT["Block Table<br/>Logical → physical mapping"]
+    BT --> P["Physical GPU memory pool<br/>Fixed-size blocks<br/>Noncontiguous placement<br/>Reference-based reclamation"]
 
     style BT fill:#e8f0fe
 ```
 
-假设块大小为 16 token，一个请求的 200 token 需要 `ceil(200/16)=13` 块，总容量为 208 token，尾块空 8 个位置。它避免了为该请求预留整段 4096-token 连续空间；真实块大小受后端和配置约束。
+With a block size of 16 tokens, a 200-token request needs `ceil(200/16)=13` blocks, providing capacity for 208 tokens with 8 unused positions in the last block. This avoids reserving a contiguous 4096-token region for the request. Actual block sizes depend on the backend and configuration.
 
-请求结束后，引用计数为零的块可以回收到池中，也可能为前缀缓存保留到被逐出。回收不等于立刻将显存归还 CUDA，所以 `nvidia-smi` 占用不下降未必是泄漏。
+When a request finishes, blocks with zero references can return to the pool or remain available for prefix caching until eviction. Reclamation does not necessarily return memory to CUDA immediately, so unchanged `nvidia-smi` usage is not by itself evidence of a leak.
 
-> 实际收益取决于请求长度分布、block 大小、模型、并发限制和 KV-cache 预算；应使用生产形态的 trace 压测，而非套用固定百分比。
+> Actual gains depend on request-length distribution, block size, model, concurrency limits, and KV-cache budget. Use production-like traces for load testing rather than assuming a fixed percentage improvement.
 
-### 20.2.2 Continuous Batching：在迭代边界重组
+### 20.2.2 Continuous batching: regrouping at iteration boundaries
 
-**Static batching**：一批请求的成员在执行期间基本固定；短请求可以提前返回，但空出的执行槽未必能被新请求复用。
+**Static batching**: batch membership remains largely fixed during execution. Short requests may return early, but new requests cannot necessarily reuse the vacated execution slots.
 
-**Continuous Batching**：在调度迭代边界让已完成请求退出、让新请求加入。不是在任意 GPU kernel 执行到一半时插入请求；每轮可包含 decode token、prefill chunk 或推测验证等工作。
+**Continuous batching**: completed requests leave and new requests enter at scheduling iteration boundaries—not halfway through an arbitrary GPU kernel. An iteration may contain decode tokens, prefill chunks, or speculative verification.
 
 ```
-t1: 请求 A、B、C 同时在跑
-t5: A 生成完退出 → 新请求 D 立刻加入
-t8: B 生成完退出 → 新请求 E 加入
+t1: requests A, B, and C are running
+t5: A finishes and leaves → new request D joins immediately
+t8: B finishes and leaves → new request E joins
 ```
 
-它可减少由长度不均造成的空槽时间；吞吐增益取决于到达率、输出长度和调度策略。
+This can reduce idle slot time caused by uneven sequence lengths. Throughput gains depend on arrival rate, output lengths, and scheduling policy.
 
-vLLM 同时提供 KV 管理、调度和 APC 等能力，不能只凭 PagedAttention 一个术语判定性能。最大 batch token 预算、并发限制和 KV 容量共同决定可调度的工作量。
+vLLM provides KV management, scheduling, APC, and other capabilities. PagedAttention alone is not enough to predict performance. The maximum batch-token budget, concurrency limit, and KV capacity jointly determine schedulable work.
 
-### 20.2.3 长 prefill 会不会阻塞正在输出的请求
+### 20.2.3 Can a long prefill block requests that are already streaming?
 
-会，若长 prompt 独占一次调度迭代，现有请求的下一 token 可能被延后。**Chunked prefill** 把长输入拆成若干块，与 decode 工作交错，调节 TTFT 与逐 token 延迟之间的取舍。
+Yes. If a long prompt monopolizes a scheduling iteration, the next token of an existing request can be delayed. **Chunked prefill** splits long inputs into chunks and interleaves them with decode work, adjusting the tradeoff between TTFT and per-token latency.
 
-**Prefill/decode 分离**则将两阶段放在不同执行实例或设备池，分别扩缩容，但需要传输 KV 并管理跨实例路由。传输成本、带宽和负载规模不合适时，分离反而更慢；它不等于连续批处理或前缀缓存。
+**Prefill/decode disaggregation** instead places the phases on different execution instances or device pools so they can scale separately. It requires KV transfer and cross-instance routing. Unsuitable transfer costs, bandwidth, or load can make disaggregation slower; it is not the same as continuous batching or prefix caching.
 
-## 20.3 SGLang：用 RadixAttention 复用前缀
+## 20.3 SGLang: prefix reuse with RadixAttention
 
-SGLang 的 RadixAttention 是解释跨请求前缀复用的一个实现实例。SGLang 也包含调度、量化、分布式等能力，不能仅凭是否有共享前缀判定它与其他框架的胜负。
+SGLang's RadixAttention is one implementation of cross-request prefix reuse. SGLang also includes scheduling, quantization, and distributed execution. Shared-prefix presence alone cannot determine whether it outperforms another framework.
 
-### 20.3.1 哪些场景前缀重复率高
+### 20.3.1 Where repeated prefixes are common
 
-- **System Prompt 共享**：所有用户调同一个 API，System Prompt 完全一样；
-- **Few-shot 示例共享**：Prompt 里有 5–10 个固定示例；
-- **多轮对话历史**：每轮都包含前 N 轮的完整历史；
-- **Agent 工作流**：Agent 多次调用 LLM，每次上下文都从同一个 System Prompt 开始。
+- **Shared system prompts**: all users call the same API with an identical system prompt.
+- **Shared few-shot examples**: prompts contain 5–10 fixed examples.
+- **Multi-turn conversation history**: each turn includes the full history of the preceding N turns.
+- **Agent workflows**: an agent repeatedly calls an LLM with context beginning with the same system prompt.
 
-vLLM 不只有 PagedAttention，也提供 **Automatic Prefix Caching（APC）**，可复用相同 token 前缀的 KV block。是否开启、命中和收益依版本、配置及缓存压力而定；不能把「跨请求前缀复用」说成 SGLang 独有。
+vLLM offers not only PagedAttention but also **Automatic Prefix Caching (APC)** to reuse KV blocks for identical token prefixes. Enablement, hits, and benefits depend on version, configuration, and cache pressure. Cross-request prefix reuse is not exclusive to SGLang.
 
-### 20.3.2 RadixAttention：用基数树组织 KV Cache
+### 20.3.2 RadixAttention: organizing the KV cache with a radix tree
 
 ```mermaid
 flowchart TB
-    ROOT["根节点（空）"] --> SP["共享的 System Prompt<br/>1000 token —— 只存一份"]
-    SP --> U1["用户 A 的问题"]
-    SP --> U2["用户 B 的问题"]
-    SP --> U3["用户 C 的问题"]
+    ROOT["Root: empty"] --> SP["Shared system prompt<br/>1000 tokens — stored once"]
+    SP --> U1["User A's question"]
+    SP --> U2["User B's question"]
+    SP --> U3["User C's question"]
 
     style SP fill:#e6f4ea
 ```
 
-**多个请求可复用相同的 token 前缀路径，在第一个不同 token 处分叉**。Radix tree 的一条边可压缩存储一段 token，不必一个 token 对应树的一层。
+**Requests reuse the same token-prefix path and branch at the first differing token**. A radix-tree edge can compactly represent a sequence of tokens; a separate tree level per token is unnecessary.
 
-> 前缀树可让共享部分只保留一份；实际节省由前缀重合、驱逐策略和并发共同决定。
+> A prefix tree can retain one copy of the shared portion. Actual savings depend on prefix overlap, eviction policy, and concurrency.
 
-### 20.3.3 自动复用历史请求
+### 20.3.3 Automatically reusing earlier requests
 
-若相同前缀的 KV block 尚未被逐出，后来的请求可复用它们；缓存驻留时长和首 token 延迟收益都由部署配置与负载决定。
+Later requests can reuse KV blocks for an identical prefix while those blocks remain unevicted. Cache residency and TTFT benefits both depend on deployment settings and load.
 
-SGLang 的 RadixAttention 对高前缀复用工作负载尤其值得评估；vLLM APC、SGLang 与其他运行时都应在同一模型、硬件、并发和 trace 下比较。
+SGLang's RadixAttention is particularly worth evaluating for workloads with high prefix reuse. Compare vLLM APC, SGLang, and other runtimes using the same model, hardware, concurrency, and trace.
 
-无共享前缀时，只能说前缀缓存这一项不能带来收益；其他 kernel、调度和模型实现仍可能产生差异。SGLang 与 vLLM 可以作为同一服务的候选运行时，既不是必须一起部署的互补组件，也没有脱离负载的固定排序。
+With no shared prefixes, prefix caching itself provides no benefit; other kernels, scheduling policies, and model implementations can still differ. SGLang and vLLM can be alternative runtimes for the same service. They are not necessarily complementary components that must be deployed together, nor do they have a fixed ranking independent of workload.
 
-## 20.4 TGI：处于维护模式的 HuggingFace 服务方案
+## 20.4 TGI: Hugging Face serving in maintenance mode
 
-Hugging Face 已在官方文档中声明 TGI 进入**维护模式**：接受小型修复、文档和轻量维护工作，并推荐后续评估 vLLM、SGLang 或本地兼容运行时。现有 TGI 用户仍应按自身版本的支持矩阵维护部署；维护模式不等于既有服务立即不可用。
+Hugging Face's official documentation states that TGI is in **maintenance mode**, accepting minor fixes, documentation, and lightweight maintenance, and recommends evaluating vLLM, SGLang, or compatible local runtimes going forward. Existing TGI users should continue to maintain deployments against their version's support matrix; maintenance mode does not make a running service immediately unusable.
 
-| 维度 | 说明 |
+| Dimension | Details |
 |---|---|
-| **生态集成** | 可通过 HF Hub 模型 ID 加载支持的模型；需核对架构、权重格式、量化配置、tokenizer 和 chat template |
-| **服务与观测** | HTTP 服务与 SSE 流式输出、Prometheus 指标、OpenTelemetry tracing；内部组件的 gRPC 通信不等于通用的外部双协议 API |
-| **能力** | 提供连续批处理、量化和 SSE 流式输出；新项目需将维护状态和目标模型支持纳入选型 |
+| **Ecosystem integration** | Load supported models by HF Hub ID; verify architecture, weight format, quantization configuration, tokenizer, and chat template |
+| **Serving and observability** | HTTP serving, SSE streaming, Prometheus metrics, and OpenTelemetry tracing; internal gRPC communication does not imply a general external dual-protocol API |
+| **Capabilities** | Continuous batching, quantization, and SSE streaming; new projects must include maintenance status and target-model support in their decision |
 
-既有部署应评估继续维护与迁移成本。HF Hub 集成和指标能力不是 TGI 独有，新项目不应只因为模型来自 Hub 就选 TGI。鉴权、JWT、配额、TLS 和审计需要分别确认运行时与网关的职责，不能用「企业级」一词概括为开箱即用。
+Existing deployments should compare ongoing maintenance with migration costs. HF Hub integration and metrics are not exclusive to TGI, and a new project should not choose it just because its model is on the Hub. Confirm the runtime and gateway responsibilities for authentication, JWT, quotas, TLS, and auditing separately; “enterprise-grade” does not mean all are provided out of the box.
 
-## 20.5 llama.cpp：CPU / 边缘设备的常用方案
+## 20.5 llama.cpp: a common choice for CPUs and edge devices
 
-使用 C/C++ 实现轻量推理栈，支持 CPU、Metal、CUDA 等后端及 CPU/GPU 混合执行，常用于本地、Apple Silicon 和边缘场景；并非只支持 CPU。
+llama.cpp is a lightweight C/C++ inference stack supporting CPU, Metal, CUDA, and other backends, plus hybrid CPU/GPU execution. It is commonly used locally, on Apple Silicon, and at the edge—not only on CPUs.
 
-这类设备的内存、带宽、功耗与部署环境差异很大，轻量依赖和多后端支持比单一服务器 GPU 的最优吞吐更重要。
+Memory, bandwidth, power, and deployment environments differ widely on these devices. Lightweight dependencies and multiple backends can matter more than maximizing throughput on one server GPU.
 
-### 20.5.1 三个关键技术
+### 20.5.1 Three key technologies
 
-**① GGUF 文件格式**
+**① The GGUF file format**
 
-把张量及 tokenizer 等元数据存入 GGUF，也可分片存储。常见量化预设：
+GGUF stores tensors and metadata such as tokenizer information, and can use sharded files. Common quantization presets include:
 
-| 档位 | 说明 |
+| Preset | Description |
 |---|---|
-| Q8_0 | 8-bit，通常比更低比特格式保留更多质量 |
-| Q5_K_M | 以 5-bit 为主的混合量化预设，实际平均位宽包含元数据和不同张量格式 |
-| **Q4_K_M** | 以 4-bit 为主的混合量化预设，不表示文件中每个参数恰好占 4 bit |
-| Q3_K_S | 3-bit，极端压缩，精度有损 |
+| Q8_0 | 8-bit; usually retains more quality than lower-bit formats |
+| Q5_K_M | A mostly 5-bit mixed-quantization preset; actual average bit width includes metadata and different tensor formats |
+| **Q4_K_M** | A mostly 4-bit mixed-quantization preset, not exactly 4 bits for every parameter in the file |
+| Q3_K_S | 3-bit, aggressive compression with quality loss |
 
-> **再强调一次：GGUF 是文件格式不是量化算法**（见 [第十五章](15-quantization.md)）。
+> **GGUF is a file format, not a quantization algorithm**; see [Chapter 15](15-quantization.md).
 
-**② SIMD 优化**
+**② SIMD optimization**
 
-针对 AVX2、AVX512、ARM NEON 等指令集提供优化 kernel。CPU 与 GPU 的速度比较高度依赖模型、量化、内存带宽和批量大小，不应使用固定比例。
+Optimized kernels target instruction sets such as AVX2, AVX512, and ARM NEON. CPU/GPU speed comparisons depend heavily on model, quantization, memory bandwidth, and batch size; no fixed ratio applies.
 
-**③ Metal 后端（Apple Silicon）**
+**③ The Metal backend on Apple Silicon**
 
-Metal 可利用 Apple GPU；统一内存减少部分 CPU/GPU 间显式复制，但不消除带宽限制。能否运行 70B 要结合量化、可用内存、KV 与系统预留判断，不能用「统一内存」承诺速度。
+Metal uses the Apple GPU. Unified memory avoids some explicit CPU/GPU copies but does not eliminate bandwidth limits. Whether a 70B model can run depends on quantization, available memory, KV state, and system reserves. Unified memory alone promises no particular speed.
 
-### 20.5.2 适用边界
+### 20.5.2 Suitable uses and their limits
 
-| 常见用途 | 需要额外验证 |
+| Common use | Additional validation needed |
 |---|---|
-| 本地或嵌入式推理 | 高并发时的排队、KV 容量和目标设备吞吐 |
-| Mac 上使用 Metal | 模型格式、量化与硬件带宽 |
-| 资源受限的 CPU/GPU 混合运行 | offload 与跨设备传输的延迟代价 |
-| 离线或隐私敏感场景 | 核查模型下载、遥测、日志与外部工具调用；本地推理本身不保证整个应用的数据都不出设备 |
+| Local or embedded inference | Queuing, KV capacity, and target-device throughput at high concurrency |
+| Metal on a Mac | Model format, quantization, and hardware bandwidth |
+| Resource-constrained hybrid CPU/GPU execution | Latency from offload and cross-device transfers |
+| Offline or privacy-sensitive applications | Check model downloads, telemetry, logs, and external tool calls; local inference alone does not keep all application data on-device |
 
-官方 `llama-server` 已列出多用户并行解码和 continuous batching，也提供多 GPU 分配选项。因此「不支持 batch」「不能多卡」都不准确。分布式规模和运维能力仍要按具体版本验证，不能从支持某个选项推成适合所有集群。
+The official `llama-server` documents multi-user parallel decoding and continuous batching, along with multi-GPU allocation options. Claims that it cannot batch or use multiple GPUs are therefore inaccurate. Distributed scale and operational capabilities still need version-specific validation; an available option does not prove suitability for every cluster.
 
-## 20.6 TensorRT-LLM：针对 NVIDIA 的推理栈
+## 20.6 TensorRT-LLM: an NVIDIA-focused inference stack
 
-TensorRT-LLM 针对 NVIDIA GPU 的 kernel、运行时与服务调度进行优化。要区分传统 TensorRT engine 路线与 PyTorch backend / 高层 LLM API，不能继续概括成「所有模型都必须先手动编译 engine」。
+TensorRT-LLM optimizes kernels, runtime execution, and serving schedules for NVIDIA GPUs. Distinguish its traditional TensorRT engine workflow from the PyTorch backend and high-level LLM API. It is no longer accurate to say that every model requires a manually compiled engine first.
 
-| 特点 | 代价 |
+| Feature | Cost or constraint |
 |---|---|
-| 提供针对硬件和模型的 kernel、量化及并行优化 | 需核对 CUDA、GPU、模型、精度与后端支持矩阵 |
-| 集成 NVIDIA 自家内核库 | **只支持 NVIDIA GPU** |
-| 支持若干 FP8、INT4 等路径，依模型与 GPU 而异 | 硬件支持某格式不意味着所有算子和模型都支持 |
-| `trtllm-serve` 和 LLM API 可简化加载与部署 | engine 路线仍需考虑构建配置与兼容性，高层 API 也有加载和优化成本 |
+| Hardware- and model-specific kernels, quantization, and parallelism optimizations | Verify the CUDA, GPU, model, precision, and backend support matrix |
+| Integration with NVIDIA's kernel libraries | **NVIDIA GPUs only** |
+| Several FP8, INT4, and other paths, depending on model and GPU | Hardware support for a format does not mean every operator and model supports it |
+| `trtllm-serve` and the LLM API simplify loading and deployment | Engine workflows still have build and compatibility requirements; high-level APIs also incur loading and optimization costs |
 
-适合在 NVIDIA 环境中评估，不限于大集群。是否值得采用，取决于模型支持、实际 SLO 收益和团队承担的运维成本，而不是框架名称暗示的「极致性能」。
+It is worth evaluating in NVIDIA environments, not only large clusters. Adoption depends on model support, measured SLO benefits, and operational costs the team can sustain—not on an assumption of maximum performance implied by the name.
 
-## 20.7 怎样按工作负载筛选运行时？
+## 20.7 How should a workload guide runtime selection?
 
-先用模型、硬件和维护要求排除不支持的组合，再用真实请求比较满足 SLO 的吞吐。下面是候选方向，不是性能排名：
+First eliminate unsupported combinations using model, hardware, and maintenance requirements. Then compare SLO-compliant throughput on real requests. The following are candidate directions, not performance rankings:
 
-| 框架 | 可重点评估的机制 | 常见评估场景与限制 |
+| Framework | Mechanisms to evaluate | Common evaluation scenarios and limits |
 |---|---|---|
-| **vLLM** | PagedAttention、连续批处理、APC | 高吞吐 LLM API 与重复前缀工作负载 |
-| **SGLang** | RadixAttention 与服务调度 | Agent、多轮、Few-shot；高前缀复用时尤其值得评估 |
-| **TGI** | HF 服务生态 | 既有部署维护与迁移；已进入维护模式 |
-| **llama.cpp** | C/C++ 多后端推理与 GGUF | CPU、Mac、边缘；性能受具体设备约束 |
-| **TensorRT-LLM** | NVIDIA 运行时优化 | NVIDIA 环境；按后端和模型支持矩阵选型 |
+| **vLLM** | PagedAttention, continuous batching, APC | High-throughput LLM APIs and repeated-prefix workloads |
+| **SGLang** | RadixAttention and serving schedules | Agents, multi-turn conversations, and few-shot prompts; especially worth evaluating with high prefix reuse |
+| **TGI** | HF serving ecosystem | Maintaining and migrating existing deployments; now in maintenance mode |
+| **llama.cpp** | C/C++ multi-backend inference and GGUF | CPUs, Macs, and edge devices; performance is device-dependent |
+| **TensorRT-LLM** | NVIDIA runtime optimizations | NVIDIA environments; select against backend and model support matrices |
 
-这些运行时都提供公开实现，但生态归属或活跃程度不能替代目标版本的支持矩阵；最终性能仍需在相同硬件、质量和负载下测量。
+All these runtimes have public implementations, but ecosystem affiliation or activity level cannot replace the support matrix for the target version. Measure performance with the same hardware, quality, and load.
 
-### 20.7.1 四个常见误用
+### 20.7.1 Four common mistakes
 
-| 误用 | 后果 | 正确做法 |
+| Mistake | Consequence | Better approach |
 |---|---|---|
-| **认为 vLLM 没有前缀复用** | 忽略 APC，导致错误的架构判断 | 查目标版本 APC 配置，并用真实 trace 比较 vLLM 与 SGLang |
-| **把 llama.cpp 当成没有批处理的 CPU 工具** | 漏掉 GPU 后端与服务器能力 | 用目标设备和并发压测，而非按标签排除 |
-| **新部署忽略 TGI 维护模式** | 新模型或功能支持不符合预期 | 比较维护成本和替代运行时，保留迁移与回退方案 |
-| **假设 TensorRT-LLM 必须手工构建 engine** | 错估 POC 与维护成本 | 明确使用的后端、LLM API 或 engine 工作流 |
+| **Assuming vLLM has no prefix reuse** | Overlooking APC leads to an incorrect architectural judgment | Check target-version APC settings and compare vLLM and SGLang with real traces |
+| **Treating llama.cpp as a CPU tool without batching** | Missing GPU backends and server capabilities | Load-test the target device and concurrency instead of excluding it by label |
+| **Ignoring TGI maintenance mode for a new deployment** | New-model or feature support may fall short of expectations | Compare maintenance costs and alternatives, retaining migration and fallback plans |
+| **Assuming TensorRT-LLM requires manual engine building** | Misestimating proof-of-concept and maintenance costs | Specify the backend, LLM API, or engine workflow being used |
 
-## 20.8 三大隐藏陷阱
+## 20.8 Three less obvious pitfalls
 
-### 20.8.1 分页没有解决所有容量问题
+### 20.8.1 Paging does not solve every capacity problem
 
-固定块分配主要缓解外部碎片和过度预留；每条序列可能留下未填满的尾块。长上下文还会真实增加 KV 容量，不能把所有 OOM 都叫「碎片」。
+Fixed-block allocation mainly reduces external fragmentation and over-reservation. Each sequence may leave a partly empty final block. Long contexts also genuinely require more KV storage; not every OOM is fragmentation.
 
-**应对**：分别监控活动 KV 块、缓存驻留、预留池、抢占/重算、GPU 峰值和排队延迟。再结合 trace 调整上下文限制、batch token 预算与并发；不要把总显存利用率等同于有效工作量。
+**Response**: monitor active KV blocks, cache residency, reserved pools, preemption/recomputation, peak GPU memory, and queuing latency separately. Use traces to adjust context limits, batch-token budgets, and concurrency. Total memory utilization is not the same as useful work.
 
-### 20.8.2 KV Cache 量化的支持差异大
+### 20.8.2 KV cache quantization support varies widely
 
-权重量化很多框架都支持，**但 KV Cache 量化的支持差异很大，而且版本迭代很快**。
+Many frameworks support weight quantization, **but KV cache quantization support differs considerably and changes rapidly between versions**.
 
-> **如果你的瓶颈是长上下文 KV Cache 显存，选型前一定要查当前版本文档，别只听别人说「支持」。**
+> **If long-context KV memory is your bottleneck, check current version documentation before choosing a runtime. A generic claim of “support” is not enough.**
 
-### 20.8.3 MoE 模型的部署支持差异
+### 20.8.3 MoE deployment support differs
 
-跨设备 MoE 部署需检查专家并行与 dispatch/combine 通信（见[第十九章](19-moe.md)）；单设备 MoE 不一定需要跨卡 All-to-All：
+Cross-device MoE deployment requires checking expert parallelism and dispatch/combine communication; see [Chapter 19](19-moe.md). Single-device MoE does not necessarily require cross-GPU All-to-All:
 
-- 目标模型的具体路由、共享专家与 attention 结构是否支持；
-- 量化格式、专家并行拓扑、通信后端能否一起使用；
-- 热点专家、offload 与 batch 变化下的实际性能。
+- Is the target model's exact routing, shared-expert, and attention structure supported?
+- Can the quantization format, expert-parallel topology, and communication backend be used together?
+- What happens to performance with hot experts, offload, and changing batches?
 
-没有「TensorRT-LLM 支持最好」或「llama.cpp 性能一般」的跨模型结论；功能能运行与符合服务 SLO 是两项不同验证。
+There is no cross-model verdict that TensorRT-LLM always has the best support or llama.cpp has mediocre performance. Functional execution and compliance with serving SLOs are separate validations.
 
-## 20.9 如何设计能用于选型的压测
+## 20.9 Designing load tests that support a selection decision
 
-### 20.9.1 先统一条件
+### 20.9.1 Standardize the conditions first
 
-固定模型/tokenizer 修订、chat template、量化精度、输入输出长度分布、采样、硬件拓扑与实际并发。记录框架版本、attention 后端、batch token 预算、KV 配置和是否开启推测解码，不能把不同质量或不同输出长度的结果直接排榜。
+Fix model/tokenizer revisions, chat template, quantization precision, input/output length distributions, sampling, hardware topology, and actual concurrency. Record framework version, attention backend, batch-token budget, KV settings, and speculative-decoding status. Do not rank results obtained at different quality levels or output lengths as though they were directly comparable.
 
-### 20.9.2 分清延迟与吞吐指标
+### 20.9.2 Separate latency and throughput metrics
 
-| 指标 | 含义与读法 |
+| Metric | Meaning and interpretation |
 |---|---|
-| TTFT | 从发出请求到第一个输出 token；需说明是否含网络、排队和 prefill |
-| ITL | 相邻输出 token 的时间间隔；可反映流式输出卡顿 |
-| TPOT | 常按首 token 后耗时除以其余输出 token 数计算；均值会掩盖停顿 |
-| 端到端延迟 | 完整请求耗时，受输出长度显著影响 |
-| 输出 tokens/s | 总输出吞吐，与单用户生成速度不是同一个数 |
-| SLO goodput | 在 TTFT、ITL/TPOT 等约束内完成的有效请求或 token 吞吐 |
+| TTFT | Time from sending a request to its first output token; specify whether network, queuing, and prefill are included |
+| ITL | Time between adjacent output tokens; reveals streaming stalls |
+| TPOT | Commonly elapsed time after the first token divided by remaining output tokens; the mean can hide pauses |
+| End-to-end latency | Time for the complete request, strongly affected by output length |
+| Output tokens/s | Aggregate output throughput, not the same as one user's generation speed |
+| SLO goodput | Useful request or token throughput completed within TTFT, ITL/TPOT, and other constraints |
 
-### 20.9.3 覆盖真实到达流量与缓存状态
+### 20.9.3 Cover real arrival patterns and cache states
 
-只固定并发的闭环压测，会在服务变慢时自动降低请求到达率，可能掩盖过载排队。还应使用带到达时间的 trace 或开放式负载，覆盖冷/热缓存、长短混合输入输出、多租户和突发流量，并报告 p50/p95/p99 与失败率。
+A closed-loop test at fixed concurrency automatically lowers its arrival rate when the service slows down, potentially hiding overload-induced queues. Also use timestamped traces or open-loop loads, covering cold/warm caches, mixed short/long inputs and outputs, multiple tenants, and bursts. Report p50/p95/p99 and failure rates.
 
-### 20.9.4 为什么优化可能让另一项指标变差
+### 20.9.4 Why one optimization can worsen another metric
 
-增加 batch 往往提高吞吐，但可能增大 TTFT 和 ITL；保留更多前缀能减少重算，却可能挤压活动 KV；分离 prefill/decode 可以减少干扰，却会增加 KV 传输。需要沿 SLO 约束寻找可接受配置，而不是最大化一个离线 tokens/s 数字。
+Larger batches often raise throughput but may increase TTFT and ITL. Retaining more prefixes reduces recomputation but may displace active KV state. Prefill/decode disaggregation reduces interference but adds KV transfers. Find acceptable configurations within SLO constraints rather than maximizing one offline tokens/s figure.
 
-### 20.9.5 从实验走向上线还缺什么
+### 20.9.5 What is still needed between an experiment and production?
 
-验证取消与超时能否释放资源、过载限流与背压、模型加载就绪探针、多副本路由、租户配额及版本回滚。API “OpenAI-compatible” 通常只覆盖部分接口语义，还要测试流式结束、工具调用、错误码和 usage 字段，而不是仅测请求返回 200。
+Verify resource release on cancellation and timeout, overload rate limiting and backpressure, model readiness probes, multi-replica routing, tenant quotas, and version rollback. An “OpenAI-compatible” API usually covers only part of the interface semantics. Test stream termination, tool calls, error codes, and usage fields—not just whether a request returns 200.
 
-## 20.10 本章总结
+## 20.10 Chapter summary
 
-1. **部署框架解决三大痛点**：KV Cache 显存碎片、批量调度低效、共享前缀重复计算；
-2. **vLLM 的 PagedAttention 借鉴操作系统虚拟内存**，Block Table 映射逻辑到物理；APC 可自动复用匹配前缀的 KV block；
-3. **Continuous Batching 让请求异步进出**，可改善长度不均工作负载的利用率；
-4. **SGLang 的 RadixAttention 用基数树共享前缀**，高前缀复用时可减少缓存和 prefill 重算；
-5. **vLLM APC 与 SGLang 都应按实际 trace 评估**，不存在脱离版本与负载的固定胜负；
-6. **TGI 已进入维护模式**；新项目需优先检查目标模型与运行时的当前支持；
-7. **llama.cpp 是 C/C++ 多后端推理栈 + GGUF**，包含连续批处理与多 GPU 选项；适用规模应实测；
-8. **TensorRT-LLM 针对 NVIDIA 硬件优化**，应区分 PyTorch/LLM API 与 engine 工作流；并非都要手工预编译；
-9. **三大隐藏陷阱**：长上下文仍有碎片与调度开销、KV Cache 量化支持差异大、MoE 部署复杂度通常高于 Dense。
+1. **Serving frameworks address three major pain points**: KV memory fragmentation, inefficient batch scheduling, and redundant shared-prefix computation.
+2. **vLLM's PagedAttention borrows from operating-system virtual memory**, using block tables for logical-to-physical mapping; APC reuses KV blocks for matching prefixes.
+3. **Continuous batching allows requests to enter and leave asynchronously**, improving utilization for workloads with uneven lengths.
+4. **SGLang's RadixAttention shares prefixes through a radix tree**, reducing cache storage and prefill recomputation when reuse is high.
+5. **Evaluate vLLM APC and SGLang with actual traces**; there is no fixed winner independent of versions and workloads.
+6. **TGI is in maintenance mode**. New projects should first check current target-model and runtime support.
+7. **llama.cpp combines a C/C++ multi-backend inference stack with GGUF**, including continuous batching and multi-GPU options. Measure its suitable operating scale.
+8. **TensorRT-LLM optimizes for NVIDIA hardware**. Distinguish PyTorch/LLM API workflows from engine workflows; manual precompilation is not always required.
+9. **Three less obvious pitfalls**: long contexts still incur fragmentation and scheduling overhead, KV quantization support varies, and MoE deployment is usually more complex than dense deployment.
 
 
-## 参考资料
+## References
 
-- [Efficient Memory Management for Large Language Model Serving with PagedAttention（vLLM）](https://arxiv.org/abs/2309.06180)
-- [SGLang: Efficient Execution of Structured Language Model Programs（RadixAttention）](https://arxiv.org/abs/2312.07104)
-- [Orca: A Distributed Serving System for Transformer-Based Generative Models（Continuous Batching）](https://www.usenix.org/conference/osdi22/presentation/yu)
-- [vLLM 文档](https://docs.vllm.ai/)
+- [Efficient Memory Management for Large Language Model Serving with PagedAttention (vLLM)](https://arxiv.org/abs/2309.06180)
+- [SGLang: Efficient Execution of Structured Language Model Programs (RadixAttention)](https://arxiv.org/abs/2312.07104)
+- [Orca: A Distributed Serving System for Transformer-Based Generative Models (continuous batching)](https://www.usenix.org/conference/osdi22/presentation/yu)
+- [vLLM documentation](https://docs.vllm.ai/)
 - [vLLM: Automatic Prefix Caching](https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/)
-- [SGLang 仓库](https://github.com/sgl-project/sglang)
-- [Text Generation Inference 仓库](https://github.com/huggingface/text-generation-inference)
-- [TGI 官方文档（维护模式说明，2026-09-15 核对）](https://huggingface.co/docs/text-generation-inference/main/en/index)
-- [llama.cpp 仓库](https://github.com/ggml-org/llama.cpp)
-- [TensorRT-LLM 仓库](https://github.com/NVIDIA/TensorRT-LLM)
-- [llama.cpp：HTTP Server 能力与参数](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)
-- [TensorRT-LLM：Quick Start](https://nvidia.github.io/TensorRT-LLM/quick-start-guide.html)
-- [vLLM：Chunked Prefill 与配置调优](https://docs.vllm.ai/en/stable/configuration/optimization/)
-- [vLLM：Disaggregated Prefilling](https://docs.vllm.ai/en/stable/features/disagg_prefill/)
-- [TGI：组件与 HTTP/gRPC 边界](https://huggingface.co/docs/text-generation-inference/main/en/architecture)
-- [TensorRT-LLM：LLM API 与 PyTorch backend](https://github.com/NVIDIA/TensorRT-LLM/blob/main/docs/source/llm-api/index.md)
+- [SGLang repository](https://github.com/sgl-project/sglang)
+- [Text Generation Inference repository](https://github.com/huggingface/text-generation-inference)
+- [TGI official documentation: maintenance-mode notice, checked in the source manuscript on 2026-09-15](https://huggingface.co/docs/text-generation-inference/main/en/index)
+- [llama.cpp repository](https://github.com/ggml-org/llama.cpp)
+- [TensorRT-LLM repository](https://github.com/NVIDIA/TensorRT-LLM)
+- [llama.cpp: HTTP server capabilities and parameters](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)
+- [TensorRT-LLM: Quick Start](https://nvidia.github.io/TensorRT-LLM/quick-start-guide.html)
+- [vLLM: Chunked Prefill and configuration tuning](https://docs.vllm.ai/en/stable/configuration/optimization/)
+- [vLLM: Disaggregated Prefilling](https://docs.vllm.ai/en/stable/features/disagg_prefill/)
+- [TGI: components and HTTP/gRPC boundaries](https://huggingface.co/docs/text-generation-inference/main/en/architecture)
+- [TensorRT-LLM: LLM API and PyTorch backend](https://github.com/NVIDIA/TensorRT-LLM/blob/main/docs/source/llm-api/index.md)

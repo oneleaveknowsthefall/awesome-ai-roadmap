@@ -1,17 +1,17 @@
 ---
-description: 理解 Agent Skills 开放文件格式、渐进加载与宿主执行权限，并厘清它与 MCP 和函数调用的组合关系。
+description: Understand the Agent Skills open file format, progressive disclosure, and host execution permissions, and how Skills combine with MCP and function calling.
 ---
 
-# Tools · 技能与流程知识
+# Tools · Skills and Procedural Knowledge
 
-理解 Skill 的渐进加载、与 MCP 的边界及三类能力的组合。
+Learn how Skills load progressively, where their responsibilities differ from MCP, and how Skills, MCP, and function calling work together.
 
-按 [Agent Skills 官方格式](https://agentskills.io/specification)阅读；触发命令、目录发现、工具许可等产品行为须另查宿主文档。Skill 中的脚本仍需要执行环境，流程指令也不是强制状态机或权限控制。
+These chapters follow the [official Agent Skills format](https://agentskills.io/specification). Consult the host's documentation separately for product behavior such as activation commands, directory discovery, and tool permissions. Scripts within Skills still need an execution environment, and procedural instructions are not an enforced state machine or an authorization mechanism.
 
-## 章节
+## Chapters
 
-1. [第八章：Skill 是什么](08-what-is-skill.md)
-2. [第九章：Skill 与 MCP 的区别](09-skill-vs-mcp.md)
-3. [第十章：Function Calling、MCP、Skill 三者关系](10-fc-skill-mcp.md)
+1. [Chapter 8: What Is a Skill?](08-what-is-skill.md)
+2. [Chapter 9: Skills and MCP](09-skill-vs-mcp.md)
+3. [Chapter 10: How Function Calling, MCP, and Skills Fit Together](10-fc-skill-mcp.md)
 
-返回 [Tools 相关知识点](../README.md)。
+Back to [Tools](../README.md).

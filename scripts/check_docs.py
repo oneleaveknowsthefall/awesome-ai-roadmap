@@ -1,32 +1,37 @@
 #!/usr/bin/env python3
+"""Validate both editions while counting each logical knowledge chapter once."""
 
-import glob
+import argparse
 import json
-import os
+from pathlib import Path
 import re
 import string
 import sys
 from collections import defaultdict
+from urllib.parse import unquote, urlsplit
+
+from build_book import BookError, segments
+from check_translations import (
+    CONFIG, TranslationError, content_problems, headings, inventory, load_config,
+    source_name, translation_name,
+)
+from markdown_links import MarkdownLinkError, is_language_switch, labeled_link_destinations, markup_url
 
 
 issues: list[str] = []
-chapter_files = sorted(glob.glob("docs/**/[0-9][0-9]-*.md", recursive=True))
+TOPICS = ("llm", "multimodal", "tools", "agent", "rag", "frameworks", "engineering", "safety", "fde")
 
 
 def report(path: str, message: str) -> None:
     issues.append(f"{path}: {message}")
 
 
-def prose_without_code(text: str) -> str:
-    lines: list[str] = []
-    in_code = False
-    for line in text.splitlines():
-        if line.strip().startswith("```"):
-            in_code = not in_code
-            continue
-        if not in_code:
-            lines.append(line)
-    return "\n".join(lines)
+def prose_without_code(text: str, path="<markdown>") -> str:
+    return "".join(
+        content if not protected or re.match(r"^ {0,3}\$", content) else
+        re.sub(r"[^\n]", " ", content)
+        for protected, content in segments(text, path)
+    )
 
 
 def check_math(path: str, prose: str) -> None:
@@ -50,7 +55,8 @@ def check_math(path: str, prose: str) -> None:
         if re.search(r"\n[ \t]*\n", expression):
             report(path, "blank line can split a display-math block in GitHub Markdown")
     for expression in display + inline:
-        # GitHub parses Markdown escapes before passing this TeX to its renderer.
+        for macro in re.findall(r"\\(operatorname|boxed|text)\b", expression):
+            report(path, f"unsupported LaTeX macro: \\{macro}")
         for escaped in sorted(set(re.findall(r"\\([^A-Za-z0-9\s])", expression))):
             if escaped in string.punctuation:
                 report(path, f"Markdown-sensitive math escape: \\{escaped}; use a letter command")
@@ -68,138 +74,134 @@ def check_math(path: str, prose: str) -> None:
             report(path, "unbalanced braces in math")
 
 
-for path in chapter_files:
-    text = open(path, encoding="utf-8").read()
-    prose = prose_without_code(text)
-    headings = [line for line in prose.splitlines() if line.startswith("# ")]
-    if len(headings) != 1:
-        report(path, f"expected one H1, found {len(headings)}")
-    if text.count("```") % 2:
-        report(path, "unpaired fenced code block")
-    if prose.count("$$") % 2:
-        report(path, "unpaired display-math delimiter")
-    for macro in re.findall(r"\\(operatorname|boxed|text)\b", prose):
-        report(path, f"unsupported LaTeX macro: \\{macro}")
-
-    chapter = int(os.path.basename(path).split("-", 1)[0])
-    h2 = [
-        line for line in prose.splitlines()
-        if re.match(r"^## \d+\.\d+ ", line)
-    ]
-    section_numbers = [
-        int(re.match(r"^## \d+\.(\d+) ", line).group(1)) for line in h2
-    ]
+def check_chapter(path, text):
+    chapter = int(Path(path).name.split("-", 1)[0])
+    items = headings(text, path)
+    h2 = [title for level, title in items if level == 2 and re.match(r"^\d+\.\d+ ", title)]
+    section_numbers = [int(re.match(r"^\d+\.(\d+) ", title)[1]) for title in h2]
     if section_numbers != list(range(1, len(section_numbers) + 1)):
         report(path, f"non-contiguous H2 sections: {section_numbers}")
-    for line in h2:
-        if not line.startswith(f"## {chapter}."):
-            report(path, f"H2 chapter number mismatch: {line}")
-
-    h3_by_parent: dict[int, list[int]] = defaultdict(list)
-    for line in prose.splitlines():
-        match = re.match(r"^### (\d+)\.(\d+)\.(\d+) ", line)
+    for title in h2:
+        if not title.startswith(f"{chapter}."):
+            report(path, f"H2 chapter number mismatch: {title}")
+    h3_by_parent = defaultdict(list)
+    for level, title in items:
+        match = re.match(r"^(\d+)\.(\d+)\.(\d+) ", title) if level == 3 else None
         if not match:
             continue
         h3_chapter, parent, subsection = map(int, match.groups())
         if h3_chapter != chapter:
-            report(path, f"H3 chapter number mismatch: {line}")
+            report(path, f"H3 chapter number mismatch: {title}")
+        if parent not in section_numbers:
+            report(path, f"H3 has no H2 parent: {title}")
         h3_by_parent[parent].append(subsection)
     for parent, subsections in h3_by_parent.items():
-        expected = list(range(1, len(subsections) + 1))
-        if subsections != expected:
+        if subsections != list(range(1, len(subsections) + 1)):
             report(path, f"non-contiguous H3 sections under {chapter}.{parent}: {subsections}")
 
 
-markdown_files = ["README.md", "CONTRIBUTING.md"] + glob.glob(
-    "docs/**/*.md", recursive=True
-)
-link_pattern = re.compile(r"\]\(([^)#]+\.md)(?:#[^)]+)?\)")
-for path in markdown_files:
-    text = open(path, encoding="utf-8").read()
-    check_math(path, prose_without_code(text))
-    for target in link_pattern.findall(text):
-        if "://" in target:
+def check_links(root, path, text, sources):
+    targets = set()
+    for url, label in labeled_link_destinations(text, path):
+        decoded_url, _ = markup_url(url)
+        parsed = urlsplit(decoded_url)
+        if parsed.scheme or parsed.netloc or not parsed.path:
             continue
-        resolved = os.path.normpath(os.path.join(os.path.dirname(path), target))
-        if not os.path.exists(resolved):
-            report(path, f"missing internal link target: {target}")
-
-
-root_readme = open("README.md", encoding="utf-8").read()
-docs_readme = open("docs/README.md", encoding="utf-8").read()
-topic_names = {
-    "llm": "LLM",
-    "multimodal": "多模态 AI",
-    "tools": "Tools",
-    "agent": "Agent",
-    "rag": "RAG",
-    "frameworks": "框架与编排",
-    "engineering": "AI Engineering",
-    "safety": "AI 安全与治理",
-    "fde": "FDE",
-}
-for topic, display_name in topic_names.items():
-    count = len(glob.glob(
-        f"docs/{topic}/**/[0-9][0-9]-*.md", recursive=True
-    ))
-    topic_readme = open(f"docs/{topic}/README.md", encoding="utf-8").read()
-    top_module_dirs = sorted(
-        path for path in glob.glob(f"docs/{topic}/[0-9][0-9]-*")
-        if os.path.isdir(path)
-    )
-    listed_modules = len(re.findall(
-        r"^\d+\. \[[^\]]+\]\(\d{2}-[^/]+/README\.md\)",
-        topic_readme,
-        re.MULTILINE,
-    ))
-    if listed_modules != len(top_module_dirs):
-        report(
-            f"docs/{topic}/README.md",
-            f"lists {listed_modules} modules but directory has {len(top_module_dirs)}",
-        )
-    module_dirs = sorted(
-        path for path in glob.glob(
-            f"docs/{topic}/**/[0-9][0-9]-*", recursive=True
-        )
-        if os.path.isdir(path)
-    )
-    for module in module_dirs:
-        module_readme_path = os.path.join(module, "README.md")
-        if not os.path.exists(module_readme_path):
-            report(module, "missing module README.md")
+        decoded = unquote(parsed.path)
+        if not decoded.endswith(".md"):
             continue
-        module_readme = open(module_readme_path, encoding="utf-8").read()
-        parent_readme_path = os.path.join(os.path.dirname(module), "README.md")
-        parent_readme = open(parent_readme_path, encoding="utf-8").read()
-        module_link = f"({os.path.basename(module)}/README.md)"
-        if module_link not in parent_readme:
-            report(parent_readme_path, f"missing module link: {module_link}")
-        for chapter_path in glob.glob(os.path.join(module, "[0-9][0-9]-*.md")):
-            chapter_link = f"({os.path.basename(chapter_path)})"
-            if chapter_link not in module_readme:
-                report(module_readme_path, f"missing chapter link: {chapter_link}")
-    if not re.search(rf"docs/{topic}/.*\|\s*{count} 章\s*\|", root_readme):
-        report("README.md", f"{topic} chapter count is not {count}")
-    if not re.search(rf"\|\s*{display_name}.*\|\s*{count}\s*\|", docs_readme):
-        report("docs/README.md", f"{topic} chapter count is not {count}")
+        base = root if decoded.startswith("/") else (root / path).parent
+        target = (base / decoded.lstrip("/")).resolve()
+        if not target.is_relative_to(root):
+            report(path, f"internal link escapes repository: {url}")
+            continue
+        logical = target.relative_to(root).as_posix()
+        targets.add(logical)
+        if not target.is_file():
+            report(path, f"missing internal link target: {url}")
+        if source_name(logical) in sources:
+            if (path.endswith(".zh.md") != logical.endswith(".zh.md") and
+                    not is_language_switch(path, logical, label)):
+                report(path, f"cross-language internal link: {url}")
+    return targets
 
-mkdocs_config = open("mkdocs.yml", encoding="utf-8").read()
-for path in glob.glob("docs/**/*.md", recursive=True):
-    nav_path = os.path.relpath(path, "docs")
-    if nav_path not in mkdocs_config:
-        report("mkdocs.yml", f"missing page from navigation: {nav_path}")
 
-review_files = sorted(glob.glob("book/reviews/*.json"))
-if os.path.exists("book/zh-CN/manifest.json") and not review_files:
-    report("book/reviews", "book manuscript requires chapter review records")
-if review_files:
-    reviewed: dict[str, str] = {}
-    chapter_set = set(chapter_files)
-    for path in review_files:
+def check_indexes(root, texts, links, chapters):
+    for chinese_edition in (False, True):
+        localized = translation_name if chinese_edition else lambda value: value
+        root_name, docs_name = localized("README.md"), localized("docs/README.md")
+        for topic in TOPICS:
+            topic_path = root / "docs" / topic
+            if not topic_path.is_dir():
+                report(f"docs/{topic}", "missing topic directory")
+                continue
+            count = sum(name.startswith(f"docs/{topic}/") for name in chapters)
+            topic_name = localized(f"docs/{topic}/README.md")
+            if topic_name not in texts:
+                report(topic_name, "missing topic README")
+            top_modules = sorted(p for p in topic_path.glob("[0-9][0-9]-*") if p.is_dir())
+            listed_modules = re.findall(
+                r"^\d+\. \[[^\]]+\]\((\d{2}-[^/]+/README(?:\.zh)?\.md)\)",
+                texts.get(topic_name, ""), re.M,
+            )
+            expected_modules = {
+                localized(f"{module.name}/README.md") for module in top_modules
+            }
+            if set(listed_modules) != expected_modules or len(listed_modules) != len(expected_modules):
+                report(topic_name, f"module list differs from directories: expected {len(expected_modules)} modules")
+            for module in sorted(p for p in topic_path.rglob("[0-9][0-9]-*") if p.is_dir()):
+                module_path = module.relative_to(root).as_posix()
+                module_name = localized(f"{module_path}/README.md")
+                parent_name = localized(f"{module.parent.relative_to(root).as_posix()}/README.md")
+                if module_name not in texts:
+                    report(module_name, "missing module README")
+                if module_name not in links.get(parent_name, set()):
+                    report(parent_name, f"missing module link: {module_name}")
+                for chapter in chapters:
+                    if Path(chapter).parent.as_posix() == module_path:
+                        if localized(chapter) not in links.get(module_name, set()):
+                            report(module_name, f"missing chapter link: {localized(chapter)}")
+            for index, target in (
+                (root_name, localized(f"docs/{topic}/README.md")),
+                (docs_name, localized(f"{topic}/README.md")),
+            ):
+                rows = [line for line in texts.get(index, "").splitlines()
+                        if line.startswith("|") and f"]({target})" in line]
+                if len(rows) != 1 or not re.search(
+                    rf"\|\s*{count}(?:\s*(?:章|chapters?))?\s*\|", rows[0], re.I
+                ):
+                    report(index, f"{topic} chapter count is not {count}")
+
+
+def valid_review_note(note):
+    if isinstance(note, str):
+        return bool(note.strip())
+    if not isinstance(note, dict) or not isinstance(note.get("check"), str) or not note["check"].strip():
+        return False
+    if "result" in note and not isinstance(note["result"], str):
+        return False
+    if "source_urls" in note and (
+        not isinstance(note["source_urls"], list) or
+        not all(isinstance(url, str) and url.strip() for url in note["source_urls"])
+    ):
+        return False
+    return True
+
+
+def check_historical_reviews(root, chapters):
+    """Review paths are logical IDs of the original Chinese manuscript, not English reviews."""
+    files = sorted((root / "book/reviews").glob("*.json"))
+    if (root / "book/zh-CN/manifest.json").exists() and not files:
+        report("book/reviews", "book manuscript requires chapter review records")
+    if not files:
+        return
+    reviewed = {}
+    chapter_set = set(chapters)
+    for file in files:
+        path = file.relative_to(root).as_posix()
         try:
-            with open(path, encoding="utf-8") as source:
-                review = json.load(source)
-        except (OSError, json.JSONDecodeError) as error:
+            review = json.loads(file.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
             report(path, f"cannot read chapter review: {error}")
             continue
         if not isinstance(review, dict) or not isinstance(review.get("chapters"), list):
@@ -220,15 +222,62 @@ if review_files:
             if not isinstance(entry.get("summary"), str) or not entry["summary"].strip():
                 report(path, f"missing review rationale: {chapter_path}")
             checks = entry.get("technical_checks")
-            if not isinstance(checks, list) or not checks:
+            if not isinstance(checks, list) or not checks or not all(
+                valid_review_note(note) for note in checks
+            ):
                 report(path, f"missing technical review notes: {chapter_path}")
     for chapter_path in sorted(chapter_set - reviewed.keys()):
-        report(chapter_path, "missing chapter review record")
+        report(chapter_path, "missing chapter review record (historical Chinese manuscript)")
 
 
-if issues:
-    print("\n".join(issues))
-    print(f"\nchapters={len(chapter_files)} issues={len(issues)}")
-    sys.exit(1)
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=Path.cwd())
+    parser.add_argument("--config", default=CONFIG)
+    args = parser.parse_args(argv)
+    root = args.root.resolve()
+    issues.clear()
+    try:
+        config = load_config(root, args.config)
+        sources, chapters, problems = inventory(root, config)
+        issues.extend(problems)
+        issues.extend(content_problems(root, sources))
+        texts, links = {}, {}
+        for source in sources:
+            for name in (source, translation_name(source)):
+                if not (root / name).is_file():
+                    continue
+                try:
+                    text = (root / name).read_text(encoding="utf-8")
+                    texts[name] = text
+                    check_math(name, prose_without_code(text, name))
+                    links[name] = check_links(root, name, text, set(sources))
+                    if source in chapters:
+                        check_chapter(name, text)
+                except (OSError, UnicodeError, ValueError) as error:
+                    report(name, str(error))
+        check_indexes(root, texts, links, chapters)
+        mkdocs = (root / "mkdocs.yml").read_text(encoding="utf-8")
+        nav = re.split(r"^nav:\s*$", mkdocs, maxsplit=1, flags=re.M)
+        if len(nav) != 2:
+            report("mkdocs.yml", "missing navigation")
+        else:
+            for source in sources:
+                if not source.startswith("docs/"):
+                    continue
+                path = source.removeprefix("docs/")
+                if not re.search(r"(?:^|\s)[\"']?" + re.escape(path) +
+                                 r"[\"']?\s*(?:#.*)?$", nav[1], re.M):
+                    report("mkdocs.yml", f"missing page from navigation: {path}")
+        check_historical_reviews(root, chapters)
+    except (TranslationError, BookError, MarkdownLinkError, OSError, UnicodeError) as error:
+        report("documentation", str(error))
+        chapters = []
+    if issues:
+        print("\n".join(issues))
+    print(f"chapters={len(chapters)} per_language={len(chapters)} languages=en,zh-CN issues={len(issues)}")
+    return int(bool(issues))
 
-print(f"chapters={len(chapter_files)} issues=0")
+
+if __name__ == "__main__":
+    sys.exit(main())

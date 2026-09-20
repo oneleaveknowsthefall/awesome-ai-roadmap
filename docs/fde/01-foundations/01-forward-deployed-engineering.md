@@ -1,427 +1,427 @@
 ---
-description: "FDE 怎样从客户的一句话做到上线交付：结合产品协作、一线工程分享和订单异常助手案例，讲清需求取舍、评测、权限、试点与成本。"
+description: "How FDE turns a customer's initial request into a production delivery, through product collaboration, field reports, and an order-exception assistant covering evaluation, permissions, pilots, and costs."
 ---
 
-# 第一章：Forward Deployed Engineering：从业务问题到可复用生产系统
+# Chapter 1: Forward Deployed Engineering: From Business Problems to Reusable Production Systems
 
-客户说“想做一个 AI 助手”，往往还没想清楚要让它接手哪部分工作。工程师需要先看看用户每天怎么做事，再决定哪些地方值得改、怎么接进现有系统，以及出了错由谁处理。这是本章讨论 FDE 的起点。
+When a customer says, "We want an AI assistant," they often have not decided which part of the work it should take over. Engineers need to observe how people work before deciding what is worth changing, how to connect it to existing systems, and who will handle failures. That is the starting point for FDE in this chapter.
 
-前半章介绍工作方法，1.10 节看公开的一线分享，1.11 节用订单异常助手把整个过程串起来。
+The first half introduces the working methods. Section 1.10 examines public accounts from practitioners, and Section 1.11 connects the full process through an order-exception assistant.
 
-## 1.1 FDE 是什么
+## 1.1 What Is FDE?
 
-Forward Deployed Engineer（FDE，前线部署工程师）通常会直接和客户一起工作：弄清需求，写代码接入客户系统，参与上线，并跟进系统是否真的解决了问题。
+A Forward Deployed Engineer (FDE) typically works directly with customers: clarifying requirements, writing code to integrate customer systems, participating in deployment, and following up on whether the system actually solves the problem.
 
-Palantir 的 Forward Deployed Software Engineer 是这一岗位的代表。理解它和平台工程的分工，可以先看各自经常面对的问题：
+Palantir's Forward Deployed Software Engineer is a well-known example of the role. To understand how it differs from platform engineering, start with the questions each commonly faces:
 
-- 平台工程师关注“一个能力服务多个客户”；
-- FDE 关注“一个客户需要组合哪些能力”。
+- A platform engineer asks, "How can one capability serve many customers?"
+- An FDE asks, "Which capabilities does this customer need us to combine?"
 
-OpenAI 等 AI 公司也有 FDE，但组织归属和职责并不完全相同。看招聘信息时，尤其要确认是否需要写生产代码、上线后负责到什么程度、现场需求怎样进入产品开发。
+AI companies such as OpenAI also employ FDEs, but their organizational placement and responsibilities differ. When reading a job description, check in particular whether the role writes production code, how much responsibility continues after launch, and how field requirements enter product development.
 
-FDE 做完一个项目，还要回答另一个问题：下次遇到类似客户，哪些东西可以直接用，哪些必须重做？
+After completing a project, an FDE must answer another question: when a similar customer comes along, what can be reused directly, and what must be rebuilt?
 
 ```mermaid
 flowchart LR
-    D["Discover<br/>发现真实问题"] --> M["Model<br/>定义任务与约束"]
-    M --> P["Prove<br/>用 Eval 验证价值"]
-    P --> I["Integrate<br/>接入数据与系统"]
-    I --> O["Operate<br/>生产运行"]
-    O --> G["Generalize<br/>沉淀可复用能力"]
-    G -.新基线.-> D
+    D["Discover<br/>Find the real problem"] --> M["Model<br/>Define tasks and constraints"]
+    M --> P["Prove<br/>Evaluate the value"]
+    P --> I["Integrate<br/>Connect data and systems"]
+    I --> O["Operate<br/>Run in production"]
+    O --> G["Generalize<br/>Extract reusable capabilities"]
+    G -.New baseline.-> D
 ```
 
-FDE 的关键不在“离客户近”，而在同时具备三种责任：
+The defining feature of FDE is not proximity to customers, but the combination of three responsibilities:
 
-1. **结果责任**：成功标准是业务或任务结果，而不是完成一份方案；
-2. **工程责任**：必要时直接修改和交付生产代码，而不是只提出建议；
-3. **产品化责任**：把一次交付中验证过的模式提炼为平台能力、模板或工具。
+1. **Responsibility for outcomes:** success means a business or task result, not a completed proposal.
+2. **Engineering responsibility:** when necessary, directly changing and delivering production code rather than merely recommending changes.
+3. **Responsibility for productization:** turning patterns validated in a delivery into platform capabilities, templates, or tools.
 
-## 1.2 FDE 与相邻岗位的区别
+## 1.2 How FDE Differs from Adjacent Roles
 
-岗位名称会因公司而变化。下面描述的是常见重心，不代表所有组织都严格如此。
+Job titles vary by company. The descriptions below capture common emphases, not rules that every organization follows.
 
-**FDE** 以特定客户的可衡量结果为目标，主要交付客户环境中的生产系统，通常直接编写和维护代码。客户接触贯穿发现、交付和迭代，责任从问题定义延续到稳定生产；常看业务结果、采用率、可靠性和复用率。
+An **FDE** works toward measurable outcomes for a particular customer, primarily delivering production systems in that customer's environment and usually writing and maintaining code directly. Customer contact spans discovery, delivery, and iteration; responsibility runs from defining the problem to stable production operation. Common measures include business outcomes, adoption, reliability, and reuse.
 
-**解决方案架构师** 侧重可行架构与平台采用，主要产出方案、参考实现和集成建议。编码深度因组织而异，客户接触多集中于售前、设计和关键评审，所有权常在方案确认或交接后减弱；常看方案接受、项目推进和平台采用。
+A **solutions architect** focuses on viable architecture and platform adoption, primarily producing designs, reference implementations, and integration recommendations. Coding depth varies by organization. Customer contact often centers on presales, design, and key reviews, with ownership tending to diminish after design approval or handoff. Common measures include design acceptance, project progress, and platform adoption.
 
-**ML Engineer** 侧重训练、评估或部署模型能力，主要产出数据与训练流水线、模型和推理系统，深入模型与数据工程。通常间接接触客户，负责模型生命周期；常看模型质量、效率和稳定性。
+An **ML engineer** focuses on training, evaluating, or deploying model capabilities, primarily producing data and training pipelines, models, and inference systems, with deep involvement in model and data engineering. Customer contact is usually indirect, and responsibility follows the model lifecycle. Common measures include model quality, efficiency, and stability.
 
-**产品工程师** 为一类用户建设通用产品，主要交付可复用功能和平台，深入核心产品代码。通常通过 PM、研究和支持团队获得反馈，责任沿产品路线图延续；常看多客户采用、留存和产品指标。
+A **product engineer** builds a general-purpose product for a class of users, primarily delivering reusable features and platforms through work on core product code. Feedback usually arrives through product managers, research, and support teams; responsibility continues along the product roadmap. Common measures include adoption across customers, retention, and product metrics.
 
-真正的区别不是“谁更懂技术”，而是**默认优化目标不同**：
+The real distinction is not who understands technology better, but **what each role optimizes for by default**:
 
-- FDE 优先缩短特定场景从问题到结果的距离；
-- 解决方案架构师优先保证整体方案正确、可集成；
-- ML Engineer 优先提高模型和数据系统的能力边界；
-- 产品工程师优先建设可以被多个客户稳定复用的能力。
+- FDE shortens the path from a specific problem to a result.
+- Solutions architecture prioritizes a sound overall design that can be integrated.
+- ML engineering expands what model and data systems can do.
+- Product engineering builds capabilities that multiple customers can reuse reliably.
 
-成熟团队不会让这些岗位互相替代。FDE 发现并验证模式，产品与平台团队决定哪些模式进入主干产品；ML Engineer 解决模型或数据瓶颈；解决方案架构师维护跨系统架构与长期演进边界。
+Mature teams do not treat these roles as substitutes. FDE discovers and validates patterns; product and platform teams decide which belong in the main product. ML engineers address model or data bottlenecks. Solutions architects maintain the cross-system architecture and constraints on its long-term evolution.
 
-谈岗位匹配时，不必贬低售前或咨询来证明自己是 FDE。更有用的是确认这个岗位是否写生产代码、谁负责上线后的事故、客户需求如何进入产品路线图。有些团队远程交付，有些长期驻场；是否天天在客户办公室，不是工程所有权的替代指标。
+When discussing job fit, there is no need to disparage presales or consulting to establish that a role is FDE. It is more useful to ask whether it writes production code, who owns incidents after launch, and how customer requirements enter the roadmap. Some teams deliver remotely; others stay on site. Daily presence in a customer's office is not a proxy for engineering ownership.
 
-### 1.2.1 产品与设计协作
+### 1.2.1 Working with Product and Design
 
-客户现场发现的问题，不一定都要变成产品功能。产品经理、设计师和 FDE 需要一起判断：它影响哪些用户，值不值得做，以及怎样放进用户原有的工作流程。
+Not every problem discovered at a customer site should become a product feature. Product managers, designers, and FDEs need to decide together which users it affects, whether it is worth solving, and how the solution fits into their existing work.
 
-#### AI 产品经理：AI 能代劳什么，自己还要判断什么？
+#### AI Product Managers: What Can AI Do, and What Still Requires Your Judgment?
 
-AI 可以帮产品经理查资料、草拟需求、生成原型，但产出更多文档，不等于做出了更好的产品。下面先看怎样把 AI 用进产品工作，而不是把熟练使用工具当作这个岗位的全部能力。
+AI can help product managers research a topic, draft requirements, and generate prototypes. Producing more documents, however, does not mean building a better product. The discussion below concerns how to use AI in product work, rather than treating fluency with tools as the whole job.
 
-**市场分析写得很完整，就能拿来决策吗？**
+**Can a comprehensive market analysis be used directly for decisions?**
 
-不能只看报告是否像样。多个模型可以帮忙补充线索，却可能都在转述同一篇报道，并不算多份独立证据。用户量、市场规模等关键数字，要回到原始出处核对统计时间、对象和方法；找不到依据的先标为待核实，不拿来支撑产品决策。
+Do not judge a report by how convincing it looks. Several models can supply additional leads, yet all may be repeating the same article; that is not independent evidence. For important figures such as user counts and market size, return to the original source and check the measurement period, population, and method. Mark unsupported figures as unverified instead of using them to justify product decisions.
 
-**公开资料之外，还要给 AI 哪些信息？**
+**What information does AI need beyond public material?**
 
-客户为什么着急、研发已经排除了哪些方案、这版有哪些不能动的限制，往往只存在于访谈和讨论中。产品经理要把它们整理成项目能继续使用的记录，分清已确认的决定和待验证的猜测，并标注来源、负责人和更新时间。只提供当前任务需要且允许使用的信息，不是把客户资料和聊天记录全部塞进去。
+Why a customer is in a hurry, which options engineering has already ruled out, and which constraints cannot change in this release often exist only in interviews and discussions. The product manager needs to turn them into records the project can keep using, distinguishing confirmed decisions from hypotheses and recording the source, owner, and update time. Provide only the information the current task needs and is permitted to use—not every customer document and chat transcript.
 
-**AI 列出一长串功能，是不是都应该做？**
+**Should you build every feature on AI's long list?**
 
-先问每一项解决什么问题，再决定本版做什么、暂缓什么。例如，用户只需要修改一条配置，不一定要顺手增加批量编辑和复杂的结果面板；但权限检查、必要的输入校验和失败反馈，不能因为“做减法”就省掉。留下的关键设计，产品经理应能向研发解释理由，而不是收到追问后再让 AI 代答。
+First ask what problem each feature solves, then decide what belongs in this release and what can wait. If users only need to change one configuration setting, there may be no reason to add bulk editing and a complex results dashboard. Authorization checks, necessary input validation, and failure feedback, however, cannot be removed in the name of simplifying scope. The product manager should be able to explain the rationale for each important design decision to engineering, rather than asking AI for an answer only after a colleague challenges it.
 
-**原型和 PRD 怎样让下一位同事接得住？**
+**How do you make a prototype and PRD usable by the next colleague?**
 
-生成前先给出现有组件、交互规范和产品需求文档（PRD）模板，避免每次做出一套与现有产品不相容的页面。原型用来讨论流程和体验，不证明接口、权限或异常处理已经实现。
+Before generation, provide the existing components, interaction guidelines, and product requirements document (PRD) template. Otherwise, each attempt may produce pages that do not fit the current product. A prototype supports discussion of workflow and experience; it does not prove that APIs, permissions, or error handling have been implemented.
 
-PRD 要讲清本版范围、关键规则、失败时怎么办和如何验收。如果研发、测试也使用 Agent，可以从同一套需求记录生成便于人阅读的说明和便于程序处理的版本；不要手工维护两份各自修改的需求。两种呈现方式都不能省略关键约束和验收条件。
+A PRD must explain the release scope, key rules, failure behavior, and acceptance criteria. If developers and testers also use agents, the same requirements records can produce both human-readable documentation and a machine-processable representation. Do not manually maintain two independently edited sets of requirements. Neither representation may omit essential constraints or acceptance conditions.
 
-**评审结束以后，还需要持续维护什么？**
+**What still needs to be maintained after the review?**
 
-删掉功能、改用另一种实现，都要留下谁确认、为什么改和何时生效，并同步更新需求与验收用例。否则代码已经按新方案运行，下一轮 AI 分析还在沿用旧假设。会议里尚未拍板的建议，也不能直接覆盖正式要求。
+When a feature is removed or an implementation changes, record who confirmed the change, why it was made, and when it takes effect, then update the requirements and acceptance cases together. Otherwise, the code follows the new design while the next AI analysis still relies on old assumptions. Suggestions not yet approved in a meeting must not overwrite formal requirements.
 
-AI 可以对照需求检查页面和操作流程，但不能仅凭它的一句“已通过”就完成验收。工程团队核对实现与权限，产品经理和实际用户确认业务目标与体验。上线后，再把反馈、故障和延期项连回原需求，交给 AI 整理候选清单，由团队决定下一版的优先级。
+AI can compare pages and interaction flows against requirements, but its statement that something "passed" is not sufficient for acceptance. Engineering checks implementation and permissions; the product manager and actual users confirm business goals and the experience. After launch, link feedback, incidents, and deferred items back to the original requirements. AI can organize the candidate list; the team decides the next release's priorities.
 
-如果产品本身包含 AI，还要把允许出错的范围、人工接手条件和效果评测写进需求，不能只交一份界面原型。这些内容接着看本章 1.4 节的验收标准和 1.5 节的方案选型。
+If the product itself includes AI, requirements must also specify acceptable errors, conditions for human takeover, and how effectiveness will be evaluated. An interface prototype alone is not enough. Sections 1.4 and 1.5 develop these points through acceptance criteria and architecture selection.
 
-## 1.3 需求发现与问题建模
+## 1.3 Discovery and Problem Modeling
 
-FDE 最危险的起点是客户已经给出了方案，例如“我们需要一个多 Agent 平台”。这只是方案假设，不是问题定义。
+One of the riskiest starting points for FDE is a customer who has already prescribed a solution—for example, "We need a multi-agent platform." That is a solution hypothesis, not a problem definition.
 
-### 1.3.1 从业务目标还原任务
+### 1.3.1 Recover the Task Behind the Business Goal
 
-需求发现应至少回答六个问题：
+Discovery should answer at least six questions:
 
-| 问题 | 需要获得的证据 |
+| Question | Evidence needed |
 |---|---|
-| 谁在什么流程中遇到问题 | 用户访谈、流程观察、工单和操作日志 |
-| 当前流程为什么失败或昂贵 | 基线耗时、错误率、人力成本和等待时间 |
-| AI 需要完成哪个可观察任务 | 输入、输出、允许动作和停止条件 |
-| 哪些错误不可接受 | 风险分级、人工复核和回滚要求 |
-| 系统受哪些现实约束 | 数据权限、时延、成本、部署位置和法规 |
-| 价值如何被确认 | 业务 KPI、任务指标和采用指标 |
+| Who encounters the problem, and in which process? | User interviews, workflow observation, tickets, and operation logs |
+| Why does the current process fail or cost too much? | Baseline time, error rate, labor cost, and waiting time |
+| What observable task must AI complete? | Inputs, outputs, permitted actions, and stopping conditions |
+| Which errors are unacceptable? | Risk classification, human review, and rollback requirements |
+| What practical constraints apply? | Data access, latency, cost, deployment location, and regulation |
+| How will value be confirmed? | Business KPIs, task metrics, and adoption metrics |
 
-需求讨论最后应该落到一个具体任务上。例如：
+The discussion should end with a concrete task. For example:
 
-> 客服打开催单工单后，系统查清未发货的数量和原因，给出带来源的回复草稿；交期没有确认就不作承诺，邮件仍由客服审核发送。
+> When a support representative opens an order-status ticket, the system determines how many items remain unshipped and why, then produces a reply draft with sources. It makes no delivery promise without confirmation, and the representative still reviews and sends the email.
 
-### 1.3.2 建立现状基线
+### 1.3.2 Establish the Current Baseline
 
-没有基线就无法证明 AI 创造了价值。PoC 之前至少记录：
+Without a baseline, you cannot demonstrate that AI created value. Before the proof of concept (PoC), record at least:
 
-- 人工流程的完成时间、返工率和一致性；
-- 现有自动化规则的准确率、覆盖率和维护成本；
-- 典型样本、边界样本与历史事故；
-- 不同用户群和业务环境之间的分布差异。
+- Completion time, rework rate, and consistency in the manual process.
+- Accuracy, coverage, and maintenance cost of existing automation rules.
+- Typical examples, edge cases, and past incidents.
+- Distribution differences across user groups and business environments.
 
-技术拆解（technical decomposition）要一直走到数据、决策、动作和代码边界。比如“减少催单”还不是一个可交付任务；“让客服核对缺货原因并起草有证据的回复”才有明确输入、输出和停止条件。拆解的终点不是“调用一个模型”，而是可以被测量和验收的系统行为。
+Technical decomposition must continue down to data, decisions, actions, and code responsibilities. "Reduce order-status inquiries" is not yet a deliverable task. "Help support verify the cause of a stock shortage and draft an evidence-backed reply" has clear inputs, outputs, and stopping conditions. Decomposition ends with measurable, acceptable system behavior—not simply "call a model."
 
-## 1.4 用 Eval 定义验收标准
+## 1.4 Define Acceptance Criteria with Evals
 
-动手做系统前，先请业务专家拿几条实际任务说清楚：什么回答能用，什么回答必须退回。把这些判断写成测试，就是项目最初的 Eval。
+Before building the system, ask business experts to use a few real tasks to explain which answers are usable and which must be rejected. Turn those judgments into tests: these are the project's first evals.
 
-### 1.4.1 四层验收指标
+### 1.4.1 Four Levels of Acceptance Metrics
 
-| 层次 | 示例 | 作用 |
+| Level | Examples | Purpose |
 |---|---|---|
-| 任务质量 | 正确率、召回率、引用准确性、工具调用成功率 | 判断系统是否完成任务 |
-| 风险约束 | 越权操作率、敏感数据泄漏率、高风险漏检率 | 定义不能被平均分掩盖的底线 |
-| 系统性能 | P95 时延、可用性、单任务成本 | 判断能否进入真实工作流 |
-| 业务结果 | 处理时间、采用率、返工率、转化率 | 判断是否值得继续投入 |
+| Task quality | Accuracy, recall, citation accuracy, tool-call success rate | Determine whether the system completes the task |
+| Risk constraints | Unauthorized-action rate, sensitive-data leakage rate, high-risk miss rate | Define requirements that averages must not obscure |
+| System performance | P95 latency, availability, cost per task | Determine whether the system fits a real workflow |
+| Business outcomes | Handling time, adoption, rework rate, conversion rate | Determine whether further investment is worthwhile |
 
-验收不是把这些指标加权成一个总分。低成本不能抵消越权，平均正确率也不能掩盖错误承诺交期。离线阶段先判定任务质量、风险和性能是否允许试点；生产发布还要补上真实采用、业务价值和运营证据。不要在 PoC 阶段声称已经证明了最后一层。
+Acceptance is not a weighted sum of these metrics. Low cost cannot offset unauthorized actions, and average accuracy cannot conceal incorrect delivery promises. Offline evaluation first establishes whether task quality, risk, and performance justify a pilot. Production release also requires evidence of real adoption, business value, and operability. Do not claim that a PoC has already demonstrated the final level.
 
-### 1.4.2 Eval 数据集来自现场
+### 1.4.2 Build the Evaluation Dataset from Field Work
 
-Eval 集应包括：
+The evaluation set should include:
 
-1. 高频正常任务；
-2. 价值最高的关键任务；
-3. 历史错误和事故样本；
-4. 权限、注入、模糊输入等对抗样本；
-5. 新用户、新地区和新数据源导致的分布变化。
+1. Frequent, ordinary tasks.
+2. Critical tasks with the greatest value.
+3. Examples of past errors and incidents.
+4. Adversarial cases involving permissions, injection, and ambiguous inputs.
+5. Distribution shifts caused by new users, regions, and data sources.
 
-数据集必须持续扩充。上线后出现的新边界条件应进入回归集，形成“现场事件 → 标注样本 → 回归测试 → 发布门禁”的闭环。通用方法详见 [AI Engineering 第七章](../../engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md)。
+Keep expanding the dataset. New edge cases discovered after launch should enter the regression suite: a field event becomes a labeled example, then a regression test, then a release criterion. See [AI Engineering, Chapter 7](../../engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md) for the general method.
 
-还要留一份没有用于改 Prompt 的验收集。按客户、订单或时间划分，避免同一工单的改写同时出现在开发集和验收集；记录样本版本、分母、排除条件以及多次运行的波动。业务事实用源系统快照核对，副作用看最终系统状态，表达质量才交给经过人工校准的 Judge。一次“零越权”只说明这一批样本未出现越权，不代表风险为零。
+Also reserve an acceptance set that is not used to refine prompts. Split by customer, order, or time so that paraphrases of the same ticket do not appear in both development and acceptance sets. Record sample versions, denominators, exclusion criteria, and variation across repeated runs. Check business facts against source-system snapshots and side effects against final system state. Use a human-calibrated judge for expression quality. One run with "zero unauthorized actions" means only that none occurred in that sample, not that the risk is zero.
 
-这里的 Eval 指工程方法，不是某个供应商产品名。测试输入、评分器和结果格式应当可导出，避免某个平台停止服务后，连验收依据也一并丢失。
+Here, evals refer to an engineering method, not a particular vendor product. Test inputs, graders, and result formats should be exportable so that retiring a platform does not also erase the basis for acceptance.
 
-## 1.5 Agent、RAG 与 Harness 方案选型
+## 1.5 Choosing Between Agents, RAG, and Harnesses
 
-FDE 的目标不是使用最多的 AI 组件，而是选择**满足验收条件的最小系统**。
+The FDE's goal is not to use the most AI components, but to choose **the smallest system that meets the acceptance criteria**.
 
 ```mermaid
 flowchart TD
-    START["明确任务与 Eval"] --> KNOW{"需要私有或动态知识?"}
-    KNOW -->|否| CALL["单次模型调用<br/>+ 结构化输出"]
-    KNOW -->|是| RAG["RAG / 查询工具"]
-    CALL --> PATH{"步骤是否固定?"}
+    START["Define the task and evals"] --> KNOW{"Need private or<br/>changing knowledge?"}
+    KNOW -->|No| CALL["Single model call<br/>+ structured output"]
+    KNOW -->|Yes| RAG["RAG / query tools"]
+    CALL --> PATH{"Are the steps fixed?"}
     RAG --> PATH
-    PATH -->|是| FLOW["确定性 Workflow"]
-    PATH -->|否| ACTION{"是否需要自主选择动作?"}
-    ACTION -->|否| FLOW
-    ACTION -->|是| AGENT["Agent"]
+    PATH -->|Yes| FLOW["Deterministic workflow"]
+    PATH -->|No| ACTION{"Must it choose actions<br/>autonomously?"}
+    ACTION -->|No| FLOW
+    ACTION -->|Yes| AGENT["Agent"]
     FLOW --> DURABLE
-    AGENT --> DURABLE{"任务是否长时、有副作用<br/>或需要人工审批?"}
-    DURABLE -->|否| LOOP["轻量运行时<br/>Workflow 或 Agent Loop"]
-    DURABLE -->|是| HARNESS["持久化 Harness<br/>Checkpoint / 权限 / HITL"]
+    AGENT --> DURABLE{"Long-running, side-effecting,<br/>or awaiting human approval?"}
+    DURABLE -->|No| LOOP["Lightweight runtime<br/>Workflow or agent loop"]
+    DURABLE -->|Yes| HARNESS["Durable harness<br/>Checkpoints / permissions / HITL"]
 ```
 
-| 方案 | 适用条件 | 不应使用的信号 |
+| Approach | Appropriate when | Warning sign |
 |---|---|---|
-| 单次模型调用 | 输入输出明确，知识可放入上下文 | 为展示“智能”而增加循环 |
-| RAG | 答案依赖私有、动态或可引用知识 | 问题其实是权限或数据质量不足 |
-| Workflow | 步骤和分支可以预先定义 | 强行让 Agent 重新发现固定流程 |
-| Agent | 子任务和工具选择无法完全预定义 | 错误代价高但没有审批与回滚 |
-| Durable Harness | 长任务、有副作用、需恢复/审批/审计 | 短请求却引入复杂状态基础设施 |
+| Single model call | Inputs and outputs are clear; knowledge fits in context | Adding a loop merely to look "intelligent" |
+| RAG | Answers depend on private, changing, or citable knowledge | The real problem is inadequate permissions or poor data quality |
+| Workflow | Steps and branches can be defined in advance | Forcing an agent to rediscover a fixed process |
+| Agent | Subtasks and tool choices cannot be fully predefined | Errors are expensive, but approval and rollback are absent |
+| Durable harness | Tasks are long-running, have side effects, or need recovery, approval, or audit | Introducing complex state infrastructure for short requests |
 
-先做规则、单次调用或 Workflow 基线，再证明 Agent 的额外质量收益足以覆盖时延、成本和风险。库存、余额和订单状态应查实时业务接口，不宜当作静态文档切块后等待索引更新。RAG 用来找证据，Agent 用来动态选步骤，两者并不互斥。
+Start with a rules-based, single-call, or workflow baseline. Then demonstrate that the agent's additional quality gain justifies its latency, cost, and risk. Query live business APIs for inventory, balances, and order status rather than chunking them into static documents and waiting for index updates. RAG finds evidence; an agent chooses steps dynamically. They are not mutually exclusive.
 
-图中的持久化判断也适用于固定 Workflow：只要有跨天审批或业务写入，就可能需要状态存储、幂等和恢复；反过来，短请求也必须有鉴权、超时和审计。Harness 不是 Agent 框架的同义词，其运行时边界详见 [Agent Harness 第十六章](../../agent/02-runtime-harness/16-harness-definition-and-boundaries.md)。
+The durability decision in the diagram also applies to fixed workflows. Approval that spans days or business writes may require state storage, idempotency, and recovery. Conversely, short requests still need authentication and authorization, timeouts, and auditing. A harness is not synonymous with an agent framework; see [Agent Harness, Chapter 16](../../agent/02-runtime-harness/16-harness-definition-and-boundaries.md) for its runtime responsibilities.
 
-不要把早期博客里的工具清单当成今天的采购建议。Anthropic 的 [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) 已提醒读者工具环境发生变化，并指向 [Managed Agents 工程文章](https://www.anthropic.com/engineering/managed-agents)。后者将会话记录、Harness 与执行沙箱分离；可以借鉴这种故障和凭据边界，但是否采用托管服务仍要看客户的网络、数据留存、成本和迁移要求。
+Do not treat the tool lists in early blog posts as present-day procurement advice. Anthropic's [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) notes that the tooling landscape has changed and points to its [Managed Agents engineering article](https://www.anthropic.com/engineering/managed-agents). The latter separates session records, the harness, and the execution sandbox. That separation of failures and credentials is useful to study; whether to adopt a managed service still depends on the customer's networking, data retention, cost, and migration requirements.
 
-## 1.6 客户数据、权限和既有系统集成
+## 1.6 Integrating Customer Data, Permissions, and Existing Systems
 
-接客户系统时，经常先卡在模型之外：同一个字段在两个部门里意思不同，服务账号能读全库但用户不能，旧接口偶尔不返回结果，出了问题又不知道该找谁。这些事情得逐个问清楚。
+Customer integration often stalls before the model is involved: the same field means different things to two departments, a service account can read the entire database while the user cannot, a legacy API sometimes returns nothing, and no one knows whom to contact when it fails. Each issue needs a concrete answer.
 
-### 1.6.1 数据先治理，再进入模型
+### 1.6.1 Govern Data Before Sending It to the Model
 
-FDE 需要明确：
+An FDE needs to establish:
 
-- 数据由谁控制，供应商和模型提供方分别扮演什么角色；
-- 哪些字段可以进入模型上下文，保留多长时间；
-- 数据是否跨区域、跨租户或用于训练；
-- 删除、更正、审计和事故响应如何执行；
-- 检索结果是否继承原始对象的访问控制。
+- Who controls the data, and which roles the vendor and model provider play.
+- Which fields may enter model context and how long they may be retained.
+- Whether data crosses regions or tenants, or is used for training.
+- How deletion, correction, auditing, and incident response work.
+- Whether retrieved results retain the original object's access controls.
 
-“拿到 API Key 就算完成集成”是典型错误。身份应从用户、Agent、工具一直传播到目标资源，授权在数据与动作执行点再次校验。MCP/A2A 等协议层风险见 [Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md)，跨系统身份治理见 [AI 安全第七章](../../safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md)。
+"We have an API key, so integration is done" is a common mistake. Identity needs to remain traceable from the user through the agent and tool to the target resource, with authorization checked again where data is accessed and actions execute. See [Tool Protocol Security](../../tools/02-mcp/15-tool-protocol-security.md) for MCP/A2A protocol risks, and [AI Safety, Chapter 7](../../safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md) for identity governance across systems.
 
-“API 数据不用于训练”也不等于“不留存”。OpenAI 当前[数据控制文档](https://developers.openai.com/api/docs/guides/your-data)分别说明滥用监控日志和应用状态：默认滥用监控日志通常保留最多 30 天，并有文档列出的例外；ZDR 需要批准，也有端点、能力和其他适用限制。`store=false` 不是覆盖文件、向量库、第三方工具和日志的总开关。面试中应说清楚要逐项核对哪些数据流，而不是承诺“用了企业 API 就天然合规”。
+"API data is not used for training" also does not mean "no data is retained." OpenAI's [data controls documentation](https://developers.openai.com/api/docs/guides/your-data) distinguishes abuse-monitoring logs from application state. Default abuse-monitoring logs are generally retained for up to 30 days, with exceptions listed in the documentation. Zero Data Retention (ZDR) requires approval and has endpoint, capability, and other eligibility restrictions. `store=false` is not a universal switch covering files, vector stores, third-party tools, and logs. In an interview, explain which data flows must be checked individually rather than promising that using an enterprise API makes a system automatically compliant.
 
-权限也不会因为检索成功就自动继承到所有下游。检索前需要租户和资源过滤，结果进入上下文前要确认有效授权；草稿、缓存和导出同样要控制接收者。源文档撤权或删除后，索引、缓存和已存草稿怎么失效，是比“向量库支持 metadata filter”更具体的问题。
+Successful retrieval does not automatically carry permissions through every downstream step. Apply tenant and resource filters before retrieval, and confirm valid authorization before placing results in context. Drafts, caches, and exports also need recipient controls. How an index, cache, and saved drafts are invalidated when a source document is deleted or access is revoked is a more concrete question than whether a vector database supports metadata filters.
 
-### 1.6.2 用适配层隔离客户差异
+### 1.6.2 Isolate Customer Differences with Adapters
 
 ```mermaid
 flowchart LR
-    CORE["共享领域能力<br/>任务 / Eval / 策略"] --> PORT["稳定 Port<br/>检索 / 动作 / 身份"]
-    PORT --> A1["客户 A Adapter"]
-    PORT --> A2["客户 B Adapter"]
-    PORT --> A3["客户 C Adapter"]
-    A1 --> S1["CRM / ERP / 文档库"]
-    A2 --> S2["私有 API / 数据仓库"]
-    A3 --> S3["Legacy / On-prem"]
+    CORE["Shared domain capabilities<br/>Tasks / evals / policies"] --> PORT["Stable ports<br/>Retrieval / actions / identity"]
+    PORT --> A1["Customer A adapter"]
+    PORT --> A2["Customer B adapter"]
+    PORT --> A3["Customer C adapter"]
+    A1 --> S1["CRM / ERP / document store"]
+    A2 --> S2["Private APIs / data warehouse"]
+    A3 --> S3["Legacy / on-premises"]
 ```
 
-核心流程只调用约定好的接口。不同客户的字段映射、认证方式和旧接口处理放进各自的 Adapter，避免每接一家客户，就在主流程里增加一批条件分支。
+The core process calls only agreed interfaces. Put customer-specific field mappings, authentication methods, and legacy-API handling in separate adapters instead of adding another set of conditionals to the main process for every new customer.
 
-## 1.7 从 PoC 到生产的交付过程
+## 1.7 Delivering from PoC to Production
 
-PoC 证明“某些样本上可以工作”；生产系统必须证明“在权限、规模、异常和持续变化下仍可运营”。
+A PoC demonstrates that something works on selected examples. A production system must demonstrate that it remains operable under access restrictions, scale, failures, and continuous change.
 
-| 阶段 | 核心产物 | 退出条件 |
+| Stage | Main artifacts | Exit criteria |
 |---|---|---|
-| Discover | 问题陈述、现状基线、风险清单 | 业务负责人和一线用户确认问题值得解决 |
-| Prototype | 最小方案、初始 Eval、失败案例 | 在代表性样本上超过基线 |
-| Pilot | 真实用户、影子流量、人工复核 | 达到质量和风险门槛，确认实际采用 |
-| Production | SLO、观测、回滚、权限和运行手册 | 值班团队能够独立运营 |
-| Scale | 模板化部署、容量和成本模型 | 新客户/业务线无需复制整套代码 |
+| Discover | Problem statement, current baseline, risk list | Business owner and frontline users confirm the problem is worth solving |
+| Prototype | Minimal solution, initial evals, failure cases | Beats the baseline on representative examples |
+| Pilot | Real users, shadow traffic, human review | Meets quality and risk thresholds and demonstrates actual adoption |
+| Production | SLOs, observability, rollback, permissions, runbooks | On-call team can operate the system independently |
+| Scale | Templated deployment, capacity and cost models | A new customer or business unit does not require copying the entire codebase |
 
-从 Pilot 进入 Production 前必须补齐：
+Before moving from pilot to production, complete:
 
-- 数据和权限评审；
-- 离线回归与在线观测；
-- 限流、超时、重试、回退和人工接管；
-- Prompt、模型、数据和 Eval 版本绑定；
-- 灰度发布、回滚和事故响应；
-- 明确客户、FDE、平台团队和供应商的责任边界。
+- Data and access reviews.
+- Offline regression testing and production observability.
+- Rate limiting, timeouts, retries, fallback, and human takeover.
+- Linked versions of prompts, models, data, and evals.
+- Canary release, rollback, and incident response.
+- Clear allocation of responsibilities among the customer, FDE, platform team, and vendors.
 
-生产化方法详见 [AI Engineering](../../engineering/README.md)。FDE 不应长期成为人工运维代理；交付完成的标志之一，是客户和平台团队能够通过文档、自动化和观测独立运营系统。
+See [AI Engineering](../../engineering/README.md) for production practices. FDE should not become a permanent substitute for operations staff. One sign of a completed delivery is that the customer and platform team can operate the system independently using documentation, automation, and observability.
 
-## 1.8 线上问题怎样进入下一版改进
+## 1.8 Turning Production Problems into the Next Improvement
 
-用户说“不好用”还不够。要找到具体是哪张工单、哪一步出了错，再决定是改检索、接口、提示词，还是业务流程。
+"It is not useful" is not enough feedback. Find the specific ticket and the step that failed before deciding whether to change retrieval, an API, a prompt, or the business process.
 
 ```mermaid
 flowchart LR
-    EVENT["线上事件 / 用户纠正"] --> TRIAGE["去敏、归因、风险分级"]
-    TRIAGE --> EVAL["加入 Eval 与回归集"]
-    TRIAGE --> PATTERN["聚类跨客户共性"]
-    PATTERN --> DECIDE{"复用层级?"}
-    DECIDE -->|配置| TEMPLATE["模板 / Playbook"]
-    DECIDE -->|能力| PLATFORM["平台组件 / API"]
-    DECIDE -->|模型| DATA["训练或优化数据"]
-    EVAL --> RELEASE["验证并灰度发布"]
+    EVENT["Production event / user correction"] --> TRIAGE["Redact, diagnose,<br/>and classify risk"]
+    TRIAGE --> EVAL["Add eval and regression cases"]
+    TRIAGE --> PATTERN["Group patterns across customers"]
+    PATTERN --> DECIDE{"What should be reused?"}
+    DECIDE -->|Configuration| TEMPLATE["Templates / playbooks"]
+    DECIDE -->|Capability| PLATFORM["Platform components / APIs"]
+    DECIDE -->|Model| DATA["Training or optimization data"]
+    EVAL --> RELEASE["Validate and release gradually"]
     TEMPLATE --> RELEASE
     PLATFORM --> RELEASE
     DATA --> RELEASE
 ```
 
-每条反馈至少应带有：
+Each feedback item should include at least:
 
-- 场景、输入分布和客户环境；
-- 期望行为、实际行为与业务影响；
-- 根因分类：模型、检索、工具、权限、数据还是流程；
-- 是否可跨客户复现；
-- 对应的 Eval、修复版本与发布结果。
+- The scenario, input distribution, and customer environment.
+- Expected behavior, actual behavior, and business impact.
+- A root-cause category: model, retrieval, tool, permission, data, or process.
+- Whether it can be reproduced across customers.
+- The corresponding eval, fix version, and release outcome.
 
-OpenAI 用 **build → prove → generalize** 描述这类工作：先做出来，再确认有效，最后把通用部分带回产品。对下一个项目来说，能直接接上已有接口、跑一套回归测试，比拿到一份漂亮的总结更有用。
+OpenAI describes this work as **build → prove → generalize**: build it, establish that it works, then bring the reusable parts back into the product. For the next project, an interface that can be connected immediately and a regression suite that can be run are more useful than a polished retrospective.
 
-## 1.9 避免“一客一套、无法复用”
+## 1.9 Avoiding One Bespoke System per Customer
 
-FDE 模式的结构性风险是：短期为了交付速度不断加入客户特例，最终形成没有人敢升级的定制系统。
+A structural risk of FDE is continually adding customer-specific exceptions for short-term delivery speed until the result is a customized system that no one dares upgrade.
 
-### 1.9.1 建立复用阶梯
+### 1.9.1 Establish Levels of Reuse
 
-现场成果应被归入明确层级：
+Assign field deliverables to explicit levels:
 
-| 层级 | 适合内容 | 管理方式 |
+| Level | Suitable content | How to manage it |
 |---|---|---|
-| 客户配置 | 字段映射、阈值、品牌文案 | 配置文件和管理界面 |
-| Adapter | 客户系统 API、身份和数据转换 | 独立包、稳定接口、契约测试 |
-| 模板/Playbook | 可重复的行业流程和 Eval | 版本化模板，可按客户参数化 |
-| 平台能力 | 多客户重复出现的基础能力 | 产品团队接管，进入主干路线图 |
-| 临时特例 | 尚未验证的单客户需求 | 标明到期时间和移除条件 |
+| Customer configuration | Field mappings, thresholds, brand copy | Configuration files and administration interfaces |
+| Adapter | Customer-system APIs, identity, and data conversion | Separate packages, stable interfaces, contract tests |
+| Template/playbook | Repeatable industry workflows and evals | Versioned templates parameterized for each customer |
+| Platform capability | Foundational capabilities needed by multiple customers | Product-team ownership and inclusion in the main roadmap |
+| Temporary exception | Unvalidated needs from a single customer | An expiry date and removal conditions |
 
-复用不要只按代码行数或“花在复用上的工时占比”计算；复用越顺利，所花工时反而可能越少。选几个稳定的交付环节，记录第二个客户接入所需天数、共用组件覆盖的需求、升级是否需要改客户分支，以及维护工时。口径固定后才有资格比较，也要把客户规模和系统复杂度差异记下来。
+Do not measure reuse solely by lines of code or the share of hours "spent on reuse." Successful reuse may take fewer hours. Choose stable delivery activities and record the days needed to integrate a second customer, requirements covered by shared components, whether upgrades require changes to customer branches, and maintenance hours. Comparisons become meaningful only after definitions are fixed. Also record differences in customer scale and system complexity.
 
-### 1.9.2 设立产品化门槛
+### 1.9.2 Set Criteria for Productization
 
-满足以下条件时，现场能力才应进入共享平台：
+A field capability should enter the shared platform only when:
 
-1. 至少在多个独立场景中重复出现；
-2. 需求差异可以通过稳定参数或 Adapter 表达；
-3. 已有跨客户 Eval 和兼容性测试；
-4. 有负责维护的平台团队，并约定版本更新和停止支持的方式；
-5. 不会把某个客户的数据或业务规则泄漏到共享层。
+1. It has recurred in multiple independent scenarios.
+2. Stable parameters or adapters can express the differences in requirements.
+3. Cross-customer evals and compatibility tests exist.
+4. A platform team owns maintenance, with agreed versioning and end-of-support practices.
+5. Sharing it will not expose one customer's data or business rules.
 
-FDE 与产品团队需要定期评审现场模式，而不是让 FDE 直接把所有客户代码合入核心产品。详见 [框架锁定与可移植架构](../../frameworks/06-selection-portability/23-lockin-and-portable-architecture.md)。
+FDE and product teams need regular reviews of field patterns, not a policy of merging all customer code directly into the core product. See [Framework Lock-In and Portable Architecture](../../frameworks/06-selection-portability/23-lockin-and-portable-architecture.md).
 
-## 1.10 一线团队是怎么做的
+## 1.10 What Teams Do in the Field
 
-下面几份公开分享，值得看的不是用了什么模型，而是工程师在客户现场碰到了什么麻烦，又怎样调整做法。
+The value of the public accounts below is not the models they chose, but the problems engineers encountered at customer sites and how they changed their approach.
 
-### 1.10.1 Palantir：读得到数据，不等于能把它发出去
+### 1.10.1 Palantir: Permission to Read Is Not Permission to Send
 
-Palantir 的 [AIP Chatbot Studio](https://www.palantir.com/docs/foundry/chatbot-studio/overview/)把 Ontology、文档和工具接到对话里，既能查询，也能参与业务操作。接入之后，权限检查并没有结束。
+Palantir's [AIP Chatbot Studio](https://www.palantir.com/docs/foundry/chatbot-studio/overview/) connects the Ontology, documents, and tools to conversations, supporting both queries and participation in business operations. Integration does not mark the end of permission checks.
 
-它的[安全文档](https://www.palantir.com/docs/foundry/security/overview/)专门区分了不同控制方式：自主设置的行列读取权限，不会自动延伸到下游输出和导出。换成客服场景，就是客服能查看某份内部政策，不代表助手可以把整段政策发给客户。
+Its [security documentation](https://www.palantir.com/docs/foundry/security/overview/) distinguishes different control mechanisms: discretionary row- and column-level read controls do not automatically extend to downstream outputs and exports. In a support scenario, being able to view an internal policy does not mean the assistant may send the whole passage to a customer.
 
-设计这类系统时，要沿着数据走一遍：谁能查询，模型能看到哪些字段，草稿保存在哪里，最后又会发给谁。只在检索入口做一次过滤，覆盖不了后面的流转。
+Follow the data through the system: who can query it, which fields the model can see, where drafts are stored, and who will ultimately receive them. A filter at the retrieval entry point does not cover later transfers.
 
-### 1.10.2 Descript 与 Bolt：先说清楚什么叫“做对了”
+### 1.10.2 Descript and Bolt: Define What "Correct" Means First
 
-Anthropic 在 [Agent 评测文章](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)中介绍了 Descript 的做法。对视频编辑助手来说，“效果好不好”太笼统，团队把它拆成三个问题：有没有破坏原来的内容，有没有完成用户要求，完成得怎么样。早期由人评分，再逐步引入模型评分，并定期用人工检查校准。
+Anthropic's [article on agent evals](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) describes Descript's approach. For a video-editing assistant, "Is it good?" is too vague. The team separates three questions: did it damage the existing content, did it do what the user requested, and how well did it do it? Humans scored outputs initially; model grading was introduced gradually and calibrated through periodic human checks.
 
-同一篇文章里的 Bolt 用静态分析、浏览器操作和模型评分一起检查生成的应用。程序能不能运行、按钮点下去有没有反应、页面是否符合要求，本来就适合用不同方式判断。
+Bolt, discussed in the same article, combines static analysis, browser interaction, and model grading to inspect generated applications. Whether a program runs, a button responds, and a page meets the requirements are naturally suited to different assessment methods.
 
-这也解释了为什么要分开两类测试：一类专门找系统还不会做的任务，另一类守住已经做好的功能。前者允许失败，后者一旦退步就得查原因，混成一个总分反而看不出问题。
+This also explains why two kinds of tests should remain separate. One seeks tasks the system cannot yet perform; the other protects capabilities it already has. Failure is expected in the first group. Regression in the second calls for investigation. Combining them into one score obscures the distinction.
 
-### 1.10.3 Microsoft：别把一大篇回答扔给专家
+### 1.10.3 Microsoft: Do Not Hand an Expert a Wall of Text
 
-Microsoft 工程师在 [Only Believe What You Can Validate](https://devblogs.microsoft.com/all-things-azure/only-believe-what-you-can-validate/) 里讲了一个现场片段：客户选了一个较独立的 COBOL 模块，Agent 五分钟生成了超过 2,500 个英文单词的分析文档。工程师请业务专家看看对不对，得到的反馈却只是“乍看还行”。
+In [Only Believe What You Can Validate](https://devblogs.microsoft.com/all-things-azure/only-believe-what-you-can-validate/), a Microsoft engineer recounts a field experience. A customer chose a relatively isolated COBOL module, and an agent produced more than 2,500 English words of analysis in five minutes. Asked whether it was correct, the business experts could offer only "looks fine at first glance."
 
-不是专家不愿意配合。这份文档看起来完整，但要分辨哪些规则提取正确、哪些理解有误、哪些被漏掉，需要回头核对大量代码。生成只花五分钟，检查却远不止五分钟。
+The problem was not unwillingness to help. The document looked complete, but distinguishing correctly extracted rules from misinterpretations and omissions required extensive checking against the code. Generation took five minutes; validation required much longer.
 
-作者建议换一种问法：把提取出的业务规则逐条列出来，请专家分别确认或纠正。这样留下的就不只是一句“看着不错”，而是一份具体的修改清单。
+The author recommends changing the question: list the extracted business rules individually and ask experts to confirm or correct each one. The result is a concrete correction list rather than a vague expression of approval.
 
-订单助手也可以这样验收。不要问客服“这封邮件专业吗”，而是请他确认：欠货数量对不对，采购到货和客户收货有没有混淆，这句话是否擅自承诺了交期。
+The order assistant can be evaluated the same way. Instead of asking whether an email sounds professional, ask the representative to confirm whether the outstanding quantity is correct, whether purchasing arrival and customer receipt have been confused, and whether a sentence promises an unconfirmed delivery date.
 
-### 1.10.4 OpenAI：项目结束后，还要留下什么
+### 1.10.4 OpenAI: What Should Remain After the Project?
 
-[OpenAI Deployment Company](https://deploy.co/)用 **build → prove → generalize** 描述工作方式：围绕客户流程做系统，确认它有效，再把通用部分带回 SDK、评测工具或产品。
+[OpenAI Deployment Company](https://deploy.co/) describes its approach as **build → prove → generalize**: build around the customer's workflow, establish that the system works, and bring reusable parts back into SDKs, evaluation tools, or products.
 
-可以把最后一步理解成一次交接检查：这个项目写的连接器，下一个客户能不能接着用？新发现的错误，是否已经有回归测试？某个功能如果需要长期维护，有没有产品团队接手？这些事情决定了现场经验能否留在公司，而不只留在某位工程师脑子里。
+Treat the final step as a handoff review. Can the next customer reuse the connector built for this project? Do newly discovered errors have regression tests? Has a product team taken ownership of any feature that needs long-term maintenance? These decisions determine whether field knowledge remains in the company rather than only in one engineer's head.
 
-### 1.10.5 Baseten：别让客户项目变成一堆没人维护的旁支
+### 1.10.5 Baseten: Do Not Let Customer Projects Become Unmaintained Branches
 
-Baseten 的 FDE 负责人在[团队复盘](https://www.baseten.co/blog/forward-deployed-engineering/)中提到，团队成立时讨论过是否把 FDE 放进市场与销售组织，最后还是留在了工程部门。这样做增加了一些协调工作，但 FDE 可以继续深入核心代码，也更容易把客户需求做进产品。
+In a [team retrospective](https://www.baseten.co/blog/forward-deployed-engineering/), Baseten's FDE lead describes considering whether to place FDE in the go-to-market organization when the team was formed. They ultimately kept it in engineering. That added coordination work, but allowed FDEs to keep working deeply in core code and made it easier to bring customer needs into the product.
 
-招聘上，他们也调整过方向：最初很看重 ML 专家背景，后来发现软件工程基础扎实、愿意跨技术栈解决问题的人，同样能很快补上模型知识。
+They also changed their hiring approach. Initially, they emphasized ML expertise; later, they found that strong software engineers willing to solve problems across the stack could learn the model-related knowledge quickly.
 
-文章给团队设了一个目标：70% 的 FDE 构建成果应回到主产品。这里的 70% 是目标，不是已经达成的统计结果。更值得借鉴的是它背后的组织安排——客户问题解决后，FDE 仍然有时间和责任把代码整理好，而不是立刻被派去下一个项目。
+The article sets a goal that 70% of what FDE builds should return to the main product. The 70% is a target, not a measured result already achieved. The more useful lesson is the organizational arrangement behind it: after solving a customer's problem, FDEs still have time and responsibility to prepare the code for reuse rather than immediately being sent to the next project.
 
-### 1.10.6 AWS 与 INRIX：先看清楚谁在等谁
+### 1.10.6 AWS and INRIX: Find Out Who Is Waiting for Whom
 
-[AWS 与 INRIX 的交通规划案例](https://aws.amazon.com/blogs/machine-learning/how-inrix-accelerates-transportation-planning-with-amazon-bedrock/)先介绍了原来的协作过程：交通工程、城市规划、景观设计、CAD 和公共工程等角色，需要反复交换意见。团队随后用 RAG 辅助生成建议，再用图像生成展示改造后的概念效果。
+The [AWS and INRIX transportation-planning case](https://aws.amazon.com/blogs/machine-learning/how-inrix-accelerates-transportation-planning-with-amazon-bedrock/) begins with the original collaboration process. Transportation engineering, urban planning, landscape design, CAD, public works, and other roles exchange feedback repeatedly. The team then uses RAG to support recommendations and image generation to visualize proposed changes.
 
-文本建议和概念图各有用途：前者帮助找依据，后者让讨论更直观。两者都不能代替道路工程验算或正式设计审批。文章提到周期可能由数周缩短到数天，这是预期收益，不能当成已经测出的交付结果。
+Text recommendations and concept images serve different purposes: the former helps find supporting evidence, while the latter makes discussion more concrete. Neither replaces road-engineering calculations or formal design approval. The article suggests a possible reduction from weeks to days; this is an expected benefit, not a measured delivery outcome.
 
-对 FDE 来说，这个案例提醒的是：先找出流程里的等待和返工，再决定模型应该帮哪一段。生成速度快了，不代表整个项目就一定更快。
+For FDE, the lesson is to locate waiting and rework before deciding which part a model should help with. Faster generation does not necessarily make the whole project faster.
 
-### 1.10.7 X 上的现场经验：跟着用户做一遍，再决定自动化哪一步
+### 1.10.7 Field Experience on X: Follow Users Through a Task Before Automating It
 
-Varick Agents 从业者 [@vasuman 的 X 长文](https://x.com/vasuman/article/2057177266984226892)把工作分成 Audit、Evals、Deployment 三部分。最有用的建议很具体：坐到一线团队旁边，看他们怎样完成任务；挑发生得足够频繁、确实耗时的事情；接入现有数据系统，而不是为了 AI 再做一次大迁移。
+A [long-form X article by @vasuman](https://x.com/vasuman/article/2057177266984226892), a practitioner at Varick Agents, divides the work into Audit, Evals, and Deployment. Its most useful advice is concrete: sit beside the frontline team and watch how tasks are completed; choose work that occurs frequently enough and genuinely takes time; integrate existing data systems rather than undertaking another major migration for AI.
 
-上线也从小事开始。比如先让系统调查问题、起草工单，确认这部分可用后，再考虑给它修改代码或提交 PR 的权限。前一步没做好，就不急着开放下一步。
+Start deployment with limited responsibilities too. For example, first let the system investigate issues and draft tickets. Only after that works should it be considered for permission to modify code or submit pull requests. Do not expand its authority before the earlier step is reliable.
 
-原文也有不能照搬的地方。邮件、PDF 和图片混在一起，不必然需要 Agent，先解析输入再走固定流程也可能够用。评测更该看结果和关键操作是否正确，而不是要求模型复刻人的思考过程。接口能否重试，则要看会不会重复写入，不能一律失败就重试。
+Not everything in the article should be applied unchanged. A mixture of email, PDFs, and images does not necessarily require an agent; parsing the inputs and following a fixed workflow may suffice. Evaluations should focus on outcomes and important actions, not require the model to reproduce a person's thought process. Whether an API call can be retried depends on the risk of duplicate writes, not a blanket rule to retry every failure.
 
-### 1.10.8 Hamel：先翻失败记录，别急着加组件
+### 1.10.8 Hamel: Inspect Failures Before Adding Components
 
-Hamel Husain 在 [A Field Guide to Rapidly Improving AI Products](https://hamel.dev/blog/posts/field-guide/) 中写到，NurtureBoss 团队把租房助手的对话放进一个简单的查看界面，一条条记下问题，才逐渐看清预约日期、转人工和重新安排时间等常见错误。
+In [A Field Guide to Rapidly Improving AI Products](https://hamel.dev/blog/posts/field-guide/), Hamel Husain describes how NurtureBoss put conversations from its leasing assistant into a simple viewer and recorded problems one by one. This gradually exposed recurring errors involving appointment dates, human handoff, and rescheduling.
 
-这个做法不复杂，但很容易被跳过。只盯着一个总分，团队可能一直讨论该换哪个模型；把出错的对话、用户背景和工具结果放在一起，才知道究竟是哪一步出了问题。
+The practice is simple but easy to skip. A team watching only an aggregate score may keep debating which model to switch to. Looking at the failed conversation, user context, and tool results together reveals which step actually went wrong.
 
-下面的订单助手也沿用这种做法：让客服同时看到订单事实、引用的政策和草稿，直接指出哪句话不能发。比起请客服填写一张抽象的“智能程度评分表”，这样的反馈更容易变成下一版修改。
+The order assistant below follows the same approach: show support staff the order facts, cited policies, and draft together so they can point out the exact sentence that cannot be sent. Such feedback is easier to turn into the next change than an abstract "intelligence score."
 
-## 1.11 项目案例：给客服做一个订单异常助手
+## 1.11 Project Case: An Order-Exception Assistant for Customer Support
 
-> 本节是一个虚构案例，公司、人物、对话和数字均为案例设定，用来说明项目中的设计与取舍。
+> This is a fictional case. The company, people, dialogue, and numbers are scenario assumptions used to explain project design and tradeoffs.
 
-### 1.11.1 第一天，先坐到客服旁边
+### 1.11.1 On Day One, Sit Beside a Support Representative
 
-澄川是一家工业备件分销商。客户买的零件没到，就打电话或发邮件来催。客服一边查订单，一边问仓库，再回到 CRM 里回复客户。运营负责人想做一个助手：
+Chengchuan distributes industrial spare parts. When ordered parts have not arrived, customers call or email for an update. Support staff check orders, ask the warehouse, and return to the CRM to reply. The operations lead wants an assistant:
 
-> “每天都是这些催单，能不能让 AI 查一下，直接替客服回邮件？缺货的话，顺便通知采购补上。”
+> "We get these order-status inquiries every day. Could AI look them up and reply to the emails for support? If something is out of stock, it could also tell purchasing to replenish it."
 
-工程师没有马上选模型，而是请客服小陈照常处理一张工单。小陈先找到客户对应的订单，核对哪几行已发、哪几行欠货，又打开政策文档看能不能拆单。查到采购预计到货日后，他仍然给仓库发了一条消息。
+Rather than immediately selecting a model, the engineer asks Xiao Chen, a support representative, to handle a ticket as usual. Xiao Chen finds the customer's order, checks which lines have shipped and which remain outstanding, and opens the policy document to see whether partial shipment is allowed. Even after finding the purchasing team's estimated arrival date, he sends the warehouse a message.
 
-工程师问：“系统里不是已经有日期了吗，还要问仓库？”
+The engineer asks, "The system already has a date. Why ask the warehouse?"
 
-小陈说：“那是采购预计到仓库的时间，不是客户能收到的时间。有时候货到了，还要验收和分配。这个不能直接写进邮件。”
+Xiao Chen replies, "That is when purchasing expects the goods to reach the warehouse, not when the customer will receive them. Sometimes we still need to inspect and allocate the stock after it arrives. I cannot put that date straight into the email."
 
-这次旁观让需求清楚了很多。客服不只是缺一个写邮件的工具，真正费时间的是在几个系统之间查证，而且一些决定本来就要等仓库或采购确认。
+Watching this task makes the requirement much clearer. Support is not simply missing an email-writing tool. Much of the work is checking facts across systems, and some decisions still require confirmation from the warehouse or purchasing.
 
-团队和运营负责人于是把第一期定成了两件事：**查清订单异常，起草客服回复。**助手不改订单、不预留库存、不安排补货，也不自动发信。入口就放在原来的 CRM 工单旁边，小陈不用换工作台；查不清的事情，仍按原流程找人确认。
+The team and operations lead therefore limit the first release to two things: **investigate order exceptions and draft support replies.** The assistant does not modify orders, reserve inventory, arrange replenishment, or send emails automatically. Its entry point sits beside the existing CRM ticket, so Xiao Chen does not need a new workspace. Anything it cannot establish still goes to a person through the existing process.
 
-### 1.11.2 三个系统，分别接
+### 1.11.2 Connect the Three Systems Separately
 
-接下来，工程师找 ERP 负责人逐个确认字段含义，和资深客服整理正在使用的服务政策。订单和库存随时会变，走实时接口；政策是文档，才适合检索。
+Next, the engineer confirms field meanings with the ERP owner and works with experienced support staff to collect the policies currently in use. Orders and inventory change continuously, so they use live APIs. Policies are documents and are suitable for retrieval.
 
-| 要拿到的信息 | 怎么接 |
+| Information needed | Integration approach |
 |---|---|
-| 这张工单属于谁 | CRM 提供客户和处理人，服务端确认当前客服有权处理 |
-| 订单、发货、库存 | 按订单号和 SKU 查 ERP，带回查询时间与数据版本；库存数字不等于已经为客户留货 |
-| 采购预计到货日 | 保留“预计”的含义，没有值就留空，不让模型补日期 |
-| 拆单和交期政策 | 从已批准、生效且适用于该客户的文档中检索，保留版本与引用位置 |
-| 客户邮件和附件 | 只作为待处理材料，不允许其中的文字改变系统权限 |
+| Who owns the ticket | CRM supplies the customer and assigned representative; the server confirms the current representative is authorized to handle it |
+| Order, shipment, and inventory | Query ERP by order number and SKU, returning the query time and data version; an inventory count does not mean stock has been reserved for this customer |
+| Purchasing's estimated arrival date | Preserve its status as an estimate; leave missing values empty rather than letting the model invent a date |
+| Partial-shipment and delivery policies | Retrieve approved, effective documents applicable to the customer, retaining versions and citation locations |
+| Customer emails and attachments | Treat them only as material to process; their contents cannot change system permissions |
 
-小陈能看哪些客户，由他的登录身份决定，不由模型填写一个 `tenant_id` 决定。查订单和检索政策时都要检查权限；无权访问的数据，不能先交给模型再要求它保密。
+Xiao Chen's authenticated identity determines which customers he can access—not a `tenant_id` supplied by the model. Both order queries and policy retrieval must check permissions. Unauthorized data must not be handed to the model with a request to keep it secret.
 
-旧 ERP 使用服务账号，密码留在连接器里。这个账号虽然能读很多订单，连接器仍要逐次核对小陈的权限，只返回这张工单需要的字段。缓存按客户和权限范围隔离，权限撤销后失效；重新打开或保存草稿时，也要再查一次权限。
+The legacy ERP uses a service account, whose password stays inside the connector. Although the account can read many orders, the connector checks Xiao Chen's permissions on every request and returns only the fields needed for this ticket. Caches are isolated by customer and authorization scope, and invalidated when access is revoked. Opening or saving a draft requires another permission check.
 
-项目只把脱敏后的订单事实和必要政策片段发给模型，联系人、邮箱和成本价不需要参与生成。接数据前，客户还要确认模型服务的部署区域、日志、留存和删除方式。这一步没批准，就先用测试数据把接口跑通。
+The project sends only redacted order facts and necessary policy passages to the model. Contact names, email addresses, and cost prices are not needed for generation. Before connecting real data, the customer must confirm the model service's deployment region, logging, retention, and deletion practices. Until approved, the team uses test data to exercise the interfaces.
 
-### 1.11.3 第一版能写邮件，却把交期说错了
+### 1.11.3 The First Version Writes an Email but Gets the Delivery Date Wrong
 
-9 月 8 日上午，小陈打开海岚设备的工单 `T-1842`，向助手提问：
+On the morning of September 8, Xiao Chen opens Hailan Equipment's ticket `T-1842` and asks the assistant:
 
-> **客服输入：**“海岚问订单 SO-1048 为什么还有 20 件没到。今天能补发吗？帮我拟个回复。”
+> **Support input:** "Hailan asks why 20 units from order SO-1048 still have not arrived. Can we ship the rest today? Draft a reply for me."
 
-系统核对工单和订单属于同一客户后，查到了下面的记录。`unfulfilled_qty` 是尚未发出的数量，已经发出但还在途的货不算在里面。
+After confirming that the ticket and order belong to the same customer, the system retrieves the following record. `unfulfilled_qty` counts units not yet shipped; goods already shipped but still in transit are not included.
 
 ```json
 {
@@ -440,177 +440,177 @@ Hamel Husain 在 [A Field Guide to Rapidly Improving AI Products](https://hamel.
 }
 ```
 
-第一版草稿写道：
+The first draft says:
 
-> “剩余 20 件预计于 9 月 10 日送达，请您耐心等待。”
+> "The remaining 20 units are expected to arrive on September 10. Thank you for your patience."
 
-句子很通顺，小陈却不能发。系统里写的是采购预计到货，草稿把它改成了客户收到货的日期，恰好犯了第一天访谈时就提到的错误。
+The sentence reads smoothly, but Xiao Chen cannot send it. The system contains an estimated purchasing arrival date; the draft has turned it into the date the customer will receive the goods—the exact mistake identified in the first interview.
 
-团队回头检查生成输入，要求分别处理采购到货和客户交付日期：后者为空时，就明确输出“交期待确认”。同时检索适用政策：`SVC-07 v3 §2` 不允许把采购预计到货写成客户送达承诺，`§4` 要求无库存时找仓库或采购确认安排。数量关系交给代码核对，模型负责把已知事实写清楚。
+The team revisits the generation input and requires separate handling of purchasing arrival and customer delivery dates. When the latter is empty, the output must explicitly say that the delivery date needs confirmation. The team also retrieves the applicable policy: `SVC-07 v3 §2` prohibits presenting an estimated purchasing arrival as a customer delivery promise; `§4` requires checking arrangements with the warehouse or purchasing when no stock is available. Code checks the quantity relationships; the model explains the established facts.
 
-改完后，界面分成内部说明和客户草稿两部分：
+After the change, the interface separates internal notes from the customer-facing draft:
 
-> **给客服看的说明：**订单共 100 件，已发 80 件，剩余 20 件未发。目前可用库存为 0，采购预计 9 月 10 日到货，补发日期还要问仓库。数据来自 ERP 订单行 `SO-1048/L1`，版本 17，查询时间 09:59:40；对应政策为 `SVC-07 v3 §2、§4`。
+> **Internal explanation for support:** The order contains 100 units: 80 shipped and 20 not yet shipped. Available inventory is 0. Purchasing expects stock to arrive on September 10; the warehouse still needs to confirm when the remainder can ship. Source: ERP order line `SO-1048/L1`, version 17, queried at 09:59:40; applicable policy: `SVC-07 v3 §2, §4`.
 >
-> **客户回复草稿：**“您好，订单 SO-1048 已发出 80 件，剩余 20 件尚未发出。目前还不能确认今天能否补发，具体安排需要仓库确认。确认后我们会及时回复您。”
+> **Customer reply draft:** "Hello, 80 units from order SO-1048 have shipped, and 20 remain unshipped. We cannot yet confirm whether the remainder can ship today; the warehouse needs to confirm the arrangements. We will update you as soon as they are confirmed."
 >
-> **待办：**联系仓库确认补发安排。
+> **Follow-up:** Contact the warehouse to confirm shipment arrangements.
 
-小陈可以点开内部证据核对，外发草稿里则不带采购信息和内部政策。系统还要检查“已发出”有没有被改成“已收到”，以及回复里有没有无依据的日期承诺。检查没通过，就只展示查到的事实和问题，不提供可直接保存的回复。
+Xiao Chen can open the internal evidence to check it. The outgoing draft contains neither purchasing information nor internal policy text. The system also checks that "shipped" has not become "received" and that the reply contains no unsupported date promise. If those checks fail, it shows only the retrieved facts and unresolved questions, not a reply that can be saved directly.
 
-小陈审核后点击“保存草稿”，后端再确认权限、订单和政策版本没有变化，数据也没有过期，才写入 CRM。邮件仍由小陈发送。若审核期间仓库刚好发出了剩余货物，旧草稿就要刷新，不能继续说“尚未发出”。
+After reviewing the draft, Xiao Chen clicks "Save draft." Before writing to CRM, the backend rechecks permissions, verifies that order and policy versions have not changed, and confirms the data is not stale. Xiao Chen still sends the email himself. If the warehouse ships the remainder during review, the old draft must be refreshed; it can no longer say the goods have not shipped.
 
-这也决定了界面怎么做：订单事实、政策和草稿应该放在一起。小陈如果还要开三个系统重新查一遍，助手即使写得再快，也没省下多少工作。
+This also determines the interface design: order facts, policy, and draft should appear together. If Xiao Chen still has to reopen three systems and check everything again, faster writing saves little work.
 
-### 1.11.4 和客服一起验收
+### 1.11.4 Evaluate the System Together with Support
 
-团队和客服先整理 80 条工单用于开发，另外留出 200 条做验收。同一订单的不同问法不能分到两边，否则改提示词时就相当于见过考题了。每条任务都附上当时的订单数据、用户权限、政策和预期处理方式。
+The team and support staff prepare 80 tickets for development and reserve another 200 for acceptance. Different phrasings of the same order must not be split between them, or prompt development would effectively see the test questions. Each task includes the order data, user permissions, policies, and expected handling at that time.
 
-第一版的交期错误直接变成了一条检查项。客服还补了另外几类：订单号不明确时要先问清楚；客户问的是“没收到”，不能只查“有没有发”；两份政策冲突时要找负责人，不能挑一份看起来相似的来用。
+The first version's delivery-date error becomes a test case immediately. Support staff add others: ask for clarification if the order number is ambiguous; when a customer says "not received," do not check only whether the goods shipped; when two policies conflict, consult their owner rather than choosing whichever looks most similar.
 
-200 条任务分成四组，按主要测试目的归类，不重复计数：
+The 200 tasks are divided into four groups by their primary test purpose, without double-counting:
 
-| 任务 | 数量 | 进入试点前要达到什么要求 |
+| Task | Count | Requirement before the pilot |
 |---|---|---|
-| 普通催单 | 120 | 至少 114 条的数量、状态、交期措辞、引用和格式全部正确 |
-| 需要追问或找人确认 | 40 | 至少 38 条处理正确，不能遇到不确定就一律拒答 |
-| 查询无权访问的订单 | 20 | 全部阻断，连该订单是否存在也不能透露 |
-| 附件夹带恶意指令 | 20 | 忽略恶意指令，同时完成原本有权处理的任务 |
+| Ordinary order-status inquiries | 120 | At least 114 must have correct quantities, status, delivery wording, citations, and format |
+| Requests needing clarification or human confirmation | 40 | At least 38 handled correctly; uncertainty must not always trigger refusal |
+| Queries for orders the user cannot access | 20 | Block every query without even disclosing whether the order exists |
+| Attachments containing malicious instructions | 20 | Ignore the malicious instructions while completing the original authorized task |
 
-越权、泄露客户信息、擅自发信和乱承诺交期，不论发生在哪一组，都要先修好再上线。通过这批测试也不意味着以后不会出错；试点中发现的新问题还要补进回归集，涉及权限与注入的组合也要继续扩充。
+Unauthorized access, customer-data disclosure, unapproved email sending, and invented delivery promises must be fixed before launch, regardless of which group exposes them. Passing this batch does not guarantee future correctness. New pilot failures must enter regression testing, and combinations of permission and injection cases need continued expansion.
 
-系统层面另定两个目标：95% 的请求在 8 秒内返回，单次生成的平均可变成本不超过 ¥0.15。时延要包含失败和超时，费用要计入模型、检索和重试，不能只挑成功请求来算。
+The team sets two additional system targets: 95% of requests return within 8 seconds, and average variable cost per generation does not exceed ¥0.15. Latency includes failures and timeouts; cost includes the model, retrieval, and retries. Neither measure may consider only successful requests.
 
-业务目标则是把客服平均主动处理时间从 12 分钟降到 8 分钟以内。团队另抽 100 张工单记录原流程耗时，计入查询、编辑、复核和接管，不把等待仓库回信的时间混进来。试点时用同类工单对照，失败、弃用草稿和转人工都保留在统计里。这项收益要等试用后再判断，离线正确率代替不了。
+The business target is to reduce average active handling time from 12 minutes to no more than 8 minutes. The team samples another 100 tickets to time the original process, including lookup, editing, review, and takeover, but excluding time spent waiting for a warehouse reply. During the pilot, compare similar tickets and retain failures, abandoned drafts, and human handoffs in the statistics. This benefit must be assessed after use; offline accuracy is no substitute.
 
-选方案时，还要把“实时查询加固定模板”放进同一套测试。若常见问题靠模板就能做好，就不必让模型重新组织每一封邮件。
+Architecture selection also includes "live queries plus a fixed template" in the same tests. If templates already handle common questions well, a model does not need to rewrite every email.
 
-### 1.11.5 步骤固定，就用普通工作流
+### 1.11.5 When the Steps Are Fixed, Use a Regular Workflow
 
-做到这里，流程已经很清楚：确认身份和订单，查业务数据，找政策，起草，再由客服审核。找不到订单就追问，接口失败就提示暂时查不到，没必要让模型临时规划路线。
+By now, the process is clear: confirm identity and the order, query business data, find policy, draft a reply, and ask support to review it. Ask for clarification if the order cannot be identified; report temporary unavailability if an API fails. There is no need for the model to plan a route at runtime.
 
-团队采用固定工作流（Workflow）。订单查询和数量核对由代码完成，政策通过 RAG 检索，模型只生成一次回复；校验不通过，就交回客服处理。
+The team chooses a fixed workflow. Code performs order queries and quantity checks, RAG retrieves policies, and the model generates one reply. If validation fails, the task returns to support.
 
 ```mermaid
 flowchart TD
-    UI["客服打开工单"] --> AUTH["检查客户归属和权限"]
-    AUTH --> LIVE["查 ERP<br/>订单、发货、库存"]
-    AUTH --> DOC["检索当前适用的政策"]
-    LIVE --> GATE["核对数量和所需信息"]
+    UI["Support opens a ticket"] --> AUTH["Check customer ownership<br/>and permissions"]
+    AUTH --> LIVE["Query ERP<br/>Orders, shipments, inventory"]
+    AUTH --> DOC["Retrieve currently applicable policy"]
+    LIVE --> GATE["Check quantities<br/>and required information"]
     DOC --> GATE
-    GATE -->|信息齐全| DRAFT["生成并检查草稿"]
-    GATE -->|缺失或冲突| HUMAN["追问或交给客服"]
-    DRAFT -->|检查通过| REVIEW["客服审核"]
-    DRAFT -->|检查失败| HUMAN
-    REVIEW --> SAVE["再查权限和数据版本<br/>保存时防止重复写入"]
-    SAVE --> CRM["CRM 确认保存<br/>客服自行发送"]
+    GATE -->|Complete| DRAFT["Generate and validate draft"]
+    GATE -->|Missing or conflicting| HUMAN["Clarify or return to support"]
+    DRAFT -->|Pass| REVIEW["Support reviews draft"]
+    DRAFT -->|Fail| HUMAN
+    REVIEW --> SAVE["Recheck permissions and versions<br/>Prevent duplicate writes"]
+    SAVE --> CRM["CRM confirms save<br/>Support sends the email"]
 ```
 
-保存草稿不交给模型执行。小陈点击按钮后，由后端服务写 CRM，并记录“待审核、已保存、失败、状态待确认”。每次保存带一个幂等键，绑定工单、草稿内容哈希和证据版本，重复点击不能创建多份草稿。相同键带了不同内容，要拒绝处理。
+The model does not save the draft. After Xiao Chen clicks the button, a backend service writes to CRM and records the status as awaiting review, saved, failed, or confirmation pending. Each save carries an idempotency key tied to the ticket, draft-content hash, and evidence versions so that repeated clicks cannot create multiple drafts. The same key with different content must be rejected.
 
-如果写入请求超时，先查这个键对应的回执。CRM 没有可靠的去重和查询能力时，就显示“保存状态待确认”，让客服核对，不自动再写一遍。
+If the write request times out, first look up the receipt associated with that key. If CRM lacks reliable deduplication and status lookup, show "Save status awaiting confirmation" and ask support to check. Do not automatically write again.
 
-这一期没有需要多个 Agent 分头调查的任务，也不需要先建知识图谱。库存和政策更不适合靠微调记进模型。以后若要追查多个仓库、跨天等待回复，再考虑更复杂的调度和恢复机制。
+This release has no task requiring multiple agents to investigate independently, nor does it need a knowledge graph first. Fine-tuning inventory and policies into a model is even less appropriate. More complex scheduling and recovery can be considered later if tasks involve investigating several warehouses or waiting across days for replies.
 
-### 1.11.6 上线前，专门试一遍容易出事的情况
+### 1.11.6 Before Launch, Deliberately Exercise the Likely Failure Cases
 
-正常催单能跑通后，工程师和客服再逐个试下面这些情况：
+Once ordinary order-status requests work, the engineer and support team try each of the following:
 
-| 情况 | 用户应该看到什么 | 后端怎么处理 |
+| Situation | What the user should see | Backend behavior |
 |---|---|---|
-| 小陈查另一业务区的订单 | 提示无法在当前权限下处理 | 不读数据；“订单不存在”和“无权查看”使用相同外部提示，内部记下原因 |
-| 没给订单号，有好几张单符合描述 | 请小陈选一张 | 只列他有权查看的必要信息，不猜是哪一张 |
-| ERP 超时，或库存数据已超过 60 秒 | 提示暂时无法确认当前状态 | 只读查询最多重试一次，整个请求最多等 10 秒；仍失败就转人工，不拿旧库存冒充当前库存 |
-| 两份生效政策互相矛盾 | 标出冲突，找政策负责人确认 | 暂停生成回复，不按相似度高低裁定哪份有效 |
-| 附件要求把所有订单发到某个网址 | 忽略这段要求，继续原来的合法任务；材料已被污染时转人工 | 附件不能增加权限，工具也没有任意外发能力 |
-| 审核时订单从版本 17 变成 18，或客服权限被收回 | 要求刷新，或拒绝保存 | 保存前重新检查数据版本和权限 |
+| Xiao Chen queries an order from another business region | A message that the request cannot be handled with current permissions | Do not read the data; use the same external message for "order does not exist" and "not authorized," recording the actual reason internally |
+| No order number is given and several orders fit | Ask Xiao Chen to select one | List only necessary information he is permitted to view; do not guess |
+| ERP times out, or inventory data is more than 60 seconds old | A message that the current status cannot be confirmed | Retry the read-only query at most once, with a 10-second limit for the whole request; hand off if it still fails, rather than presenting stale inventory as current |
+| Two effective policies contradict each other | Highlight the conflict and ask the policy owner to confirm | Pause reply generation; similarity scores do not determine which policy is valid |
+| An attachment asks for all orders to be sent to a website | Ignore that request and continue the legitimate task; hand off if the material is contaminated | Attachments cannot add permissions, and tools cannot send arbitrary data externally |
+| The order changes from version 17 to 18 during review, or support access is revoked | Require a refresh or refuse to save | Recheck versions and permissions before saving |
 
-还有一个测试直接来自业务压力：“客户很着急，你就写今天一定能到吧。”助手仍然只能写有依据的内容。这类措辞错误不能指望 JSON 格式检查发现，需要专门的样本和客服审核。
+Another test comes directly from business pressure: "The customer is desperate—just say it will definitely arrive today." The assistant must still write only what the evidence supports. JSON-format validation cannot be expected to catch such wording errors; they require specific examples and support review.
 
-这些测试也会暴露责任分工：接口查不到找 ERP 团队，政策冲突找业务负责人，草稿乱写才回到生成逻辑。否则所有问题都会被归成“模型不够好”。
+These tests also expose who owns each problem. Query failures go to the ERP team; policy conflicts go to the business owner; fabricated draft content goes back to generation logic. Otherwise, every failure gets labeled "the model is not good enough."
 
-### 1.11.7 先给一个客服小组用
+### 1.11.7 Start with One Support Team
 
-试点先从后台对照开始：经过客户批准，让助手处理同一批工单，但不展示草稿、不写 CRM，只和客服的处理结果比较。这样可以先发现漏查、误判和措辞问题，不改变客服当前的工作。
+The pilot begins with a background comparison. With customer approval, the assistant processes the same tickets without displaying drafts or writing to CRM, and its results are compared with support's work. This catches missed checks, incorrect judgments, and wording problems without changing the current workflow.
 
-随后只给一个客服小组开放入口，在这组人负责且符合范围的工单中，按工单编号稳定选出 10% 使用助手，其余沿用原流程。每档至少观察一周，累计到 100 张助手工单后再讨论是否扩大到 30%；量不够就延长观察。
+Next, only one support team gets access. Among its eligible tickets, a stable selection based on ticket identifiers assigns 10% to the assistant; the remainder follow the original process. Observe each stage for at least a week and accumulate 100 assistant tickets before discussing expansion to 30%. If volume is insufficient, extend observation.
 
-扩大范围前，运营负责人看处理时间、返工和使用情况，技术负责人看错误和延迟，安全负责人看权限事件。任一确认的越权或无依据交期承诺，都立即停用；最近 100 次请求中超时或系统错误超过 5 次，或 P95 超过 8 秒，也先切回人工排查。样本不足时直接显示样本量，不把“暂时没数据”显示成一切正常。
+Before expanding, the operations lead reviews handling time, rework, and usage; the technical lead reviews errors and latency; the security lead reviews permission incidents. Any confirmed unauthorized access or unsupported delivery promise stops the assistant immediately. More than 5 timeouts or system errors in the latest 100 requests, or P95 latency above 8 seconds, also triggers a return to manual handling while the cause is investigated. When samples are insufficient, show the sample count rather than interpreting "no data yet" as healthy.
 
-排查时，用 `trace_id` 找到那次请求的权限判定、订单和政策版本、接口结果、模型及提示词版本，再看客服改了什么。普通日志不存完整邮件和凭据；确实需要复盘的正文单独存放，按客户约定限制访问和保留时间。
+During investigation, use `trace_id` to find the request's permission decisions, order and policy versions, API results, model and prompt versions, and then the representative's edits. Ordinary logs do not store full emails or credentials. Content genuinely needed for review is stored separately with customer-agreed access and retention limits.
 
-停用开关要同时关闭草稿入口和保存功能，原来的 CRM 流程继续可用。回退版本时，模型、提示词、连接器和配置要配套；政策索引还必须符合当前有效规则，已撤销的权限和已删除的数据也不能跟着恢复。已经发出的错误邮件，则由客服按清单联系客户纠正。
+The disable switch must turn off both draft generation access and saving, while leaving the original CRM process available. A rollback must restore compatible model, prompt, connector, and configuration versions together. The policy index must still follow currently effective rules; revoked permissions and deleted data must not be restored with an older release. Support contacts customers using a checklist to correct any erroneous email already sent.
 
-交接前，让值班同事实际操作一次停用和恢复。文档写着“支持回滚”，和换一个人真能完成回滚，是两回事。
+Before handoff, have an on-call colleague actually disable and restore the feature. Documentation saying "rollback supported" is not the same as another person being able to perform it.
 
-### 1.11.8 最后算账：省下的时间够不够抵成本
+### 1.11.8 Do the Economics: Does the Time Saved Cover the Cost?
 
-运营负责人关心的最后一个问题是：“做这套东西到底划不划算？”团队先按下面的规模做预算，试点后再用实际处理时间和使用比例更新。
+The operations lead's final question is, "Is this worth building?" The team budgets at the scale below, then updates the estimate using observed handling time and adoption after the pilot. All amounts are in Chinese yuan (CNY).
 
-| 项目 | 月度测算 |
+| Item | Monthly estimate |
 |---|---|
-| 全部催单咨询 | 10,000 次 |
-| 符合本期范围 | 40%，即 4,000 次 |
-| 进入助手流程 | 范围内的 60%，即 2,400 次 |
-| 模型、检索等可变费用 | 按 ¥0.12/次预算，共 ¥288 |
-| 固定基础设施 | ¥2,000 |
-| 运维与抽检 | 40 小时 × ¥150，共 ¥6,000 |
-| 每月新增成本 | ¥8,288 |
+| All order-status inquiries | 10,000 |
+| Eligible for this release | 40%, or 4,000 |
+| Entering the assistant workflow | 60% of eligible inquiries, or 2,400 |
+| Variable model, retrieval, and related costs | Budgeted at ¥0.12 per request, totaling ¥288 |
+| Fixed infrastructure | ¥2,000 |
+| Operations and sample review | 40 hours × ¥150, totaling ¥6,000 |
+| Additional monthly cost | ¥8,288 |
 
-如果进入助手流程的工单，平均处理时间真的从 12 分钟降到 8 分钟，包括那些生成失败和最后转人工的工单，每月才有机会省下 `2,400 × 4 ÷ 60 = 160` 小时。范围外和没有使用助手的工单不计收益，每次 ¥0.12 的费用也要用试点流量重新估算。
+Only if average handling time for tickets entering the assistant workflow really drops from 12 to 8 minutes—including failed generations and tickets ultimately handed to a person—could the team save `2,400 × 4 ÷ 60 = 160` hours per month. Ineligible tickets and tickets that do not use the assistant contribute no benefit. The ¥0.12 per-request cost also needs re-estimation from pilot traffic.
 
-按每小时 ¥120 的人力成本估算，160 小时折合 ¥19,200。不过，客服空闲下来不代表工资会少发。运营还要确认能否少排加班、减少外包，或者在业务增长时不用再招人。若每省一小时确实能少花 ¥120，就要把约 69.1 小时转成实际减少的人工费用，才能覆盖每月 ¥8,288 的新增成本。
+At an estimated labor cost of ¥120 per hour, 160 hours represents ¥19,200. But freeing up support staff does not automatically reduce payroll. Operations must establish whether it can reduce overtime or outsourcing, or avoid new hires as business grows. If every hour saved actually cuts expenditure by ¥120, approximately 69.1 hours must become real labor-cost reductions to cover the additional ¥8,288 per month.
 
-如果这 160 小时都能转成少付的人工费用，每月净节省才是 ¥10,912；一次性集成投入按 ¥120,000 计，静态回收期约 11 个月。如果只是让客服空闲了一些，却没有减少支出或增加可衡量的产出，这笔钱就不能这样算。
+Only if all 160 hours translate into reduced labor expenditure is the monthly net saving ¥10,912. With a one-time integration investment of ¥120,000, the simple payback period is about 11 months. If staff merely have more spare time without lower spending or higher measurable output, this calculation is not justified.
 
-推广前还要看小陈到底改了哪些草稿。“周四能到”被改成“待仓库确认”，可能是政策没查到，也可能是模型又混淆了日期。把这些问题分类、修复，经过授权和脱敏后补进回归测试，再留新任务做验收。
+Before wider rollout, examine which drafts Xiao Chen edits. Changing "It will arrive on Thursday" to "Awaiting warehouse confirmation" may mean the policy was not retrieved or the model confused the dates again. Classify and fix these problems, add them to regression tests after authorization and redaction, and reserve fresh tasks for acceptance.
 
-第二个客户可以复用查询接口、草稿保存逻辑和测试方法，但订单、价格、凭据和内部政策仍留在各自系统。即使接口里都叫 `available_qty`，也要重新问清是否扣除了预留库存。能复用的是已经理顺的做法，不是第一家客户的全部业务规则。
+A second customer can reuse the query interfaces, draft-saving logic, and evaluation approach, while orders, prices, credentials, and internal policies remain in the respective customer systems. Even if both interfaces use `available_qty`, ask again whether reserved inventory has already been deducted. What can be reused is the approach that has been worked out—not every business rule from the first customer.
 
-## 1.12 如果客户继续追问
+## 1.12 When the Customer Keeps Asking
 
-| 问题 | 可以怎样处理 |
+| Question | How to approach it |
 |---|---|
-| “我就是要自动发邮件，做草稿有什么用？” | 先看时间花在哪里。如果主要耗在查证，草稿已经能减少不少工作；如果收益确实依赖自动发送，再单独评估误发、承诺交期和撤回处理 |
-| “没有客户数据，怎么开始？” | 用测试数据跑通接口和异常处理，同时申请一批有代表性的授权样本。前者能检查流程，后者才能帮助判断实际效果 |
-| “正确率已经 95% 了，为什么还不能上？” | 先把剩下的错误拿出来看。漏了礼貌用语和泄露了别人的订单，不能都当作一个普通扣分项 |
-| “换个更强的模型不就行了？” | 先定位错误。订单字段理解错了、权限没检查，换模型也解决不了；确实是生成问题，再用同一批任务比较 |
-| “为什么没做多 Agent？” | 当前查询顺序和异常分支都明确，普通工作流就能表达。要增加一个 Agent，先说清它要解决现有流程里的哪个问题 |
-| “演示都挺好，客服为什么不用？” | 跟着客服再做一遍。可能入口不好找，可能草稿要重写，也可能核对来源太麻烦；这些问题不是多调几次提示词就能解决的 |
-| “另一家客户的库存字段意思不一样怎么办？” | 保留查询接口，重新做字段映射，并用该客户的订单核对。字段同名不代表业务含义相同 |
+| "I want automatic email sending. What good are drafts?" | Establish where the time goes. If fact-checking dominates, drafts may already remove substantial work. If the benefit truly depends on automatic sending, assess misdelivery, delivery promises, and correction or recall separately |
+| "How do we start without customer data?" | Use test data to exercise interfaces and error handling while requesting a representative, authorized sample. The former checks the process; the latter helps assess real effectiveness |
+| "Accuracy is already 95%. Why can't we launch?" | Inspect the remaining errors first. Missing a courtesy phrase and leaking someone else's order cannot both be treated as ordinary score deductions |
+| "Why not just use a stronger model?" | Locate the error first. Misunderstood order fields and missing permission checks will not be fixed by a model switch. If generation is genuinely the problem, compare models on the same tasks |
+| "Why didn't you use multiple agents?" | The query order and exception branches are already clear, so a regular workflow expresses them. Before adding an agent, identify the problem it would solve in that workflow |
+| "The demo looked good. Why won't support use it?" | Follow a representative through the task again. The entry point may be hard to find, drafts may need rewriting, or sources may be difficult to verify. More prompt tuning will not necessarily fix these problems |
+| "What if another customer's inventory field means something different?" | Keep the query interface, redo the field mapping, and check it against that customer's orders. Identical field names do not guarantee identical business meaning |
 
-## 1.13 回头看这个项目
+## 1.13 Looking Back at the Project
 
-订单助手最后没有变成一个自动采购平台。它保留了客服熟悉的工单入口，把分散的信息放到一起，帮客服写第一稿，遇到拿不准的交期就留下待确认事项。
+The order assistant did not become an automated procurement platform. It kept the ticket interface support staff already knew, brought scattered information together, helped write the first draft, and left uncertain delivery dates as explicit follow-up items.
 
-工程师花时间最多的地方，也不只是模型调用：要问清“到货”到底指什么，请客服指出哪句话不能发，处理旧系统超时，再确认少查几次系统究竟省了多少时间。这些工作加起来，才是一项客户能接着用的交付。
+The engineer's time went into more than model calls: clarifying what "arrival" meant, asking support which sentence could not be sent, handling legacy-system timeouts, and establishing how much time fewer system lookups actually saved. Together, these activities produced something the customer could keep using.
 
-## 1.14 参考资料
+## 1.14 References
 
-原资料整理日期：2026-09-08。当时 Palantir 的三篇 Medium / 工程博客链接返回 403，保留作延伸阅读，正文不依赖其中的项目细节；OpenAI Gov 招聘链接仅作为岗位入口。
+The original source collection was compiled on 2026-09-08. At that time, three Palantir Medium/engineering-blog links returned 403; they remain further reading, and the chapter does not rely on their project details. The OpenAI Gov job link is only a role entry point.
 
-2026-09-15 复核了正文涉及的 Evals 退役、API 数据控制，以及 Microsoft、Baseten、AWS/INRIX 的具体案例表述。OpenAI 的公告仍列明：Evals 平台将于 2026-10-31 转为只读，并计划于 2026-11-30 关闭仪表盘和 API。旧指南中的评测方法与托管平台操作需分开使用；这不代表开源评测方法失效。
+The Evals retirement schedule, API data controls, and the specific Microsoft, Baseten, and AWS/INRIX case descriptions were rechecked on 2026-09-15. OpenAI's notice still listed existing evals becoming read-only on 2026-10-31 and the dashboard and API scheduled to shut down on 2026-11-30. Evaluation methods in older guides should be distinguished from instructions for the hosted platform; this does not invalidate open-source evaluation methods.
 
-- [Palantir：Dev versus Delta——工程角色的区别](https://medium.com/palantir/dev-versus-delta-demystifying-engineering-roles-at-palantir-ad44c2a6e87)
-- [Palantir：A Day in the Life of a Forward Deployed Software Engineer](https://medium.com/palantir/a-day-in-the-life-of-a-palantir-forward-deployed-software-engineer-45ef2de257b1)
-- [Palantir：AIP Chatbot Studio 概览](https://www.palantir.com/docs/foundry/chatbot-studio/overview/)
-- [Palantir：Security and governance](https://www.palantir.com/docs/foundry/security/overview/)
-- [OpenAI Deployment Company：Build, Prove, Generalize](https://deploy.co/)
-- [OpenAI：Forward Deployed Engineer, Gov](https://jobs.ashbyhq.com/openai/db5a708d-1d7a-4aa3-8dd3-0d0423b6b69f)
-- [OpenAI：Evaluation best practices（方法与托管平台需区分）](https://developers.openai.com/api/docs/guides/evaluation-best-practices)
-- [OpenAI：Deprecations（含 Evals 平台时间表）](https://developers.openai.com/api/docs/deprecations)
-- [OpenAI：Production best practices](https://developers.openai.com/api/docs/guides/production-best-practices)
-- [OpenAI：Data controls](https://developers.openai.com/api/docs/guides/your-data)
-- [Anthropic：Building Effective AI Agents](https://www.anthropic.com/engineering/building-effective-agents)
-- [Anthropic：How we built Claude Managed Agents](https://www.anthropic.com/engineering/managed-agents)
-- [Palantir：Securing Software at the Speed of AI（官方工程案例，2026）](https://blog.palantir.com/securing-software-at-the-speed-of-ai-0b1d7ddd2bf0)
-- [Anthropic：Demystifying evals for AI agents（官方工程文章）](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
-- [Microsoft：Only Believe What You Can Validate（客户现场工程分享，2026）](https://devblogs.microsoft.com/all-things-azure/only-believe-what-you-can-validate/)
-- [Baseten：Forward Deployed Engineering on the Frontier of AI（官方团队实践，2025）](https://www.baseten.co/blog/forward-deployed-engineering/)
-- [AWS 与 INRIX：交通规划 PoC 实践（客户与厂商共同撰写，2025）](https://aws.amazon.com/blogs/machine-learning/how-inrix-accelerates-transportation-planning-with-amazon-bedrock/)
-- [@vasuman：Forward Deployed Engineering 101（X 一线从业者长文）](https://x.com/vasuman/article/2057177266984226892)
-- [Hamel Husain：A Field Guide to Rapidly Improving AI Products](https://hamel.dev/blog/posts/field-guide/)
-- [Varick Agents：Careers](https://www.varickagents.com/careers)
-- [run_maotui：产品工作中的 AI 协作分享](https://x.com/run_maotui/status/2100157320944881776)（1.2.1 节的参考：调研核实、需求取舍、PRD 交接与项目决策维护；查阅于 2026-09-17）
+- [Palantir: Dev versus Delta—Demystifying Engineering Roles at Palantir](https://medium.com/palantir/dev-versus-delta-demystifying-engineering-roles-at-palantir-ad44c2a6e87)
+- [Palantir: A Day in the Life of a Forward Deployed Software Engineer](https://medium.com/palantir/a-day-in-the-life-of-a-palantir-forward-deployed-software-engineer-45ef2de257b1)
+- [Palantir: AIP Chatbot Studio Overview](https://www.palantir.com/docs/foundry/chatbot-studio/overview/)
+- [Palantir: Security and Governance](https://www.palantir.com/docs/foundry/security/overview/)
+- [OpenAI Deployment Company: Build, Prove, Generalize](https://deploy.co/)
+- [OpenAI: Forward Deployed Engineer, Gov](https://jobs.ashbyhq.com/openai/db5a708d-1d7a-4aa3-8dd3-0d0423b6b69f)
+- [OpenAI: Evaluation Best Practices—Distinguish Methods from the Hosted Platform](https://developers.openai.com/api/docs/guides/evaluation-best-practices)
+- [OpenAI: Deprecations, Including the Evals Platform Schedule](https://developers.openai.com/api/docs/deprecations)
+- [OpenAI: Production Best Practices](https://developers.openai.com/api/docs/guides/production-best-practices)
+- [OpenAI: Data Controls](https://developers.openai.com/api/docs/guides/your-data)
+- [Anthropic: Building Effective AI Agents](https://www.anthropic.com/engineering/building-effective-agents)
+- [Anthropic: How We Built Claude Managed Agents](https://www.anthropic.com/engineering/managed-agents)
+- [Palantir: Securing Software at the Speed of AI—Official Engineering Case, 2026](https://blog.palantir.com/securing-software-at-the-speed-of-ai-0b1d7ddd2bf0)
+- [Anthropic: Demystifying Evals for AI Agents—Official Engineering Article](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)
+- [Microsoft: Only Believe What You Can Validate—Customer Field Engineering Account, 2026](https://devblogs.microsoft.com/all-things-azure/only-believe-what-you-can-validate/)
+- [Baseten: Forward Deployed Engineering on the Frontier of AI—Official Team Practices, 2025](https://www.baseten.co/blog/forward-deployed-engineering/)
+- [AWS and INRIX: Transportation-Planning PoC—Coauthored by Customer and Vendor, 2025](https://aws.amazon.com/blogs/machine-learning/how-inrix-accelerates-transportation-planning-with-amazon-bedrock/)
+- [@vasuman: Forward Deployed Engineering 101—Practitioner's Long-Form Article on X](https://x.com/vasuman/article/2057177266984226892)
+- [Hamel Husain: A Field Guide to Rapidly Improving AI Products](https://hamel.dev/blog/posts/field-guide/)
+- [Varick Agents: Careers](https://www.varickagents.com/careers)
+- [run_maotui: Working with AI in Product Management](https://x.com/run_maotui/status/2100157320944881776) (reference for Section 1.2.1: verifying research, choosing requirements, handing off PRDs, and maintaining project decisions; accessed 2026-09-17)
 
-返回 [FDE 模块目录](README.md)。
+Back to the [FDE module index](README.md).

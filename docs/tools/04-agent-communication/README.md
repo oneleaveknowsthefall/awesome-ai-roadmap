@@ -1,15 +1,15 @@
 ---
-description: 以 A2A v1.0.1 发布规范理解 Agent Card、任务状态、协议绑定及跨系统委托的可靠性边界。
+description: Use the A2A v1.0.1 release specification to understand Agent Cards, task states, protocol bindings, and the reliability limits of cross-system delegation.
 ---
 
-# Tools · 智能体通信
+# Tools · Agent Communication
 
-讲解 A2A 的发现、任务状态机、协议绑定与跨系统协作。
+This module covers A2A discovery, the task state machine, protocol bindings, and collaboration across systems.
 
-本模块按 [v1.0.1 发布规范](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)核查，线上版本为 `1.0`；不要把旧版 `message/stream` 方法或旧 Agent Card 字段混入 1.0 示例。A2A 定义协作接口，不保证多 Agent 比单 Agent 更好。
+The module follows the [v1.0.1 release specification](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md), whose wire-level version is `1.0`. Do not mix the older `message/stream` method or old Agent Card fields into 1.0 examples. A2A defines a collaboration interface; it does not guarantee that multiple agents outperform a single agent.
 
-## 章节
+## Chapters
 
-1. [第十一章：A2A 协议](11-a2a-protocol.md)
+1. [Chapter 11: The A2A Protocol](11-a2a-protocol.md)
 
-返回 [Tools 相关知识点](../README.md)。
+Return to [Tools](../README.md).

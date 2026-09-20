@@ -1,10 +1,10 @@
-# 评测、治理与保障
+# Evaluation, Governance, and Assurance
 
-覆盖组织级的安全评测、红队方法论、自动化工具链与持续保障流程,以及 AI 治理、风险分级、审计与内容出处等制度化能力。单个应用场景的 ASR/Utility 评测原则见 [Agent 安全](../../agent/05-production/15-agent-security.md) 与 [RAG 安全](../../rag/06-operations-security/20-rag-challenges-security.md),本模块将其扩展为组织级流程,不重复展开单点评测方法。
+This module covers organization-wide security evaluation, red-teaming methodology, automated toolchains, and continuous assurance, along with institutional practices for AI governance, risk classification, auditing, and content provenance. For application-level principles of evaluating ASR and utility, see [Agent Security](../../agent/05-production/15-agent-security.md) and [RAG Security](../../rag/06-operations-security/20-rag-challenges-security.md). This module extends those principles into organizational processes rather than repeating evaluation methods for individual applications.
 
-## 章节
+## Chapters
 
-1. [第九章：安全评测、红队与持续保障](09-security-evaluation-red-teaming-continuous-assurance.md)
-2. [第十章：AI 治理、风险分级、审计与内容出处](10-ai-governance-risk-classification-audit-provenance.md)
+1. [Chapter 9: Security Evaluation, Red Teaming, and Continuous Assurance](09-security-evaluation-red-teaming-continuous-assurance.md)
+2. [Chapter 10: AI Governance, Risk Classification, Auditing, and Content Provenance](10-ai-governance-risk-classification-audit-provenance.md)
 
-返回 [AI 安全与治理](../README.md)。
+Return to [AI Safety, Security, and Governance](../README.md).

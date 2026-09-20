@@ -1,241 +1,243 @@
 ---
-description: 比较句子窗口、父子块、命题化、Contextual Retrieval 与 Late Chunking 如何补充片段语境，以及其引用、权限和更新成本。
+description: Compares how sentence windows, parent-child chunks, propositions, Contextual Retrieval, and Late Chunking restore context, including citation, authorization, and update costs.
 ---
 
-# 第五章：语义被切断怎么办
+# Chapter 5: When Chunking Breaks the Meaning
 
-## 5.1 问题的两个方向
+## 5.1 Two Ways to Address the Problem
 
-上一章讨论的是粒度权衡。这一章关注它的直接后果：**一段话被切开后，片段丢失了理解它所必需的上下文**。
+The previous chapter discussed the granularity tradeoff. This chapter examines its direct consequence: **once a passage is split, a chunk can lose the context needed to understand it**.
 
-常见解法可以分成两个方向：
+Common solutions fall into two groups:
 
 ```mermaid
 flowchart TB
-    P[语义被切断] --> D1[方向一: 切的时候别切错]
-    P --> D2[方向二: 切完了把上下文补回来]
+    P[Meaning broken by chunking] --> D1[Approach 1:<br/>Avoid harmful boundaries]
+    P --> D2[Approach 2:<br/>Restore missing context]
 
-    D1 --> M1[重叠切分]
-    D1 --> M2[语义边界切分]
-    D1 --> M3[结构化切分]
+    D1 --> M1[Overlapping chunks]
+    D1 --> M2[Semantic boundary splitting]
+    D1 --> M3[Structure-aware chunking]
 
-    D2 --> M4[句子窗口检索]
-    D2 --> M5[父子切分]
-    D2 --> M6[命题化改写]
-    D2 --> M7[上下文增强 Contextual Retrieval]
+    D2 --> M4[Sentence-window retrieval]
+    D2 --> M5[Parent-child chunking]
+    D2 --> M6[Proposition rewriting]
+    D2 --> M7[Contextual Retrieval]
     D2 --> M8[Late Chunking]
 ```
 
-- **方向一是预防**：在切分时尽量不破坏语义单元；
-- **方向二是补足语境**：句子窗口和父子切分在命中后扩展阅读材料；命题化、上下文增强和 Late Chunking 则在建库时改善片段表示。小片段是否检索更准仍需评测。
+- **The first approach is preventive**: avoid breaking units of meaning during chunking.
+- **The second supplies missing context**: sentence windows and parent-child chunking expand the material read after retrieval, while proposition rewriting, Contextual Retrieval, and Late Chunking improve chunk representations during indexing. Whether smaller chunks actually retrieve more accurately still requires evaluation.
 
-方向二把检索单元与阅读单元解耦，但不是免费消除权衡：父块扩展会增加 Token、噪声和权限核验成本，仍须在固定预算下验证收益。
+The second approach decouples the retrieval unit from the reading unit, but does not eliminate the tradeoff for free. Expanding to parent chunks adds tokens, noise, and authorization-checking costs. Its benefits still need validation under a fixed budget.
 
-## 5.2 方向一：切的时候别切错
+## 5.2 Approach 1: Avoid Harmful Boundaries
 
-### 5.2.1 重叠切分
+### 5.2.1 Overlapping Chunks
 
-最简单的兜底手段：相邻片段共享一部分内容，增加边界附近的短句在某个片段里完整出现的机会。
+The simplest safeguard is to let adjacent chunks share some content, increasing the chance that a short sentence near a boundary appears intact in at least one chunk.
 
-优点是实现简单；代价是重复嵌入、存储和召回。有限重叠既不能保证长句完整，也不能补全远距离指代。
+It is easy to implement, but costs include duplicate embedding, storage, and retrieval. A finite overlap neither guarantees that long sentences remain intact nor resolves distant references.
 
-### 5.2.2 结构化切分
+### 5.2.2 Structure-Aware Chunking
 
-按文档的天然结构（标题层级、条款编号、章节）切分。
+Split along a document's natural structure: heading hierarchy, clause numbers, and sections.
 
-文档结构可靠时，这是值得先试的基线；但标题不保证章节语义自足，跨节定义、脚注和引用仍需补齐。
+When that structure is reliable, this is a useful first baseline. However, a heading does not guarantee that its section is self-contained. Definitions, footnotes, and references from other sections may still need to be supplied.
 
-### 5.2.3 语义边界切分
+### 5.2.3 Semantic Boundary Splitting
 
-计算相邻句子的向量相似度，在相似度低谷处切断。
+Compute similarity between adjacent sentence embeddings and split at low-similarity points.
 
-理论上很优雅，**但如第四章所述，实证对比显示它成本高、收益不稳定**。列出来是为了知道它存在，而不是推荐默认使用。
+This method requires additional sentence encoding and breakpoint computation. **As Chapter 4 explains, compare its retrieval quality, generation quality, and preprocessing cost with fixed-length or recursive splitting on the target query set** rather than adopting it by default because it is called “semantic.”
 
-## 5.3 方向二：切完了把上下文补回来
+## 5.3 Approach 2: Restore Missing Context
 
-### 5.3.1 句子窗口检索
+### 5.3.1 Sentence-Window Retrieval
 
-做法是用**小单元**（句子或短片段）建索引参与检索，命中后返回它**前后若干个单元**一起送给模型。
-
-```mermaid
-flowchart LR
-    Q[Query] --> IDX[小片段索引]
-    IDX --> HIT[命中片段 N]
-    HIT --> EXP[取 N-2 到 N+2]
-    EXP --> LLM[送给模型]
-```
-
-**检索用小的，生成用大的**——这就是方向二的核心范式。
-
-适合叙述性、上下文连贯的文本。缺点是固定窗口大小不适应变化的语义单元长度。
-
-### 5.3.2 父子切分（Parent-Child）
-
-句子窗口的结构化版本。把文档切成两级：
-
-- **子片段**（小）：参与向量化和检索；
-- **父片段**（大，通常是子片段所属的段落或章节）：命中子片段后，实际返回它的父片段。
-
-| 对比 | 句子窗口 | 父子切分 |
-|---|---|---|
-| 扩展依据 | 位置（前后 N 个） | 结构（所属父块） |
-| 边界是否语义完整 | 不保证 | 更贴近结构，但仍可能依赖章节外定义 |
-| 是否依赖文档结构 | 否 | 是 |
-
-父子切分适合定义、限定条件分布在同一章节的资料。代价包括更多子向量、父文档存取和更长的生成输入；返回父块时必须再次核验整个父块的 ACL，不能凭子块权限放行父块。
-
-一个实用细节：多个子片段命中同一个父片段时要**去重**，否则会重复占用 Prompt 预算。
-
-### 5.3.3 命题化改写
-
-**思路**：用 LLM 把段落改写成一组**独立自足**的陈述句，每句话都不依赖上下文即可理解。
-
-例如把：
-
-> 「该比例不得超过前款规定的上限。」
-
-只有原文前款确实包含以下事实时，才可以改写为（此处为假设示例）：
-
-> 「差旅住宿费报销比例不得超过员工月基本工资的百分之十五。」
-
-**这类方法在实体密集的问答任务上有明确的效果提升**，因为每个命题都是自足的，向量表达非常聚焦。
-
-**代价也很明确**：
-
-- 每个片段都要过一次 LLM，**建库成本显著上升**；
-- 改写过程有**信息失真和幻觉风险**；
-- 改写后**丢失了原文措辞**，不利于精确匹配和引用溯源。
-
-可以用命题参与检索，再取其对应原文作为证据，避免把改写句直接当成原件引用。是否能处理大语料取决于生成、核验与更新预算，不能仅凭规模否定这种方法。
-
-### 5.3.4 上下文增强（Contextual Retrieval）
-
-这是近年常用的方案之一。
-
-**思路**：不改写原文，而是在每个 chunk 前**拼接一段由 LLM 生成的、说明该片段在整篇文档中位置和背景的短说明**，然后再做向量化和关键词索引。
+Index **small units**, such as sentences or short passages, for retrieval. After a hit, return **several units before and after it** and send them together to the model.
 
 ```mermaid
 flowchart LR
-    DOC[整篇文档] --> LLM[LLM 生成上下文说明]
-    CH[原始 chunk] --> LLM
-    LLM --> NEW[上下文说明 + 原始 chunk]
-    NEW --> EMB[向量化]
-    NEW --> BM[关键词索引]
+    Q[Query] --> IDX[Small-chunk index]
+    IDX --> HIT[Retrieved chunk N]
+    HIT --> EXP[Fetch N-2 through N+2]
+    EXP --> LLM[Send to model]
 ```
 
-它与命题化的关键区别是：**原文一字不改，只是在前面加了一段背景说明**。所以既补上了上下文，又保留了原始措辞。
+**Retrieve small units; generate with larger context.** This is the core pattern behind the second approach.
 
-**Anthropic 公布的实验数据**（注意：这是厂商工程博客，非同行评审论文）：
+It suits narrative text with continuous context. Its weakness is that a fixed window cannot adapt to variations in the length of meaningful units.
 
-| 方案 | Top-20 检索失败率 | 相对降幅 |
+### 5.3.2 Parent-Child Chunking
+
+This is a structured version of a sentence window. Split the document into two levels:
+
+- **Child chunks**, which are small, are embedded and used for retrieval.
+- **Parent chunks**, which are larger and usually correspond to the paragraph or section containing a child, are what the system actually returns when that child is retrieved.
+
+| Comparison | Sentence window | Parent-child chunking |
 |---|---|---|
-| 图示基线（普通嵌入） | 5.7% | — |
-| + 上下文增强嵌入 | 3.7% | −35% |
-| + 上下文增强 BM25 | 2.9% | −49% |
-| + Rerank | 1.9% | −67% |
+| Basis for expansion | Position: N units before and after | Structure: the enclosing parent chunk |
+| Semantically complete boundaries? | Not guaranteed | Better aligned with structure, but may still depend on definitions outside the section |
+| Requires document structure? | No | Yes |
 
-上表是 Anthropic 2024 年博客在所选数据域、Gemini Text 004 配置下的 `1 − Recall@20`，不是端到端回答错误率；最后一行先召回 150 个候选再重排到 20。相对降幅不能当作业务提升保证。
+Parent-child chunking suits materials whose definitions and qualifying conditions are distributed within the same section. Costs include more child vectors, parent-document storage and access, and longer generation inputs. Before returning a parent chunk, recheck the ACL for the entire parent; a child's permissions do not authorize access to its parent.
 
-博客给出的 **$1.02/百万文档 Token** 是按当时价格估算生成上下文说明的成本：800 Token 的块、8k Token 的文档、50 Token 指令和 100 Token 生成说明，并使用前缀缓存。它不是当前报价，也不包括完整索引和查询成本；缓存命中仍有读取费用，不能理解为后续输入免费。
+One practical detail: **deduplicate** when multiple retrieved children belong to the same parent, or the repeated parent will consume prompt budget unnecessarily.
 
-> **Prompt Caching 是「计算层」的优化，它降低的是重复输入的计算成本；上下文增强是「信息层」的改造，它改变的是被索引的内容。两者是配合关系，不是替代关系。**
+### 5.3.3 Proposition Rewriting
+
+**The idea**: use an LLM to rewrite a paragraph as a set of **self-contained statements**, each understandable without its surrounding context.
+
+For example, consider this sentence:
+
+> 「该金额不得超过前款规定的上限。」
+
+It means “This amount must not exceed the upper limit specified in the preceding paragraph.” Only if the preceding paragraph actually supplies the following facts may it be rewritten as the statement below; this is a hypothetical example:
+
+> 「差旅住宿费报销金额不得超过员工月基本工资的百分之十五。」
+
+The rewritten statement means “The amount reimbursed for business-travel accommodation expenses must not exceed fifteen percent of the employee's monthly base salary.”
+
+**This approach has shown clear improvements on entity-heavy question-answering tasks**: each proposition is self-contained, and its vector represents a tightly focused meaning.
+
+**The costs are equally clear**:
+
+- Every chunk must pass through an LLM, **substantially increasing indexing cost**.
+- Rewriting introduces **risks of distortion and hallucination**.
+- The rewrite **loses the original wording**, which makes exact matching and citation tracing harder.
+
+Propositions can be used for retrieval, followed by fetching the corresponding original text as evidence, rather than quoting a rewritten sentence as though it were the source. Whether the method can handle a large corpus depends on the budgets for generation, verification, and updates. Corpus size alone is not sufficient reason to reject it.
+
+### 5.3.4 Contextual Retrieval
+
+This is one of the approaches commonly used in recent years.
+
+**The idea**: rather than rewriting the source, **prepend a short LLM-generated explanation of the chunk's position and background within the full document**, then embed it and build a keyword index.
+
+```mermaid
+flowchart LR
+    DOC[Full document] --> LLM[LLM generates<br/>context explanation]
+    CH[Original chunk] --> LLM
+    LLM --> NEW[Context explanation<br/>+ original chunk]
+    NEW --> EMB[Embedding]
+    NEW --> BM[Keyword index]
+```
+
+The key difference from proposition rewriting is that **the original text is left unchanged; only a contextual explanation is added before it**. This supplies context while preserving the original wording.
+
+**Results published by Anthropic**—note that the source is a vendor engineering blog, not a peer-reviewed paper:
+
+| Configuration | Top-20 retrieval failure rate | Relative reduction |
+|---|---|---|
+| Baseline in the chart: standard embeddings | 5.7% | — |
+| + Contextual Embeddings | 3.7% | −35% |
+| + Contextual BM25 | 2.9% | −49% |
+| + Reranking | 1.9% | −67% |
+
+The table reports `1 − Recall@20` from Anthropic's 2024 blog post, using its selected domains and Gemini Text 004 configuration. It does not report the end-to-end answer error rate. The final row first retrieves 150 candidates and then reranks them down to 20. These relative reductions are not guarantees of business improvement.
+
+The blog's **$1.02 per million document tokens** estimates the cost of generating contextual explanations at the prices in effect at the time. It assumes 800-token chunks, 8k-token documents, 50-token instructions, 100-token generated explanations, and prefix caching. This is not a current price quote and does not include the full cost of indexing and querying. Cache hits still incur read charges; subsequent inputs are not free.
+
+> **Prompt caching optimizes computation by reducing the cost of repeated input. Contextual Retrieval changes information by modifying what is indexed. They complement each other; neither replaces the other.**
 
 ### 5.3.5 Late Chunking
 
-**思路更进一步**：先编码能装进窗口的文档文本，得到 Token 级表示，再按 chunk 边界做池化。论文采用的双向编码器让 Token 表示能够结合窗口内前后文；如果使用因果注意力，每个位置只能读取此前内容，不能照搬“每个 Token 都看到全文”的解释。块边界仍需确定，只是池化放到编码之后。
+**This takes the idea a step further**: first encode the document text that fits within the context window to obtain token-level representations, then pool them according to chunk boundaries. The paper's bidirectional encoder lets token representations incorporate both preceding and following context within that window. With causal attention, a position can draw context only from earlier positions, so the explanation that “every token sees the whole document” does not transfer unchanged. Chunk boundaries still need to be determined; pooling simply takes place after encoding.
 
 ```mermaid
 flowchart TB
-    subgraph TRAD[传统方式]
-        D1[文档] --> C1[先切分]
-        C1 --> E1[各片段独立编码]
-        E1 --> V1[片段向量<br/>看不到全文]
+    subgraph TRAD[Traditional approach]
+        D1[Document] --> C1[Split first]
+        C1 --> E1[Encode each<br/>chunk independently]
+        E1 --> V1[Chunk vectors<br/>Cannot see full document]
     end
 
     subgraph LATE[Late Chunking]
-        D2[文档] --> E2[整篇长上下文编码]
-        E2 --> C2[按边界池化 Token 向量]
-        C2 --> V2[片段向量<br/>融合编码窗口内语境]
+        D2[Document] --> E2[Encode full document<br/>with long context]
+        E2 --> C2[Pool token vectors<br/>by chunk boundaries]
+        C2 --> V2[Chunk vectors<br/>Incorporate context<br/>within the encoding window]
     end
 ```
 
-它的巧妙之处在于：**上下文信息是在编码阶段自然注入的，不需要额外调用 LLM 生成说明。**
+The useful insight is that **context enters naturally during encoding, without an extra LLM call to generate an explanation**.
 
-**局限**：
+**Limitations**:
 
-- 必须能取得 Token 级隐状态，并按论文方式在编码后池化；仅有“长窗口、返回单向量”的 API 不够；
-- 文档超过模型上限时仍需分段处理；
-- 全文编码增加计算与峰值显存；文档一处改变可能影响多个块向量，须重算受上下文影响的编码窗口。
+- The system must expose token-level hidden states and support pooling after encoding as described in the paper. An API that merely offers a long context window and returns a single vector is not enough.
+- Documents longer than the model's limit must still be processed in segments.
+- Full-document encoding increases computation and peak GPU memory. A change in one part of a document can affect several chunk vectors, requiring recomputation of encoding windows influenced by that context.
 
-上下文增强和 Late Chunking 还会扩大权限依赖：如果一个块的说明或向量使用了受限章节，不能只按块自身的原文 ACL 放行。应在相同权限域内构建，或让派生物继承全部来源的访问限制；撤权时同步失效。它们改善了检索表示，也不代表送给生成器的短原文已补齐所有前提。
+Contextual Retrieval and Late Chunking also widen authorization dependencies. If a chunk's explanation or vector incorporates a restricted section, access cannot be granted solely according to the ACL of that chunk's original text. Build representations within a single permission domain, or make derived artifacts inherit the access restrictions of all their sources; invalidate them when access is revoked. Better retrieval representations also do not mean that the short source passage sent to the generator now contains every necessary premise.
 
-## 5.4 方案对比与选择
+## 5.4 Comparing and Choosing Approaches
 
-这些方法解决不同缺口，不能排成固定的精度或成熟度等级。保留原文指方法是否改写被检索的文本，所有派生表示都应另存原文与映射以便核验。
+These methods address different gaps; they cannot be placed in a fixed ranking of accuracy or maturity. Preserving the original wording refers to whether the method rewrites the text used for retrieval. For every derived representation, keep the original text and its mapping separately so that it can be verified.
 
-| 方案 | 选择时要核算什么 |
+| Approach | What to account for when choosing |
 |---|---|
-| 重叠切分 | 用重复嵌入、存储和 Token 换局部边界覆盖，不能补远距离指代 |
-| 结构化切分 | 结构恢复成本，以及跨章节定义和脚注是否仍完整 |
-| 语义边界切分 | 句子编码与阈值标定成本，主题断点是否真的改善召回 |
-| 句子窗口 | 扩展读取和生成输入；位置邻近不等于语义充分 |
-| 父子切分 | 子向量、父块存取与去重，同时核验父块 Token 和 ACL |
-| 命题化改写 | 生成、事实核验和原文映射；不能把派生文本当作已验证事实 |
-| 上下文增强 | 背景生成、索引载荷、来源权限与更新依赖；新增说明也可能错误 |
-| Late Chunking | Token 级接口、长编码与相关窗口重算，不保证指代必然消解 |
+| Overlapping chunks | Duplicate embedding, storage, and tokens buy local boundary coverage, but cannot resolve distant references. |
+| Structure-aware chunking | The cost of recovering structure, and whether definitions and footnotes across sections remain available. |
+| Semantic boundary splitting | Sentence-encoding and threshold-calibration costs, and whether topic boundaries actually improve retrieval. |
+| Sentence windows | Expanded reading and generation inputs; positional proximity does not guarantee sufficient context. |
+| Parent-child chunking | Child vectors, parent access, and deduplication, together with parent-token and ACL checks. |
+| Proposition rewriting | Generation, factual verification, and mappings to original text; derived text must not be treated as verified fact. |
+| Contextual Retrieval | Background generation, index size, source permissions, and update dependencies; the added explanation may itself be wrong. |
+| Late Chunking | Token-level interfaces, long-context encoding, and recomputation of related windows; reference resolution is not guaranteed. |
 
-**推荐的实施顺序**（按投入产出比）：
+**A recommended implementation sequence**, based on the balance of effort and benefit:
 
-1. **结构化切分 + 合理的 size/overlap** —— 结构已经可靠时实现成本较低，先建立基线；
-2. **父子切分** —— 发现上下文缺失时尝试，同时检查父块 Token 和权限预算；
-3. **上下文增强** —— 有一定成本，但有公开数据支撑，值得投入；
-4. **命题化 / Late Chunking** —— 视场景和语料规模评估。
+1. **Structure-aware chunking with reasonable size and overlap**: when the structure is already reliable, implementation costs are relatively low. Establish this baseline first.
+2. **Parent-child chunking**: try it when missing context is a problem, while checking parent-token and permission constraints.
+3. **Contextual Retrieval**: it has a cost, but published results support it as a worthwhile investment.
+4. **Proposition rewriting or Late Chunking**: evaluate according to the use case and corpus size.
 
-## 5.5 常见错误
+## 5.5 Common Mistakes
 
-### 5.5.1 只答重叠切分
+### 5.5.1 Offering Only Overlap as the Answer
 
-重叠只解决「不要在边界上截断」的问题，不能保证语义完整。
+Overlap only addresses cuts at chunk boundaries. It cannot guarantee semantic completeness.
 
-### 5.5.2 不区分「预防」和「补救」两个方向
+### 5.5.2 Failing to Distinguish Prevention from Context Restoration
 
-把六七种方法平铺罗列，设计和调参时就很难判断自己是在改善切分，还是在补上下文。
+Listing six or seven methods without this distinction makes it difficult to tell, during design and tuning, whether a change improves the splitting itself or supplies missing context.
 
-### 5.5.3 把 Prompt Caching 说成一种压缩或补上下文的方法
+### 5.5.3 Describing Prompt Caching as Compression or Context Restoration
 
-Prompt Caching 的机制、与 KV Cache/记忆压缩的边界及生命周期限制见[Agent 记忆与上下文压缩](../../agent/03-memory-context/10-agent-memory-compression.md)；本节只讨论其在上下文增强索引成本中的作用。
+For the mechanism of prompt caching, its distinction from KV caching and memory compression, and its lifecycle limitations, see [Agent Memory and Context Compression](../../agent/03-memory-context/10-agent-memory-compression.md). This section addresses only its role in the indexing cost of Contextual Retrieval.
 
-它是计算层优化，不改变被索引的内容。混淆这一点是典型的概念不清。
+It is a computational optimization and does not change what is indexed. Confusing these roles is a basic conceptual error.
 
-### 5.5.4 把上下文增强和命题化混为一谈
+### 5.5.4 Confusing Contextual Retrieval with Proposition Rewriting
 
-前者保留原文只加说明，后者重写原文。在溯源和精确匹配上差别很大。
+The former preserves the original text and adds an explanation; the latter rewrites it. The difference matters greatly for source tracing and exact matching.
 
-### 5.5.5 忽略父子切分的去重
+### 5.5.5 Forgetting Deduplication in Parent-Child Chunking
 
-多个子片段命中同一父片段时不去重，会浪费大量 Prompt 预算。
+Failing to deduplicate a parent retrieved through multiple children wastes a substantial amount of prompt budget.
 
-### 5.5.6 认为越复杂的方法越好
+### 5.5.6 Assuming More Complex Methods Are Better
 
-第四章的实证结论已经说明，基础参数没调好时，上复杂方法收益有限。
+Complex methods may add preprocessing and maintenance work. First establish a simple baseline with tuned basic parameters, then compare quality and cost on the same target query set and context budget rather than treating complexity as evidence of a benefit.
 
-## 5.6 本章总结
+## 5.6 Chapter Summary
 
-1. **两个方向**：预防（切的时候别切错）与补救（切完把上下文补回来），二者可组合；
-2. **核心范式**：**用小片段检索，用大上下文生成**；
-3. **父子切分**解耦检索和阅读粒度，但增加存取、Token 与权限校验成本；
-4. **上下文增强**生成背景说明并保留原文；官方实验报告的是特定配置的检索失败率相对下降，成本与收益不能直接外推；
-5. **Prompt Caching 是计算层优化，与信息层的上下文改造是互补关系**；
-6. **命题化改写**可补全独立事实表示，但增加生成与事实核验成本，并须保留原文映射；
-7. **Late Chunking** 在编码后按块池化，需要 Token 级表示接口，并考虑整段编码和更新成本；
-8. **实施顺序**：结构化切分 → 父子切分 → 上下文增强 → 更前沿方案。
+1. **Two approaches**: prevention—avoid harmful chunk boundaries—and restoration—supply missing context after splitting. They can be combined.
+2. **The core pattern** is **retrieval with small chunks and generation with larger context**.
+3. **Parent-child chunking** decouples retrieval and reading granularity, but adds access, token, and authorization-checking costs.
+4. **Contextual Retrieval** generates background explanations while preserving the source. The official experiments report relative reductions in retrieval failure rate under a particular configuration; their costs and benefits cannot be extrapolated directly.
+5. **Prompt caching optimizes computation and complements changes to the contextual information being indexed**.
+6. **Proposition rewriting** can supply self-contained representations of facts, but adds generation and factual-verification costs and requires mappings to the original text.
+7. **Late Chunking** pools by chunk after encoding. It requires access to token-level representations, with full-segment encoding and update costs taken into account.
+8. **Implementation sequence**: structure-aware chunking → parent-child chunking → Contextual Retrieval → more experimental approaches.
 
 
-## 参考资料
+## References
 
 - [Anthropic: Introducing Contextual Retrieval](https://www.anthropic.com/engineering/contextual-retrieval)
 - [Late Chunking: Contextual Chunk Embeddings Using Long-Context Embedding Models](https://arxiv.org/abs/2409.04701)
-- [Jina AI：Late Chunking 的编码后池化与边界说明](https://jina.ai/news/late-chunking-in-long-context-embedding-models/)
+- [Jina AI: Post-Encoding Pooling and Boundaries in Late Chunking](https://jina.ai/news/late-chunking-in-long-context-embedding-models/)
 - [Dense X Retrieval: What Retrieval Granularity Should We Use?](https://arxiv.org/abs/2312.06648)
 - [RAPTOR: Recursive Abstractive Processing for Tree-Organized Retrieval](https://arxiv.org/abs/2401.18059)
 - [Searching for Best Practices in Retrieval-Augmented Generation](https://arxiv.org/abs/2407.01219)

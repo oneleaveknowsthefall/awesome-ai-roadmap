@@ -1,24 +1,24 @@
 ---
-description: 比较多模态编码、投影与交叉注意力，解释视觉细节、音视频时序、训练冻结策略，以及部署成本、证据评测和安全边界。
+description: Compare multimodal encoders, projection, and cross-attention, covering visual detail, audio/video timing, frozen training components, deployment cost, evidence-based evaluation, and safety boundaries.
 ---
 
-# 第二十三章：多模态模型
+# Chapter 23: Multimodal Models
 
-## 23.1 多模态不是“把图片塞进 Prompt”
+## 23.1 Multimodality is not just putting an image into a prompt
 
-多模态模型处理图像、音频、视频或文本等不同信号，可能输出文本、结构化结果或其他模态。**输入模态与输出模态要分开看**：支持图片问答不代表支持生成图片，支持语音转写也不代表能生成自然语音。
+Multimodal models process different signals such as images, audio, video, and text, and may output text, structured results, or other modalities. **Check input and output modalities separately**: answering questions about images does not imply image generation, and speech transcription does not imply natural-speech generation.
 
-本章重点是将感知表示接入语言模型的多模态理解路线。难点不只是「对齐到共同空间」，还包括保留空间与时间细节、处理模态冲突，以及区分观察与推断；并非所有架构都要求把所有模态压成一个全局向量。
+This chapter focuses on multimodal understanding approaches that connect perceptual representations to a language model. The difficulty is not just alignment into a shared space. It also includes retaining spatial and temporal detail, handling conflicts between modalities, and distinguishing observation from inference. Not every architecture compresses every modality into one global vector.
 
-| 模态 | 常见原始表示 | 主要难点 |
+| Modality | Common raw representation | Main challenges |
 |---|---|---|
-| 图像 | 像素切块（patch）或视觉特征 | 分辨率、文字/小物体、空间关系 |
-| 音频 | 波形、频谱或声学 token | 采样率、说话人、时序与噪声 |
-| 视频 | 帧序列 + 音轨 | 长时序、运动、跨帧一致性与计算量 |
+| Images | Pixel patches or visual features | Resolution, text/small objects, spatial relations |
+| Audio | Waveforms, spectra, or acoustic tokens | Sample rate, speakers, timing, and noise |
+| Video | Frame sequence plus audio track | Long temporal sequences, motion, cross-frame consistency, and computation |
 
-## 23.2 编码器、connector 与语言模型
+## 23.2 Encoders, connectors, and language models
 
-以输出文本的自回归多模态模型为例，常见架构可写成：
+For an autoregressive multimodal model that outputs text, a common architecture can be written as:
 
 $$
 z_m=E_m(x_m),\qquad h=C(z_m)
@@ -29,119 +29,119 @@ p_\theta(y\mid x_m,x_t)
 =\prod_{i=1}^{T}p_\theta(y_i\mid y_1,\ldots,y_{i-1},h,x_t)
 $$
 
-其中 $E_m$ 是模态编码器， $C$ 是连接或压缩模块， $x_t$ 是文本输入，`h` 通过拼接或交叉注意力等方式参与生成。第一个输出 token 的前缀为空。该式描述条件文本生成，不涵盖所有图像或音频生成架构。
+Here, $E_m$ is a modality encoder, $C$ is a connection or compression module, and $x_t$ is the text input. The representation `h` participates in generation through concatenation, cross-attention, or another mechanism. The prefix is empty for the first output token. These equations describe conditional text generation, not every image- or audio-generation architecture.
 
-| 连接方式 | 做法 | 取舍 |
+| Connection method | Approach | Tradeoff |
 |---|---|---|
-| **投影/拼接** | 用线性层或 MLP 将模态特征映射到 LLM 隐藏维度，再作为输入序列的一部分 | 接入较直接；模态 token 会占用上下文与 KV 容量 |
-| **Cross-attention** | 语言侧表示通过交叉注意力查询模态特征 | 可分离语言序列与模态特征，但增加模块与计算，不能恢复编码器已丢失的信息 |
-| **Resampler / token 压缩** | 先把大量模态 token 压缩为少量 latent | 降低成本；细粒度信息可能丢失 |
+| **Projection / concatenation** | Map modality features to the LLM's hidden dimension through a linear layer or MLP, then include them in the input sequence | Relatively direct integration; modality tokens consume context and KV capacity |
+| **Cross-attention** | Language-side representations query modality features through cross-attention | Can separate the language sequence from modality features, but adds modules and computation and cannot recover information already lost by the encoder |
+| **Resampler / token compression** | Compress many modality tokens into fewer latents first | Reduces cost, potentially losing fine-grained information |
 
-这三行不是互斥架构：**压缩多少 token**与**怎样接入语言模型**是两个设计维度，往往组合使用。
+These are not mutually exclusive architectures. **How many tokens to retain** and **how to connect them to the language model** are separate design dimensions and are often combined.
 
-- **CLIP** 用图像与文本编码器进行对比学习，拉近匹配图文的表示、区分不匹配样本。它适合检索与零样本分类，但本身不是生成式聊天模型，也不保证细粒度空间关系理解。
-- **Flamingo** 先用 Perceiver Resampler 得到固定数量的视觉 latent，再用 gated cross-attention 接入冻结的语言模型；因此同时使用了压缩和交叉注意力。
-- **原版 LLaVA** 使用视觉编码器与线性投影，后续版本可能改用其他 projector，不能混写成整个系列只有一种结构。
-- **BLIP-2** 在预训练阶段用可学习查询的 Q-Former 连接冻结视觉编码器与冻结语言模型。查询压缩减少语言侧输入，但细节保留取决于训练目标和瓶颈容量；下游任务微调不一定继续冻结全部视觉参数。
+- **CLIP** uses image and text encoders for contrastive learning, bringing matched image–text representations closer and separating mismatched samples. It supports retrieval and zero-shot classification, but is not itself a generative chat model and does not guarantee fine-grained spatial understanding.
+- **Flamingo** uses a Perceiver Resampler to obtain a fixed number of visual latents, then connects them to a frozen language model through gated cross-attention. It therefore combines compression and cross-attention.
+- **The original LLaVA** uses a vision encoder and linear projection. Later versions may use other projectors; do not describe the entire family as having a single architecture.
+- **BLIP-2** connects a frozen vision encoder and a frozen language model during pretraining using a Q-Former with learnable queries. Query compression reduces language-side input, but retained detail depends on training objectives and bottleneck capacity. Downstream fine-tuning need not keep every vision parameter frozen.
 
-## 23.3 三种模态的表示
+## 23.3 Representing three modalities
 
-### 23.3.1 视觉
+### 23.3.1 Vision
 
-Vision Transformer 通常把图像切为 patch 并编码为序列。高分辨率输入常采用切图、多尺度或动态分辨率策略；OCR、图表和小目标任务需要评测这些策略是否保留细节，而不仅看通用视觉问答分数。
+A Vision Transformer typically splits an image into patches and encodes them as a sequence. High-resolution processing often uses tiling, multiple scales, or dynamic resolution. OCR, chart, and small-object tasks need evaluations of whether these strategies retain detail, not merely a general visual-question-answering score.
 
-若图像宽高都翻倍，且 patch 尺寸不变、不做额外合并，patch 数约变为四倍；实际视觉 token 数还受裁剪、缩放、合并与 resampler 影响，不能直接拿像素数推算所有模型的费用。Qwen2-VL 是动态分辨率及图文/视频位置编码的一种公开实现，不是所有 VLM 的通用规则。
+If both image dimensions double while patch size stays fixed and there is no additional merging, patch count grows by roughly four times. Actual visual-token count also depends on cropping, resizing, merging, and resampling, so pixel count alone cannot predict every model's cost. Qwen2-VL is one published implementation of dynamic resolution and image/text/video positional encoding, not a universal rule for VLMs.
 
-OCR 错一个小数点就可能导致整份财报分析错误。应保留原图坐标、裁剪与缩放映射，必要时将通用 VLM 与专用 OCR/表格解析组合；只把 OCR 纯文本交给模型又可能丢失行列和版面关系。
+One incorrectly recognized decimal point can invalidate an entire financial-report analysis. Retain original image coordinates and mappings for cropping and scaling. Where needed, combine a general VLM with specialized OCR or table parsing. Conversely, sending only plain OCR text to the model can lose row, column, and layout relationships.
 
-### 23.3.2 音频
+### 23.3.2 Audio
 
-语音任务可从 log-Mel 频谱、预训练语音 encoder 或离散 codec token 开始。Whisper 本身是面向语音转写、翻译等任务的 encoder-decoder 模型，其 encoder 可被其他系统复用，但不能把 Whisper 直接等同于通用音频理解或语音生成模型。
+Speech tasks may start from log-Mel spectrograms, pretrained speech encoders, or discrete codec tokens. Whisper itself is an encoder–decoder model for tasks such as speech transcription and translation. Other systems can reuse its encoder, but Whisper is not synonymous with general audio understanding or speech generation.
 
-| 路线 | 信息流 | 取舍 |
+| Approach | Information flow | Tradeoff |
 |---|---|---|
-| **级联语音助手** | ASR → 文本 LLM → TTS | 中间文本容易审计与替换组件，但转写错误会传递，语气、音乐或环境声等信息可能丢失，延迟逐段累积 |
-| **直接音频交互** | 音频表示进入多模态模型，并由受支持的音频生成模块输出 | 有机会保留更多副语言信息、联合优化交互；仍需验证流式延迟、打断、说话人及安全控制，不能仅凭「端到端」标签断言更好 |
+| **Cascaded voice assistant** | ASR → text LLM → TTS | Intermediate text is easy to audit and components are replaceable, but transcription errors propagate, tone/music/environmental sounds may be lost, and latency accumulates across stages |
+| **Direct audio interaction** | Audio representations enter a multimodal model and a supported audio-generation module produces the output | May retain more paralinguistic information and optimize interaction jointly; streaming latency, interruption, speakers, and safety controls still need validation. An “end-to-end” label alone does not establish superiority |
 
-ASR 常用词错误率：
+A common ASR metric is word error rate:
 
 $$
 \mathrm{WER}=\frac{S+D+I}{N}
 $$
 
-`S`、`D`、`I` 分别是相对参考转写的替换、删除和插入数，`N` 是参考词数。插入多时 WER 可以超过 100%；空参考转写需另定评分规则，不能直接除以零。中文可报告字符错误率 CER，若用 WER 必须固定分词、标点和数字归一化规则。转写准确不等于说话人分离或时间戳准确；音频理解还需覆盖环境声、音乐和重叠语音。生成语音则另测可懂度、韵律、时延与合法授权的说话人一致性。
+`S`, `D`, and `I` are substitutions, deletions, and insertions relative to the reference transcript; `N` is the number of reference words. Many insertions can make WER exceed 100%. Empty references need a separate scoring rule rather than division by zero. For Chinese, character error rate (CER) can be reported; WER requires fixed word segmentation, punctuation, and number-normalization rules. Accurate transcription does not imply accurate speaker diarization or timestamps. Audio understanding also needs coverage of environmental sounds, music, and overlapping speech. Generated speech requires separate evaluation of intelligibility, prosody, latency, and speaker consistency where use of the speaker's voice is legally authorized.
 
-### 23.3.3 视频
+### 23.3.3 Video
 
-视频不是独立图片的集合。模型需要同时表示帧内内容、跨帧运动和长程事件。均匀抽帧成本低但可能漏掉关键瞬间；密集采样更完整但 token 与显存成本快速增长。应报告帧率、采样策略、最大时长和是否使用音轨。
+Video is not a collection of independent images. A model needs to represent content within frames, motion across frames, and events over long intervals. Uniform frame sampling is cheap but can miss a critical instant; dense sampling captures more but rapidly increases tokens and GPU memory. Report frame rate, sampling strategy, maximum duration, and whether the audio track is used.
 
-时间戳或时间位置编码提供事件顺序线索；音轨、字幕和画面还需对齐。仅看到「杯子完好」和「杯子破碎」两帧，不能证明是谁打碎杯子；模型若没看到关键动作，应说明证据缺失，而不是用常识补成事实。检索候选片段后局部加密采样可控制成本，但第一阶段漏检也会限制后续判断。
+Timestamps or temporal positional encodings provide ordering cues. Audio, subtitles, and images also need alignment. Seeing only an intact cup and a broken cup in two frames does not prove who broke it. If the key action was not observed, the model should state that evidence is missing rather than filling the gap with commonsense assumptions presented as facts. Retrieving candidate segments and sampling them more densely can control cost, but a miss in the first stage still limits later conclusions.
 
-## 23.4 训练：对齐之后还要会用
+## 23.4 Training: alignment is not enough
 
-训练目标可分为以下几类，但不表示所有模型都按这三步训练：
+Training objectives can be grouped as follows, without implying that every model follows these three steps:
 
-1. **预训练/对比对齐**：用图文、音文或视频文本对齐表示；
-2. **生成式预训练**：预测文本、离散模态 token 或跨模态目标；
-3. **多模态指令微调与偏好对齐**：通过相应数据学习遵循问题、引用证据或拒答；这些行为不会因为增加了模态就自动具备。
+1. **Pretraining / contrastive alignment**: align representations using image–text, audio–text, or video–text pairs.
+2. **Generative pretraining**: predict text, discrete modality tokens, or cross-modal targets.
+3. **Multimodal instruction tuning and preference alignment**: use appropriate data to learn question following, evidence citation, or refusal; adding a modality does not automatically confer these behaviors.
 
-需要说明各阶段更新哪些参数。原版 LLaVA 先冻结视觉编码器和 LLM、训练投影层做特征对齐，再在指令阶段训练投影层与 LLM，视觉编码器仍冻结；BLIP-2 的预训练则通过 Q-Former 利用冻结的两端模型。冻结主干省训练资源、保留已有能力，但领域差异可能难以仅靠 connector 弥补；解冻更多参数增强适配能力，也增加资源消耗、过拟合与遗忘风险。
+Specify which parameters are updated at each stage. Original LLaVA first freezes the vision encoder and LLM and trains the projection layer for feature alignment. Its instruction stage trains the projection and LLM while keeping the vision encoder frozen. BLIP-2 pretraining instead uses a Q-Former with frozen models at both ends. Freezing backbones saves training resources and preserves existing capabilities, but a connector alone may not overcome domain differences. Unfreezing more parameters increases adaptation capacity while also increasing resource usage, overfitting, and forgetting risks.
 
-训练集应记录来源、许可、语言、采样方式和标注过程；图文错配、ASR 噪声、视频时间错位与合成数据偏差都会让模型学到错误关联。只会利用问题中的语言先验而忽略图像，也可能在有偏数据集上取得高分。
+Record training-data sources, licenses, languages, sampling methods, and annotation processes. Mismatched image–text pairs, ASR noise, misaligned video timing, and synthetic-data biases can teach incorrect associations. A model that uses only language priors in the question and ignores the image may still score well on a biased dataset.
 
-## 23.5 推理与部署
+## 23.5 Inference and deployment
 
-推理成本包含媒体下载与解码、编码器、LLM prefill 和输出 decode。高分辨率或长视频可能使感知侧成为瓶颈，但长回答、内部推理和音频输出也可能主导延迟，应实测分段耗时而不是预设瓶颈。
+Inference cost includes media downloading and decoding, encoders, LLM prefill, and output decoding. High resolution or long video may make perception the bottleneck, but long answers, internal reasoning, or audio output may also dominate latency. Measure each stage rather than assuming the bottleneck.
 
-- encoder 特征缓存需绑定媒体内容哈希、模型/编码器版本与预处理参数，包括分辨率、采样率和裁剪策略，并按租户权限隔离；
-- 前缀 KV 的复用条件更严格，还要匹配文本/模态前缀、位置、模板与相关模型配置；相同图片出现在不同上下文中，不代表可以直接复用完整 LLM KV；
-- 设定输入大小、帧数、时长、MIME 类型、解码时间和响应大小上限，避免资源耗尽；
-- 将媒体下载、解码和模型推理隔离，远程 URL 输入还要遵循 [Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md) 的 SSRF 防护；
-- 输出中区分“看见/听见的证据”和推断，避免把不确定观察写成事实。
+- Bind encoder-feature caches to media content hashes, model/encoder versions, and preprocessing parameters, including resolution, sample rate, and cropping strategy; isolate them according to tenant permissions.
+- Prefix-KV reuse has stricter requirements: text/modality prefixes, positions, templates, and relevant model configurations must also match. The same image in different contexts does not imply that the complete LLM KV can be reused directly.
+- Limit input size, frame count, duration, MIME types, decoding time, and response size to avoid resource exhaustion.
+- Isolate media downloading, decoding, and model inference. Remote-URL inputs must also follow the SSRF protections in [Tool Protocol Security](../../tools/02-mcp/15-tool-protocol-security.md).
+- Distinguish evidence seen or heard from inferences in the output; do not present uncertain observations as facts.
 
-## 23.6 评测与安全
+## 23.6 Evaluation and safety
 
-单一总分不足以说明能力。至少按任务和风险拆分：
+A single aggregate score cannot establish capability. At minimum, break evaluation down by task and risk:
 
-| 维度 | 示例 |
+| Dimension | Examples |
 |---|---|
-| 感知 | OCR、物体/事件识别、ASR WER、时间定位 |
-| 推理 | 图表、空间、跨帧因果、多模态问答 |
-| 鲁棒性 | 模糊、压缩、噪声、口音、对抗贴纸、分布外输入 |
-| 可靠性 | 幻觉率、校准、拒答与证据引用 |
-| 安全与公平 | 隐私/人脸、敏感属性推断、刻板印象、版权与有害内容 |
+| Perception | OCR, object/event recognition, ASR WER, temporal localization |
+| Reasoning | Charts, spatial relations, cross-frame causality, multimodal question answering |
+| Robustness | Blur, compression, noise, accents, adversarial stickers, out-of-distribution inputs |
+| Reliability | Hallucination rate, calibration, refusals, and evidence citations |
+| Safety and fairness | Privacy/faces, sensitive-attribute inference, stereotypes, copyright, and harmful content |
 
-诊断时可比较三组输入：原始媒体、人工核实的转写/结构化感知结果、去除媒体的纯问题。若正确转写能解决问题，优先排查感知；若仍失败，排查语言推理或任务规格；若无媒体也得高分，要检查语言先验与数据泄漏。人工转写可能丢失空间或语气信息，因此这种对照用于定位，不是完全等价的替代。
+For diagnosis, compare three input conditions: original media, human-verified transcripts or structured perception results, and questions without the media. If a correct transcript resolves the problem, investigate perception first. If failure remains, investigate language reasoning or task specifications. If the question alone scores well, check language priors and data leakage. Human transcription can lose spatial or tonal information, so this comparison is diagnostic, not a fully equivalent substitution.
 
-对于图表数值问答，分别记 OCR、单元格定位、计算和最终答案错误；视频事件任务还要评分时间定位，不能只看文字描述相似度。引用图像区域或视频时间段后，仍需核查该区域确实支持声明。
+For numerical questions about charts, record OCR, cell-localization, calculation, and final-answer errors separately. Video-event tasks also require temporal-localization scoring, not merely similarity between text descriptions. Even after an image region or video interval is cited, verify that it actually supports the claim.
 
-图像或音频中的文字也可能构成间接提示注入。多模态 Agent 应将其当作不可信内容，不能让其覆盖系统指令、审批或工具权限。涉及人脸、声纹、医疗、未成年人或位置数据时，应先明确合法性、同意、保留期限和人工复核要求。
+Text in images or audio can carry indirect prompt injection. A multimodal agent must treat it as untrusted content, not allow it to override system instructions, approvals, or tool permissions. For faces, voiceprints, medical information, minors, or location data, establish legality, consent, retention periods, and human-review requirements first.
 
-## 23.7 常见错误
+## 23.7 Common mistakes
 
-### 23.7.1 把支持图片输入等同于可靠视觉理解
+### 23.7.1 Equating image-input support with reliable visual understanding
 
-接口能接收媒体只说明输入格式兼容。OCR、小目标、空间关系、长视频和跨模态证据仍要分别评测。
+An interface accepting media establishes input-format compatibility only. OCR, small objects, spatial relations, long video, and cross-modal evidence still need separate evaluation.
 
-### 23.7.2 只比较模型总分，不固定媒体处理参数
+### 23.7.2 Comparing aggregate scores without fixing media-processing parameters
 
-分辨率、抽帧、音频采样、压缩和预算都会改变结果。比较时保留相同原始媒体、明确资源上限并披露各模型所需预处理；若模型只接受不同输入尺寸，应同时报告各自原生配置和相近预算下的结果，而不是强迫不兼容的预处理。
+Resolution, frame sampling, audio sampling, compression, and budgets all change results. Use the same original media, specify resource limits, and disclose model-specific preprocessing. If models accept different input dimensions, report both native configurations and comparable-budget results rather than forcing incompatible preprocessing.
 
-### 23.7.3 把媒体内容当成可信指令
+### 23.7.3 Treating media content as trusted instructions
 
-图片文字、字幕和音频都可能携带间接提示注入。安全边界应由权限、数据流和工具策略建立，而不是只靠 Prompt。
+Image text, subtitles, and audio can all carry indirect prompt injection. Enforce safety boundaries through permissions, data flows, and tool policies—not prompts alone.
 
-## 23.8 本章总结
+## 23.8 Summary
 
-1. 多模态输入与输出能力应分别核实；本章的 encoder—connector—LLM 是常见理解路线，不是唯一架构；
-2. token 压缩与投影拼接、cross-attention 可以组合，分别控制信息瓶颈和接入方式；
-3. 图像、音频和视频必须分别处理空间、时序、采样与噪声问题；
-4. 部署时要限制媒体大小、隔离解码并正确设计缓存键；
-5. 评测应拆分感知、推理、可靠性、鲁棒性和安全。
+1. Verify multimodal input and output capabilities separately. The encoder–connector–LLM design is a common understanding approach, not the only architecture.
+2. Token compression can be combined with projection/concatenation or cross-attention; these control the information bottleneck and connection method separately.
+3. Images, audio, and video each require appropriate treatment of space, time, sampling, and noise.
+4. Limit media sizes, isolate decoding, and design cache keys correctly in deployment.
+5. Evaluate perception, reasoning, reliability, robustness, and safety separately.
 
-> 多模态落地要同时回答三件事：证据怎么保留下来、序列成本怎么控住、感知和行动边界怎么分别验证。
+> Deploying multimodal systems requires three answers: how evidence is retained, how sequence costs are controlled, and how perception and action boundaries are validated separately.
 
-## 参考资料
+## References
 
 - [CLIP: Learning Transferable Visual Models From Natural Language Supervision](https://arxiv.org/abs/2103.00020)
 - [Flamingo: a Visual Language Model for Few-Shot Learning](https://arxiv.org/abs/2204.14198)
@@ -151,4 +151,4 @@ $$
 - [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)
 - [BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models](https://arxiv.org/abs/2301.12597)
 - [Qwen2-VL: Enhancing Vision-Language Model's Perception of the World at Any Resolution](https://arxiv.org/abs/2409.12191)
-- [Hugging Face Evaluate：WER 指标定义与实现说明](https://github.com/huggingface/evaluate/blob/main/metrics/wer/README.md)
+- [Hugging Face Evaluate: WER definition and implementation notes](https://github.com/huggingface/evaluate/blob/main/metrics/wer/README.md)

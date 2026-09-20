@@ -1,48 +1,48 @@
 ---
-description: "比较 DSPy 的示例、指令与权重优化，解释 MIPROv2、GEPA 的指标接口、数据划分、搜索预算和部署回归。"
+description: "Compare example, instruction, and weight optimization in DSPy, including MIPROv2 and GEPA metric interfaces, data splits, search budgets, and deployment regression checks."
 ---
 
-# 第十七章：DSPy 的编译器与优化器
+# Chapter 17: DSPy's Compiler and Optimizers
 
-## 17.1 从「手工调 Prompt」到「指标驱动的自动搜索」
+## 17.1 From manual prompt tuning to metric-driven search
 
-第十六章讲的 `Signature` 和 `Module` 是可运行的基础；DSPy 的优化器在 compile 阶段利用数据和指标搜索更好的参数。Few-shot、指令和权重是不同搜索空间，只有相应优化器才会修改它们，普通 `compile()` 不等于训练模型，也不保证找到全局最优。
+The signatures and modules in Chapter 16 provide a runnable foundation. During compilation, DSPy optimizers use data and metrics to search for better parameters. Few-shot examples, instructions, and weights are different search spaces, changed only by the corresponding optimizers. An ordinary `compile()` call is not equivalent to model training and does not guarantee a global optimum.
 
-用抽象目标描述这个过程：给定程序参数 $\theta$、开发验证集 $D$ 和指标 $\mu$，目标是最大化下式。实际搜索受预算限制；反复参与选择的验证集不是最终独立测试集。
+An abstract objective captures this process: given program parameters $\theta$, a development validation set $D$, and a metric $\mu$, maximize the expression below. Actual search is budget-constrained; a validation set repeatedly used for selection is not an independent final test set.
 
 $$
 \theta^{*} = \arg\max_{\theta} \frac{1}{|D|} \sum_{(x, y) \in D} \mu\bigl(f_\theta(x), y\bigr)
 $$
 
-这与 [评测与选型主题](../../llm/README.md) 中「能力评测指标」一章讨论的是同一套量化方法，只是在 DSPy 里它直接成为**优化目标**，而不只是事后打分工具。
+This is the same quantitative approach discussed in the chapter on capability evaluation metrics in the [evaluation and model selection topic](../../llm/README.md). In DSPy, however, it directly becomes the **optimization objective**, rather than merely a scoring tool used afterward.
 
-## 17.2 按搜索对象选择优化器
+## 17.2 Choose an optimizer by what it searches
 
-`teleprompter` 是优化器的历史称呼。下面是常见选择，不是完整列表，也不存在固定的「Bootstrap → MIPRO → GEPA」升级顺序：
+`teleprompter` is the historical name for an optimizer. The following are common options, not an exhaustive list. There is no fixed “Bootstrap → MIPRO → GEPA” upgrade path:
 
-| 优化器 | 优化对象 | 核心机制 |
+| Optimizer | Optimization target | Core mechanism |
 |---|---|---|
-| `LabeledFewShot` | 已有标注示例 | 选取演示，不在编译时调用模型；适合作为低成本基线 |
-| `BootstrapFewShot` | Few-shot 示例集合 | 学生或指定 teacher 运行训练样本，保留通过 metric 的轨迹，并可混合标注示例；不做指令搜索 |
-| `MIPROv2` | 指令 + Few-shot 示例 | 先自举示例、生成指令候选，再用贝叶斯优化评估并选择组合；可配置零示例优化 |
-| `GEPA` | 默认优化 predictor 指令 | 利用执行轨迹和文本反馈反思改写，保留在不同样本上有优势的候选并进行 Pareto 选择；不是权重训练 |
-| `BootstrapFinetune` | 模型权重 | 从成功轨迹构建训练数据并微调，需要可微调 LM、训练预算与部署支持 |
+| `LabeledFewShot` | Existing labeled examples | Selects demonstrations without model calls during compilation; useful as a low-cost baseline |
+| `BootstrapFewShot` | Few-shot example sets | Runs training examples through the student or a specified teacher, keeps traces that pass the metric, and can mix in labeled examples; does not search instructions |
+| `MIPROv2` | Instructions + few-shot examples | Bootstraps examples and proposes instructions, then uses Bayesian optimization to evaluate and select combinations; can be configured for zero-shot optimization |
+| `GEPA` | Predictor instructions by default | Reflects on execution traces and textual feedback to propose revisions, retaining candidates with advantages on different examples and using Pareto selection; not weight training |
+| `BootstrapFinetune` | Model weights | Builds training data from successful traces and fine-tunes; requires a fine-tunable LM, training budget, and deployment support |
 
 ```mermaid
 flowchart LR
-    P["未优化的 Program"] --> B{"选择优化器"}
-    B -->|"数据量小、任务简单"| BF["BootstrapFewShot"]
-    B -->|"需要同时调指令和示例"| MI["MIPROv2"]
-    B -->|"需要从失败案例反思迭代"| GE["GEPA"]
-    BF --> C["编译产物：优化过的 Program"]
+    P["Unoptimized program"] --> B{"Choose an optimizer"}
+    B -->|"Small dataset, simple task"| BF["BootstrapFewShot"]
+    B -->|"Tune instructions and examples together"| MI["MIPROv2"]
+    B -->|"Iterate by reflecting on failures"| GE["GEPA"]
+    BF --> C["Compilation artifact: optimized program"]
     MI --> C
     GE --> C
-    C --> D["可直接替换原 Program，接口不变"]
+    C --> D["Replace the original program with the same interface"]
 ```
 
-这些优化器通常返回保持调用接口的程序。要使用返回值，而不是假设原对象已被原地修改。优化产物还可能含更长的示例、指令或新的模型配置，接口不变不意味着延迟和费用不变。
+These optimizers usually return a program with the same calling interface. Use the returned value rather than assuming the original object was modified in place. The artifact may contain longer examples, longer instructions, or a new model configuration. An unchanged interface does not imply unchanged latency or cost.
 
-以下是 MIPROv2 的装配片段，假设已经配置 LM，`trainset`、`valset` 中的 `dspy.Example` 已通过 `.with_inputs("question")` 标记输入：
+The following MIPROv2 setup assumes that an LM is configured and the `dspy.Example` objects in `trainset` and `valset` have their inputs marked with `.with_inputs("question")`:
 
 ```python
 def exact_answer(example, prediction, trace=None):
@@ -54,76 +54,76 @@ compiled = optimizer.compile(program, trainset=trainset, valset=valset)
 compiled.save("optimized.json")
 ```
 
-`auto` 管预算，不是自动挑优化器；MIPROv2 手动设置 `num_trials` / `num_candidates` 时应改用 `auto=None`。GEPA 的 metric 还需要兼容 `pred_name`、`pred_trace` 等参数，可以返回 `dspy.Prediction(score=..., feedback=...)`；只给标量也可用，但会失去丰富诊断反馈。GEPA 应明确设置 `reflection_lm` 或自定义 proposer，以及 `auto` / `max_metric_calls` 等预算，不能把通用三参数 metric 原封不动当成所有优化器的契约。
+`auto` controls the budget; it does not choose the optimizer. When setting MIPROv2's `num_trials` / `num_candidates` manually, use `auto=None`. GEPA's metric must also accept parameters such as `pred_name` and `pred_trace`, and can return `dspy.Prediction(score=..., feedback=...)`. A scalar score also works, but loses rich diagnostic feedback. Explicitly configure GEPA's `reflection_lm` or a custom proposer and a budget such as `auto` / `max_metric_calls`. Do not assume that the same three-argument metric works unchanged with every optimizer.
 
-## 17.3 优化器与观测平台的职责差异
+## 17.3 How optimizers and observability platforms differ
 
-[LangSmith 生产质量闭环](../01-langchain/05-production/13-langsmith-production-loop.md) 覆盖 Trace、数据集和评测，不仅用于上线后，也能在开发期运行离线实验。与 DSPy 的区别不是「上线后人工」对「上线前自动」，而是观测/评测平台与程序参数优化器的职责不同。
+The [LangSmith production quality feedback loop](../01-langchain/05-production/13-langsmith-production-loop.md) covers traces, datasets, and evaluation. It is not limited to post-release use; it can also run offline experiments during development. The distinction from DSPy is not “manual after release” versus “automatic before release.” It is the difference between an observability/evaluation platform and a program-parameter optimizer.
 
-DSPy 的评测循环发生在**编译阶段之内**，是「评测即优化」：
+DSPy's evaluation loop runs **inside compilation**: evaluation drives optimization.
 
-| 维度 | LangSmith 式可观测性 | DSPy 编译式优化 |
+| Dimension | LangSmith-style observability | DSPy compilation-based optimization |
 |---|---|---|
-| **评测发生的时机** | 开发期实验和生产期监控 | 编译时反复评估，也可对程序做独立评测 |
-| **谁来决定怎么改** | 平台提供证据，可接人工或自动优化流程 | 选定优化器在搜索空间内提出并选择候选 |
-| **反馈闭环速度** | 取决于数据和自动化集成 | 取决于候选数、数据量、模型延迟与并发配额 |
-| **可解释性** | 看 Trace、评分与实验对比 | 保留指令差异、演示、反馈和候选分数，可审计而非必然黑盒 |
+| **When evaluation occurs** | Development experiments and production monitoring | Repeated evaluation during compilation; programs can also be evaluated independently |
+| **Who decides what to change** | The platform supplies evidence and can connect to manual or automated optimization | The selected optimizer proposes and selects candidates within its search space |
+| **Feedback-loop speed** | Depends on data and automation integration | Depends on candidate count, dataset size, model latency, and concurrency quotas |
+| **Interpretability** | Inspect traces, scores, and experiment comparisons | Retain instruction diffs, demonstrations, feedback, and candidate scores; the process can be audited and need not be a black box |
 
-**这不是互斥关系**：DSPy 优化产物也需要运行时可观测性来发现数据集未覆盖的失败模式，经过标注后再决定是否重新优化。LangSmith 还可以评测优化前后的程序，因此二者是「搜索候选」与「提供评测、运行证据」的职责分工，不是各自独占一个生命周期阶段。
+**These roles are not mutually exclusive**. DSPy artifacts still need runtime observability to discover failure modes missing from the dataset; label those failures before deciding whether to optimize again. LangSmith can also evaluate programs before and after optimization. The division of responsibilities is between searching candidates and providing evaluation/runtime evidence, not between exclusive lifecycle stages.
 
-## 17.4 什么时候值得引入 DSPy
+## 17.4 When is DSPy worth introducing?
 
-编译式优化需要有代表性的输入和可信的自动反馈，不一定要求每条输入都有人工金标；执行测试、规则校验或经校准的模型评审也能提供信号。数据覆盖和指标质量比固定的「至少多少条」更关键。
+Compilation-based optimization needs representative inputs and trustworthy automated feedback, not necessarily a human gold label for every input. Execution tests, rule checks, or calibrated model judging can also supply signals. Data coverage and metric quality matter more than a fixed minimum example count.
 
-| 项目特征 | 是否适合引入 DSPy |
+| Project characteristic | Is DSPy a good fit? |
 |---|---|
-| 有明确、可自动计算的评估指标（准确率、F1、结构化字段匹配等） | **适合**，指标越明确优化效果越可控 |
-| 只能靠人工主观判断「答案好不好」 | **谨慎**，缺乏自动指标会让优化器退化成盲目搜索 |
-| Prompt 需要频繁跨模型迁移（换供应商、换版本） | **值得试验**，对比重编译开销与人工基线；不保证必然更省 |
-| 团队要求每版 Prompt 可审计 | **可以使用**，但必须保存候选、版本、数据摘要与人工批准的产物 |
-| 已经有一套基于 LangChain/LlamaIndex 的生产系统 | **可以局部引入**：把某个高价值、指标明确的子任务（如信息抽取）单独用 DSPy 编译，再包装成 Tool 接入现有系统 |
+| Clear, automatically computable metrics such as accuracy, F1, or structured-field matching | **A good fit**: clearer metrics make optimization outcomes easier to control |
+| Answer quality can only be judged subjectively by people | **Use caution**: without automated metrics, optimization becomes unguided search |
+| Prompts frequently move between models, providers, or versions | **Worth testing**: compare recompilation cost with a manually tuned baseline; savings are not guaranteed |
+| The team needs every prompt version to be auditable | **Possible**, but retain candidates, versions, dataset summaries, and human-approved artifacts |
+| A LangChain/LlamaIndex production system already exists | **Introduce it selectively**: compile a high-value subtask with clear metrics, such as information extraction, using DSPy, then wrap it as a tool in the existing system |
 
-## 17.5 常见错误
+## 17.5 Common mistakes
 
-### 17.5.1 没有评估指标就直接上优化器
+### 17.5.1 Introducing an optimizer without an evaluation metric
 
-搜索方向依赖指标函数 $\mu$；如果只奖励格式合法、不判断内容，优化器可能提高指标而不改善业务质量。反复搜索会放大这种偏差，因此需要独立验收和失败类别分析。
+The search direction depends on the metric function $\mu$. If it rewards valid formatting without judging content, the optimizer may improve the score without improving business quality. Repeated search amplifies this bias, so independent acceptance checks and analysis by failure category are necessary.
 
-### 17.5.2 把编译产物当成一次性的静态 Prompt 永久使用
+### 17.5.2 Keeping a compiled artifact forever as a one-off static prompt
 
-模型更新后应先跑回归；出现分布漂移或质量退化再决定重编译。锁定模型、Adapter、DSPy 版本、程序结构与产物，才能区分「模型变了」和「优化变了」。
+Run regression tests after a model update, then decide whether distribution drift or quality degradation warrants recompilation. Pin the model, Adapter, DSPy version, program structure, and artifact so that a change in the model can be distinguished from a change in optimization.
 
-### 17.5.3 用训练集本身当验证集评估优化效果
+### 17.5.3 Using the training set as the validation set
 
-`BootstrapFewShot` 之类的优化器本身就是在训练集上生成候选示例，如果验证也用同一批数据，测出来的指标会系统性偏高，看不出真实的泛化能力。
+Optimizers such as `BootstrapFewShot` generate candidate examples from the training set. Validating on the same data systematically inflates measured performance and hides actual generalization ability.
 
-### 17.5.4 期望 DSPy 优化器解决模型能力上限问题
+### 17.5.4 Expecting DSPy optimizers to remove model capability limits
 
-Prompt 搜索不能保证突破能力瓶颈；但 DSPy 也有权重优化器，不能把整个框架说成只能调措辞。先诊断是证据缺失、计算不可靠还是指标错误，再考虑检索、受限代码执行、换模型或微调。生成代码本身仍可能错，不能用 `ProgramOfThought` 代替校验与隔离。
+Prompt search cannot guarantee a breakthrough in model capability. However, DSPy also has weight optimizers, so it is wrong to describe the entire framework as only tuning wording. Diagnose whether the problem is missing evidence, unreliable computation, or an incorrect metric before considering retrieval, restricted code execution, a different model, or fine-tuning. Generated code can still be wrong; `ProgramOfThought` does not replace validation and isolation.
 
-## 17.6 优化收益如何证明
+## 17.6 How do you demonstrate optimization gains?
 
-验证集参与了候选选择，继续用它报告最终收益会产生选择偏差。保留完全不参与反思和选择的测试集，按文档来源、用户或时间切分，防止同一记录的近似版本同时进入训练与测试。比较未优化程序、简单 few-shot 和优化程序，记录多次运行波动及困难类别，不只报平均分。
+Because the validation set participates in candidate selection, reporting final gains on it introduces selection bias. Keep a test set completely excluded from reflection and selection. Split by document source, user, or time to prevent near-duplicates of the same record from entering both training and testing. Compare the unoptimized program, a simple few-shot baseline, and the optimized program, recording variation across runs and difficult categories rather than only a mean score.
 
-成本账包括学生模型执行、指令/反思模型、模型评审和工具调用。更长的 demonstrations 会在每次推理时收费，所以要同时报告编译一次的成本与线上每请求成本。搜索期间如果允许真实发送邮件或写业务库，每个候选都可能触发副作用；应使用录制数据、只读工具或测试环境。
+The cost calculation includes student-model execution, instruction/reflection models, model judging, and tool calls. Longer demonstrations add cost to every inference request, so report both the one-time compilation cost and the per-request production cost. If search can send real emails or write to business databases, every candidate may cause side effects. Use recorded data, read-only tools, or test environments instead.
 
-深入追问时，应能解释：为什么某个指标提升没有换来业务收益？是否把格式合法当作事实正确？是否让模型评审偏爱更长答案？GEPA 论文的基准成绩不能直接推出你自己的任务优于强化学习；需要在相同模型、数据、预算和测试集上比较。
+For deeper follow-up questions, be ready to explain why a metric improvement did not produce business gains. Was valid formatting mistaken for factual correctness? Did the model judge prefer longer answers? Benchmark results in the GEPA paper do not establish that it will outperform reinforcement learning on your own task; compare using the same model, data, budget, and test set.
 
-## 17.7 本章总结
+## 17.7 Chapter summary
 
-1. **DSPy 编译可以理解为指标驱动的自动搜索**：给定 `Program`、数据集和评估指标，在预算内寻找更好的候选，不保证全局最优或测试集收益；
-2. **优化器按搜索对象与反馈选择，而不是按名称升级**：自举示例、联合指令/示例搜索、反思优化和权重训练有不同成本；
-3. **编译产物通常保持调用接口**，上线仍需检查模型配置、延迟、费用和回归质量；
-4. **优化器与可观测性平台互补**，前者搜索候选，后者提供实验和运行证据；
-5. **可信指标、代表性数据与独立测试集缺一不可**，否则优化器可能只学会迎合评分；
-6. **收益要连同编译、推理和运维成本评估**，Prompt 优化不是所有质量问题的解法。
+1. **DSPy compilation can be understood as metric-driven automatic search**: given a program, dataset, and evaluation metric, search for better candidates within budget, without guarantees of a global optimum or test-set gains.
+2. **Choose optimizers by search target and feedback, not as a sequence of names to upgrade through**. Bootstrapped examples, joint instruction/example search, reflective optimization, and weight training have different costs.
+3. **Compiled artifacts usually keep the calling interface**, but deployment still requires checks of model configuration, latency, cost, and regression quality.
+4. **Optimizers and observability platforms complement each other**: one searches candidates; the other supplies experimental and runtime evidence.
+5. **Trustworthy metrics, representative data, and an independent test set are all essential**. Otherwise, the optimizer may merely learn to satisfy the scoring system.
+6. **Assess gains alongside compilation, inference, and operational costs**. Prompt optimization does not solve every quality problem.
 
-## 参考资料
+## References
 
-- [DSPy: 选择优化器](https://dspy.ai/diving-deeper/choosing-an-optimizer/)
-- [DSPy: MIPROv2 API 与三阶段机制](https://dspy.ai/api/optimizers/MIPROv2/)
-- [DSPy: GEPA API 与反馈契约](https://dspy.ai/api/optimizers/GEPA/overview/)
-- [DSPy: GEPA 优化教程](https://dspy.ai/getting-started/gepa-optimization/)
-- [DSPy 论文：Khattab et al., "DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines"](https://arxiv.org/abs/2310.03714)
-- [GEPA 论文：Agrawal et al., "GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning"](https://arxiv.org/abs/2507.19457)
-- [LangSmith 官方文档](https://docs.smith.langchain.com/)
+- [DSPy: Choosing an optimizer](https://dspy.ai/diving-deeper/choosing-an-optimizer/)
+- [DSPy: MIPROv2 API and its three-stage mechanism](https://dspy.ai/api/optimizers/MIPROv2/)
+- [DSPy: GEPA API and feedback contract](https://dspy.ai/api/optimizers/GEPA/overview/)
+- [DSPy: GEPA optimization tutorial](https://dspy.ai/getting-started/gepa-optimization/)
+- [DSPy paper: Khattab et al., "DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines"](https://arxiv.org/abs/2310.03714)
+- [GEPA paper: Agrawal et al., "GEPA: Reflective Prompt Evolution Can Outperform Reinforcement Learning"](https://arxiv.org/abs/2507.19457)
+- [Official LangSmith documentation](https://docs.smith.langchain.com/)

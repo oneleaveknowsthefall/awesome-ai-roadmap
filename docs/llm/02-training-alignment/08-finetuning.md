@@ -1,83 +1,83 @@
 ---
-description: 比较全量微调、LoRA 与 QLoRA 的参数和显存预算，区分 SFT、DPO 训练目标，并说明数据评测、遗忘与部署维护的取舍。
+description: Compare parameter and memory budgets for full fine-tuning, LoRA, and QLoRA; distinguish SFT and DPO objectives; and examine data evaluation, forgetting, deployment, and maintenance tradeoffs.
 ---
 
-# 第八章：大模型微调方案
+# Chapter 8: Fine-Tuning Approaches for LLMs
 
-## 8.1 前置问题：错误是否适合用微调解决
+## 8.1 First Ask Whether Fine-Tuning Fits the Error
 
-微调不是第一反应，也不是必须最后才允许尝试的方案。应先建立基线，确认问题来自知识访问、任务行为、输出约束还是模型容量，再比较收益与成本。
+Fine-tuning should not be the automatic first reaction, nor must it always be the last resort. Establish a baseline, determine whether the problem concerns knowledge access, task behavior, output constraints, or model capacity, and then compare benefits and costs.
 
-### 8.1.1 先做错误归因
+### 8.1.1 Attribute the Errors First
 
 ```mermaid
 flowchart TB
-    NEED["模型表现不达标"] --> Q1{"主要错误是什么？"}
-    Q1 -->|格式不合法| P1["提示与示例<br/>结构化输出或约束解码"]
-    Q1 -->|事实缺失或过时| P2["检索或数据库工具<br/>检查召回和证据使用"]
-    Q1 -->|稳定的任务行为不佳| P3["SFT 候选实验"]
-    Q1 -->|候选质量有可比较差异| P4["偏好数据与 DPO 等方案"]
-    P1 --> E["同一测试集比较质量、成本与延迟"]
+    NEED["Model performance falls short"] --> Q1{"What is the main error?"}
+    Q1 -->|Invalid format| P1["Prompts and examples<br/>Structured output<br/>or constrained decoding"]
+    Q1 -->|Missing or outdated facts| P2["Retrieval or database tools<br/>Check recall and evidence use"]
+    Q1 -->|Poor behavior on a stable task| P3["Candidate SFT experiments"]
+    Q1 -->|Comparable quality differences<br/>between candidates| P4["Preference data and<br/>methods such as DPO"]
+    P1 --> E["Compare quality, cost, and latency<br/>on the same test set"]
     P2 --> E
     P3 --> E
     P4 --> E
 ```
 
-这些方案可组合。例如，RAG 负责提供最新合同，SFT 教模型基于证据回答并引用出处。若检索没有召回正确条款，继续调生成模型通常解决不了根因。
+These approaches can be combined. RAG might supply the latest contract, while SFT teaches the model to answer from evidence and cite its sources. If retrieval misses the relevant clause, further tuning of the generator usually will not fix the root cause.
 
-### 8.1.2 哪些场景值得微调
+### 8.1.2 When Is Fine-Tuning Worth Trying?
 
-- 高频、稳定的领域任务，已有一致且可验证的示范数据。
-- 需要可靠的工具调用、结构化表达或专门术语，而较轻量基线仍不达标。
-- 在明确任务分布上用较小模型替代大模型，且累计服务成本能覆盖训练和维护。
+- A frequent, stable domain task has consistent, verifiable demonstrations available.
+- Reliable tool calls, structured expression, or specialized terminology are required, and lighter-weight baselines still fall short.
+- A smaller model could replace a larger one on a well-defined task distribution, with cumulative serving savings covering training and maintenance.
 
-微调可以学到事实知识，但**不适合作为需要频繁更新、精确追溯的数据库**。产品价格、库存、政策版本通常应通过检索或工具访问。
+Fine-tuning can teach factual knowledge, but **it is a poor substitute for a database that needs frequent updates and precise traceability**. Product prices, inventory, and policy versions should generally be accessed through retrieval or tools.
 
-### 8.1.3 成本不能脱离配置报价
+### 8.1.3 Cost Estimates Require a Configuration
 
-| 成本项 | 应记录什么 |
+| Cost item | What to record |
 |---|---|
-| 数据 | 授权、标注、清洗、质量复核、分布覆盖 |
-| 训练 | 模型大小、精度、序列长度、有效 batch、更新 token 数、硬件小时 |
-| 评估 | 业务测试集、人工复核、通用能力与安全回归 |
-| 维护 | 基座与 tokenizer 版本、adapter 兼容性、部署、回滚 |
+| Data | Licensing, annotation, cleaning, quality review, distribution coverage |
+| Training | Model size, precision, sequence length, effective batch size, tokens used for updates, hardware-hours |
+| Evaluation | Business test sets, human review, general-capability and safety regression tests |
+| Maintenance | Base-model and tokenizer versions, adapter compatibility, deployment, rollback |
 
-不存在“微调至少几张 A100”或“标注必然几十万元”的统一门槛。基座升级后，旧微调模型也不会自动失效：可以继续部署旧版本；若要迁移到新基座，则通常需要重训或适配并重新验证，不能盲目加载旧 adapter。
+There is no universal minimum number of A100s for fine-tuning, or a rule that annotation must cost hundreds of thousands of yuan. A new base-model release does not automatically invalidate an older fine-tuned model: the old version can remain in service. Migrating to a new base generally requires retraining or adaptation and fresh validation, not blindly loading an old adapter.
 
-## 8.2 两个维度：更新哪些参数，使用什么信号
+## 8.2 Two Dimensions: Which Parameters Change, and What Signal Is Used?
 
-| 维度 | 例子 | 决定什么 |
+| Dimension | Examples | What it determines |
 |---|---|---|
-| 参数化与精度 | 全量微调、LoRA、QLoRA | 哪些权重更新、以什么精度存储和计算 |
-| 训练数据与目标 | SFT、DPO、奖励优化 | 从示范、偏好或奖励中学习什么 |
+| Parameterization and precision | Full fine-tuning, LoRA, QLoRA | Which weights update, and their storage and compute precision |
+| Training data and objective | SFT, DPO, reward optimization | What is learned from demonstrations, preferences, or rewards |
 
-因此可以有 LoRA + SFT、全量微调 + DPO、QLoRA + DPO。**概念上可组合，不等于任何框架、模型和量化后端都支持任意组合**。
+LoRA + SFT, full fine-tuning + DPO, and QLoRA + DPO are therefore possible combinations. **Conceptual compatibility does not mean every framework, model, and quantization backend supports every combination.**
 
-SFT 和 DPO 当然也可以称为训练方法；这里要避免的只是把它们与 LoRA 当成互斥选项。SFT 不仅学格式，偏好优化也不仅学文风。
+SFT and DPO can certainly be called training methods. The point is not to treat them as mutually exclusive alternatives to LoRA. SFT learns more than formats, and preference optimization learns more than writing style.
 
-## 8.3 参数方案与显存预算
+## 8.3 Parameterization and GPU Memory Budgets
 
-### 8.3.1 全量微调
+### 8.3.1 Full Fine-Tuning
 
-全量微调更新全部或几乎全部模型参数，表达自由度大，但不保证同样数据和预算下效果最好。小数据、分布偏移或不合适的学习率，都可能导致过拟合与通用能力退化。
+Full fine-tuning updates all or nearly all model parameters, allowing greater flexibility. It does not guarantee the best result with the same data and budget. Small datasets, distribution shifts, or unsuitable learning rates can cause overfitting and regressions in general capabilities.
 
-以 **7 × 10⁹ 参数、无分片无卸载**为例，下面只计算持久模型状态，使用十进制 GB：
+Consider **7 × 10⁹ parameters, without sharding or offloading**. The table accounts only for persistent model state, using decimal GB:
 
-| 项目 | 假定精度 | 大小 |
+| Item | Assumed precision | Size |
 |---|---|---|
-| 计算用权重 | BF16 / FP16，2 字节 | 14 GB |
-| 梯度 | 若为 2 字节 | 14 GB |
-| FP32 主权重副本 | 若优化器保留，4 字节 | 28 GB |
-| Adam 一阶矩与二阶矩 | 各 FP32，共 8 字节 | 56 GB |
-| **此配置合计** | 每参数 16 字节 | **112 GB** |
+| Weights used for computation | BF16 / FP16, 2 bytes | 14 GB |
+| Gradients | If stored in 2 bytes | 14 GB |
+| FP32 master weight copy | If retained by the optimizer, 4 bytes | 28 GB |
+| Adam first and second moments | FP32 each, 8 bytes total | 56 GB |
+| **Total for this configuration** | 16 bytes per parameter | **112 GB** |
 
-若梯度也是 FP32，此例增加到 **126 GB**；若实现不维护 FP32 主权重，预算又不同。还没有算激活、logits、临时 buffer、通信与分配器开销，所以不能把“权重 + 梯度 + 两个矩约 84 GB”当成完整训练显存。
+FP32 gradients raise this example to **126 GB**. An implementation without FP32 master weights has a different budget again. Activations, logits, temporary buffers, communication, and allocator overhead are still excluded. Thus, “about 84 GB for weights, gradients, and two moments” is not a complete training-memory estimate.
 
-ZeRO / FSDP 把状态分片，offload 把部分状态移到主机，梯度检查点通过重算节省激活；这些方法改变**单卡峰值显存与速度**，不是消除了全部成本。
+ZeRO / FSDP shard states; offloading moves some states to host memory; gradient checkpointing saves activation memory through recomputation. These methods change **per-device peak memory and speed** rather than eliminating all costs.
 
 ### 8.3.2 LoRA
 
-对列向量输入，冻结 `W`，仅训练低秩增量：
+For column-vector inputs, freeze `W` and train only a low-rank update:
 
 $$
 W' = W+\frac{\alpha}{r}BA,\qquad
@@ -85,109 +85,109 @@ A\in\mathbb{R}^{r\times d_{\mathrm{in}}},
 \quad B\in\mathbb{R}^{d_{\mathrm{out}}\times r}
 $$
 
-“更新可以用低秩形式有效近似”是有实证支持的建模假设，**不代表所有任务真实更新的秩都只有 8 或 16**。
+The idea that updates can be usefully approximated in low-rank form is an empirically supported modeling assumption. **It does not mean every task's true update has rank 8 or 16.**
 
-对一个 `4096 × 4096` 矩阵、`r = 16`：
+For a `4096 × 4096` matrix with `r = 16`:
 
-- 原矩阵：16,777,216 参数；
-- LoRA 两个矩阵：131,072 参数；
-- 可训练参数比：**1/128**。
+- Original matrix: 16,777,216 parameters.
+- Two LoRA matrices: 131,072 parameters.
+- Trainable-parameter ratio: **1/128**.
 
-整个模型的比例要对所有目标矩阵求和；还取决于是否更新 embedding、输出头、bias 等。不能从这个单层例子推出任何 7B 模型都只有 2000 万可训练参数。
+The whole-model ratio requires summing over every target matrix. It also depends on whether embeddings, output heads, biases, and other parameters are updated. This single-layer example cannot establish that every 7B model has only 20 million trainable parameters.
 
-LoRA 大幅减少可训练参数对应的梯度与优化器状态，但**基座仍需前向传播，梯度仍需经冻结层传到 adapter**。因此激活不会按参数比例一起缩小，速度也不会自动提高 128 倍。详见 [第九章](09-lora.md)。
+LoRA greatly reduces the gradients and optimizer states associated with trainable parameters, but **the base still runs a forward pass, and gradients must still propagate through frozen layers to reach adapters**. Activations therefore do not shrink in proportion to trainable parameters, and training does not automatically become 128 times faster. See [Chapter 9](09-lora.md).
 
 ### 8.3.3 QLoRA
 
-QLoRA 把冻结基座低比特存储，与可训练的 LoRA 结合。原论文包含：
+QLoRA combines low-bit storage of the frozen base with trainable LoRA parameters. The original paper includes:
 
-1. **NF4**：针对近似正态权重分布设计的 4-bit 表示。
-2. **Double quantization**：再量化部分量化常数，降低元数据开销。
-3. **Paged optimizers**：借助内存分页应对显存峰值；换页可能有传输开销。
+1. **NF4:** A 4-bit representation designed for approximately normally distributed weights.
+2. **Double quantization:** Further quantization of some quantization constants to reduce metadata overhead.
+3. **Paged optimizers:** Memory paging to handle GPU memory spikes; paging may incur transfer costs.
 
-前向时按需把量化权重恢复到计算精度，通常用 BF16 等完成计算；**不是把全部训练算术、激活和梯度都变成 4-bit**。梯度更新 adapter，不直接更新离散的基座量化值。
+During the forward pass, quantized weights are restored to the compute precision as needed, with arithmetic typically performed in BF16 or a similar format. **Not all training arithmetic, activations, and gradients become 4-bit.** Gradients update the adapters, not the discrete quantized base values directly.
 
-7B 参数的裸 4-bit 位存储约为 3.5 GB，但还要加入量化元数据、未量化模块、adapter、优化器和激活。原论文展示了其配置下在**单张 48GB GPU 微调 65B 模型**，不意味着任意 7B / 13B 长上下文训练都能在 10GB 内完成。
+Raw 4-bit storage for 7B parameters is about 3.5 GB. Quantization metadata, unquantized modules, adapters, optimizer states, and activations must be added. The paper demonstrates **fine-tuning a 65B model on a single 48GB GPU** under its configuration; that does not imply arbitrary 7B / 13B long-context training fits within 10GB.
 
-论文中的任务效果可接近 16-bit 微调；这不是对任何模型、量化设置和任务的无损保证。量化误差、目标模块覆盖和优化设置都需验证。
+Task performance in the paper can approach 16-bit fine-tuning, but this is not a lossless guarantee for every model, quantization setting, and task. Quantization error, target-module coverage, and optimization settings all require validation.
 
-### 8.3.4 三种方案怎样比较
+### 8.3.4 Comparing the Three Approaches
 
-| 维度 | 全量微调 | LoRA | QLoRA |
+| Dimension | Full fine-tuning | LoRA | QLoRA |
 |---|---|---|---|
-| 更新参数 | 全部或大部分 | 选定矩阵的低秩参数 | 低比特冻结基座上的低秩参数 |
-| 主要显存压力 | 权重、梯度、优化器、激活 | 基座权重与激活，另有 adapter 状态 | 量化基座、激活与 adapter 状态 |
-| 表达约束 | 较少 | rank 与目标模块限制 | 同左，另有量化误差 |
-| 合并部署 | 不需 adapter 合并 | 浮点合并后可无额外分支 | 合并与再量化需核对后端和误差 |
-| 速度 | 取决于系统与 batch | 常减少权重梯度计算 | 反量化有成本，较大 batch 也可能受益 |
-| 通用能力退化 | 需回归评测 | 同样需评测，可停用 adapter 回退 | 同样需评测 |
+| Updated parameters | All or most | Low-rank parameters for selected matrices | Low-rank parameters on a low-bit frozen base |
+| Main memory pressure | Weights, gradients, optimizer states, activations | Base weights and activations, plus adapter states | Quantized base, activations, adapter states |
+| Expressive constraints | Fewer | Rank and target-module restrictions | Same as LoRA, plus quantization error |
+| Merging for deployment | No adapter merge required | Floating-point merging can remove the extra branch | Merging and requantization require backend and error checks |
+| Speed | Depends on the system and batch size | Often reduces weight-gradient computation | Dequantization costs compute; larger batches may also help |
+| General-capability regressions | Require regression evaluation | Also require evaluation; disabling adapters can restore the base | Also require evaluation |
 
-不要为三者预先排定“最高、次高、最低”的质量顺序。
+Do not assign them a predetermined “best, second-best, worst” quality ranking.
 
-## 8.4 训练目标：数据如何变成梯度
+## 8.4 Training Objectives: How Data Becomes Gradients
 
-### 8.4.1 SFT：模仿示范
+### 8.4.1 SFT: Imitating Demonstrations
 
-给定指令及上下文，在示范回答上计算自回归交叉熵。通常把 prompt 和 padding 对应 label 设为忽略值，只对 assistant 的目标 token 计损失。
+Given an instruction and its context, compute autoregressive cross-entropy on the demonstration answer. Prompt and padding labels are usually assigned an ignore value so that only the assistant's target tokens contribute to loss.
 
-实施时尤其检查：
+Pay particular attention to:
 
-- **模板一致**：训练和推理使用相同角色分隔符与结束标记。
-- **标签对齐**：移位通常由模型或 trainer 内部处理，避免重复 shift。
-- **截断位置**：长 prompt 不能把整段目标回答裁掉；否则有效监督可能为空。
-- **Packing 边界**：分清样本边界、attention mask 与 position id，避免无意混入前一条样本上下文。
+- **Template consistency:** Use the same role separators and end markers in training and inference.
+- **Label alignment:** The model or trainer usually performs the shift internally; avoid shifting twice.
+- **Truncation:** A long prompt must not truncate away the entire target answer, leaving no effective supervision.
+- **Packing boundaries:** Distinguish sample boundaries, attention masks, and position IDs to avoid unintentionally including the preceding sample as context.
 
-少量高质量示范可能有效，但应通过学习曲线判断需求，不能把 LIMA 的实验结果变成“千条足够所有任务”。
+A small set of high-quality demonstrations may work well, but learning curves should determine data needs. LIMA's experiment is not a rule that a thousand examples suffice for every task.
 
-### 8.4.2 DPO：学习相对偏好
+### 8.4.2 DPO: Learning Relative Preferences
 
-标准 DPO 接收同一 prompt 的 chosen / rejected，使用策略与冻结参考策略对两份回答的 log probability 计算偏好损失。其简化来自特定奖励与偏好建模假设，而非“所有 RLHF 都与监督学习完全等价”。
+Standard DPO takes chosen / rejected answers to the same prompt and computes a preference loss from their log probabilities under the policy and frozen reference policy. Its simplification follows from particular reward and preference modeling assumptions—not from all RLHF being completely equivalent to supervised learning.
 
-数据检查至少包括：两份回答是否对应同一问题、偏好标签是否可靠、长度与格式是否成为捷径、是否只覆盖旧策略容易生成的答案。DPO 不要求一定采用 LoRA，也不存在已知的“工业界最常见组合”可无依据地背诵。
+At a minimum, check that both answers address the same question, preference labels are reliable, length and format are not shortcuts, and the data is not confined to answers an old policy readily generates. DPO does not require LoRA, and there is no basis for reciting an unsupported “most common industry combination.”
 
-## 8.5 一个可执行的选型过程
+## 8.5 A Practical Selection Process
 
-| 已确认的约束 | 可以先试什么 | 什么情况下升级 |
+| Established constraint | What to try first | When to consider a different approach |
 |---|---|---|
-| 基座浮点权重装不下，任务允许量化 | QLoRA + SFT 小实验 | 量化误差或吞吐不能接受时换配置 |
-| 浮点基座装得下，需要高效适配 | LoRA + SFT | 扩大目标模块 / rank 仍受容量限制时比较全量 |
-| 示范表现已可用，有可靠成对偏好 | DPO，可配 LoRA | 覆盖不足且有可靠在线奖励时比较在线优化 |
-| 明显领域迁移，有大量数据和预算 | 继续预训练、SFT 或全量适配的对照 | 根据任务收益与通用能力退化决定 |
+| Floating-point base weights do not fit; the task tolerates quantization | A small QLoRA + SFT experiment | Change configuration if quantization error or throughput is unacceptable |
+| The floating-point base fits and efficient adaptation is needed | LoRA + SFT | Compare full fine-tuning if broader target modules / higher rank still leave a capacity bottleneck |
+| Demonstration-trained behavior is usable and reliable preference pairs exist | DPO, optionally with LoRA | Compare online optimization when coverage is insufficient and reliable online rewards exist |
+| Substantial domain shift, with ample data and budget | Controlled comparisons of continued pretraining, SFT, or full-parameter adaptation | Decide from task gains and general-capability regressions |
 
-不是按“个人 / 大厂”选方案，而是按约束与实测差距选择。
+Choose by constraints and measured gaps, not by whether the user is an individual or a large company.
 
-### 8.5.1 评估与数据切分
+### 8.5.1 Evaluation and Data Splits
 
-先冻结一份目标测试集；按用户、文档、时间或问题来源分组切分，避免近重复示范跨到测试集。比较原基座、提示基线、微调模型，保持解码预算一致。
+Freeze a target test set first. Split by user, document, time, or question source to keep near-duplicate demonstrations out of the test set. Compare the original base, a prompting baseline, and the fine-tuned model under the same decoding budget.
 
-除目标分数外，还要测：
+Beyond the target score, measure:
 
-- 未见任务和通用能力是否下降；
-- 幻觉、误拒绝和敏感信息复现是否增加；
-- 输出长度变化是否制造了偏好评估假象；
-- 每次成功请求成本是否真的降低。
+- Regressions on unseen tasks and general capabilities.
+- Increases in hallucinations, false refusals, or reproduction of sensitive information.
+- Whether changes in answer length create misleading preference-evaluation gains.
+- Whether the cost per successful request actually falls.
 
-### 8.5.2 什么需要随训练产物一起保存
+### 8.5.2 What Should Be Saved with the Training Artifact?
 
-基座精确 revision、tokenizer / chat template、adapter 配置、量化配置、数据版本、训练参数和评测结果。仅保存 `adapter_model` 文件，不足以可靠复现一个微调系统。
+Save the exact base revision, tokenizer / chat template, adapter configuration, quantization configuration, data version, training parameters, and evaluation results. An `adapter_model` file alone is not enough to reproduce a fine-tuned system reliably.
 
-## 8.6 常见错误与排查
+## 8.6 Common Mistakes and Diagnostics
 
-- **“基座冻结，所以不会遗忘。”** 激活后的模型使用 `W + ΔW`，行为仍会变；停用 adapter 可以恢复基座不等于启用时无退化。
-- **“微调是把知识永久写进模型。”** 它只是改变分布，不能保证精确记忆、检索或更新。
-- **“QLoRA 一定更快、更差或无损。”** 三种结论都取决于量化、内核、任务和 batch。
-- **“参数少就无需调参。”** 学习率、训练步数、rank、alpha、目标层与数据质量仍需联合检查。
-- **“越重成本越指数增长。”** 不应把复杂度形容词当成增长规律，按实际状态量、FLOPs 和实验次数核算。
+- **“The base is frozen, so forgetting is impossible.”** With the adapter active, the model uses `W + ΔW` and behavior can change. Being able to restore the base by disabling the adapter does not imply no regression while it is active.
+- **“Fine-tuning permanently writes knowledge into the model.”** It changes a distribution; it does not guarantee precise memorization, retrieval, or updating.
+- **“QLoRA must be faster, worse, or lossless.”** Each claim depends on quantization, kernels, tasks, and batch size.
+- **“Fewer parameters mean no hyperparameter tuning.”** Learning rate, training steps, rank, alpha, target layers, and data quality still need joint examination.
+- **“Heavier methods increase costs exponentially.”** A complexity adjective is not a growth law. Account for actual state sizes, FLOPs, and experiment counts.
 
-## 8.7 本章总结
+## 8.7 Chapter Summary
 
-先用错误分析确定训练信号，再根据显存和表达需求选择参数方案。全量微调、LoRA、QLoRA 的区别不只是“几张卡”，更包括优化状态、激活、量化与部署约束。**可靠的选型结论来自同口径评测与可回滚产物，而不是固定推荐组合。**
+Use error analysis to choose a training signal, then select a parameterization based on memory and expressive needs. Full fine-tuning, LoRA, and QLoRA differ in more than the number of GPUs: optimizer states, activations, quantization, and deployment constraints all matter. **Reliable choices come from comparable evaluations and artifacts that support rollback, not fixed recommended combinations.**
 
-## 参考资料
+## References
 
 - [LoRA](https://arxiv.org/abs/2106.09685)
 - [QLoRA](https://arxiv.org/abs/2305.14314)
-- [Transformers v4.46.3：Model training anatomy](https://huggingface.co/docs/transformers/v4.46.3/model_memory_anatomy)
-- [PEFT：LoRA 配置与初始化](https://huggingface.co/docs/peft/package_reference/lora)
+- [Transformers v4.46.3: Model training anatomy](https://huggingface.co/docs/transformers/v4.46.3/model_memory_anatomy)
+- [PEFT: LoRA configuration and initialization](https://huggingface.co/docs/peft/package_reference/lora)
 - [DPO](https://arxiv.org/html/2305.18290v3)
 - [LIMA](https://arxiv.org/abs/2305.11206)

@@ -1,142 +1,144 @@
 ---
-description: 说明任务契约、拆分粒度、DAG 调度、关键路径与局部恢复，处理动态重规划、幂等重试和并发写冲突。
+description: Define task contracts, choose decomposition granularity, schedule DAGs, analyze critical paths, and recover locally while handling replanning, idempotent retries, and concurrent writes.
 ---
 
-# 第六章：复杂任务拆分与调度
+# Chapter 6: Decomposing and Scheduling Complex Tasks
 
-## 6.1 任务拆分解决什么问题
+## 6.1 What problem does task decomposition solve?
 
-用户说“调研三家竞品并写比较报告”，为什么不直接丢给一次模型调用？如果资料需要现查、不同来源口径不一、失败后还要继续，这个目标就需要可跟踪的执行步骤。复杂任务可能具有以下特征：
+A user asks, “Research three competitors and write a comparison report.” Why not hand that directly to one model call? If the system must find current material, reconcile inconsistent source definitions, and continue after failures, it needs trackable execution steps. Complex tasks may involve:
 
-- 步骤数量多；
-- 中间状态多；
-- 部分信息需要执行后才能获得；
-- 子任务之间存在依赖；
-- 不同步骤需要不同工具或专业能力；
-- 单个步骤可能失败并需要重试；
-- 需要跨多次模型或工具调用才能完成。
+- Many steps.
+- Many intermediate states.
+- Information available only after execution.
+- Dependencies between subtasks.
+- Different tools or expertise for different steps.
+- Individual steps that can fail and need retries.
+- Multiple model or tool calls before completion.
 
-任务拆分要做的是把复杂目标改写成一组：
+Task decomposition turns a complex goal into units that are:
 
-> **可执行、可验证、可调度、可恢复的任务单元。**
+> **Executable, verifiable, schedulable, and recoverable.**
 
 ```mermaid
 flowchart LR
-    G[复杂目标] --> D[任务拆分]
-    D --> T1[子任务 1]
-    D --> T2[子任务 2]
-    D --> TN[子任务 N]
-    T1 --> V[独立验证]
+    G[Complex goal] --> D[Task decomposition]
+    D --> T1[Subtask 1]
+    D --> T2[Subtask 2]
+    D --> TN[Subtask N]
+    T1 --> V[Independent verification]
     T2 --> V
     TN --> V
-    V --> S[结果组合]
+    V --> S[Combine results]
 ```
 
-本章用虚构的竞品研究任务串联例子：调研最近半年的产品、定价和市场动态，最终交付带来源的报告。示例参数和时长用于演算，其中三个调研分支取 40、50、60 秒，合并取 10 秒，不是项目实测结果。
+This chapter uses a fictional competitor-research task: examine the past six months of product, pricing, and market developments, then deliver a sourced report. Parameters and durations are illustrative, not measured project results: three research branches take 40, 50, and 60 seconds, and merging takes 10 seconds.
 
-## 6.2 为什么要拆分
+## 6.2 Why decompose?
 
-### 6.2.1 降低上下文压力
+### 6.2.1 Reduce context pressure
 
-Agent 执行时间越长，产生的消息、工具结果和中间结论越多。如果把所有内容都持续加入上下文，会导致：
+The longer an agent runs, the more messages, tool results, and intermediate conclusions it produces. Continually adding everything to context can:
 
-- 超出 Context Window；
-- Token 成本和延迟上升；
-- 重要约束被噪音稀释；
-- 早期信息被压缩或遗忘；
-- 模型更难判断当前进度。
+- Exceed the context window.
+- Increase token cost and latency.
+- Dilute important constraints with noise.
+- Compress away or lose earlier information.
+- Make current progress harder for the model to assess.
 
-拆分后，每个子任务只需要最小充分上下文，并通过 Artifact、状态或引用传递结果。
+After decomposition, each subtask needs only the minimum sufficient context and passes results through artifacts, state, or references.
 
-### 6.2.2 降低单步推理难度
+### 6.2.2 Make each reasoning step easier
 
-把“调研、分析、比较、验证、写报告”挤在一次调用里，容易混淆证据收集和结论生成。拆分有机会降低单次求解难度，但也会增加交接错误，仍需比较最终报告质量，而不能只看各子任务是否成功。
+Packing research, analysis, comparison, verification, and report writing into one call can blur evidence gathering with conclusion generation. Decomposition may make each attempt easier, but also introduces handoff errors. Compare final report quality, not merely whether each subtask succeeded.
 
-拆开后，每次模型调用的目标和输入都会更聚焦，输出格式也更容易约束，成功标准也更容易定义。
+With separate steps, each model call has a more focused goal and input, a more constrained output format, and more readily defined success criteria.
 
-### 6.2.3 支持独立验证
+### 6.2.3 Support independent verification
 
-完整任务失败时，很难定位问题来自搜索、分析还是结果合成。拆分后，可以为每个步骤设置验收条件：
+When a whole task fails, it can be difficult to tell whether search, analysis, or synthesis caused the problem. Decomposition allows each step to have its own acceptance criteria:
 
 ```mermaid
 flowchart LR
-    T[执行子任务] --> V{满足验收条件?}
-    V -->|是| NEXT[进入后续任务]
-    V -->|否| R[局部重试或回退]
+    T[Execute subtask] --> V{Acceptance criteria met?}
+    V -->|Yes| NEXT[Proceed to downstream tasks]
+    V -->|No| R[Local retry or fallback]
     R --> T
 ```
 
-### 6.2.4 支持局部重试和恢复
+### 6.2.4 Support local retries and recovery
 
-如果第 8 个步骤失败，应先确定哪些已完成结果仍然有效，再重试受影响的步骤，而不是一律从第 1 步重新执行。若上游输入、权限或业务状态已经变化，旧结果不能仅凭 `done` 标记复用。
+If step 8 fails, first determine which completed results remain valid, then retry affected steps instead of always restarting at step 1. If upstream inputs, permissions, or business state have changed, a `done` marker alone does not justify reusing old results.
 
-这要求：
+This requires:
 
-- 子任务具有稳定 ID；
-- 中间结果可以持久化；
-- 已完成步骤支持 checkpoint；
-- 写操作尽量幂等；
-- 失败影响范围可以追踪。
+- Stable subtask IDs.
+- Persistent intermediate results.
+- Checkpoints for completed steps.
+- Idempotent writes wherever possible.
+- Traceable failure impact.
 
-### 6.2.5 支持并行执行
+### 6.2.5 Support parallel execution
 
-数据依赖已满足且没有共享资源冲突的子任务可以并发执行。没有显式依赖边不等于真正独立：例如两个任务都修改同一配置文件，就需要串行、锁或版本检查。
+Subtasks can run concurrently when their data dependencies are satisfied and they do not conflict over shared resources. The absence of a dependency edge does not establish independence. Two tasks modifying the same configuration file, for example, need serialization, locking, or version checks.
 
-### 6.2.6 支持专业化
+### 6.2.6 Support specialization
 
-不同子任务可以分配给不同执行器：
+Different subtasks can use different executors:
 
-- 小模型处理分类和提取；
-- 强模型处理复杂规划；
-- 搜索 Agent 负责资料收集；
-- 代码 Agent 负责实现；
-- 确定性程序负责计算和验证。
+- Small models for classification and extraction.
+- More capable models for complex planning.
+- Search agents for collecting material.
+- Coding agents for implementation.
+- Deterministic programs for calculation and verification.
 
-## 6.3 什么时候不应该拆
+## 6.3 When not to decompose
 
-任务拆分也会产生额外成本：
+Decomposition has overhead:
 
-- Planner 调用；
-- 状态持久化；
-- 子任务调度；
-- 上下文切换；
-- 中间结果序列化；
-- 最终结果合并；
-- 更多失败点。
+- Planner calls.
+- State persistence.
+- Subtask scheduling.
+- Context switching.
+- Serialization of intermediate results.
+- Final result merging.
+- More points of failure.
 
-以下情况通常不需要复杂拆分：
+Elaborate decomposition is usually unnecessary when:
 
-- 单次模型调用即可稳定完成；
-- 任务只有一个原子操作；
-- 子任务之间高度耦合，拆分后需要反复同步；
-- 拆分和合并成本高于执行本身；
-- 不存在独立验收标准。
+- A single model call can complete the task reliably.
+- The task consists of one atomic operation.
+- Subtasks are so tightly coupled that they require constant synchronization.
+- Splitting and merging cost more than execution itself.
+- There are no independent acceptance criteria.
 
-> **拆分是一种成本优化和可靠性手段，不是复杂任务的固定仪式。**
+> **Decomposition is a cost and reliability technique, not a ritual required for every complex task.**
 
-## 6.4 好的任务单元是什么
+## 6.4 What makes a good task unit?
 
-“以原子操作为标准”是一个好的起点，但工程上更准确的定义是：
+“Use atomic operations as the boundary” is a useful starting point, but a more precise engineering definition is:
 
-> **一个任务单元应当在输入和前置条件满足后，能够单独执行、验证和恢复，并具有明确的输出与副作用边界。**
+> **Once its inputs and preconditions are satisfied, a task unit should be independently executable, verifiable, and recoverable, with explicit output and side-effect boundaries.**
 
-一个完整的 Task Contract 通常包含：
+A complete task contract usually includes:
 
-| 字段 | 作用 |
+| Field | Purpose |
 |---|---|
-| `id` | 稳定标识 |
-| `goal` | 子任务目标 |
-| `inputs` | 必需输入和引用 |
-| `dependencies` | 前置任务 |
-| `executor` | Tool、模型、Agent 或 Workflow |
-| `outputs` | 结构化输出或 Artifact |
-| `success_criteria` | 验收条件 |
-| `side_effects` | 是否写入外部系统 |
-| `timeout_seconds` | 最大执行时间，明确以秒为单位 |
-| `retry_policy` | 重试与回退策略 |
-| `risk_level` | 权限和审批等级 |
-| `plan_version` / `input_versions` | 识别当前计划及输入版本，防止复用过期结果 |
-| `idempotency_key` | 有副作用的业务操作在重试时保持同一语义 |
+| `id` | Stable identifier |
+| `goal` | Subtask objective |
+| `inputs` | Required inputs and references |
+| `dependencies` | Prerequisite tasks |
+| `executor` | Tool, model, agent, or workflow |
+| `outputs` | Structured output or artifact |
+| `success_criteria` | Acceptance criteria |
+| `side_effects` | Whether the task writes to external systems |
+| `timeout_seconds` | Maximum execution time, explicitly in seconds |
+| `retry_policy` | Retry and fallback strategy |
+| `risk_level` | Authorization and approval level |
+| `plan_version` / `input_versions` | Identify the current plan and input versions to prevent stale-result reuse |
+| `idempotency_key` | Preserve the meaning of the same side-effecting business operation across retries |
+
+The Chinese goal and criteria below require collecting competitor A's product updates over the last six months, preferring official release notes, marking unconfirmed material for verification, and including each update's date and link.
 
 ```json
 {
@@ -167,480 +169,482 @@ flowchart LR
 }
 ```
 
-这是教学用契约，不是任何框架的完整 API。示例中的时间和重试次数只是配置值；来源数量也不保证事实可靠，两篇转载可能源于同一错误。验收规则应与业务标准一致，而不能完全交给 Planner 临时决定。
+This is a teaching contract, not a complete API for any framework. The time and retry values are configuration examples. Source count does not guarantee factual reliability either: two reposts may repeat the same error. Acceptance rules should match business standards, not be left entirely to the planner's ad hoc judgment.
 
-契约把“最近六个月”固定成 UTC 起止时间，包含起点、不包含终点，避免几天后的重试悄悄改变研究范围。`max_attempts: 2` 在本例中包含首次执行，即最多再尝试一次；这类语义也要写清楚。
+The contract fixes “the last six months” to UTC start and end times, including the start and excluding the end. A retry several days later therefore cannot silently change the research scope. Here, `max_attempts: 2` includes the initial attempt, allowing at most one further try. Such semantics also need to be explicit.
 
-## 6.5 粒度：不能太粗，也不能太细
+## 6.5 Granularity: neither too coarse nor too fine
 
-### 6.5.1 粒度过粗
+### 6.5.1 Too coarse
 
-例如：
+For example:
 
-> 调研所有竞品并写一份完整战略报告。
+> Research all competitors and write a complete strategy report.
 
-问题包括：
+Problems include:
 
-- 输入和输出范围过大；
-- 很难定义单步成功标准；
-- 失败后只能整体重试；
-- 无法充分并行；
-- 中间过程不可观测。
+- Input and output scope is too broad.
+- Success for one step is difficult to define.
+- Failure requires retrying the whole task.
+- Parallelism cannot be used effectively.
+- Intermediate work is not observable.
 
-### 6.5.2 粒度过细
+### 6.5.2 Too fine
 
-例如：
+For example:
 
-1. 打开搜索工具；
-2. 输入一个关键词；
-3. 点击搜索；
-4. 读取第一条结果；
-5. 复制一句话。
+1. Open the search tool.
+2. Enter a keyword.
+3. Click Search.
+4. Read the first result.
+5. Copy one sentence.
 
-问题包括：
+Problems include:
 
-- 调度开销过高；
-- 模型调用次数增加；
-- 状态过于碎片化；
-- 每个步骤缺乏独立业务价值；
-- 整体连贯性下降。
+- Excessive scheduling overhead.
+- More model calls.
+- Fragmented state.
+- Little independent business value in each step.
+- Reduced coherence across the task.
 
-### 6.5.3 合理粒度
+### 6.5.3 Appropriate granularity
 
-更合理的子任务是：
+A better subtask is:
 
-> 搜索竞品 A 最近六个月的官方产品更新，并输出带来源的结构化列表。
+> Find competitor A's official product updates from the past six months and produce a structured list with sources.
 
-它同时具备：
+It has:
 
-- 明确目标；
-- 有限范围；
-- 独立输出；
-- 可验证标准；
-- 可重试性；
-- 可与其他竞品调研并行。
+- A clear objective.
+- Bounded scope.
+- An independent output.
+- Verifiable criteria.
+- Retryability.
+- The ability to run alongside research on other competitors.
 
-### 6.5.4 粒度判断清单
+### 6.5.4 Granularity checklist
 
-一个子任务如果同时满足多数条件，通常粒度较合适：
+A subtask's granularity is usually appropriate when it meets most of these conditions:
 
-- 可以由一个执行器在有限时间内完成；
-- 输入和输出能够结构化描述；
-- 有明确的 Done Definition；
-- 失败后可以局部重试；
-- 与其他任务通过有限接口交互；
-- 不需要持续共享大量隐含上下文；
-- 完成后能产生可复用的 Artifact。
+- One executor can complete it within a bounded time.
+- Inputs and outputs can be described structurally.
+- There is a clear definition of done.
+- Failures can be retried locally.
+- It interacts with other tasks through limited interfaces.
+- It does not need continuous sharing of large amounts of implicit context.
+- Completion produces a reusable artifact.
 
-## 6.6 静态拆分
+## 6.6 Static decomposition
 
-静态拆分由开发者预先定义步骤和依赖，适合流程稳定、规则清晰的场景。
+Developers define steps and dependencies in advance. This fits stable processes with clear rules.
 
 ```mermaid
 flowchart LR
-    IN[客户问题] --> C[意图分类]
-    C --> R[检索知识库]
-    R --> G[生成回答]
-    G --> S[安全检查]
-    S --> OUT[返回结果]
+    IN[Customer question] --> C[Classify intent]
+    C --> R[Retrieve from knowledge base]
+    R --> G[Generate answer]
+    G --> S[Safety checks]
+    S --> OUT[Return result]
 ```
 
-### 6.6.1 优势
+### 6.6.1 Strengths
 
-- 行为可预测；
-- 容易测试；
-- 成本和延迟容易估算；
-- 权限边界清晰；
-- 适合审计和合规。
+- Predictable behavior.
+- Easy testing.
+- Easier cost and latency estimates.
+- Clear authorization boundaries.
+- Suitable for auditing and compliance.
 
-### 6.6.2 局限
+### 6.6.2 Limitations
 
-- 无法覆盖所有未知情况；
-- 流程变化需要修改代码；
-- 分支过多时维护复杂；
-- 不适合开放式目标。
+- Cannot cover every unknown situation.
+- Process changes require code changes.
+- Many branches make maintenance difficult.
+- Poor fit for open-ended goals.
 
-静态拆分通常由 Workflow、DAG 或状态机实现。
+Static decomposition is usually implemented with a workflow, DAG, or state machine.
 
-## 6.7 动态拆分
+## 6.7 Dynamic decomposition
 
-动态拆分由 Planner 根据目标和当前环境生成子任务。
+A planner generates subtasks from the goal and current environment.
 
 ```mermaid
 flowchart TB
-    G[用户目标] --> P[LLM Planner]
-    P --> PLAN[生成任务列表或 DAG]
+    G[User goal] --> P[LLM Planner]
+    P --> PLAN[Generate task list or DAG]
     PLAN --> E[Executor]
     E --> O[Observation]
-    O --> DONE{整体验收通过?}
-    DONE -->|是| OUT[交付结果]
-    DONE -->|否| LIMIT{仍有预算且允许继续?}
-    LIMIT -->|否| STOP[暂停或报告未完成]
-    LIMIT -->|是| RP{需要重规划?}
-    RP -->|否| E
-    RP -->|是| P
+    O --> DONE{Overall acceptance passed?}
+    DONE -->|Yes| OUT[Deliver result]
+    DONE -->|No| LIMIT{Budget remains and continuation allowed?}
+    LIMIT -->|No| STOP[Pause or report incompleteness]
+    LIMIT -->|Yes| RP{Replanning needed?}
+    RP -->|No| E
+    RP -->|Yes| P
 ```
 
-适合：
+It is suitable when:
 
-- 无法预先确定步骤数量；
-- 不同输入需要完全不同的执行路径；
-- 任务依赖外部环境反馈；
-- 需要探索和动态决策。
+- The number of steps cannot be determined in advance.
+- Different inputs need completely different execution paths.
+- The task depends on external feedback.
+- Exploration and dynamic decisions are required.
 
-### 6.7.1 优势
+### 6.7.1 Strengths
 
-- 灵活；
-- 能处理开放式任务；
-- 可以根据新信息调整；
-- 适合长周期研究和编码任务。
+- Flexibility.
+- Support for open-ended tasks.
+- Adaptation to new information.
+- Suitability for long-running research and coding tasks.
 
-### 6.7.2 局限
+### 6.7.2 Limitations
 
-- 规划质量不稳定；
-- 可能遗漏关键步骤；
-- 可能产生无法执行的任务；
-- 容易过度拆分或拆分不足；
-- Planner 调用增加成本和延迟。
+- Inconsistent planning quality.
+- Missing critical steps.
+- Generating tasks that cannot be executed.
+- Over- or under-decomposition.
+- Extra cost and latency from planner calls.
 
-因此，动态计划必须经过 Schema 校验、依赖检查和可执行性检查。
+Dynamic plans therefore need schema validation, dependency checks, and feasibility checks.
 
-## 6.8 分层拆分
+## 6.8 Hierarchical decomposition
 
-复杂任务不适合一次性拆到最底层。更稳健的方法是分层规划：
+Complex tasks should not be expanded to the lowest level all at once. A more robust approach is hierarchical planning:
 
-1. 先生成高层里程碑；
-2. 只展开当前里程碑；
-3. 执行并验证；
-4. 再展开下一层。
+1. Generate high-level milestones first.
+2. Expand only the current milestone.
+3. Execute and verify.
+4. Expand the next level afterward.
 
 ```mermaid
 flowchart TB
-    G[战略报告] --> M1[资料收集]
-    G --> M2[对比分析]
-    G --> M3[报告生成]
+    G[Strategy report] --> M1[Collect material]
+    G --> M2[Comparative analysis]
+    G --> M3[Generate report]
 
-    M1 --> T11[竞品 A]
-    M1 --> T12[竞品 B]
-    M1 --> T13[行业趋势]
+    M1 --> T11[Competitor A]
+    M1 --> T12[Competitor B]
+    M1 --> T13[Industry trends]
 
-    M2 --> T21[功能对比]
-    M2 --> T22[价格对比]
-    M2 --> T23[风险分析]
+    M2 --> T21[Feature comparison]
+    M2 --> T22[Price comparison]
+    M2 --> T23[Risk analysis]
 ```
 
-这借鉴了 Hierarchical Task Network（HTN）的分层思路：
+This borrows the hierarchical idea of Hierarchical Task Networks (HTN):
 
-- 高层任务描述目标；
-- 方法定义如何展开；
-- 叶子任务最终由 Tool、模型或 Agent 执行。
+- High-level tasks describe objectives.
+- Methods define how to decompose them.
+- Leaf tasks are eventually executed by tools, models, or agents.
 
-但自然语言多级清单不等于完整 HTN 规划器。经典 HTN 还需要明确定义可用分解方法、方法适用条件、任务顺序约束及原子动作语义；随意生成层级并不会继承形式化规划的保证。
+A multilevel natural-language checklist is not a complete HTN planner. Classical HTN planning also requires explicit decomposition methods, their applicability conditions, task-ordering constraints, and primitive-action semantics. Generating an arbitrary hierarchy does not inherit the guarantees of formal planning.
 
-图中的连线表示拆分层级，不表示执行顺序。资料收集、对比分析和报告生成虽然都是目标的子任务，仍须另行建立数据依赖，不能据此同时启动。
+Edges in this diagram show decomposition, not execution order. Collection, comparison, and report generation are all subtasks of the goal, but data dependencies must still be established separately; the diagram does not justify starting them simultaneously.
 
-### 分层拆分的优势
+### Strengths of hierarchical decomposition
 
-- 避免一次生成过长计划；
-- 降低早期错误影响范围；
-- 保留全局方向；
-- 可以按阶段分配预算；
-- 更适合长时间运行的 Agent。
+- Avoids generating an excessively long plan at once.
+- Limits the impact of early mistakes.
+- Preserves global direction.
+- Supports per-stage budgets.
+- Better fits long-running agents.
 
-## 6.9 增量拆分与滚动规划
+## 6.9 Incremental decomposition and rolling-horizon planning
 
-滚动规划（Rolling Horizon Planning）不试图一次规划整个未来，而是：
+Rolling-horizon planning does not try to plan the entire future at once. Instead:
 
-1. 规划最近的若干步骤；
-2. 执行其中一步或一个阶段；
-3. 获取真实反馈；
-4. 更新剩余计划；
-5. 再向前展开。
+1. Plan the next few steps.
+2. Execute one step or phase.
+3. Obtain actual feedback.
+4. Update the remaining plan.
+5. Extend the horizon again.
 
 ```mermaid
 flowchart LR
-    S[当前状态] --> P[规划近期步骤]
-    P --> E[执行下一步]
-    E --> O[获取反馈]
-    O --> U[更新状态]
+    S[Current state] --> P[Plan near-term steps]
+    P --> E[Execute next step]
+    E --> O[Obtain feedback]
+    O --> U[Update state]
     U --> P
 ```
 
-它适合环境变化快、远期信息不可靠的任务。
+It fits rapidly changing environments where distant-future information is unreliable.
 
-与完整 Plan-and-Execute 相比：
+Compared with a full Plan-and-Execute plan:
 
-| 完整计划 | 滚动规划 |
+| Full plan | Rolling-horizon planning |
 |---|---|
-| 一开始生成较完整步骤 | 每次只规划有限范围 |
-| 全局可见性强 | 对环境变化适应性强 |
-| 远期计划容易失效 | 需要更多规划轮次 |
+| Generates relatively complete steps at the start | Plans only a bounded horizon each time |
+| Strong global visibility | Strong adaptability to environmental change |
+| Distant steps may become invalid | More planning rounds are needed |
 
-## 6.10 自适应拆分
+## 6.10 Adaptive decomposition
 
-自适应拆分根据运行情况动态决定：
+Adaptive decomposition uses runtime conditions to decide:
 
-- 是否继续拆分；
-- 是否合并过细任务；
-- 是否重新规划；
-- 是否改变执行器；
-- 是否提高或降低并行度。
+- Whether to decompose further.
+- Whether to merge overly fine tasks.
+- Whether to replan.
+- Whether to change executors.
+- Whether to increase or decrease parallelism.
 
 ```mermaid
 flowchart TB
-    T[当前任务] --> E[执行或试探]
-    E --> M[监控信号]
-    M --> D{是否需要调整粒度?}
-    D -->|任务过大或不确定| SPLIT[继续拆分]
-    D -->|任务过细或开销过高| MERGE[合并任务]
-    D -->|计划仍合适| KEEP[保持当前计划]
-    D -->|关键假设失效| REPLAN[重新规划]
+    T[Current task] --> E[Execute or probe]
+    E --> M[Monitoring signals]
+    M --> D{Adjust granularity?}
+    D -->|Too large or uncertain| SPLIT[Decompose further]
+    D -->|Too fine or too much overhead| MERGE[Merge tasks]
+    D -->|Plan still suitable| KEEP[Keep current plan]
+    D -->|Key assumption invalidated| REPLAN[Replan]
     SPLIT --> T
     MERGE --> T
     KEEP --> E
     REPLAN --> T
 ```
 
-### 6.10.1 自适应信号
+### 6.10.1 Adaptation signals
 
-#### 不确定性
+#### Uncertainty
 
-- 模型置信度低；
-- 候选方案差异大；
-- 输入信息不足；
-- 依赖关系不清晰。
+- Low model confidence.
+- Large differences between candidate approaches.
+- Insufficient input information.
+- Unclear dependencies.
 
-模型自报的置信度只能作为线索，不能直接当作正确概率；更稳妥的触发条件还包括缺失输入、候选冲突和可复现的验证失败。
+Self-reported confidence is only a clue, not a probability of correctness. More dependable triggers include missing inputs, conflicting candidates, and reproducible verification failures.
 
-#### 执行反馈
+#### Execution feedback
 
-- Tool 连续失败；
-- 输出无法通过验收；
-- 实际结果偏离计划；
-- 发现新的关键事实。
+- Repeated tool failures.
+- Outputs failing acceptance checks.
+- Actual results diverging from the plan.
+- Discovery of new critical facts.
 
-#### 资源压力
+#### Resource pressure
 
-- Context Window 接近上限；
-- Token 或费用消耗过快；
-- 单个任务运行时间过长；
-- 并发资源不足。
+- The context window is nearly full.
+- Tokens or money are being consumed too quickly.
+- A single task runs too long.
+- Insufficient concurrency capacity.
 
-#### 进度信号
+#### Progress signals
 
-- 多轮没有新增有效信息；
-- 相同步骤反复执行；
-- 任务之间出现重复工作；
-- 某些子任务长期阻塞。
+- Several rounds add no useful information.
+- The same step is repeated.
+- Tasks duplicate one another's work.
+- Some subtasks remain blocked for a long time.
 
-### 6.10.2 自适应策略
+### 6.10.2 Adaptive strategies
 
-| 信号 | 可选策略 |
+| Signal | Possible strategy |
 |---|---|
-| 子任务目标过于宽泛 | 继续向下拆分 |
-| 大量微任务只传递少量信息 | 合并任务 |
-| 外部环境发生变化 | 重规划受影响部分 |
-| Context 压力过高 | 外部化 Artifact、压缩或分阶段 |
-| 关键路径阻塞 | 提高优先级或更换执行器 |
-| 多个任务重复检索 | 共享 Artifact 或合并检索 |
-| 验证连续失败 | 改变方法、升级模型或请求人工帮助 |
+| Subtask objective is too broad | Decompose further |
+| Many tiny tasks pass very little information | Merge tasks |
+| External environment changes | Replan the affected portion |
+| Excessive context pressure | Externalize artifacts, compress context, or work in stages |
+| Critical path is blocked | Raise priority or change executor |
+| Several tasks repeat retrieval | Share artifacts or combine retrieval |
+| Repeated verification failures | Change method, upgrade model, or request human help |
 
-## 6.11 依赖关系与任务 DAG
+## 6.11 Dependencies and task DAGs
 
-拆分完成后，必须分析子任务之间的依赖关系。
+After decomposition, analyze dependencies between subtasks.
 
-设每个节点表示任务，每条有向边表示“后一个任务依赖前一个任务”；确认没有循环后，才得到任务 DAG：
+Let each node represent a task and each directed edge mean “the later task depends on the earlier one.” Only after checking for cycles do you have a task DAG:
 
 ```mermaid
 flowchart LR
-    A[收集竞品 A] --> D[产品对比]
-    B[收集竞品 B] --> D
-    C[收集行业趋势] --> E[趋势分析]
-    D --> F[生成报告]
+    A[Collect competitor A data] --> D[Product comparison]
+    B[Collect competitor B data] --> D
+    C[Collect industry trends] --> E[Trend analysis]
+    D --> F[Generate report]
     E --> F
-    F --> G[事实与引用检查]
+    F --> G[Fact and citation checks]
 ```
 
-### 6.11.1 依赖类型
+### 6.11.1 Dependency types
 
-#### 数据依赖
+#### Data dependencies
 
-后续任务需要前置任务的输出。
+A downstream task needs an upstream task's output.
 
-#### 控制依赖
+#### Control dependencies
 
-只有满足某个条件才执行后续任务。
+A downstream task runs only when a condition holds.
 
-#### 资源依赖
+#### Resource dependencies
 
-多个任务竞争相同的限流 API、数据库连接或执行环境。
+Tasks compete for the same rate-limited API, database connections, or execution environment.
 
-资源竞争通常由容量、信号量或锁处理，不一定要为任意两个任务添加顺序边。条件分支还要规定未选分支如何标记为 `skipped`，汇总节点是等待全部、任一，还是某个指定子集，避免等待永远不会运行的节点。
+Contention is usually handled with capacity limits, semaphores, or locks; it does not necessarily require an ordering edge between every pair of tasks. Conditional branches also need rules for marking unselected branches `skipped` and for whether a join waits for all branches, any branch, or a specified subset. Otherwise it may wait forever for nodes that will never run.
 
-#### 安全依赖
+#### Safety dependencies
 
-某个步骤必须在审批、认证或检查通过后执行。
+A step must wait until approval, authentication, or a required check succeeds.
 
-### 6.11.2 DAG 校验
+### 6.11.2 DAG validation
 
-执行前至少需要检查：
+Before execution, check at least:
 
-- 是否存在循环依赖；
-- 是否存在缺失节点；
-- 输入是否由前置步骤提供；
-- 是否有永远无法满足的条件；
-- 写操作顺序是否安全；
-- 并发执行是否会产生竞争。
+- Cyclic dependencies.
+- Missing nodes.
+- Whether prerequisite steps supply required inputs.
+- Conditions that can never be satisfied.
+- Safe ordering of writes.
+- Races caused by concurrent execution.
 
-每版 DAG 保持无环，重试次数、重规划版本和循环退出条件由外层状态机记录。任务不是只有 `pending/done`：至少应能区分就绪、运行中、成功、失败、阻塞、跳过与取消。分配任务时原子领取或加租约；仅靠“先查询待办，再执行”会让多个 Worker 重复领取。
+Keep each DAG version acyclic. An outer state machine records retry counts, replanning versions, and loop exit conditions. Task states need more than `pending/done`: at least distinguish ready, running, successful, failed, blocked, skipped, and canceled. Claim tasks atomically or use leases. Merely querying to-do items and then executing them lets multiple workers claim the same work.
 
-租约也不是万能的：旧 Worker 可能在租约过期后继续运行。每次重新分配任务都应更新领取标识，结果存储端在提交时原子校验这个标识和计划版本，拒收过期执行器的结果。对外部写入则仍需工具端的并发控制和幂等契约，调度器丢弃迟到结果无法撤销副作用。
+Leases are not sufficient on their own: an old worker may keep running after its lease expires. Update the claim identifier on every reassignment; at commit time, the result store must atomically validate that identifier and the plan version, rejecting stale executors' results. External writes still need concurrency control and an idempotency contract at the tool boundary. Discarding a late result at the scheduler does not undo its side effects.
 
-## 6.12 并行执行
+## 6.12 Parallel execution
 
-依赖已满足、可用资源允许并发的任务可以采用 Fan-out / Fan-in，即分发到多个分支，再汇总结果：
+Tasks with satisfied dependencies and sufficient concurrency resources can use fan-out/fan-in: dispatch to several branches, then aggregate their results.
 
 ```mermaid
 flowchart LR
-    P[Planner] --> A[任务 A]
-    P --> B[任务 B]
-    P --> C[任务 C]
+    P[Planner] --> A[Task A]
+    P --> B[Task B]
+    P --> C[Task C]
     A --> J[Join / Aggregate]
     B --> J
     C --> J
 ```
 
-### 6.12.1 顺序执行时间
+### 6.12.1 Sequential execution time
 
-若任务依次执行，忽略调度开销时：
+If tasks run sequentially, ignoring scheduling overhead:
 
 $$
 T_{seq}=\sum_{i=1}^{n}d_i
 $$
 
-其中 `dᵢ` 是第 `i` 个任务的执行时间。
+Here, `dᵢ` is the duration of task `i`.
 
-### 6.12.2 理想并行时间
+### 6.12.2 Ideal parallel execution time
 
-若所有任务互不依赖且资源充足，理想并行时间接近最慢任务：
+If all tasks are independent and resources are sufficient, ideal parallel time is close to the slowest task's duration:
 
 $$
 T_{parallel}\approx \max(d_1,d_2,\ldots,d_n)+T_{overhead}
 $$
 
-其中 `T_overhead` 包含调度、通信和结果合并开销。
+`T_overhead` includes scheduling, communication, and result-merging overhead.
 
-### 6.12.3 加速比
+### 6.12.3 Speedup
 
 $$
 Speedup=\frac{T_{seq}}{T_{parallel}}
 $$
 
-并行节省比例为：
+The fraction of time saved is:
 
 $$
 Saving=1-\frac{T_{parallel}}{T_{seq}}
 $$
 
-### 6.12.4 并行收益的限制
+### 6.12.4 Limits on parallelism's benefit
 
-并行收益取决于：
+The benefit depends on:
 
-- 可并行任务比例；
-- 最慢分支；
-- 任务依赖；
-- API 限流；
-- 模型并发限制；
-- 调度与合并开销；
-- 失败和重试。
+- The parallelizable fraction of the work.
+- The slowest branch.
+- Task dependencies.
+- API rate limits.
+- Model concurrency limits.
+- Scheduling and merging overhead.
+- Failures and retries.
 
-Amdahl 定律可以表示理论上限：
+Amdahl's law expresses a theoretical upper bound:
 
 $$
 Speedup(k)=\frac{1}{(1-p)+\frac{p}{k}}
 $$
 
-其中：
+Where:
 
-- `p` 是可并行部分比例；
-- `k` 是并行执行单元数量。
+- `p` is the parallelizable fraction.
+- `k` is the number of parallel execution units.
 
-这个模型假设固定工作量、可并行部分可均分，并忽略通信和争用。实际 Agent 的分支长度、模型限流和重试都可能变化，不能用固定节省比例预测。并行调度通常缩短的是总完成时间，不会自动缩短 DAG 原有的依赖关键路径。
+This model assumes a fixed workload, evenly divisible parallel work, and no communication or contention costs. Actual agent branch lengths, model rate limits, and retries may vary, so a fixed savings percentage is not a reliable prediction. Parallel scheduling usually reduces total completion time; it does not automatically shorten the DAG's dependency critical path.
 
-### 6.12.5 具体示例
+### 6.12.5 Worked example
 
-按前述示例，三个独立调研任务分别耗时 40 秒、50 秒和 60 秒，结果合并耗时 10 秒。
+In the earlier example, three independent research tasks take 40, 50, and 60 seconds, and merging takes 10 seconds.
 
-计入两种方案共同需要的合并时间，顺序执行为：
+Including the merge time needed in both approaches, sequential execution takes:
 
 $$
 T_{seq}=40+50+60+10=160
 $$
 
-理想并行执行：
+Ideal parallel execution takes:
 
 $$
 T_{parallel}=60+10=70
 $$
 
-该示例中的节省比例约为：
+The saved fraction in this example is:
 
 $$
 Saving=1-\frac{70}{160}=0.5625
 $$
 
-这里的 56.25% 来自这组具体数据，并不是所有任务都能达到的固定收益。
+The 56.25% saving comes from these particular numbers. It is not a fixed gain available to every task.
 
-## 6.13 关键路径
+## 6.13 The critical path
 
-任务 DAG 中按执行时长计的最长依赖路径称为 Critical Path。资源充足、任务立即就绪执行且忽略额外开销时，总完成时间等于这一路径长度；有并发上限、排队或资源争用时，它只是下界。
+The longest dependency path in a task DAG, weighted by execution duration, is the **critical path**. Total completion time equals this path's length when resources are sufficient, ready tasks start immediately, and extra overhead is ignored. With concurrency limits, queues, or contention, it is only a lower bound.
 
 ```mermaid
 flowchart LR
-    A[任务 A<br/>20s] --> C[任务 C<br/>40s]
-    B[任务 B<br/>50s] --> D[任务 D<br/>10s]
-    C --> E[汇总<br/>10s]
+    A[Task A<br/>20s] --> C[Task C<br/>40s]
+    B[Task B<br/>50s] --> D[Task D<br/>10s]
+    C --> E[Aggregate<br/>10s]
     D --> E
 ```
 
-两条主要路径：
+The two main paths are:
 
-- A → C → E：70 秒；
-- B → D → E：70 秒。
+- A → C → E: 70 seconds.
+- B → D → E: 70 seconds.
 
-若只有一个执行器，总耗时为 130 秒而非 70 秒。图中两条路径并列关键，只缩短其中一条也不会突破另一条的 70 秒下界。
+With only one executor, total time is 130 seconds, not 70. Both paths are critical, so shortening only one cannot beat the other path's 70-second lower bound.
 
-优化不在关键路径上的任务，可能不会降低整体完成时间。调度器应优先关注：
+Optimizing tasks off the critical path may not reduce overall completion time. The scheduler should prioritize:
 
-- 关键路径上的慢任务；
-- 阻塞多个后续节点的任务；
-- 高失败率任务；
-- 稀缺资源任务。
+- Slow tasks on the critical path.
+- Tasks blocking several downstream nodes.
+- Tasks with high failure rates.
+- Tasks using scarce resources.
 
-## 6.14 并发不等于无限并行
+## 6.14 Concurrency does not mean unlimited parallelism
 
-无限提高并发可能导致：
+Increasing concurrency without bounds can cause:
 
-- API 限流；
-- 数据库连接耗尽；
-- Token 和费用瞬间增长；
-- 多个任务写入同一资源产生冲突；
-- 失败重试形成流量放大；
-- 汇总节点被大量结果淹没。
+- API rate limiting.
+- Exhausted database connections.
+- Sudden spikes in token usage and cost.
+- Conflicts from multiple tasks writing the same resource.
+- Retry-driven traffic amplification.
+- An aggregation node overwhelmed by results.
 
-生产系统需要：
+Production systems need:
 
-- 最大并发数；
-- 每个 Tool 的独立限流；
-- 优先级队列；
-- Backpressure；
-- 超时和取消传播；
-- 并发写入控制；
-- 失败隔离。
+- Maximum concurrency limits.
+- Per-tool rate limits.
+- Priority queues.
+- Backpressure.
+- Timeout and cancellation propagation.
+- Concurrent-write control.
+- Failure isolation.
 
-## 6.15 任务之间如何传递结果
+## 6.15 Passing results between tasks
 
-不应把每个子任务的完整对话直接复制给所有后续任务。更好的方式是生成结构化 Artifact。
+Do not copy each subtask's entire conversation into every downstream task. Produce structured artifacts instead.
+
+The Chinese summary in this example states that competitor A released three major updates in the past six months.
 
 ```json
 {
@@ -657,20 +661,20 @@ flowchart LR
 }
 ```
 
-后续任务只读取：
+Downstream tasks read only:
 
-- Artifact 摘要；
-- 必需字段；
-- 可追溯来源；
-- 需要时再加载完整内容。
+- The artifact summary.
+- Required fields.
+- Traceable sources.
+- Full content when needed.
 
-这可以降低上下文重复和信息污染。
+This reduces duplicated context and information contamination.
 
-Artifact 还应绑定输入版本、生产任务和校验结果；消费者需要检查数据时效与权限，而不只读摘要。摘要可能漏掉例外条件，来源网页也可能包含不可信指令，不能因为进入内部 Artifact 就提升为系统指令。
+Artifacts should also be bound to input versions, producing tasks, and validation results. Consumers must check freshness and permissions, not just read summaries. Summaries can omit exceptions, and source pages may contain untrusted instructions. Inclusion in an internal artifact must not elevate such content into system instructions.
 
-## 6.16 Planner、Scheduler、Executor 与 Verifier
+## 6.16 Planner, scheduler, executor, and verifier
 
-复杂任务的拆分系统，通常会把下面四类职责分开：
+Systems for decomposing complex tasks commonly separate four responsibilities:
 
 ```mermaid
 flowchart LR
@@ -679,108 +683,108 @@ flowchart LR
     DAG --> S[Scheduler]
     S --> E[Executors]
     E --> V[Verifiers]
-    V -->|通过| ART[Artifacts]
-    V -->|局部失败| S
-    V -->|计划失效| P
+    V -->|Pass| ART[Artifacts]
+    V -->|Local failure| S
+    V -->|Plan invalidated| P
 ```
 
 ### Planner
 
-负责：
+Responsible for:
 
-- 生成任务；
-- 确定依赖；
-- 指定验收条件；
-- 根据反馈重新规划。
+- Generating tasks.
+- Establishing dependencies.
+- Specifying acceptance criteria.
+- Replanning from feedback.
 
 ### Scheduler
 
-负责：
+Responsible for:
 
-- 找出当前可执行任务；
-- 控制并发；
-- 管理优先级；
-- 处理资源和限流；
-- 调度重试。
+- Finding currently executable tasks.
+- Controlling concurrency.
+- Managing priorities.
+- Handling resources and rate limits.
+- Scheduling retries.
 
 ### Executor
 
-可以是：
+May be:
 
-- Tool；
-- 普通程序；
-- LLM；
-- ReAct Agent；
-- 专业 Worker Agent。
+- A tool.
+- An ordinary program.
+- An LLM.
+- A ReAct agent.
+- A specialized worker agent.
 
 ### Verifier
 
-负责检查：
+Checks:
 
-- 输出 Schema；
-- 事实和引用；
-- 测试和规则；
-- 任务成功标准；
-- 安全和权限。
+- Output schemas.
+- Facts and citations.
+- Tests and rules.
+- Task success criteria.
+- Safety and authorization.
 
-将这些职责分开，比让一个 LLM 同时规划、执行、验证和调度更容易控制。
+Separating these responsibilities is easier to control than having one LLM plan, execute, verify, and schedule everything.
 
-## 6.17 失败处理
+## 6.17 Handling failures
 
-子任务失败后不应只有“无限重试”一种策略。
+“Retry forever” should not be the only response to a failed subtask.
 
-### 6.17.1 局部重试
+### 6.17.1 Local retries
 
-适合临时网络错误、限流和偶发模型输出错误。
+Suitable for transient network errors, rate limiting, and occasional invalid model outputs.
 
-只读请求可按错误类型退避并加入抖动；写请求超时则可能是“服务端成功、响应丢失”。先用操作 ID 查询状态，或以同一幂等键重试，不要直接生成新请求再次执行。权限拒绝、非法输入和预算耗尽通常不应原样重试。
+For read-only requests, use error-specific backoff with jitter. A timed-out write may have succeeded on the server while its response was lost. Query its status using the operation ID or retry with the same idempotency key; do not immediately create a new request and execute it again. Authorization denials, invalid input, and exhausted budgets usually should not be retried unchanged.
 
-### 6.17.2 参数调整
+### 6.17.2 Adjust parameters
 
-根据结构化错误修改查询、参数或超时。
+Use structured errors to change queries, arguments, or timeouts.
 
-### 6.17.3 更换执行器
+### 6.17.3 Change executors
 
-例如：
+For example:
 
-- 小模型失败后升级强模型；
-- 搜索 API 失败后切换备用数据源；
-- Agent 失败后进入人工处理。
+- Escalate from a small model to a more capable one.
+- Switch to a backup data source after a search API fails.
+- Hand off to a person after an agent fails.
 
-### 6.17.4 重新拆分
+### 6.17.4 Decompose again
 
-如果任务本身过大，可以拆成更小步骤。
+If the task is too large, split it into smaller steps.
 
-### 6.17.5 重新规划
+### 6.17.5 Replan
 
-如果关键假设失效，需要修改依赖和后续计划。
+When key assumptions fail, change dependencies and the remaining plan.
 
-更新时保留历史版本，而不是原地覆盖正在执行的计划。应计算受影响子图，取消尚未开始的旧节点，对运行中任务请求取消，并隔离其迟到结果；已完成 Artifact 只有在输入与前提仍有效时才可复用。取消请求不保证外部副作用已撤销。
+Keep historical versions rather than overwrite an executing plan in place. Compute the affected subgraph, cancel old nodes that have not started, request cancellation of running tasks, and quarantine their late results. Reuse completed artifacts only if inputs and assumptions remain valid. A cancellation request does not guarantee reversal of external side effects.
 
-### 6.17.6 补偿操作
+### 6.17.6 Compensating actions
 
-对于已经产生副作用的操作，不能简单重试。需要设计：
+Operations that have already caused side effects cannot simply be retried. Design for:
 
-- 回滚；
-- 补偿事务；
-- 幂等键；
-- 人工确认。
+- Rollback.
+- Compensating transactions.
+- Idempotency keys.
+- Human confirmation.
 
-[AWS 的幂等 API 设计说明](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/)强调，用调用者提供的请求标识表达同一次操作，并在服务端协调去重记录与副作用提交。Task ID 本身不会产生 exactly-once 保证；幂等键的有效期、参数一致性和作用域都要明确。补偿也不是时间倒流：退款不等于撤销发货，已发送邮件通常无法回滚。
+[AWS's guidance on idempotent API design](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/) emphasizes caller-provided request identifiers that express the same operation, with server-side coordination between deduplication records and committing side effects. A task ID does not by itself guarantee exactly-once effects. Define an idempotency key's lifetime, parameter-consistency rules, and scope. Compensation does not turn back time: a refund is not the same as reversing shipment, and a sent email generally cannot be rolled back.
 
 ```mermaid
 flowchart TB
-    F[任务失败] --> C{失败类型}
-    C -->|临时错误| R[退避重试]
-    C -->|参数错误| A[调整参数]
-    C -->|任务过大| S[继续拆分]
-    C -->|计划失效| P[重新规划]
-    C -->|不可逆副作用| H[补偿或人工处理]
+    F[Task failure] --> C{Failure type}
+    C -->|Transient error| R[Retry with backoff]
+    C -->|Parameter error| A[Adjust parameters]
+    C -->|Task too large| S[Decompose further]
+    C -->|Plan invalidated| P[Replan]
+    C -->|Irreversible side effect| H[Compensate or involve a person]
 ```
 
-## 6.18 自适应拆分控制器
+## 6.18 An adaptive decomposition controller
 
-一个能落地的自适应拆分控制器大致会这样运行：
+A practical adaptive decomposition controller might operate as follows:
 
 ```mermaid
 flowchart TB
@@ -791,63 +795,63 @@ flowchart TB
     EX --> OBS[Execution Observations]
     OBS --> VER[Verifier]
 
-    VER --> MET[进度、质量、成本与风险指标]
+    VER --> MET[Progress, quality, cost, and risk metrics]
     MET --> CTRL{Adaptive Controller}
 
-    CTRL -->|保持| SCH
-    CTRL -->|必要任务与整体验收均通过| DONE[交付结果]
-    CTRL -->|继续拆分| P
-    CTRL -->|合并任务或修改依赖| P
-    CTRL -->|计划失效| P
-    CTRL -->|预算耗尽或无进展| STOP[停止并报告]
-    CTRL -->|高风险| HUMAN[人工审核]
+    CTRL -->|Continue unchanged| SCH
+    CTRL -->|Required tasks and overall acceptance pass| DONE[Deliver result]
+    CTRL -->|Decompose further| P
+    CTRL -->|Merge tasks or change dependencies| P
+    CTRL -->|Plan invalidated| P
+    CTRL -->|Budget exhausted or no progress| STOP[Stop and report]
+    CTRL -->|High risk| HUMAN[Human review]
 ```
 
-图中调整粒度或依赖后重新生成、校验一版 DAG，不直接修改正在运行的图。控制器不应只听 Planner 的自然语言判断，还应使用可观测指标：
+Changing granularity or dependencies creates a new DAG version for validation; it does not directly mutate the running graph. The controller should use observable metrics, not just the planner's natural-language judgment:
 
-- 任务完成率；
-- 验证通过率；
-- 重试次数；
-- 重复调用比例；
-- Context 使用量；
-- Token 和费用；
-- 关键路径变化；
-- 阻塞时间；
-- 风险等级。
+- Task completion rate.
+- Verification pass rate.
+- Retry count.
+- Repeated-call ratio.
+- Context usage.
+- Tokens and cost.
+- Changes to the critical path.
+- Time spent blocked.
+- Risk level.
 
-## 6.19 复杂研究任务示例
+## 6.19 Example: a complex research task
 
-目标：
+Goal:
 
-> 调研三家竞品最近半年的产品、定价和市场动态，并形成带来源的比较报告。
+> Research three competitors' product, pricing, and market developments over the past six months, then produce a sourced comparison report.
 
-### 6.19.1 高层拆分
+### 6.19.1 High-level decomposition
 
 ```mermaid
 flowchart TB
-    G[竞品研究报告] --> R[资料收集]
-    G --> A[对比分析]
-    G --> W[报告撰写]
-    G --> V[事实验证]
+    G[Competitor research report] --> R[Collect material]
+    G --> A[Comparative analysis]
+    G --> W[Write report]
+    G --> V[Verify facts]
 ```
 
-这张图列出工作范围，不是并行调度图。对比分析依赖资料，报告依赖分析；资料收集时可以先核查来源，成稿后还要再核查组合出的结论。
+This diagram lists the work, not a parallel schedule. Comparison depends on research, and the report depends on analysis. Sources can be checked during collection, but the conclusions assembled in the final draft still need another check.
 
-### 6.19.2 展开资料收集
+### 6.19.2 Expand material collection
 
 ```mermaid
 flowchart LR
-    R[资料收集] --> A1[竞品 A]
-    R --> B1[竞品 B]
-    R --> C1[竞品 C]
-    R --> T[行业趋势]
+    R[Collect material] --> A1[Competitor A]
+    R --> B1[Competitor B]
+    R --> C1[Competitor C]
+    R --> T[Industry trends]
 ```
 
-在数据访问已授权、彼此不写同一资源且并发预算足够时，四个任务可以并行执行。
+These four tasks can run in parallel when data access is authorized, they do not write the same resources, and the concurrency budget is sufficient.
 
-### 6.19.3 结构化输出
+### 6.19.3 Structured outputs
 
-每个竞品调研任务输出统一 Artifact：
+Each competitor-research task produces an artifact with a common structure:
 
 ```json
 {
@@ -860,147 +864,147 @@ flowchart LR
 }
 ```
 
-### 6.19.4 动态调整
+### 6.19.4 Dynamic adjustments
 
-如果竞品 A 出现重大收购事件：
+If a major acquisition involving competitor A is discovered:
 
-1. Planner 插入“收购事件专项调研”；
-2. Scheduler 将它设为高优先级；
-3. 分析任务等待该 Artifact；
-4. 报告结构增加“战略影响”章节。
+1. The planner inserts a dedicated acquisition-research task.
+2. The scheduler assigns it high priority.
+3. Analysis waits for that artifact.
+4. The report gains a “Strategic implications” section.
 
-### 6.19.5 验证
+### 6.19.5 Verification
 
-先检查研究材料，成稿后再检查最终报告，避免合成阶段引入新错误：
+Check the research material first, then the completed report, so synthesis does not introduce unchecked errors:
 
-- 关键结论是否至少有一个可靠来源；
-- 时间范围是否一致；
-- 不同竞品是否使用同一比较维度；
-- 是否区分事实、推断和建议；
-- 是否存在过时或冲突信息。
+- Does each key conclusion have at least one reliable source?
+- Are time ranges consistent?
+- Are competitors compared along the same dimensions?
+- Are facts, inferences, and recommendations distinguished?
+- Is any information stale or conflicting?
 
-## 6.20 常见反模式
+## 6.20 Common anti-patterns
 
-### 一次性生成几十个详细步骤
+### Generate dozens of detailed steps at once
 
-远期步骤建立在尚未验证的假设上，很快会失效。
+Distant steps rest on unverified assumptions and soon become invalid.
 
-### 只有任务名称，没有 Task Contract
+### Give tasks names but no contracts
 
-“调研竞品”无法明确判断是否完成。
+“Research competitors” does not define how to judge completion.
 
-### 所有子任务共享完整上下文
+### Share full context with every subtask
 
-可能增加成本、干扰决策并让子任务看到不需要的敏感内容。扩大可见数据范围不等于获得合法权限，仍需按每个执行器的授权过滤上下文。
+This can increase cost, interfere with decisions, and expose sensitive content a subtask does not need. Greater data visibility does not confer legitimate authorization. Filter context according to each executor's permissions.
 
-### 所有任务都交给同一个大模型
+### Assign everything to the same large model
 
-忽略了普通代码、小模型、Tool 和专业 Agent 的成本优势。
+This overlooks the cost advantages of ordinary code, small models, tools, and specialized agents.
 
-### 没有依赖分析就并行
+### Parallelize without dependency analysis
 
-可能读取未完成数据，或产生写入竞争。
+Tasks may read incomplete data or race on writes.
 
-### 失败后从头开始
+### Start over after every failure
 
-浪费已完成结果，也难以定位错误。
+This wastes completed work and makes errors harder to locate.
 
-### Planner 自己验证自己的计划
+### Have the planner verify its own plan
 
-容易共享相同盲点。应使用规则、Schema、独立 Verifier 或人工审核。
+The same blind spots are likely to persist. Use rules, schemas, an independent verifier, or human review.
 
-### 把并发收益写成固定百分比
+### Claim a fixed percentage benefit from concurrency
 
-并行收益必须根据 DAG、关键路径和真实指标计算。
+Calculate parallel gains from the DAG, critical path, and actual measurements.
 
-## 6.21 如何选择拆分策略
+## 6.21 Choosing a decomposition strategy
 
 ```mermaid
 flowchart TB
-    G[复杂任务] --> K{步骤是否已知且稳定?}
-    K -->|是| STATIC[静态 Workflow]
-    K -->|部分已知| HYBRID[固定骨架 + 动态子任务]
-    K -->|未知| DYNAMIC[动态 Planner]
+    G[Complex task] --> K{Are steps known and stable?}
+    K -->|Yes| STATIC[Static workflow]
+    K -->|Partly known| HYBRID[Fixed structure + Dynamic subtasks]
+    K -->|Unknown| DYNAMIC[Dynamic planner]
 
-    DYNAMIC --> H{任务是否很长?}
-    H -->|是| HIER[分层 + 滚动规划]
-    H -->|否| PLAN[Plan-and-Execute]
+    DYNAMIC --> H{Is the task long-running?}
+    H -->|Yes| HIER[Hierarchical + Rolling-horizon planning]
+    H -->|No| PLAN[Plan-and-Execute]
 
-    STATIC --> DEP[构建依赖 DAG]
+    STATIC --> DEP[Build dependency DAG]
     HYBRID --> DEP
     HIER --> DEP
     PLAN --> DEP
 
-    DEP --> PAR[并行调度]
-    PAR --> ADAPT[运行时自适应调整]
+    DEP --> PAR[Parallel scheduling]
+    PAR --> ADAPT[Runtime adaptation]
 ```
 
-落地时通常按这个顺序收敛：
+A practical design usually converges in this order:
 
-1. 优先确定性静态拆分；
-2. 对未知部分使用动态 Planner；
-3. 长任务采用分层和滚动规划；
-4. 对可调度步骤建立依赖图，循环由有界状态机或分版 DAG 表达；
-5. 只并行真正独立的任务；
-6. 用运行指标驱动自适应拆分。
+1. Prefer deterministic static decomposition.
+2. Use a dynamic planner for unknown portions.
+3. Use hierarchical and rolling-horizon planning for long tasks.
+4. Build dependency graphs for schedulable steps; represent loops with bounded state machines or versioned DAGs.
+5. Parallelize only genuinely independent tasks.
+6. Drive adaptive decomposition with runtime metrics.
 
-## 6.22 评估任务拆分质量
+## 6.22 Evaluating decomposition quality
 
-| 指标 | 含义 |
+| Metric | Meaning |
 |---|---|
-| Completion Rate | 子任务和整体任务完成率 |
-| Validation Pass Rate | 子任务首次通过验收的比例 |
-| Retry Locality | 失败是否只重试受影响部分 |
-| Parallel Efficiency | 在关键路径和容量下界约束下，资源利用能否缩短总完成时间 |
-| Planning Overhead | 规划成本占总成本的比例 |
-| Context Efficiency | 每个任务是否只获得必要上下文 |
-| Artifact Reuse | 中间结果是否被有效复用 |
-| Replan Rate | 计划失效和重规划频率 |
-| Duplicate Work | 不同任务重复工作的比例 |
-| Recovery Time | 失败后恢复所需时间 |
+| Completion rate | Completion of subtasks and the overall task |
+| Validation pass rate | Fraction of subtasks accepted on the first attempt |
+| Retry locality | Whether retries are limited to affected work |
+| Parallel efficiency | Whether resource use reduces completion time, subject to critical-path and capacity lower bounds |
+| Planning overhead | Planning cost as a fraction of total cost |
+| Context efficiency | Whether each task receives only necessary context |
+| Artifact reuse | Effective reuse of intermediate results |
+| Replan rate | Frequency of plan invalidation and replanning |
+| Duplicate work | Fraction of duplicated work across tasks |
+| Recovery time | Time needed to recover from failure |
 
-一个拆分方案不是任务数越多越好，而是：
+More tasks do not necessarily make a better decomposition. The objective is:
 
-> **以更低的总成本和风险，提高整体任务成功率与可恢复性。**
+> **Improve overall task success and recoverability at lower total cost and risk.**
 
-## 6.23 本章总结
+## 6.23 Chapter summary
 
-复杂任务拆分可以分为三个层次：
+Complex-task decomposition can be understood at three levels:
 
-### 为什么拆
+### Why decompose?
 
-- 降低上下文和推理压力；
-- 支持独立验证；
-- 支持局部重试；
-- 支持并行和专业化。
+- Reduce context and reasoning pressure.
+- Support independent verification.
+- Support local retries.
+- Support parallelism and specialization.
 
-### 怎么拆
+### How to decompose
 
-- 静态拆分适合稳定流程；
-- 动态拆分适合开放目标；
-- 分层拆分避免一次展开过深；
-- 滚动规划利用最新反馈；
-- 自适应拆分根据运行指标调整粒度。
+- Static decomposition fits stable processes.
+- Dynamic decomposition fits open-ended goals.
+- Hierarchical decomposition avoids expanding too deeply at once.
+- Rolling-horizon planning uses fresh feedback.
+- Adaptive decomposition adjusts granularity from runtime metrics.
 
-### 拆完之后
+### After decomposition
 
-- 定义 Task Contract；
-- 建立依赖 DAG；
-- 分析关键路径；
-- 调度可并行任务；
-- 持久化 Artifact；
-- 设置验证、重试、回退和人工介入。
+- Define task contracts.
+- Build a dependency DAG.
+- Analyze the critical path.
+- Schedule parallelizable tasks.
+- Persist artifacts.
+- Set up verification, retries, fallbacks, and human intervention.
 
-归根结底，粒度要同时满足两个要求：
+Ultimately, granularity must satisfy two requirements:
 
-> **每个任务应当足够小，以便独立执行、验证和重试；同时足够大，能够产生有意义、可复用的业务结果。**
+> **Each task should be small enough to execute, verify, and retry independently, yet large enough to produce a meaningful, reusable business result.**
 
-## 参考资料
+## References
 
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
 - [LangChain: Planning Agents](https://www.langchain.com/blog/planning-agents)
 - [LLMCompiler: An LLM Compiler for Parallel Function Calling](https://arxiv.org/abs/2312.04511)
 - [ReWOO: Decoupling Reasoning from Observations for Efficient Augmented Language Models](https://arxiv.org/abs/2305.18323)
 - [AWS Builders' Library: Making retries safe with idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/)
-- [SHOP 系列规划器：作者项目页与实现](https://www.cs.umd.edu/projects/shop/)
-- [Martin Kleppmann: How to do distributed locking（租约过期后的迟到写入与 fencing）](https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html)
+- [SHOP planners: the authors' project page and implementations](https://www.cs.umd.edu/projects/shop/)
+- [Martin Kleppmann: How to do distributed locking](https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html) — late writes after lease expiration and fencing, from the 2016 article.

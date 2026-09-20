@@ -1,150 +1,150 @@
 ---
-description: 比较 MCP 通信协议与 Agent Skills 文件格式，纠正全量加载和必然依赖误区，并讨论脚本及权限边界。
+description: Compare the MCP communication protocol with the Agent Skills file format, distinguish discovery from context loading, and examine dependencies, scripts, and authorization boundaries.
 ---
 
-# 第九章：Skill 与 MCP 的区别
+# Chapter 9: Skills and MCP
 
-## 9.1 它们不是同类概念
+## 9.1 They are different kinds of mechanism
 
-最常见的误解是把 MCP 和 Skill 当成两种「给 Agent 加能力」的竞争方案，觉得选一个就够了。
+The most common misconception is to treat MCP and Skills as competing ways to add capabilities to an agent, as though choosing one makes the other unnecessary.
 
-实际上：
+They address different concerns:
 
 | | MCP | Skill |
 |---|---|---|
-| 解决的问题 | Agent **怎么获得**外部能力 | Agent 拿到能力后**怎么用** |
-| 提供的东西 | 能力（工具、数据访问） | 知识与流程 |
-| 形态 | Client 与 Server 之间的通信协议 | 一个文件夹 + Markdown |
-| 类比 | 接入设备或服务的接口约定，不授予权限 | 操作手册与标准操作流程（SOP） |
+| Problem addressed | **How to access** external capabilities | **How to use** the capabilities available to the agent |
+| What it provides | Capabilities: tools and data access | Knowledge and procedures |
+| Form | A communication protocol between clients and servers | A directory plus Markdown |
+| Analogy | An interface agreement for connecting devices or services, not a grant of permission | An operating manual and standard operating procedures (SOPs) |
 
-## 9.2 从一个具体任务看两者的分工
+## 9.2 Their roles in a concrete task
 
-任务：**审查这个 PR**。
+The task is: **review this PR**.
 
 ```mermaid
 flowchart TB
-    TASK["用户：帮我审查这个 PR"] --> AGENT[Agent]
+    TASK["User: Review this PR"] --> AGENT[Agent]
 
-    AGENT -->|"自动发现并加载"| SKILL["code-review Skill<br/>知道：先看什么、按哪四个维度查、<br/>用什么格式输出"]
+    AGENT -->|"Discover and load automatically"| SKILL["code-review Skill<br/>What to read first, four review dimensions,<br/>and the output format"]
 
-    SKILL --> H["Host 按指令编排<br/>校验权限与执行结果"]
-    H -->|"流程第一步：拿到 diff"| M1["GitHub MCP Server<br/>get_pull_request_diff"]
-    H -->|"流程第二步：跑静态扫描"| SC["Skill 自带脚本<br/>scripts/check_security.py"]
-    H -->|"流程第三步：查历史缺陷"| M2["内部知识库 MCP Server<br/>search_past_incidents"]
-    H -->|"流程第四步：按模板输出"| TPL["Skill 自带模板<br/>assets/report_template.md"]
+    SKILL --> H["Host follows the instructions<br/>and checks authorization and results"]
+    H -->|"Step 1: Get the diff"| M1["GitHub MCP Server<br/>get_pull_request_diff"]
+    H -->|"Step 2: Run a static scan"| SC["Script bundled with the Skill<br/>scripts/check_security.py"]
+    H -->|"Step 3: Look up past defects"| M2["Internal knowledge-base MCP Server<br/>search_past_incidents"]
+    H -->|"Step 4: Use the output template"| TPL["Template bundled with the Skill<br/>assets/report_template.md"]
 
-    TPL --> OUT[结构化审查报告]
+    TPL --> OUT[Structured review report]
 
     style SKILL fill:#e6f4ea
     style M1 fill:#e8f0fe
     style M2 fill:#e8f0fe
 ```
 
-拆开看：
+Consider each mechanism separately:
 
-- **没有 MCP**：仍可用 GitHub API、CLI 或内嵌工具读取 diff；缺的是统一协议接入，不是全部外部能力；
-- **没有 Skill**：仍可用系统指令、用户说明或代码工作流规定审查步骤；缺的是该格式的可复用知识包。
+- **Without MCP**, the agent can still read the diff through the GitHub API, a CLI, or an embedded tool. What is missing is integration through a common protocol, not all external capabilities.
+- **Without a Skill**, system instructions, user directions, or a workflow implemented in code can still define the review steps. What is missing is a reusable knowledge package in this particular format.
 
-两者可以组合，但缺一也能工作。真正编排执行的是 Host/Agent，Skill 提供流程指令，MCP 提供能力接口；协议并不规定固定上下层依赖。
+The two can be combined, but either can work without the other. The host or agent orchestrates execution; the Skill provides procedural instructions, and MCP provides capability interfaces. The protocol does not prescribe a fixed dependency hierarchy.
 
-## 9.3 六个维度的对比
+## 9.3 A comparison across six dimensions
 
-| 维度 | MCP | Skill |
+| Dimension | MCP | Skill |
 |---|---|---|
-| **本质** | 通信协议 | 内容规范 |
-| **运行形态** | Client 与 Server 通信 | 文件包；脚本执行仍需运行时 |
-| **加载方式** | 可分页发现、缓存；注入多少工具由 Host 决定 | 元数据 → 指令 → 按需资源 |
-| **谁来触发** | Host 可接受模型、规则或用户触发 | 自动匹配或显式加载，依宿主 |
-| **变更成本** | 可能改代码、Schema 或数据，需兼容测试 | 可能改指令或脚本，也需回归与权限审查 |
-| **跨平台** | 需要客户端实现 MCP 协议 | 需要平台支持 Skill 规范 |
+| **Nature** | Communication protocol | Content specification |
+| **Runtime form** | Communication between a client and a server | A file package; running scripts still requires a runtime |
+| **Loading** | Discovery can use pagination and caching; the host decides how many tools to inject | Metadata → instructions → resources as needed |
+| **Activation** | The host can accept triggers from a model, rules, or a user | Automatic matching or explicit loading, depending on the host |
+| **Cost of changes** | May involve code, schemas, or data; requires compatibility testing | May involve instructions or scripts; also requires regression testing and permission review |
+| **Cross-platform support** | The client must implement MCP | The platform must support the Skill specification |
 
-### 9.3.1 服务接口与文件分发
+### 9.3.1 Service interfaces versus file distribution
 
-两者的交付对象不同。
+The artifacts being delivered are different.
 
-MCP Server 是服务端实现，需要部署、认证和错误处理。本地 stdio 通常由 Host 启动，远程服务可供多个 Client 共享。
+An MCP server is a server-side implementation, with deployment, authentication, and error-handling concerns. A local stdio server is typically started by the host; a remote service can be shared by multiple clients.
 
-Skill 文件本身不是服务，但脚本可能失败、依赖缺失，也可能访问需要凭据的 API。复制文件能保留内容，不保证另一宿主具有相同工具与权限。
+Skill files are not themselves a service, but their scripts may fail, lack dependencies, or access APIs that require credentials. Copying files preserves the content; it does not guarantee that another host has the same tools and permissions.
 
-本地 MCP Server 可以包管理器安装；远程 Server 可以只配置 URL。Skill 可用目录或 Git 分发，也可以由宿主集成分发；两者都需要版本固定和供应链审查。
+A local MCP server can be installed through a package manager; a remote server may require only a URL configuration. Skills can be distributed as directories, through Git, or through a host's integrated distribution mechanism. Both require version pinning and supply-chain review.
 
-### 9.3.2 另一个经常被忽略的差异：加载方式
+### 9.3.2 An often-overlooked difference: loading
 
-MCP 的 `tools/list` 结果不等于模型上下文。Host 可分页拉取、按权限缓存，再检索少量相关定义或延迟加载；全量注入只是某些实现的策略。
+The result of MCP's `tools/list` is not the model's context. A host can fetch pages, cache results according to authorization, and then retrieve a small set of relevant definitions or defer loading them. Injecting every tool is a policy chosen by some implementations, not a protocol requirement.
 
-Skill 推荐渐进加载，但元数据也随安装数量增长。一个冗长的 Skill 加载后仍可能占据大量上下文。
+Skills recommend progressive disclosure, but their metadata grows with the number installed. A verbose Skill can still consume substantial context once loaded.
 
 ```mermaid
 flowchart LR
-    subgraph MCP_L["MCP 的加载"]
-        M1[已知 Server] --> M2[tools/list 分页与缓存]
-        M2 --> M3["Host 按权限与任务筛选<br/>再注入工具定义"]
+    subgraph MCP_L["MCP loading"]
+        M1[Known servers] --> M2[tools/list pagination and caching]
+        M2 --> M3["Host filters by authorization and task<br/>before injecting tool definitions"]
     end
 
-    subgraph SKILL_L["Skill 的加载"]
-        S1[扫描 Skill 目录] --> S2["只读 name + description"]
-        S2 --> S3{任务匹配?}
-        S3 -->|是| S4[加载正文]
-        S3 -->|否| S5[仅保留发现元数据]
+    subgraph SKILL_L["Skill loading"]
+        S1[Scan Skill directories] --> S2["Read only name + description"]
+        S2 --> S3{Does the task match?}
+        S3 -->|Yes| S4[Load the body]
+        S3 -->|No| S5[Keep only discovery metadata]
     end
 
     style M3 fill:#fce8e6
     style S5 fill:#e6f4ea
 ```
 
-两者都涉及发现成本和运行时注入成本。工具搜索可以延迟暴露完整 Schema，Skill 也要维护可发现目录；比较时应统计实际模型输入，而不是只比较 Server 和文件夹数量。
+Both have discovery costs and runtime context-injection costs. Tool search can defer exposure of complete schemas, while Skills still need a discoverable catalog. Compare actual model input, not just the number of servers or directories.
 
-工具与 Skill 都要测试路由召回、误触发、上下文预算和权限。相关方法见[动态工具筛选](../01-function-calling/03-tool-schema-design.md)。
+For both tools and Skills, test routing recall, false activations, context budgets, and authorization. See [dynamic tool selection](../01-function-calling/03-tool-schema-design.md) for related methods.
 
-## 9.4 什么时候用哪个
+## 9.4 When to use each
 
-可以按这个标准判断：
+Start with the kind of addition you need:
 
 ```mermaid
 flowchart TB
-    Q{"你要给 Agent 加的<br/>是什么?"}
-    Q -->|"访问外部系统的能力<br/>（数据库、API、文件）"| MCP["可选：实现 / 接入 MCP Server"]
-    Q -->|"完成某类任务的方法<br/>（步骤、标准、格式）"| SKILL["写一个 Skill"]
-    Q -->|"两者都要"| BOTH["Host 按 Skill 指令<br/>编排 MCP 工具"]
+    Q{"What do you want<br/>to add to the agent?"}
+    Q -->|"Access to external systems<br/>(databases, APIs, files)"| MCP["One option: implement or connect an MCP server"]
+    Q -->|"A method for a class of tasks<br/>(steps, standards, formats)"| SKILL["Write a Skill"]
+    Q -->|"Both"| BOTH["Host orchestrates MCP tools<br/>following Skill instructions"]
 
     style BOTH fill:#e6f4ea
 ```
 
-具体一点：
+Some concrete examples:
 
-| 需求 | 一种实现方式 |
+| Requirement | One possible implementation |
 |---|---|
-| 让 Agent 能查公司订单库 | MCP Server |
-| 让 Agent 按公司规范写周报 | Skill |
-| 让 Agent 能操作 GitHub | MCP Server（社区已有） |
-| 统一团队的 PR 审查标准 | Skill |
-| 让 Agent 能跑 SQL 并按固定流程做数据分析 | 两者：MCP 提供 SQL 能力，Skill 定义分析流程 |
+| Let the agent query the company's order database | MCP server |
+| Have the agent write weekly reports to company standards | Skill |
+| Let the agent operate GitHub | MCP server; community implementations exist |
+| Standardize the team's PR review criteria | Skill |
+| Let the agent run SQL and follow a defined data-analysis procedure | Both: MCP provides SQL capabilities, and a Skill defines the analysis procedure |
 
-判断重点是要交付统一的远程能力接口，还是可加载的流程知识包。联网与认证不是二分标准：Skill 脚本也可通过受控工具访问 API，MCP 也能返回静态文档和提示模板。
+The central question is whether you are delivering a common remote capability interface or a loadable package of procedural knowledge. Network access and authentication do not create a clean dividing line: Skill scripts can access APIs through controlled tools, and MCP can return static documents and prompt templates.
 
-## 9.5 两者怎么配合
+## 9.5 How they work together
 
-典型的组合形态是**分层**：
+A typical combination uses **layers**:
 
 ```mermaid
 flowchart TB
-    subgraph LAYER1["流程层 · Skill"]
-        SK["定义步骤、标准、输出格式<br/>决定「先做什么后做什么」"]
+    subgraph LAYER1["Procedure layer · Skill"]
+        SK["Defines steps, standards, and output formats<br/>Specifies the order of work"]
     end
 
-    subgraph LAYER2["能力层 · MCP"]
-        T1[数据库 Server]
+    subgraph LAYER2["Capability layer · MCP"]
+        T1[Database Server]
         T2[GitHub Server]
-        T3[文件系统 Server]
+        T3[Filesystem Server]
     end
 
-    SK --> H["Host 编排与权限检查"]
+    SK --> H["Host orchestration and authorization checks"]
     H --> T1
     H --> T2
     H --> T3
 ```
 
-在 `SKILL.md` 里直接引用 MCP 工具是很自然的写法：
+It is natural to reference MCP tools directly in `SKILL.md`. This Chinese instruction example first requests the PR diff, requires module-by-module review with coverage tracking if it exceeds the context budget, and forbids silently skipping configuration, dependencies, or other directories. It then asks for production incidents involving those files during the past six months:
 
 ```markdown
 ## 第一步：获取数据
@@ -157,60 +157,60 @@ flowchart TB
 过去半年是否引发过线上问题。
 ```
 
-如何分批阅读、记录遗漏和汇总结果属于流程知识。示例工具名仅为示意，必须映射到当前 Server 实际提供的名称。
+How to read in batches, record gaps, and aggregate results is procedural knowledge. The example tool names are illustrative and must be mapped to the names actually exposed by the current server.
 
-### 9.5.1 一个边界问题：逻辑该写在哪
+### 9.5.1 A boundary question: where should the logic live?
 
-有些能力两边都能实现，比如「过滤大 diff」。写在 MCP Server 里还是 Skill 里？
+Some behavior, such as filtering a large diff, could be implemented on either side. Should it live in the MCP server or the Skill?
 
-判断依据是**这个逻辑是不是通用的**：
+Ask **whether the logic is generally useful**:
 
-- **所有使用者都需要** → 写进 MCP Server，作为工具的默认行为；
-- **只有你的团队这么做** → 写进 Skill，保持 Server 的通用性。
+- **All users need it** → implement it in the MCP server as the tool's default behavior.
+- **Only your team does it this way** → put it in the Skill, keeping the server general-purpose.
 
-审查顺序和输出偏好适合 Skill；租户隔离、交易限额、权限和强制业务不变量必须在服务端落实，即使它们是团队特有规则。自然语言步骤不能替代强制执行。
+Review order and output preferences fit in a Skill. Tenant isolation, transaction limits, authorization, and mandatory business invariants must be enforced server-side, even when they are specific to one team. Natural-language steps are not a substitute for enforcement.
 
-## 9.6 常见错误
+## 9.6 Common mistakes
 
-### 9.6.1 认为两者是竞争关系
+### 9.6.1 Treating the two as competitors
 
-它们解决不同层次的问题。两者可以同时使用：Host/Agent 按 Skill 指令安排步骤，再通过 MCP 或其他接口调用能力。Skill 文件本身不是执行调度器。
+They address problems at different levels and can be used together. The host or agent arranges steps according to Skill instructions, then invokes capabilities through MCP or another interface. A Skill file is not itself an execution scheduler.
 
-### 9.6.2 把 Skill 降格成 Prompt 模板
+### 9.6.2 Reducing a Skill to a prompt template
 
-Skill 除必需的 `SKILL.md` 外，可以包含脚本、参考文档和模板。区别在于文件入口、元数据和按需资源约定，不在于每个 Skill 都必须带代码。
+Alongside the required `SKILL.md`, a Skill can contain scripts, reference documents, and templates. The distinction lies in conventions for the entry file, metadata, and on-demand resources—not in a requirement that every Skill contain code.
 
-### 9.6.3 用 MCP 实现流程知识
+### 9.6.3 Using MCP for procedural knowledge
 
-静态流程可直接用 Skill，不一定要单独部署服务；但 MCP Prompts/Resources 分发受权限控制、动态更新的流程也合理。选择依据是分发、访问控制和动态性，不是“知识绝不能走 MCP”。
+A static procedure can be distributed directly as a Skill without deploying a separate service. However, MCP Prompts or Resources are also reasonable ways to distribute dynamically updated procedures under access controls. Choose based on distribution, access control, and update requirements, not a blanket rule that knowledge must never travel through MCP.
 
-### 9.6.4 用 Skill 实现外部访问
+### 9.6.4 Using a Skill for external access
 
-在 Skill 写 URL 不会自动获得网络能力，但可通过已授权的 HTTP 工具或脚本访问，并不一定需要 MCP。需明确调用工具、凭据来源、网络范围和失败处理。
+Writing a URL in a Skill does not grant network access. An authorized HTTP tool or script can access it, though, without necessarily using MCP. Specify the tool to call, the source of credentials, the allowed network scope, and failure handling.
 
-### 9.6.5 忽略两者上下文成本的差异
+### 9.6.5 Ignoring differences in context cost
 
-MCP 不强制全量注入，Skill 元数据也非零成本。两者都应按实际注入和任务表现评测。
+MCP does not require every definition to be injected, and Skill metadata is not free. Evaluate both using the content actually injected and performance on the task.
 
-### 9.6.6 把团队特有规则写进 MCP Server
+### 9.6.6 Putting team-specific rules in the MCP server
 
-应区分可变的流程偏好与不可绕过的业务规则。后者必须由服务端执行，不能只写在 Skill 中。
+Distinguish changeable workflow preferences from business rules that must not be bypassed. The latter must be enforced by the server, not merely written in a Skill.
 
-## 9.7 本章总结
+## 9.7 Summary
 
-1. **不是同类概念**：MCP 管「怎么获得能力」，Skill 管「拿到能力后怎么用」；
-2. **MCP 是通信协议，Skill 是文件格式**，执行脚本仍需宿主运行时；
-3. **发现不等于全量注入**，MCP 工具和 Skill 都可按需加载；
-4. **元数据也有成本**，用实际 token 和路由效果评估；
-5. **Host 执行编排**，Skill 指导步骤，MCP 提供一种能力接入方式；
-6. **联网不是二分标准**，Skill 脚本也可访问 API；
-7. **强制权限与业务不变量在服务端**，不要只写进自然语言流程。
+1. **These are different kinds of mechanism**: MCP addresses how to access capabilities; a Skill addresses how to use them.
+2. **MCP is a communication protocol; a Skill is a file format**. Script execution still needs a host runtime.
+3. **Discovery is not the same as injecting everything**. Both MCP tools and Skills can be loaded on demand.
+4. **Metadata has a cost, too**. Measure actual tokens and routing effectiveness.
+5. **The host orchestrates execution**. Skills guide the steps; MCP is one way to access capabilities.
+6. **Network access is not a dividing line**. Skill scripts can also access APIs.
+7. **Authorization and business invariants must be enforced server-side**, not left solely to natural-language procedures.
 
-## 参考资料
+## References
 
 - [Anthropic: Introducing Agent Skills](https://www.anthropic.com/news/skills)
-- [Agent Skills 规范](https://agentskills.io/specification)
-- [Model Context Protocol 官方文档](https://modelcontextprotocol.io/docs/getting-started/intro)
-- [MCP 2026-07-28 工具发现与 Schema](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
+- [Agent Skills specification](https://agentskills.io/specification)
+- [Model Context Protocol official documentation](https://modelcontextprotocol.io/docs/getting-started/intro)
+- [MCP 2026-07-28 tool discovery and schemas](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
 - [Anthropic: Equipping Agents for the Real World with Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
 - [Anthropic: Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)

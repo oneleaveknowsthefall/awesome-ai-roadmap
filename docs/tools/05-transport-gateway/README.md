@@ -1,16 +1,16 @@
 ---
-description: 区分 SSE 事件格式、WebSocket 双向消息与 WebRTC 媒体栈，并分析模型网关的重试、缓存和治理边界。
+description: Distinguish the SSE event format, bidirectional WebSocket messages, and the WebRTC media stack, and examine model gateway boundaries for retries, caching, and governance.
 ---
 
-# Tools · 传输与网关
+# Tools · Transport and Gateways
 
-比较流式和实时传输，并讨论 LLM Gateway 的生产治理。
+Compare streaming and real-time transports, then examine how LLM gateways govern production traffic.
 
-先区分事件格式、浏览器 API 和底层传输，再讨论断线恢复、取消与副作用。网关的接口兼容不等于模型能力兼容；语义缓存命中率和额外延迟都应在具体工作负载下测量。
+First distinguish event formats, browser APIs, and underlying transports, then consider disconnection recovery, cancellation, and side effects. A compatible gateway interface does not guarantee compatible model capabilities; semantic cache hit rates and added latency must both be measured under the actual workload.
 
-## 章节
+## Chapters
 
-1. [第十三章：SSE、WebSocket 与 WebRTC](13-sse-websocket-webrtc.md)
-2. [第十四章：LLM 网关](14-llm-gateway.md)
+1. [Chapter 13: SSE, WebSocket, and WebRTC](13-sse-websocket-webrtc.md)
+2. [Chapter 14: LLM Gateways](14-llm-gateway.md)
 
-返回 [Tools 相关知识点](../README.md)。
+Back to [Tools](../README.md).

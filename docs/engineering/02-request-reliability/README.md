@@ -1,10 +1,10 @@
-# AI Engineering · 请求路径可靠性
+# AI Engineering · Request-Path Reliability
 
-覆盖单次 LLM 调用从「发出去」到「拿到结果」之间的可靠性工程：路由到哪个模型、失败了怎么回退、超时重试怎么不放大故障。
+Reliability engineering for a single LLM call, from sending the request to receiving the result: choosing a model, falling back after failure, and keeping timeouts and retries from amplifying an outage.
 
-## 章节
+## Chapters
 
-1. [第三章：模型网关、路由与回退](03-model-gateway-routing-fallback.md)
-2. [第四章：重试、超时、幂等与熔断](04-retry-timeout-idempotency-circuit-breaker.md)
+1. [Chapter 3: Model Gateways, Routing, and Fallback](03-model-gateway-routing-fallback.md)
+2. [Chapter 4: Retries, Timeouts, Idempotency, and Circuit Breakers](04-retry-timeout-idempotency-circuit-breaker.md)
 
-返回 [AI Engineering / LLMOps 相关知识点](../README.md)。
+Back to [AI Engineering / LLMOps](../README.md).

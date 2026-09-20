@@ -1,28 +1,28 @@
 ---
-description: 从业务验收、数据处理边界和部署形态出发选择模型，说明总成本、尾延迟、模型路由、版本回归与故障降级的取舍。
+description: Select models from business acceptance criteria, data-processing boundaries, and deployment options, weighing total cost, tail latency, routing, version regression, and failure fallback.
 ---
 
-# 第二十二章：模型选型实践
+# Chapter 22: Practical Model Selection
 
-## 22.1 为什么排行榜不足以决定选型
+## 22.1 Why leaderboards cannot decide for you
 
-公开分数可以筛选候选，但不代表模型满足特定业务约束。常见失败包括：
+Public scores can shortlist candidates, but they do not establish that a model satisfies specific business constraints. Common failures include:
 
-| 问题 | 说明 |
+| Problem | Explanation |
 |---|---|
-| **数据处理不符合要求** | 请求内容、日志、向量索引、工具结果和备份都有数据流；部署区域、保留期限、访问方和合同限制需逐项核实 |
-| **业务场景不匹配** | 榜单漂亮，但在你的**财报格式、行业黑话、内部接口调用**上不一定稳定 |
-| **成本或时延超预算** | Agent 循环、重试、长输出、推理 token 与工具调用会放大用量；单次 token 单价不足以预测任务成本 |
+| **Noncompliant data processing** | Requests, logs, vector indexes, tool results, and backups all carry data; verify deployment regions, retention periods, access parties, and contractual restrictions individually |
+| **Poor fit for the task** | Strong leaderboard scores do not guarantee reliable handling of your **financial-report formats, industry jargon, or internal API calls** |
+| **Excessive cost or latency** | Agent loops, retries, long outputs, reasoning tokens, and tool calls multiply usage; per-token pricing alone cannot predict task cost |
 
-> **选型看的是「合规、成本、延迟、能力特征」四个维度和业务需求的匹配，不是跑分。**
+> **Model selection matches business requirements against four dimensions—compliance, cost, latency, and capability—not just benchmark scores.**
 
 ```mermaid
 flowchart TB
-    B["业务需求"] --> C1["① 合规<br/>数据分类分级、出境、审批"]
-    B --> C2["② 成本<br/>完整任务用量、重试与运维"]
-    B --> C3["③ 延迟<br/>内部串行步骤也计入关键路径<br/>测量完整任务尾延迟"]
-    B --> C4["④ 能力特征<br/>推理 / 结构化输出 / 长上下文 / 工具调用"]
-    C1 --> S["选型决策"]
+    B["Business requirements"] --> C1["① Compliance<br/>Data classification,<br/>cross-border transfers, approvals"]
+    B --> C2["② Cost<br/>Full-task usage, retries, and operations"]
+    B --> C3["③ Latency<br/>Internal sequential steps<br/>are on the critical path too<br/>Measure full-task tail latency"]
+    B --> C4["④ Capabilities<br/>Reasoning / structured output<br/>Long context / tool calls"]
+    C1 --> S["Selection decision"]
     C2 --> S
     C3 --> S
     C4 --> S
@@ -30,65 +30,65 @@ flowchart TB
     style C1 fill:#fdecea
 ```
 
-先筛选硬约束，再在可行候选中权衡。除了数据与许可要求，必须达到的正确率、安全规则和响应时限也可能是硬约束；不能用低成本补偿越权或关键任务失败。
+Apply hard constraints first, then make tradeoffs among feasible candidates. Beyond data and licensing requirements, minimum accuracy, safety rules, and response deadlines can also be hard constraints. Low cost cannot compensate for unauthorized actions or critical-task failures.
 
-## 22.2 建立可比较的候选清单
+## 22.2 Build a comparable candidate list
 
-品牌不是能力保证，同一系列不同快照、参数规模、推理模式和部署端点可能差异很大。以下介绍选型维度与已公开技术路线，不给出「截至今日某家最强」的排行榜。
+A brand does not guarantee capability. Snapshots, parameter sizes, reasoning modes, and deployment endpoints can vary substantially within a family. The following dimensions and published technical approaches are not a ranking of which vendor is strongest today.
 
-### 22.2.1 先区分模型与服务形态
+### 22.2.1 Separate the model from its service arrangement
 
-| 形态 | 需要验证 | 典型取舍 |
+| Arrangement | What to verify | Typical tradeoffs |
 |---|---|---|
-| **托管 API** | 可用区域、具体快照、限流、schema/工具支持、数据保留及服务条款 | 接入与运维负担较低，但受供应商变更、网络与配额影响 |
-| **云上专属或私有化服务** | 隔离边界、运维访问、密钥与审计、资源容量、升级策略 | 可增加控制力，但不自动意味着数据不会被记录或远程访问 |
-| **自托管开放权重模型** | 许可证、量化后的任务表现、显存、并发容量和团队运维能力 | 可控制部署与版本，但 GPU、故障恢复、安全补丁和闲置成本由自己承担 |
+| **Hosted API** | Available regions, exact snapshot, rate limits, schema/tool support, retention, and terms of service | Less integration and operational work, but subject to vendor changes, network issues, and quotas |
+| **Dedicated cloud or private deployment** | Isolation boundaries, operator access, keys and auditing, resource capacity, and upgrade policy | More control, but not an automatic guarantee that data will never be logged or remotely accessed |
+| **Self-hosted open-weight model** | License, task performance after quantization, GPU memory, concurrency capacity, and the team's operational capability | Control over deployment and versions, but responsibility for GPUs, recovery, security patches, and idle capacity |
 
-「开放权重」不自动等于开放全部训练数据或没有商业限制。相同权重经不同量化、推理后端、chat template 和工具解析器部署，也应视为不同候选配置。
+“Open weights” does not automatically mean open training data or unrestricted commercial use. The same weights served with different quantization, inference backends, chat templates, or tool parsers should be treated as different candidate configurations.
 
-### 22.2.2 用公开报告理解路线，不给品牌贴固定标签
+### 22.2.2 Use public reports to understand designs, not label brands permanently
 
-| 已公开资料 | 能确认什么 | 不能据此推出什么 |
+| Published material | What it establishes | What it does not establish |
 |---|---|---|
-| **DeepSeek-V3 技术报告** | 该版本使用 MoE、MLA 等设计；报告描述其训练与评测 | 不能推出所有后续版本或托管端点都最便宜，也不能用激活参数量代替全部权重的显存需求 |
-| **Qwen3 技术报告** | 报告发布批次包含 Dense/MoE 路线，并讨论 thinking/non-thinking 与预算控制 | 不能推出同系列任意后续版本都支持相同切换方式，或中文、工具调用必然适合本业务 |
-| **API 官方文档与模型卡** | 核对具体端点的模态、上下文、结构化输出、工具能力及限制 | 不能把「支持 function calling」等同于可靠执行，也不能从产品标签推断未公开架构 |
+| **DeepSeek-V3 Technical Report** | This version uses designs such as MoE and MLA; the report describes its training and evaluation | That every later version or hosted endpoint is cheapest, or that active parameter count represents the memory needed for all weights |
+| **Qwen3 Technical Report** | The reported release includes dense and MoE models and discusses thinking/non-thinking behavior and budget control | That all later family members support identical switching, or that Chinese-language performance and tool use necessarily fit your tasks |
+| **Official API documentation and model cards** | Modalities, context limits, structured output, tool capabilities, and restrictions of particular endpoints | That function-calling support means reliable execution, or that product labels reveal unpublished architecture |
 
-DeepSeek、Qwen、豆包、GPT、Claude 等可按需求进入候选池，但国别和品牌不能替代部署与合同审查。候选卡至少记录：模型 ID/快照、获取日期、部署区域、精度/量化、推理模式、上下文限制、输出限制、工具能力、许可证或服务条款。
+DeepSeek, Qwen, Doubao, GPT, Claude, and others may enter the candidate pool according to need, but national origin and brand cannot replace deployment and contract review. At minimum, a candidate record should include model ID/snapshot, date accessed, deployment region, precision/quantization, reasoning mode, context limit, output limit, tool capabilities, and license or service terms.
 
-多模态需求不能只看“支持图片/音频”的产品标签。应按 OCR、小目标、图表、视频时序、ASR、延迟和安全分别评测；底层架构与评测维度见 [多模态模型](../06-multimodal/23-multimodal-models.md)。
+For multimodal requirements, a “supports images/audio” label is not enough. Evaluate OCR, small objects, charts, video timing, ASR, latency, and safety separately. See [Multimodal Models](../06-multimodal/23-multimodal-models.md) for architecture and evaluation dimensions.
 
-## 22.3 落地思路：模型路由（Model Routing）
+## 22.3 Putting selection into practice: model routing
 
-先建立单模型或固定节点配置的基线。只有当任务差异足够大、路由收益超过额外评测与运维成本时，再引入多模型；不是所有应用都需要路由。
+First establish a baseline using one model or fixed models at each workflow node. Introduce multiple models only if tasks differ enough and routing benefits outweigh added evaluation and operational costs. Not every application needs routing.
 
-### 22.3.1 一个具体场景
+### 22.3.1 A concrete scenario
 
-以企业财报问答为例，以下是工作流拆分示意，不表示必须使用多智能体：
+Consider question answering over corporate financial reports. The following workflow decomposition does not imply that multiple agents are required:
 
 ```
-解析长篇企业财报
-  → 提取字段并判断是否需要检索或计算
-    → 频繁调用公司内部数据库与搜索引擎
-      → 汇总生成中文报告
+Parse a long corporate financial report
+  → Extract fields and decide whether retrieval or calculation is needed
+    → Frequently call internal company databases and search engines
+      → Synthesize a report in Chinese
 ```
 
-### 22.3.2 按节点分配
+### 22.3.2 Assigning models by node
 
 ```mermaid
 flowchart TB
-    subgraph N1["主调度节点 / 格式严格的节点"]
-        A1["需求：结构化输出稳定<br/>Tool Use 准确率高<br/>长上下文指令遵循好"]
-        A2["原因：Agent 频繁调用内部 API<br/>JSON、函数参数、字段名都不能乱"]
-        A3["→ 『稳定』比『榜单第一』更重要"]
+    subgraph N1["Main orchestration / strict-format nodes"]
+        A1["Needs: reliable structured output<br/>Accurate tool use<br/>Strong long-context<br/>instruction following"]
+        A2["Why: the agent frequently<br/>calls internal APIs<br/>JSON, function arguments,<br/>and field names must be correct"]
+        A3["→ Reliability matters more than<br/>first place on a leaderboard"]
     end
-    subgraph N2["字段提取与复杂分析分别评测"]
-        B1["需求：满足各自成功率与延迟门槛"]
-        B2["简单提取先试小模型或规则<br/>复杂分析比较推理模型与工具"]
-        B3["内部错误也会传递到最终结果<br/>不能只按是否展示给用户定质量"]
+    subgraph N2["Evaluate field extraction<br/>and complex analysis separately"]
+        B1["Needs: each task's success<br/>and latency thresholds"]
+        B2["Try small models or rules<br/>for simple extraction<br/>Compare reasoning models and tools<br/>for complex analysis"]
+        B3["Internal errors reach<br/>the final result too<br/>Quality cannot depend only<br/>on user visibility"]
     end
-    subgraph N3["敏感数据链路"]
-        C1["按获批数据策略选择端点<br/>主模型与兜底模型均适用"]
+    subgraph N3["Sensitive-data paths"]
+        C1["Select endpoints under<br/>approved data policies<br/>For both primary and fallback models"]
     end
 
     style A3 fill:#e6f4ea
@@ -96,38 +96,38 @@ flowchart TB
     style C1 fill:#fdecea
 ```
 
-### 22.3.3 路由、级联与降级不是一回事
+### 22.3.3 Routing, cascades, and failure fallback are different
 
-| 机制 | 决策时机 | 主要风险 |
+| Mechanism | When the decision occurs | Main risk |
 |---|---|---|
-| **预先路由** | 生成前按任务特征、规则或学习到的路由器选模型 | 误判难度，把高风险问题发给不合适模型 |
-| **级联升级** | 先用低成本模型，未通过校验时升级 | 错误答案若被误判为合格，不会触发升级；串行延迟增加 |
-| **故障降级** | 超时、限流或服务不可用时切换 | 备用端点可能不满足相同数据、工具和质量约束 |
+| **Up-front routing** | Before generation, select a model from task features, rules, or a learned router | Misjudge difficulty and send a high-risk problem to an unsuitable model |
+| **Cascaded escalation** | Use a low-cost model first, then escalate if validation fails | An incorrect answer mistakenly accepted as valid never triggers escalation; sequential latency increases |
+| **Failure fallback** | Switch after a timeout, rate limit, or unavailable service | The backup endpoint may not satisfy the same data, tool, and quality constraints |
 
-RouteLLM 研究的是用偏好数据学习强弱模型之间的路由；FrugalGPT 展示了学习式级联。它们提供设计思路，不保证在任意模型组合与业务分布下都省钱。
+RouteLLM studies learning to route between strong and weak models using preference data; FrugalGPT demonstrates learned cascades. They offer design ideas, not a guarantee of savings for every model pair and task distribution.
 
-路由信号可来自任务类别、输入长度、规则校验或独立评估器，不宜只信模型自报置信度。评测须覆盖**路由器 + 被选模型 + 升级路径**的端到端结果，并监控分布漂移。路由也要先执行硬性数据策略，再做成本优化。
+Routing signals can come from task categories, input length, rule-based checks, or independent evaluators. Do not rely only on a model's self-reported confidence. Evaluate the end-to-end **router + selected model + escalation path**, and monitor distribution drift. Hard data policies must precede cost optimization in routing too.
 
-### 22.3.4 数据边界对离线评测同样有效
+### 22.3.4 Data boundaries apply to offline evaluation as well
 
-先明确数据分类、授权目的、处理区域、保留与删除机制、供应商访问和客户合同，再由负责团队审核适用法规。不能以「只做离线评测」为理由，把未获准的内部数据发到不允许的端点；离线评测仍然是数据处理。
+First establish data classification, authorized purposes, processing regions, retention and deletion mechanisms, vendor access, and customer contracts. The responsible teams should then review applicable regulations. “Only an offline evaluation” is not a reason to send unapproved internal data to a prohibited endpoint. Offline evaluation is still data processing.
 
-「不用于训练」不等于「不存储」，日志、文件、会话状态、缓存与第三方工具可能有不同保留规则。官方 API 数据控制文档也会按端点和获批配置区分行为，不能把一个设置外推到整个供应商产品线。
+“Not used for training” does not mean “not stored.” Logs, files, conversation state, caches, and third-party tools may follow different retention rules. Official API data-control documentation also distinguishes endpoints and approved configurations; do not extrapolate one setting to an entire vendor's product line.
 
-## 22.4 选型的落地检查清单
+## 22.4 A practical selection checklist
 
-| 步骤 | 要做的事 |
+| Step | Work to do |
 |---|---|
-| **① 定义硬约束** | 数据处理、许可、权限、安全、关键任务成功率和响应时限 |
-| **② 拆解链路节点** | 找出串行关键路径、可并行步骤和能由规则/工具完成的部分 |
-| **③ 明确验收条件** | 分别测结构合法、参数语义正确、工具执行成功、上下文证据利用和最终任务成功 |
-| **④ 评测候选配置** | 用公开榜单初筛，再用 [第二十一章](21-evaluation-metrics.md) 的保留业务集对照；记录配置与不确定性 |
-| **⑤ 计算完整任务成本** | 包括缓存命中/未命中、输出与内部推理、工具、重试、路由、基础设施和人工返工 |
-| **⑥ 验证降级与变更** | 实测超时、限流、错误 schema、模型升级与回滚，不仅验证正常路径 |
+| **① Define hard constraints** | Data processing, licensing, authorization, safety, critical-task success, and response deadlines |
+| **② Decompose the workflow** | Identify the sequential critical path, parallelizable steps, and work that rules or tools can perform |
+| **③ Specify acceptance criteria** | Separately measure structural validity, argument semantics, successful tool execution, use of contextual evidence, and final task success |
+| **④ Evaluate candidate configurations** | Shortlist with public benchmarks, then compare on held-out task data as described in [Chapter 21](21-evaluation-metrics.md); record configurations and uncertainty |
+| **⑤ Calculate full-task cost** | Include cache hits/misses, outputs and internal reasoning, tools, retries, routing, infrastructure, and human rework |
+| **⑥ Validate fallback and changes** | Test timeouts, rate limits, incorrect schemas, model upgrades, and rollbacks—not only the happy path |
 
-### 22.4.1 算的是成功任务成本，不只是 token 单价
+### 22.4.1 Measure cost per successful task, not just token prices
 
-同一评测窗口内，可用下式统一 API 与自托管方案的口径：
+Within the same evaluation window, the following definition makes API and self-hosted options comparable:
 
 $$
 C_{\mathrm{success}}
@@ -135,59 +135,59 @@ C_{\mathrm{success}}
 {N_{\mathrm{success}}}
 $$
 
-分子包含成功和失败尝试的开销，分母是实际完成任务数；无成功任务时该指标不可用，应直接报告失败。API 的输入、缓存输入、输出和推理 token 计费应按当前端点规则核对，避免把已包含在输出用量内的推理 token 重复计费。自托管还要纳入权重与 KV 显存、利用率、冗余和运维，不能只比较 GPU 租金与 API 单价。
+The numerator includes both successful and failed attempts; the denominator counts actually completed tasks. With no successful tasks, the metric is unavailable and failure should be reported directly. Check the current endpoint's accounting for input, cached input, output, and reasoning tokens to avoid charging reasoning tokens twice when already included in output usage. Self-hosting also requires accounting for weight and KV memory, utilization, redundancy, and operations—not merely comparing GPU rental with API unit prices.
 
-同时报告总体成功率，避免仅用低成功任务成本掩盖大量拒答。一个贵但减少循环和返工的模型，可能比便宜却反复失败的模型总成本更低。
+Report overall success rate as well, so a low cost per successful task does not hide large numbers of refusals. An expensive model that reduces loops and rework can cost less overall than a cheap model that repeatedly fails.
 
-### 22.4.2 尾延迟、版本与有副作用的重试
+### 22.4.2 Tail latency, versions, and retries with side effects
 
-内部串行节点同样位于用户等待路径上。按代表性并发测首 token、完整任务 p50/p95、工具等待与超时比例；并发采样节省墙钟时间，却可能吃满配额。标称长上下文只是可接收长度，还要在不同证据位置、干扰文档和长度下测试是否正确利用内容。
+Internal sequential nodes are on the user's waiting path too. Under representative concurrency, measure time to first token, full-task p50/p95, tool waiting time, and timeout rate. Parallel sampling saves wall-clock time but can exhaust quotas. An advertised long context is merely an accepted input length; test whether the model uses evidence correctly across different positions, distracting documents, and lengths.
 
-固定可用的模型快照与 Prompt/工具 schema 版本，对别名更新做回归与小流量发布，保留回滚方案。重试支付、发消息或写数据库前要确认动作状态并使用幂等键，不能因主模型超时就让备用模型重复执行。对硬约束不满足的故障场景，安全做法可能是暂停或转人工，而非自动切到任意可用模型。
+Pin model snapshots where available and version prompts and tool schemas. Regression-test alias updates, roll them out to a small share of traffic, and retain a rollback plan. Before retrying a payment, message, or database write, confirm the action's state and use idempotency keys. A timeout in the primary model must not cause a fallback model to repeat the action. If failure leaves no option satisfying hard constraints, pausing or handing off to a person may be safer than switching automatically to any available model.
 
-## 22.5 常见错误
+## 22.5 Common mistakes
 
-### 22.5.1 盯着排行榜第一名选
+### 22.5.1 Choosing the leaderboard winner
 
-跑分不等于在你的业务里表现好，还存在数据污染（见 [第二十一章](21-evaluation-metrics.md)）。
+Benchmark performance does not guarantee good results on your tasks, and contamination is another concern; see [Chapter 21](21-evaluation-metrics.md).
 
-### 22.5.2 忽略合规是一票否决项
+### 22.5.2 Forgetting that compliance can disqualify a candidate
 
-数据处理要求取决于实际数据、地区、合同和端点配置，不是简单的国内/海外品牌二分；评测、日志与备用链路都要审查。
+Data-processing requirements depend on the actual data, regions, contracts, and endpoint configuration—not a simple domestic-versus-foreign brand distinction. Evaluate data handling in tests, logs, and backup paths alike.
 
-### 22.5.3 未验证收益就引入多模型
+### 22.5.3 Introducing multiple models before verifying the benefit
 
-单模型更易运维和归因；多模型可能降低成本，却增加路由错误、兼容性和回归组合。先证明基线不足，再比较端到端收益。
+A single model is easier to operate and diagnose. Multiple models may reduce cost but add routing errors, compatibility issues, and regression combinations. Show where the baseline falls short before comparing end-to-end benefits.
 
-### 22.5.4 在 Agent 内部循环节点用最贵的模型
+### 22.5.4 Using the most expensive model inside every agent loop
 
-价格不是唯一问题。内部节点的错误与串行延迟会传递到最终结果，应比较同一成功率要求下的完整任务成本。
+Price is not the only issue. Errors and sequential delays at internal nodes reach the final result. Compare full-task costs at the same required success rate.
 
-### 22.5.5 在格式严格的调度节点只看推理分数
+### 22.5.5 Looking only at reasoning scores for strict-format orchestration nodes
 
-结构合法、参数业务含义正确、权限允许与任务成功是不同层次；合法 JSON 也可能请求错误账户或执行错误动作。
+Structural validity, correct business semantics of arguments, authorization, and task success are different layers. Valid JSON can still request the wrong account or the wrong action.
 
-### 22.5.6 没有兜底方案
+### 22.5.6 Having no fallback plan
 
-降级需保留数据与权限边界，并考虑幂等、会话兼容、拒答与人工接管，不是只换模型名称。
+Fallback must preserve data and authorization boundaries and account for idempotency, conversation compatibility, refusals, and human takeover. It is not merely a change of model name.
 
-### 22.5.7 把具体模型型号当成标准答案
+### 22.5.7 Treating a specific model name as the standard answer
 
-版本迭代很快，**能讲清选型逻辑比背型号有价值得多**。
+Versions change quickly. **Explaining the selection logic is much more valuable than memorizing model names.**
 
-## 22.6 本章总结
+## 22.6 Summary
 
-1. 先确定数据、许可、安全与业务硬约束，再在可行配置中比较质量、延迟与成本。
-2. 模型系列不等于具体服务能力，版本、量化、端点和模板都要记录。
-3. 公开评测用于初筛，保留业务集与线上护栏用于验收。
-4. 路由和级联必须优于简单基线，且不能绕过数据边界。
-5. 算成功任务总成本，测尾延迟，验证版本升级、幂等重试与安全降级。
+1. Establish hard data, licensing, safety, and business constraints before comparing quality, latency, and cost among feasible configurations.
+2. A model family is not a specific service capability. Record versions, quantization, endpoints, and templates.
+3. Public evaluations support shortlisting; held-out task data and production guardrails support acceptance.
+4. Routing and cascades must beat a simple baseline and must not bypass data boundaries.
+5. Calculate total cost per successful task, measure tail latency, and validate upgrades, idempotent retries, and safe fallback.
 
-> 选型通常先排掉不合规的候选，再按链路节点比能力、延迟和成本，最后用自己的测试集做决定；排行榜最多只能当参考。
+> Usually, selection starts by excluding noncompliant candidates, then comparing capability, latency, and cost by workflow node, and finally deciding with your own tests. A leaderboard is only a reference.
 
-## 参考资料
+## References
 
-- [Holistic Evaluation of Language Models（HELM）](https://arxiv.org/abs/2211.09110)
+- [Holistic Evaluation of Language Models (HELM)](https://arxiv.org/abs/2211.09110)
 - [Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena](https://arxiv.org/abs/2306.05685)
 - [DeepSeek-V3 Technical Report](https://arxiv.org/abs/2412.19437)
 - [Qwen3 Technical Report](https://arxiv.org/abs/2505.09388)

@@ -1,20 +1,20 @@
 ---
-description: 按循环、上下文、工具、权限、恢复、审批和观测七类职责拆解 Agent Harness，区分框架抽象与具体运行时实现。
+description: Breaks agent harnesses into loop, context, tool, permission, recovery, approval, and observability responsibilities, distinguishing framework abstractions from runtime implementations.
 ---
 
-# Agent · Runtime 与 Harness
+# Agents · Runtimes and Harnesses
 
-拆开 Agent Loop 的运行时内核：定义 Harness 边界，展开状态机、上下文装配、工具执行、权限沙箱、持久化恢复、人在环与可观测性七类子系统。
+Explore the runtime core of an agent loop: define the harness boundary, then examine seven subsystems—state machines, context assembly, tool execution, permissions and sandboxing, persistence and recovery, human-in-the-loop handling, and observability.
 
-## 章节
+## Chapters
 
-1. [第十六章：Agent Harness 的定义、边界与分层](16-harness-definition-and-boundaries.md)
-2. [第十七章：Agent Loop 与运行时状态机](17-agent-loop-and-runtime-state-machine.md)
-3. [第十八章：Context Engineering 与上下文装配](18-context-engineering-assembly.md)
-4. [第十九章：Tool Registry、调用契约与执行管线](19-tool-registry-and-execution-pipeline.md)
-5. [第二十章：权限、沙箱与隔离](20-permissions-sandbox-isolation.md)
-6. [第二十一章：Checkpoint、持久化、重试、超时、幂等与恢复](21-checkpoint-persistence-recovery.md)
-7. [第二十二章：Human-in-the-loop、审批与可中断执行](22-human-in-the-loop-and-interruption.md)
-8. [第二十三章：Tracing、评测、成本控制与 Coding Agent Harness 案例](23-tracing-evaluation-cost-and-coding-agent-case-study.md)
+1. [Chapter 16: Agent Harnesses—Definitions, Boundaries, and Layers](16-harness-definition-and-boundaries.md)
+2. [Chapter 17: The Agent Loop and Runtime State Machine](17-agent-loop-and-runtime-state-machine.md)
+3. [Chapter 18: Context Engineering and Context Assembly](18-context-engineering-assembly.md)
+4. [Chapter 19: Tool Registries, Call Contracts, and Execution Pipelines](19-tool-registry-and-execution-pipeline.md)
+5. [Chapter 20: Permissions, Sandboxing, and Isolation](20-permissions-sandbox-isolation.md)
+6. [Chapter 21: Checkpoints, Persistence, Retries, Timeouts, Idempotency, and Recovery](21-checkpoint-persistence-recovery.md)
+7. [Chapter 22: Human-in-the-Loop Approval and Interruptible Execution](22-human-in-the-loop-and-interruption.md)
+8. [Chapter 23: Tracing, Evaluation, Cost Control, and Coding-Agent Harness Case Studies](23-tracing-evaluation-cost-and-coding-agent-case-study.md)
 
-返回 [Agent 相关知识点](../README.md)。
+Back to [Agent Topics](../README.md).

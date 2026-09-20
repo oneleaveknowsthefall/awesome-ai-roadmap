@@ -1,197 +1,197 @@
 ---
-description: 整理大语言模型的知识、推理、代码、事实性和人类偏好评测指标，并说明离线榜单在真实选型中的局限。
+description: Review evaluations of LLM knowledge, reasoning, coding, factuality, and human preference, and explain the limits of offline leaderboards in practical model selection.
 ---
 
-# 第二十一章：能力评测指标
+# Chapter 21: Capability Evaluation Metrics
 
-## 21.1 为什么需要评测指标
+## 21.1 Why evaluation metrics matter
 
-大模型的能力是多维度的，「**感觉用起来还不错**」不足以支撑工程决策。
+LLM capability has many dimensions. “**It feels pretty good to use**” is not enough to support an engineering decision.
 
-当你要从一个模型换到另一个、决定是否微调、衡量 Prompt 优化的效果，都需要量化指标。
+Switching models, deciding whether to fine-tune, and measuring a prompt change all require quantitative metrics.
 
-> **评测指标的价值在于把「主观感受」转化成「可比较的数字」。**
+> **Evaluation metrics turn subjective impressions into comparable numbers.**
 
-开放式语言任务往往允许多个有效答案，难以只靠字符串一致性判定；分类、计算等受限任务则可能有明确的正确性标准。不同任务需要不同侧重的 Benchmark，不能用一个总分代替全部验收条件。
+Open-ended language tasks often admit several valid answers, making exact string matching inadequate. Restricted tasks such as classification or calculation may have explicit correctness criteria. Different tasks need benchmarks with different priorities; a single aggregate score cannot replace all acceptance criteria.
 
-## 21.2 常见公开 Benchmark
+## 21.2 Common public benchmarks
 
-下表介绍任务与评分对象，不是截至某日的模型排名。对比结果前，应固定数据集版本、子集、Prompt、是否使用工具、采样次数和推理预算。
+The table describes tasks and what is scored, not model rankings as of a particular date. Before comparing results, fix the dataset version, subset, prompt, tool availability, sample count, and reasoning budget.
 
-| 维度 | Benchmark | 考查什么及其边界 |
+| Dimension | Benchmark | What it measures and where it stops |
 |---|---|---|
-| **综合知识与推理** | **MMLU** | 57 个学科的四选一题；主要测封闭题目的知识与问题求解，不等于开放任务可靠性 |
-| | **MMLU-Pro** | 清理与扩展题目，更强调推理，选项扩展到最多十个；不是与 MMLU 完全相同题集的直接分数对比 |
-| **代码能力** | **HumanEval / MBPP** | 函数级编程任务；HumanEval 原版有 164 题，以函数签名、docstring 为输入，通过测试检验功能。测试已公开，「不放进模型输入」不等于未公开 |
-| | **SWE-bench Verified** | 经人工核验的 500 个仓库 issue 修复任务；分数衡量模型、Agent 脚手架、环境、工具与预算的组合，不是裸模型分数 |
-| **数学与科学推理** | **GSM8K** | 小学数学应用题，考基础四则运算和逻辑推理 |
-| | **MATH** | 竞赛数学：代数、几何、组合数学 |
-| | **GPQA** | 物理、化学、生物的专家编写选择题；需标明完整集或 Diamond 等子集，不能混比 |
-| **对话与 Agent** | **MT-Bench** | 多轮交互场景，用 **LLM-as-Judge** 打分 |
-| | **Chatbot Arena** | 匿名成对回答的众包偏好比较；用户与问题分布、风格偏好和统计不确定性会影响排名，不是事实正确率 |
-| | **τ-bench** | 模拟用户与工具 Agent 的交互，用任务末尾数据库状态等条件检查目标是否实现；另测多次运行的一致成功能力 |
-| **综合 / 新型** | **HELM** | 覆盖准确率、鲁棒性、公平性、有害性等多个维度 |
-| | **LiveBench** | 持续更新题目并按客观答案评分，以降低污染风险；仍需锁定发布版本，不能保证绝无泄漏 |
-| | **Humanity's Last Exam** | 跨学科高难度学术题，含选择、短答及多模态内容；不是通用工作能力或自主研究能力的充分证明 |
+| **Broad knowledge and reasoning** | **MMLU** | Four-option questions across 57 subjects; primarily tests knowledge and problem solving on closed questions, not reliability on open-ended tasks |
+| | **MMLU-Pro** | Cleans and expands the questions, emphasizes reasoning, and increases the number of options to as many as ten; its scores are not direct comparisons on exactly the same question set as MMLU |
+| **Coding** | **HumanEval / MBPP** | Function-level programming tasks; the original HumanEval has 164 problems with function signatures and docstrings as inputs and tests for functional correctness. The tests are public; omitting them from model input does not make them unpublished |
+| | **SWE-bench Verified** | 500 human-verified repository issue-resolution tasks; scores measure a combination of model, agent harness, environment, tools, and budget—not the bare model |
+| **Mathematical and scientific reasoning** | **GSM8K** | Grade-school word problems testing basic arithmetic and logical reasoning |
+| | **MATH** | Competition mathematics, including algebra, geometry, and combinatorics |
+| | **GPQA** | Expert-written multiple-choice questions in physics, chemistry, and biology; specify the full set or a subset such as Diamond rather than comparing them interchangeably |
+| **Conversation and agents** | **MT-Bench** | Multiturn interactions scored by an **LLM-as-judge** |
+| | **Chatbot Arena** | Crowdsourced preferences between anonymous pairs of answers; user and question distributions, style preferences, and statistical uncertainty affect rankings. It is not factual accuracy |
+| | **τ-bench** | Interactions between simulated users and tool-using agents; checks goal completion using conditions such as the final database state and separately measures consistent success across repeated runs |
+| **Broad / newer evaluations** | **HELM** | Multiple dimensions including accuracy, robustness, fairness, and harmfulness |
+| | **LiveBench** | Regularly updated questions scored against objective answers to reduce contamination risk; the release version still needs to be fixed, and leakage cannot be ruled out entirely |
+| | **Humanity's Last Exam** | Difficult academic questions across disciplines, including multiple choice, short answers, and multimodal content; not sufficient proof of general workplace competence or autonomous research ability |
 
-SWE-bench Verified 还需要额外留意基准有效性：OpenAI 指出其测试设计缺陷与训练数据污染问题，已停止报告该分数，并建议改报 SWE-bench Pro，见 [OpenAI 声明](https://openai.com/index/why-we-no-longer-evaluate-swe-bench-verified/)。这是该机构的评测决定，不代表所有使用者都已停止使用；保留历史成绩时，应说明其版本与局限，不能直接与另一套题目的分数比较。
+SWE-bench Verified needs an additional validity caveat. OpenAI identified test-design flaws and training-data contamination, stopped reporting its score, and recommended SWE-bench Pro instead; see [OpenAI's statement](https://openai.com/index/why-we-no-longer-evaluate-swe-bench-verified/). This is that organization's evaluation decision, not a claim that every user has stopped using the benchmark. Historical scores should retain their version and limitations and must not be compared directly with scores on a different question set.
 
 ### 21.2.1 Pass@k
 
-代码评测的常见指标：**生成 $k$ 个候选代码，至少 1 个能通过所有测试的比例**。
+A common coding metric is the **proportion of problems for which at least 1 of $k$ generated candidates passes every test**.
 
-$k=1$ 衡量一次采样成功的能力；更大的 `k` 衡量多次尝试中存在成功解的概率，不能当作系统实际选中正确解的概率。
+$k=1$ measures success from one sample. Larger `k` measures the chance that repeated attempts contain a successful solution, not the probability that a deployed system actually selects the correct one.
 
-HumanEval 的常用估计方式是：每题从同一固定生成配置独立采样 `n` 个候选，其中 `c` 个通过测试，且 `n ≥ k`，计算：
+HumanEval commonly estimates this by independently sampling `n` candidates per problem under a fixed generation configuration. If `c` pass the tests and `n ≥ k`, compute:
 
 $$
 \widehat{\mathrm{pass@}k}
 =1-\frac{\binom{n-c}{k}}{\binom{n}{k}}
 $$
 
-再对题目取平均。若失败候选数不足 `k`，分子组合数按零处理。它利用已采样候选估计「至少一个通过」，并不要求生产系统拥有知道哪个正确的 oracle。
+Then average across problems. If fewer than `k` candidates fail, treat the numerator's binomial coefficient as zero. The estimator uses sampled candidates to estimate “at least one passes”; it does not require a production system to have an oracle that knows which candidate is correct.
 
-代码测试通过仍可能漏掉边界条件、安全缺陷或规格歧义；应隔离执行环境，不给生成代码生产密钥和外部写权限。
+Passing code tests can still miss edge cases, security defects, or ambiguities in the specification. Isolate the execution environment and give generated code neither production secrets nor permission to write to external systems.
 
-**不要混淆 `pass@k` 与 τ-bench 的 `pass^k`**：前者关注 `k` 次中至少成功一次，后者关注 `k` 次全部成功。独立且每次成功概率均为 `p` 的理想条件下，分别为 `1-(1-p)^k` 与 `p^k`；实际任务有难度差异，不能直接把全数据集平均成功率代入后者。
+**Do not confuse `pass@k` with τ-bench's `pass^k`.** The former concerns at least one success in `k` attempts; the latter concerns success in all `k` attempts. Under the ideal assumptions of independent attempts with the same success probability `p`, these are `1-(1-p)^k` and `p^k`, respectively. Real tasks differ in difficulty, so the whole dataset's average success rate cannot simply be substituted into the latter.
 
-### 21.2.2 从任务定义选择指标
+### 21.2.2 Choose metrics from the task definition
 
-| 评测目标 | 可用指标 | 不能省略的口径 |
+| Evaluation goal | Possible metrics | Definitions that must be specified |
 |---|---|---|
-| 分类与抽取 | Accuracy、Precision、Recall、F1、字段精确匹配 | 类别不平衡时区分 micro/macro；定义空值与等价文本的归一化方式 |
-| 摘要与问答 | 关键点覆盖、声明正确性、来源支持度；必要时参考 ROUGE 等重合指标 | 文本相似不等于真实；正确改写也可能与参考答案低重合 |
-| 概率校准与弃答 | Brier score、可靠性分箱、覆盖率—错误率曲线 | 自报置信度需要验证；只报已回答准确率会掩盖过度拒答 |
-| Agent | 端到端目标成功率、策略违规率、重复运行成功率 | 工具名和参数正确只是中间指标，不能替代任务完成 |
-| 服务效率 | 输入/输出用量、成功任务成本、p50/p95 延迟、吞吐 | 固定并发、输出长度、缓存状态及资源配置 |
+| Classification and extraction | Accuracy, precision, recall, F1, exact field match | Distinguish micro and macro averaging for imbalanced classes; define normalization for nulls and equivalent text |
+| Summarization and question answering | Key-point coverage, claim correctness, source support; overlap metrics such as ROUGE where useful | Text similarity is not truth; a correct paraphrase can have low overlap with the reference |
+| Probability calibration and abstention | Brier score, reliability bins, coverage–error curves | Validate self-reported confidence; reporting only accuracy among answered questions hides excessive refusal |
+| Agents | End-to-end goal success, policy-violation rate, success across repeated runs | Correct tool names and arguments are intermediate metrics, not substitutes for task completion |
+| Serving efficiency | Input/output usage, cost per successful task, p50/p95 latency, throughput | Fix concurrency, output length, cache state, and resource configuration |
 
-困惑度（PPL）衡量参考文本在模型下的平均预测难度，不直接衡量回答是否真实或有用；跨 tokenizer、语料和归一化口径比较 PPL 也容易误判。
+Perplexity (PPL) measures the average difficulty of predicting reference text under the model, not directly whether an answer is true or useful. Comparing PPL across different tokenizers, corpora, or normalization conventions can also mislead.
 
-## 21.3 Benchmark 的系统性缺陷：数据污染
+## 21.3 A systemic benchmark problem: data contamination
 
 ```mermaid
 flowchart TB
-    A["训练或后训练可能使用公开网络数据"] --> B["公开题目、答案和改写版本<br/>也可能进入数据流水线"]
-    B --> C["模型预训练时可能已经『见过』这些题的答案"]
-    C --> D["可能高估未见题泛化能力"]
-    D --> E["需要独立任务与保留数据验证<br/>不能仅凭榜单反推泛化能力"]
+    A["Training or post-training<br/>may use public web data"] --> B["Public questions, answers,<br/>and paraphrases<br/>May enter the data pipeline"]
+    B --> C["The model may already have seen<br/>the answers during pretraining"]
+    C --> D["Generalization to unseen questions<br/>may be overstated"]
+    D --> E["Validate with independent tasks<br/>and held-out data<br/>Do not infer generalization<br/>from rankings alone"]
 
     style E fill:#fdecea
 ```
 
-污染是一个风险，任务分布不匹配、测试饱和、评分错误和推理预算不同也是风险。榜单与业务结果不一致，不足以证明某模型「背过题」；确认污染需要数据或实验依据。
+Contamination is one risk; mismatched task distributions, saturated tests, scoring errors, and unequal reasoning budgets are others. Disagreement between leaderboard scores and business results does not prove that a model memorized the questions. Confirming contamination requires data or experimental evidence.
 
-### 21.3.1 三个应对方向
+### 21.3.1 Three responses
 
-1. 按题目及其近似改写做训练/测试去重，公开训练划分可以用于训练，但评测保留集不能参与优化；
-2. 使用持续更新的题库时记录发布时间与版本，仍检查是否进入微调、示例或调参流程；
-3. 按时间、客户或业务实体隔离真实数据，留出未参与调参的集合。私有数据若反复用于选 Prompt，同样会被过拟合。
+1. Deduplicate training and test data at the level of both questions and close paraphrases. Public training splits may be used for training; held-out evaluation data must not participate in optimization.
+2. Record release dates and versions when using continually updated question banks, and still check whether they entered fine-tuning, examples, or tuning workflows.
+3. Separate real data by time, customer, or business entity and retain a set that never participated in tuning. Private data can also be overfit if repeatedly used to select prompts.
 
-## 21.4 建自己的业务评估集
+## 21.4 Build a task-specific evaluation set
 
-**面对 Benchmark 的局限，最务实的做法是建任务特定测试集。**
+**The most practical response to benchmark limitations is a test set specific to your tasks.**
 
 ```mermaid
 flowchart LR
-    A["从真实用户请求里采样"] --> B["人工标注期望答案"]
-    B --> C["分层开发集<br/>用于迭代"]
-    B --> H["隔离的保留测试集<br/>用于阶段验收"]
-    C --> D["迭代模型或 Prompt<br/>在开发集上比较"]
-    D --> E["计算通过率或质量分"]
+    A["Sample real user requests"] --> B["Human-label expected answers"]
+    B --> C["Stratified development set<br/>For iteration"]
+    B --> H["Isolated held-out test set<br/>For milestone acceptance"]
+    C --> D["Iterate on the model or prompt<br/>Compare on the development set"]
+    D --> E["Compute pass rate or quality score"]
     E --> D
-    E -->|候选冻结后| F["阶段性验收<br/>报告统计不确定性"]
+    E -->|After freezing the candidate| F["Milestone acceptance<br/>Report statistical uncertainty"]
     H --> F
 
     style C fill:#e6f4ea
 ```
 
-### 21.4.1 两类任务的评分方式
+### 21.4.1 Scoring two types of task
 
-| 任务类型 | 评分方式 |
+| Task type | Scoring method |
 |---|---|
-| **可验证任务**（信息提取、分类、代码） | 优先使用字段校验、标签、规则和测试；规范可能允许多个等价答案，测试本身也可能不完整 |
-| **开放任务**（摘要、报告、复杂问答） | 组合事实核查、覆盖度标注、人工评价与 LLM-as-Judge，不要把事实性完全交给主观总分 |
+| **Verifiable tasks**: extraction, classification, code | Prefer field validation, labels, rules, and tests; specifications may allow equivalent answers, and tests themselves may be incomplete |
+| **Open-ended tasks**: summaries, reports, complex question answering | Combine fact-checking, coverage annotations, human assessment, and LLM-as-judge; do not delegate factuality entirely to a subjective overall score |
 
-### 21.4.2 校验裁判，不只是找一个「更强模型」
+### 21.4.2 Validate the judge, not just its model strength
 
-LLM 裁判可能偏爱较长回答、特定位置、自己熟悉的风格，也可能被待评文本中的指令影响。应固定裁判版本、rubric 和上下文，屏蔽候选模型身份，交换成对答案顺序，并按子任务对照人工裁决。重要分歧需要独立复核，模型裁判的「理由」也不能替代核查。
+An LLM judge may favor longer answers, particular positions, or familiar styles, and may be influenced by instructions inside the text being evaluated. Fix the judge version, rubric, and context; hide candidate model identities; swap the order of paired answers; and compare against human decisions by subtask. Important disagreements need independent review. A judge's stated rationale does not replace verification.
 
-人工抽查量取决于错误率、风险与分层覆盖，不是固定的 10–20%。除了随机样本，应重点检查裁判分歧、低置信度、罕见类别与高影响错误，报告人机一致性及误判类型。
+Human review volume depends on error rate, risk, and coverage across task groups—not a fixed 10–20%. Alongside random samples, prioritize judge disagreements, low-confidence cases, rare categories, and high-impact errors. Report human–model agreement and the types of misjudgment.
 
-### 21.4.3 如何判断提升不是抽样波动
+### 21.4.3 Is the improvement more than sampling noise?
 
-同一批题上比较两个方案，记录哪些题从错变对、从对变错，而不只看均分。对于二元结果，可做配对检验或配对 bootstrap；重复运行应按题或会话聚类，不能把同一道题的重复采样全当成独立用户。
+Compare two methods on the same questions and record which changed from wrong to right and from right to wrong, rather than looking only at mean scores. For binary outcomes, use paired tests or a paired bootstrap. Cluster repeated runs by question or session; repeated samples of one question are not independent users.
 
-例如，在假设样本相互独立的情况下，100 题做对 80 题的粗略标准误约为 4 个百分点，不能把一个百分点的提升直接解释为真实改进。样本更少、风险更低频或同源样本高度相关时，应增加数据或明确不确定性。开发集用于调参，保留集用于阶段性验收，线上新失败再进入后续版本的数据集。
+For example, assuming independent samples, 80 correct answers out of 100 have a rough standard error of 4 percentage points. A one-percentage-point increase cannot simply be declared a real improvement. With fewer samples, rarer risks, or strongly correlated samples from the same source, collect more data or make the uncertainty explicit. Use development data for tuning, held-out data for milestone acceptance, and new production failures for subsequent dataset versions.
 
-## 21.5 离线评估 + 线上指标的闭环
+## 21.5 Connecting offline evaluation with production metrics
 
-**只有离线测试集还不够**，生产环境还要监控实际的用户体验指标。
+**An offline test set is not enough.** Monitor actual user-experience metrics in production too.
 
-| 层次 | 指标 | 作用 |
+| Level | Metrics | Purpose |
 |---|---|---|
-| **离线评估** | 黄金测试集通过率、质量分 | **帮你找问题、快速迭代** |
-| **线上指标** | 任务完成率、用户反馈、人工接管率、会话放弃率、失败重试与延迟 | 观察真实体验；追问可能是感兴趣，退出也可能已解决问题，不能直接当好坏标签 |
+| **Offline evaluation** | Gold-standard test-set pass rate and quality scores | **Find problems and iterate quickly** |
+| **Production metrics** | Task completion, user feedback, human-takeover rate, session abandonment, failure retries, and latency | Observe real experience; a follow-up may indicate interest and an exit may mean the issue is resolved, so neither is automatically a positive or negative label |
 
-> 离线评估用来筛方案、定位问题，线上指标才说明用户体验有没有真的变好；两边少一边都容易误判。
+> Offline evaluation helps screen approaches and diagnose failures; production metrics show whether the user experience actually improved. Either side alone can mislead.
 
-具备条件时按用户或会话随机分组做 A/B 测试，避免流量结构变化被误认为模型收益。同步监控越权、隐私、严重事实错误等护栏指标，不能用平均满意度的提升抵消高影响违规。无法做随机实验时，应承认因果解释的限制。
+Where feasible, randomize users or sessions into A/B groups to avoid mistaking traffic-composition changes for model gains. Monitor guardrail metrics for unauthorized actions, privacy, and serious factual errors at the same time. Higher average satisfaction cannot compensate for high-impact violations. When randomization is unavailable, acknowledge the limits of causal interpretation.
 
-## 21.6 常见错误
+## 21.6 Common mistakes
 
-### 21.6.1 只会报 Benchmark 名字说不出它测什么
+### 21.6.1 Naming benchmarks without explaining what they measure
 
-需要说明任务、输入、评分规则和预算。例如 SWE-bench 分数衡量一套修复系统，τ-bench 还检查交互后的业务状态。
+Describe the task, inputs, scoring rules, and budget. For example, SWE-bench evaluates a repair system, while τ-bench also checks business state after interaction.
 
-### 21.6.2 完全相信学术排行榜
+### 21.6.2 Trusting academic leaderboards completely
 
-检查版本、工具、候选次数、裁判和置信区间；差异未必来自模型本身，也不能在无证据时归咎于污染。
+Check versions, tools, candidate counts, judges, and confidence intervals. Differences may not come from the model alone, and contamination should not be blamed without evidence.
 
-### 21.6.3 不建业务测试集，靠「感觉变好了」判断
+### 21.6.3 Relying on “it feels better” without task-specific tests
 
-从代表性案例起步，再按任务频率、风险和所需统计精度扩展；不要把固定样本数当作上线标准。
+Start with representative cases, then expand according to task frequency, risk, and required statistical precision. A fixed sample count is not a release criterion.
 
-### 21.6.4 对主观任务硬套自动指标
+### 21.6.4 Forcing automatic metrics onto subjective tasks
 
-词面重合不是语义和事实性的充分指标；但开放式问答中的数字、引用和权限条件仍可程序化检查。
+Lexical overlap is not a sufficient measure of meaning or factuality. Still, numbers, citations, and permission conditions in open-ended answers can be checked programmatically.
 
-### 21.6.5 用了 LLM-as-Judge 但不做人工校准
+### 21.6.5 Using LLM-as-judge without human calibration
 
-对照人工标准，检查位置、长度、风格偏差和严重错误漏判；抽样比例应有风险与统计依据。
+Compare against human standards and check position, length, and style biases, as well as missed serious errors. Sampling rates need a risk-based and statistical rationale.
 
-### 21.6.6 只做离线评估不看线上指标
+### 21.6.6 Evaluating offline without looking at production
 
-离线通过率提升不等于用户体验改善。**要看满意度、任务完成率、会话放弃率。**
+A higher offline pass rate does not establish a better user experience. **Check satisfaction, task completion, and session abandonment.**
 
-### 21.6.7 把公开 Benchmark 直接拿来当训练数据
+### 21.6.7 Using public benchmarks directly as training data
 
-允许使用明确定义的训练划分；不能把测试题、答案或等价改写用于训练或提示优化后，还把该测试成绩当作未见泛化能力。
+Clearly defined training splits are usable. But after training or optimizing prompts on test questions, answers, or equivalent paraphrases, their scores cannot still be presented as generalization to unseen tasks.
 
-## 21.7 本章总结
+## 21.7 Summary
 
-1. 先定义任务与验收口径，再选择 benchmark 和指标；同名基准也要固定版本、子集与预算。
-2. `pass@k` 衡量至少一次成功，`pass^k` 衡量重复执行全部成功，均不等同于选择器的实际表现。
-3. 污染、分布偏移、裁判偏差与抽样误差都可能影响结论。
-4. 开发集和保留测试集分离，程序验证、模型裁判与人工核查各自承担适合的部分。
-5. 用配对比较和不确定性报告支撑离线结论，再用线上实验与风险护栏检验真实收益。
+1. Define the task and acceptance criteria before choosing benchmarks and metrics. Even benchmarks with the same name need fixed versions, subsets, and budgets.
+2. `pass@k` measures at least one success; `pass^k` measures success across all repeated runs. Neither is the same as a selector's actual performance.
+3. Contamination, distribution shift, judge bias, and sampling error can all affect conclusions.
+4. Separate development and held-out sets, assigning suitable roles to programmatic checks, model judges, and human review.
+5. Support offline conclusions with paired comparisons and uncertainty estimates, then test real benefits through production experiments and risk guardrails.
 
-> 公开 Benchmark 适合看模型大致区间，真正决定上线的还是你自己的测试集和线上指标。
+> Public benchmarks indicate roughly where a model stands. Your own test set and production metrics should determine whether it is ready to deploy.
 
-## 参考资料
+## References
 
-- [Measuring Massive Multitask Language Understanding（MMLU）](https://arxiv.org/abs/2009.03300)
+- [Measuring Massive Multitask Language Understanding (MMLU)](https://arxiv.org/abs/2009.03300)
 - [MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding Benchmark](https://arxiv.org/abs/2406.01574)
-- [Evaluating Large Language Models Trained on Code（HumanEval / Pass@k）](https://arxiv.org/abs/2107.03374)
+- [Evaluating Large Language Models Trained on Code (HumanEval / Pass@k)](https://arxiv.org/abs/2107.03374)
 - [SWE-bench: Can Language Models Resolve Real-World GitHub Issues?](https://arxiv.org/abs/2310.06770)
 - [OpenAI: Why SWE-bench Verified no longer measures frontier coding capabilities](https://openai.com/index/why-we-no-longer-evaluate-swe-bench-verified/)
-- [Training Verifiers to Solve Math Word Problems（GSM8K）](https://arxiv.org/abs/2110.14168)
+- [Training Verifiers to Solve Math Word Problems (GSM8K)](https://arxiv.org/abs/2110.14168)
 - [Measuring Mathematical Problem Solving With the MATH Dataset](https://arxiv.org/abs/2103.03874)
 - [GPQA: A Graduate-Level Google-Proof Q&A Benchmark](https://arxiv.org/abs/2311.12022)
 - [Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena](https://arxiv.org/abs/2306.05685)
-- [Holistic Evaluation of Language Models（HELM）](https://arxiv.org/abs/2211.09110)
+- [Holistic Evaluation of Language Models (HELM)](https://arxiv.org/abs/2211.09110)
 - [LiveBench: A Challenging, Contamination-Limited LLM Benchmark](https://arxiv.org/abs/2406.19314)
 - [tau-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains](https://arxiv.org/abs/2406.12045)
-- [HumanEval 官方 Pass@k 实现](https://github.com/openai/human-eval/blob/master/human_eval/evaluation.py)
-- [SWE-bench 官方文档（Verified 子集）](https://www.swebench.com/SWE-bench/)
+- [HumanEval's official Pass@k implementation](https://github.com/openai/human-eval/blob/master/human_eval/evaluation.py)
+- [Official SWE-bench documentation: Verified subset](https://www.swebench.com/SWE-bench/)
 - [Humanity's Last Exam](https://arxiv.org/abs/2501.14249)
-- [On Faithfulness and Factuality in Abstractive Summarization（词面指标与忠实性的区别）](https://arxiv.org/abs/2005.00661)
+- [On Faithfulness and Factuality in Abstractive Summarization (lexical metrics versus faithfulness)](https://arxiv.org/abs/2005.00661)

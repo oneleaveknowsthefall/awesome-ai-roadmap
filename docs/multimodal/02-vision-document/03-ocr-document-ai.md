@@ -1,89 +1,89 @@
 ---
-description: 解释 OCR、版面感知与 OCR-free 文档理解的区别，梳理表格结构、字段验证、错误归因和云服务选型。
+description: Explain the differences between OCR, layout-aware models, and OCR-free document understanding, including table structure, field validation, error attribution, and cloud-service selection.
 ---
 
-# 第三章：OCR 与 Document AI
+# Chapter 3: OCR and Document AI
 
-> RAG 场景下"文档解析该选 OCR 管线还是页面截图检索"的工程决策见 [RAG · 文档解析 第 3.5 节](../../rag/02-ingestion-indexing/03-document-parsing.md)；本章聚焦 OCR/Document AI **模型本身**的架构演进、坐标输出方式与评测指标，两章互为补充，不重复展开对方的内容。
+> For the engineering decision between an OCR pipeline and page-screenshot retrieval in RAG, see [RAG · Document Parsing, Section 3.5](../../rag/02-ingestion-indexing/03-document-parsing.md). This chapter focuses on OCR/Document AI **models themselves**: architectural development, coordinate outputs, and evaluation metrics. The chapters complement one another without repeating each other's scope.
 
-## 3.1 OCR 识别出文字后，为什么还不能直接理解文档？
+## 3.1 Why is recognizing the text not enough to understand a document?
 
-经典 OCR 管线包含**文字检测**与**文字识别**，但检测框加字符串只解决文字定位和转写，不保证扫描页面的阅读顺序或结构正确。发票、合同、表单、财报还需要判断哪一行是标题、哪一列是金额、哪个值对应哪个标签。Document AI 的目标因此从文字转写扩展到键值对、表格和版面结构；数字 PDF 已有可靠文字层时，也应先评估直接提取，而非默认重新 OCR。
+A classic OCR pipeline performs **text detection** and **text recognition**, but boxes and strings only locate and transcribe text. They do not guarantee correct reading order or structure on a scanned page. Invoices, contracts, forms, and financial reports also require identifying headings, amount columns, and the values associated with particular labels. Document AI therefore extends transcription to key–value pairs, tables, and layout structure. When a digital PDF already has a reliable text layer, evaluate direct extraction before defaulting to another OCR pass.
 
-## 3.2 版面感知模型：LayoutLM 系列
+## 3.2 Layout-aware models: the LayoutLM family
 
-LayoutLM 系列的核心思路是让模型同时看到**文字内容、二维坐标和视觉特征**三种信号，而不仅是文字序列本身。LayoutLM 在 BERT 式预训练里加入了 2D 位置嵌入，把每个文字 token 的边界框坐标当作额外输入；LayoutLMv3 进一步统一了文字和图像 patch 的处理方式，用同一个 Transformer 同时接收文字 token 和图像 patch，并设计了跨模态对齐的预训练目标（如判断某个文字 token 对应的图像 patch 是否被遮盖）。
+The central idea of LayoutLM is to expose the model to **text content, two-dimensional coordinates, and visual features**, rather than just a text sequence. LayoutLM adds 2D position embeddings to BERT-style pretraining, supplying each text token's bounding-box coordinates as extra input. LayoutLMv3 further unifies text and image-patch processing: the same Transformer receives text tokens and image patches, with cross-modal alignment pretraining objectives such as determining whether the image patch corresponding to a text token has been masked.
 
-二维坐标帮助区分“同行”“同列”“标签旁边”等关系，缓解把页面拍平成文字序列造成的信息损失。但 LayoutLM 系列并不自动输出正确阅读顺序；它仍接收 OCR 的 token 序列，常需专门的版面分析、排序或关系预测模块。序列截断、错误框和多页字段关联，也不是加上坐标嵌入就能消除的问题。
+Two-dimensional coordinates help distinguish relationships such as “same row,” “same column,” and “next to the label,” reducing the information lost when a page is flattened into a text sequence. However, the LayoutLM family does not automatically produce the correct reading order. It still receives an OCR token sequence and often needs dedicated layout analysis, ordering, or relationship-prediction modules. Coordinate embeddings alone also do not eliminate sequence truncation, incorrect boxes, or cross-page field association problems.
 
-## 3.3 OCR-free 端到端文档理解
+## 3.3 OCR-free end-to-end document understanding
 
-文字驱动的 LayoutLM 抽取流程仍依赖 OCR 文字与坐标。Donut 用视觉编码器和自回归文本解码器，省去推理中的独立 OCR 引擎：预训练学习从文档图像生成文字序列，合成文档是其数据来源之一；下游任务微调再生成序列化的结构结果，并解析为 JSON。因此 OCR-free 不等于“不学习文字识别”，也不等于“训练时完全不需要转写监督”。
+Text-driven LayoutLM extraction still relies on OCR text and coordinates. Donut uses a vision encoder and autoregressive text decoder, removing the separate OCR engine at inference time. Pretraining learns to generate text sequences from document images, with synthetic documents among its data sources. Downstream fine-tuning then produces serialized structural results that are parsed into JSON. “OCR-free” therefore means neither “does not learn text recognition” nor “needs no transcription supervision during training.”
 
-OCR-free 消除了独立 OCR 接口的误差传递，却仍可能漏字、抄错数字或凭语言先验补全不存在的字段。其优势是联合优化识别与抽取，代价是显式证据层减少、长输出解码成本及跨版式泛化风险。需要审计时，可要求输出页码与证据区域，用原图或独立 OCR 复核；格式约束只能保证 JSON 可解析，不能保证值正确。
+OCR-free models remove error propagation across a separate OCR interface but can still omit characters, miscopy numbers, or fill nonexistent fields from language priors. Jointly optimizing recognition and extraction is an advantage; reduced explicit evidence, long-output decoding costs, and generalization to unfamiliar layouts are tradeoffs. For auditing, require page numbers and evidence regions, then verify against the original image or independent OCR. Format constraints can make JSON parseable, not make its values correct.
 
-## 3.4 表格与图表：结构比文字更重要
+## 3.4 Tables and charts: structure matters more than text alone
 
-表格和图表是文档智能里最容易被低估难度的子任务，因为正确率不能只看"文字有没有认对"，还要看**结构有没有还原**。
+Tables and charts are among the most underestimated tasks in document intelligence. Accuracy depends not just on recognizing text but on **recovering structure**.
 
-- **表格结构识别（Table Structure Recognition）**：需要还原行、列、表头和跨单元格关系。TATR 用 DETR 式模型分别做表格检测与结构识别，再经后处理把行列区域和文字组合为单元格；检测头本身不负责转写全部文字。PubTables-1M 配套工作使用 **GriTS** 衡量表格网格的结构、位置或内容；另一个常用指标 **TEDS** 来自 PubTabNet 工作，将 HTML 表格表示为树，标准版本同时考虑结构与单元格文字，不是纯结构分数。只比较拓扑时应明确使用结构版指标。
-- **图表理解（Chart Understanding）**：图表（柱状图、折线图）的"文字"往往只是坐标轴标签和图例，真正的信息藏在视觉编码（柱高、线的斜率、颜色分组）里。ChartQA 一类基准要求模型结合视觉编码和图上文字共同回答数值型问题（"哪一年增长最快"），这类任务的失败模式和纯 OCR 任务完全不同：模型可能正确识别了所有坐标轴文字，但读错了柱子的相对高度。
+- **Table structure recognition** must recover rows, columns, headers, and relationships across cells. TATR uses DETR-style models for table detection and structure recognition separately, then combines row/column regions and text into cells through postprocessing. The detection head itself does not transcribe all text. Work accompanying PubTables-1M uses **GriTS** to measure table-grid structure, location, or content. Another common metric, **TEDS**, comes from PubTabNet and represents an HTML table as a tree. Its standard version considers both structure and cell text; it is not a pure structure score. Specify a structure-only variant when comparing topology alone.
+- **Chart understanding** is different: the text in a bar or line chart often consists only of axis labels and legends, while the actual information lies in visual encodings such as bar height, line slope, and color groups. Benchmarks such as ChartQA require combining these encodings with chart text to answer numerical questions like “哪一年增长最快” (“Which year had the fastest growth?”). Failure modes differ substantially from plain OCR: a model may read every axis label correctly yet misread the relative heights of the bars.
 
-## 3.5 坐标输出与版面框的表示
+## 3.5 Coordinates and layout-box representations
 
-文档模型可以像 [第二章](02-vlm-grounding.md) 一样生成坐标或用检测头预测区域，也可以复用 OCR 输入框，仅预测字段标签、实体关系或分割掩码。文档结构还需要页 → 段落 → 行 → 词的层级关系。多页输出应携带页码、坐标尺度及字段证据，防止两个页面上相同位置的框被误认为同一实体。
+Document models can generate coordinates or predict regions with detection heads, as in [Chapter 2](02-vlm-grounding.md). They can also reuse input OCR boxes and predict only field labels, entity relationships, or segmentation masks. Document structure additionally requires a page → paragraph → line → word hierarchy. Multi-page output should include page numbers, coordinate scales, and field evidence so boxes at identical positions on two pages are not mistaken for the same entity.
 
-## 3.6 工程化服务：不是所有场景都要自建模型
+## 3.6 Production services: not every use case needs an in-house model
 
-云服务可作为通用票据和证件抽取的候选基线，但**模型版本化、预测置信度和可用性 SLA 都不是业务字段准确率保证**。应固定 API/处理器版本，以自己的文档分布验证：
+Cloud services are candidate baselines for common receipts, invoices, and identity documents, but **model versioning, prediction confidence, and availability SLAs do not guarantee business-field accuracy**. Pin API or processor versions and validate on your own document distribution:
 
-| 服务 | 定位 |
+| Service | Role |
 |---|---|
-| Azure AI Document Intelligence | 提供预置模型（发票、收据、身份证件）与可训练的自定义抽取模型 |
-| Google Document AI | 提供表单解析器、发票解析器等专用处理器（Processor） |
-| Amazon Textract | 提供文字检测与文档分析 API；表单和表格可在同一次文档分析请求中选择 |
+| Azure AI Document Intelligence | Prebuilt models for invoices, receipts, and identity documents, plus trainable custom extraction models |
+| Google Document AI | Specialized processors such as form parsers and invoice parsers |
+| Amazon Textract | Text detection and document analysis APIs; forms and tables can be selected in the same document analysis request |
 
-选型还取决于语言与地区格式支持、数据驻留、日志保留、页数限制、吞吐和单页成本。即使使用预置模型，也应按字段风险校准置信度阈值：低置信度转人工，高置信度的金额仍做合计、币种、日期等业务约束校验。阈值需要在独立验证集上估计漏检与复核成本，不能把模型置信度直接当作经过校准的正确率。
+Selection also depends on language and regional-format support, data residency, log retention, page limits, throughput, and per-page cost. Even with prebuilt models, calibrate confidence thresholds according to field risk. Route low-confidence results to human review, and still check high-confidence amounts against business constraints such as totals, currency, and dates. Estimate missed errors and review costs on an independent validation set; model confidence is not automatically a calibrated probability of correctness.
 
-例如 Textract 的同步 `AnalyzeDocument` 通过 `FeatureTypes` 同时选择 `FORMS`、`TABLES` 等分析类型，返回块及其关系；异步分析使用 `StartDocumentAnalysis`。不要把不同结构任务误认为必须分别调用独立接口。
+For example, synchronous Textract `AnalyzeDocument` uses `FeatureTypes` to select analysis types such as `FORMS` and `TABLES` together, returning blocks and their relationships. Asynchronous analysis uses `StartDocumentAnalysis`. Different structural tasks do not necessarily require separate interfaces.
 
-## 3.7 评测：分层次衡量，不要只看一个总分
+## 3.7 Evaluation: measure layers, not just an overall score
 
-| 层次 | 指标 | 说明 |
+| Layer | Metrics | Meaning |
 |---|---|---|
-| 字符/词识别 | CER（字符错误率）、WER（词错误率） | 衡量纯文字识别准确度，不涉及结构 |
-| 版面结构 | 阅读顺序准确率、区域分类 F1 | 衡量段落、标题、页眉页脚等区域划分是否正确 |
-| 表格结构与内容 | TEDS、GriTS，注明变体 | 标准 TEDS 含文字影响；结构、位置、内容应区分 |
-| 键值抽取 | 字段级 Precision/Recall/F1 | 衡量"发票金额""开票日期"等字段是否抽对且抽全 |
-| 端到端文档问答 | ANLS（平均归一化 Levenshtein 相似度） | DocVQA 一类基准用答案字符串相似度评价问答结果 |
+| Character/word recognition | CER (character error rate), WER (word error rate) | Text recognition accuracy without structure |
+| Layout structure | Reading-order accuracy, region-classification F1 | Correct identification of paragraphs, headings, headers, footers, and other regions |
+| Table structure and content | TEDS and GriTS, with variants specified | Standard TEDS is affected by text; distinguish structure, location, and content |
+| Key–value extraction | Field-level precision/recall/F1 | Whether fields such as invoice amount and invoice date are extracted correctly and completely |
+| End-to-end document QA | ANLS (average normalized Levenshtein similarity) | Benchmarks such as DocVQA evaluate answers through string similarity |
 
-CER/WER 低不代表下游任务可用：大量正文识别正确，也可能掩盖金额的一位数字错误。ANLS 允许一定字符串编辑差异，不适合作为金额正确的唯一标准。应固定日期、空格、金额格式的归一化规则，再分别报告关键字段精确匹配和整份文档全部关键字段正确的比例。
+Low CER or WER does not establish downstream usability: correct recognition of large amounts of body text can hide a single wrong digit in an amount. ANLS tolerates some string edits and should not be the sole criterion for monetary correctness. Fix normalization rules for dates, spaces, and amount formats, then separately report exact match on critical fields and the proportion of documents with every critical field correct.
 
-定位错误来源可以做对照：把真实标注文字和框替换进 OCR 管线，观察抽取分数是否恢复；若恢复，主要瓶颈在识别或定位，否则继续检查阅读顺序、关系推理和字段定义。OCR-free 系统也可以用高清局部裁剪与原页对比，区分分辨率不足和结构理解失败。
+Controlled comparisons help locate errors. Substitute ground-truth text and boxes into an OCR pipeline and see whether extraction scores recover. If they do, recognition or localization is the main bottleneck; otherwise, inspect reading order, relationship reasoning, and field definitions. OCR-free systems can also compare high-resolution local crops with the original page to distinguish insufficient resolution from structural-understanding failures.
 
-## 3.8 常见错误
+## 3.8 Common mistakes
 
-### 3.8.1 用整体 OCR 准确率代表文档理解能力
+### 3.8.1 Treating overall OCR accuracy as document-understanding ability
 
-字符识别准确率高不代表版面结构、表格拓扑或关键字段抽取正确，必须按 3.7 节分层评测。
+High character-recognition accuracy does not establish correct layout, table topology, or critical-field extraction. Evaluate each layer as described in Section 3.7.
 
-### 3.8.2 把表格"拍平"成纯文本再抽取
+### 3.8.2 Flattening tables into plain text before extraction
 
-将表格逐行转成一段连续文本会丢失跨行跨列关系；涉及数值比较、条件过滤的问题应保留结构化表示（见 [RAG · 多模态 RAG 第 21.3 节](../../rag/04-advanced/21-multimodal-rag.md)对表格证据的处理原则）。
+Turning table rows into one continuous text passage loses relationships across rows and columns. Questions involving numerical comparisons or conditional filtering should preserve a structured representation; see the table-evidence principles in [RAG · Multimodal RAG, Section 21.3](../../rag/04-advanced/21-multimodal-rag.md).
 
-### 3.8.3 忽视扫描质量、旋转和多语言对识别率的影响
+### 3.8.3 Ignoring scan quality, rotation, and multilingual content
 
-生产文档常见倾斜、低分辨率扫描、印章遮挡和多语言混排，基准测试集的高分不能直接迁移到这些场景，上线前应用真实分布的样本单独核验。
+Production documents commonly include skew, low-resolution scans, obscuring stamps, and mixed languages. High benchmark scores do not directly transfer to these conditions; validate them separately using samples from the real distribution before deployment.
 
-## 3.9 本章总结
+## 3.9 Chapter summary
 
-1. Document AI 的目标是结构化理解而非单纯文字识别，版面、表格、键值关系是评测和架构设计的核心对象；
-2. LayoutLM 系列以二维坐标和视觉信号辅助结构理解，不自动保证阅读顺序正确；
-3. Donut 不依赖独立 OCR 引擎，但仍学习文字识别并可能产生感知错误或幻觉；
-4. 表格结构与内容、图表视觉编码及文字识别具有不同失败模式，需要分项评测；
-5. 云服务和自建方案应在相同业务数据上比较，模型置信度不能替代字段验证与人工复核。
+1. Document AI targets structured understanding, not just text recognition. Layout, tables, and key–value relationships are central to evaluation and architecture.
+2. LayoutLM uses 2D coordinates and visual signals to support structural understanding, without automatically guaranteeing correct reading order.
+3. Donut needs no separate OCR engine but still learns text recognition and can make perceptual errors or hallucinate.
+4. Table structure and content, chart visual encodings, and text recognition have different failure modes and need separate evaluation.
+5. Compare cloud services and in-house solutions on the same business data. Model confidence cannot replace field validation and human review.
 
-## 参考资料
+## References
 
 - [LayoutLM: Pre-training of Text and Layout for Document Image Understanding](https://arxiv.org/abs/1912.13318)
 - [LayoutLMv3: Pre-training for Document AI with Unified Text and Image Masking](https://arxiv.org/abs/2204.08387)
@@ -93,8 +93,8 @@ CER/WER 低不代表下游任务可用：大量正文识别正确，也可能掩
 - [Image-based table recognition: data, model, and evaluation (PubTabNet / TEDS)](https://arxiv.org/abs/1911.10683)
 - [ChartQA: A Benchmark for Question Answering about Charts](https://arxiv.org/abs/2203.10244)
 - [DocVQA: A Dataset for VQA on Document Images](https://arxiv.org/abs/2007.00398)
-- [Azure AI Document Intelligence 官方文档](https://learn.microsoft.com/azure/ai-services/document-intelligence/overview)
-- [Azure Document Intelligence：准确率与置信度](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept/accuracy-confidence?view=doc-intel-4.0.0)
-- [Google Cloud Document AI 官方文档](https://cloud.google.com/document-ai/docs/overview)
-- [Amazon Textract 官方文档](https://docs.aws.amazon.com/textract/latest/dg/what-is.html)
-- [Amazon Textract：AnalyzeDocument 与 FeatureTypes](https://docs.aws.amazon.com/textract/latest/APIReference/API_AnalyzeDocument.html)
+- [Azure AI Document Intelligence documentation](https://learn.microsoft.com/azure/ai-services/document-intelligence/overview)
+- [Azure Document Intelligence: Accuracy and confidence](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept/accuracy-confidence?view=doc-intel-4.0.0)
+- [Google Cloud Document AI documentation](https://cloud.google.com/document-ai/docs/overview)
+- [Amazon Textract documentation](https://docs.aws.amazon.com/textract/latest/dg/what-is.html)
+- [Amazon Textract: AnalyzeDocument and FeatureTypes](https://docs.aws.amazon.com/textract/latest/APIReference/API_AnalyzeDocument.html)

@@ -1,64 +1,64 @@
 ---
-description: 区分模型可见工具 Schema 与可信 Runtime 注入，说明参数校验、异步执行、状态更新和重试幂等的边界。
+description: Distinguish model-visible tool schemas from trusted runtime injection, and understand argument validation, asynchronous execution, state updates, retries, and idempotency.
 ---
 
-# 第五章：Tool 注册与工具契约
+# Chapter 5: Tool Registration and Tool Contracts
 
-## 5.1 Tool 注册的是什么
+## 5.1 What Does Tool Registration Register?
 
-模型看不到 Python 函数的源码，因此注册工具时，LangChain 会先把函数转换成一份**模型能够理解的说明**：
+The model cannot see a Python function's source code. When registering a tool, LangChain first converts the function into a **description the model can understand**:
 
-| 部分 | 谁看 | 作用 |
+| Component | Consumer | Purpose |
 |---|---|---|
-| `name` + `description` | **模型** | 判断工具叫什么、什么情况下该用 |
-| `args_schema` | **模型** | 生成满足类型和约束的参数 |
-| executor（函数/协程） | **应用侧** | 按这些参数执行实际操作 |
+| `name` + `description` | **Model** | Identify the tool and when to use it |
+| `args_schema` | **Model** | Generate arguments that satisfy types and constraints |
+| Executor (function/coroutine) | **Application** | Perform the actual operation with those arguments |
 
 ```mermaid
 flowchart LR
-    M["模型生成调用请求<br/>工具名 + 参数"] --> R["运行时执行函数"]
-    R --> T["结果作为 ToolMessage 返回"]
-    T --> M2["模型决定继续调用<br/>还是生成最终回答"]
+    M["Model generates a call request<br/>Tool name + arguments"] --> R["Runtime executes the function"]
+    R --> T["Result returned as a ToolMessage"]
+    T --> M2["Model decides whether to call<br/>another tool or answer"]
 
     style M fill:#e8f0fe
 ```
 
-> **工具描述和 Schema 不是普通注释，而是模型与业务代码之间的调用合同。**
+> **A tool's description and schema are not ordinary comments. They are the calling contract between the model and business code.**
 >
-> 描述过于模糊，模型可能**选错工具**；参数缺少约束，模型可能生成**无法执行的数据**。
+> A vague description can cause the model to **select the wrong tool**. Missing argument constraints can lead it to generate **inputs that cannot be executed**.
 
-## 5.2 四种定义方式怎么选
+## 5.2 How Do You Choose Among Four Definition Methods?
 
-不必一开始就继承最底层的类。选择时先判断：**这个工具是否仍然只是一个普通函数？**
+You do not need to start by subclassing the lowest-level class. First ask: **is this tool still just an ordinary function?**
 
 ```mermaid
 flowchart TB
-    Q1{"已有函数的名称、类型注解<br/>docstring 能说清用途吗?"}
-    Q1 -->|能| A["直接放入 tools<br/>（普通函数）"]
-    Q1 -->|不能：要改工具名<br/>补参数描述<br/>限制枚举和范围| Q2{"原函数可以修改吗?<br/>需要运行时动态组装<br/>同步与异步实现吗?"}
-    Q2 -->|可以修改，只是要补契约| B["@tool<br/>大多数业务工具的自然选择"]
-    Q2 -->|原函数不能改<br/>或需要动态组装| C["StructuredTool.from_function"]
-    C --> Q3{"工具要长期持有客户端<br/>维护资源、定制完整执行过程?"}
+    Q1{"Do the function name, type hints,<br/>and docstring explain its purpose?"}
+    Q1 -->|Yes| A["Pass it directly to tools<br/>(ordinary function)"]
+    Q1 -->|No: rename the tool,<br/>describe arguments,<br/>constrain enums and ranges| Q2{"Can you modify the original function?<br/>Do you need to assemble sync and<br/>async implementations at runtime?"}
+    Q2 -->|Can modify it;<br/>only the contract needs work| B["@tool<br/>The natural choice<br/>for most business tools"]
+    Q2 -->|Cannot modify the function<br/>or need dynamic assembly| C["StructuredTool.from_function"]
+    C --> Q3{"Must the tool retain clients,<br/>manage resources, or customize<br/>the full execution process?"}
     B --> Q3
-    Q3 -->|是，它已经是一个组件| D["继承 BaseTool"]
+    Q3 -->|Yes: it is now a component| D["Subclass BaseTool"]
 
     style B fill:#e6f4ea
     style D fill:#fff3cd
 ```
 
-这四种方式对应的是复杂度逐步上升的实现路径：先让函数把用途说清楚，再补充工具契约，接着处理动态组装，最后才管理组件生命周期。
+These four methods form a progression in implementation complexity: first make the function's purpose clear, then enrich its tool contract, then handle dynamic assembly, and only then manage a component's lifecycle.
 
-### 5.2.1 一个例外
+### 5.2.1 One Exception
 
-模型厂商提供的 **Web Search、代码执行器等服务端工具**，有时会使用厂商约定的字典配置。
+Model providers' **server-side tools, such as web search and code interpreters**, sometimes use provider-defined configuration dictionaries.
 
-这类工具属于特定 Provider 的能力。使用时应单独查看对应集成文档，**不要把它当作通用 Python Tool 的主要定义方式**。
+These tools are provider-specific capabilities. Consult the relevant integration documentation separately; **do not treat them as the primary way to define general-purpose Python tools**.
 
-## 5.3 优先使用 `@tool` 的原因
+## 5.3 Why Prefer `@tool`?
 
-`@tool` 默认从**函数签名推导参数 Schema**、把 docstring 用作工具描述；逐参数的 docstring 解析需显式启用 `parse_docstring=True` 并遵循支持的格式。复杂约束可通过 Pydantic 显式声明，不能假设自然语言描述就会成为运行时校验器。
+By default, `@tool` **infers the argument schema from the function signature** and uses the docstring as the tool description. Parsing individual argument descriptions from the docstring requires explicitly enabling `parse_docstring=True` and following a supported format. Declare complex constraints explicitly with Pydantic; do not assume that a natural-language description becomes a runtime validator.
 
-下面的订单状态是教学用固定返回值，用于观察参数契约，不是实际查询结果。
+The order status below is a fixed teaching example for examining the argument contract, not an actual lookup result. Its Chinese return string says that the order has shipped and includes the requested return mode.
 
 ```python
 from typing import Literal
@@ -68,17 +68,17 @@ from langchain.tools import tool
 from pydantic import BaseModel, Field
 
 class OrderQuery(BaseModel):
-    # Field 描述和类型约束都会进入模型看到的工具 Schema
-    order_id: str = Field(description="要查询的订单号")
+    # Field descriptions and type constraints enter the model-visible tool schema.
+    order_id: str = Field(description="The ID of the order to look up")
     detail: Literal["summary", "full"] = Field(
         default="summary",
-        description="返回摘要还是完整信息",
+        description="Whether to return a summary or full details",
     )
 
-# args_schema 显式指定工具参数的校验模型
+# args_schema explicitly sets the validation model for tool arguments.
 @tool(args_schema=OrderQuery)
 def query_order(order_id: str, detail: str = "summary") -> str:
-    """查询订单状态。用户询问某个订单时调用。"""
+    """Look up order status. Use when the user asks about a specific order."""
     return f"订单 {order_id} 的状态为已发货，返回模式：{detail}"
 
 agent = create_agent(
@@ -87,54 +87,54 @@ agent = create_agent(
 )
 ```
 
-**Pydantic 的字段描述和枚举限制会进入工具 Schema**，一举两得：
+**Pydantic field descriptions and enum constraints appear in the tool schema**, serving two purposes:
 
-- **帮助模型正确填写参数**；
-- **在执行前拦截非法输入**。
+- **Help the model supply correct arguments**.
+- **Reject invalid input before execution**.
 
-简单函数也可以不加装饰器直接传给 `tools`，但函数必须有清楚的名称、类型注解和 docstring，否则自动生成的说明很难指导模型正确调用。
+You can also pass a simple function directly to `tools` without a decorator. However, it needs a clear name, type hints, and a docstring; otherwise, the generated description will do little to guide correct tool use.
 
-## 5.4 何时使用高级定义
+## 5.4 When Should You Use More Advanced Definitions?
 
 ### 5.4.1 `StructuredTool.from_function`
 
-适合「**原函数不能修改，但需要改变它对模型的呈现方式**」：
+Use this when **you cannot modify the original function but need to change how it is presented to the model**:
 
-- 同一个业务函数需要注册成**不同名称**；
-- 要把**同步函数和异步协程组合成一个工具对象**。
+- Register the same business function under **different names**.
+- Combine a **synchronous function and an asynchronous coroutine into one tool object**.
 
 ### 5.4.2 `BaseTool`
 
-**当工具不再只是一个函数**，而是要：
+Use this **when the tool is no longer just a function**, but needs to:
 
-- 长期持有**数据库或第三方客户端**；
-- 同时管理**同步、异步、tags、metadata 和回调**。
+- Retain **database or third-party clients** over a longer lifetime.
+- Manage **synchronous and asynchronous execution, tags, metadata, and callbacks** together.
 
-> **它已经变成了需要定制执行行为的组件**，此时才值得承担更多样板代码。`BaseTool` 不会自动关闭数据库连接或实现连接池生命周期；资源仍应由应用的依赖注入、启动和关闭流程管理。
+> **It has become a component that needs custom execution behavior.** Only then is the extra boilerplate worthwhile. `BaseTool` does not automatically close database connections or manage a connection pool's lifecycle. Application dependency injection, startup, and shutdown procedures must still manage those resources.
 
-## 5.5 可信参数如何注入
+## 5.5 How Are Trusted Parameters Injected?
 
-**假设「查询我的账户余额」工具需要用户 ID。**
+**Suppose a “check my account balance” tool needs a user ID.**
 
-如果把 `user_id` 放进模型可见的 Schema：
+If `user_id` is in the model-visible schema:
 
-- 模型可能**填错用户**；
-- 也可能被**恶意提示诱导查询其他账户**。
+- The model may **supply the wrong user**.
+- A **malicious prompt may induce it to query another account**.
 
-### 5.5.1 两类参数必须分开
+### 5.5.1 Separate Two Kinds of Parameters
 
-| 参数类型 | 示例 | 来源 |
+| Parameter type | Examples | Source |
 |---|---|---|
-| **任务参数** | 城市、关键词、订单号 | **模型**根据用户问题生成 |
-| **可信身份与依赖** | 已认证用户 ID、租户、服务端权限 | **应用运行时注入** |
+| **Task arguments** | City, keywords, order ID | Generated by the **model** from the user's question |
+| **Trusted identity and dependencies** | Authenticated user ID, tenant, server-side permissions | **Injected by the application runtime** |
 
-### 5.5.2 ToolRuntime 的三个作用域与完整接线
+### 5.5.2 ToolRuntime's Three Scopes and Complete Wiring
 
-| 来源 | 存放 |
+| Source | Contents |
 |---|---|
-| `runtime.context` | 用户身份、租户、依赖——**本次调用上下文** |
-| `runtime.state` | 当前会话消息和短期状态 |
-| `runtime.store` | **跨会话**仍要保留的长期数据 |
+| `runtime.context` | User identity, tenant, dependencies—the **context of this invocation** |
+| `runtime.state` | Current conversation messages and short-term state |
+| `runtime.store` | Long-term data retained **across conversations** |
 
 ```python
 from dataclasses import dataclass
@@ -145,13 +145,13 @@ from langgraph.store.memory import InMemoryStore
 
 @dataclass
 class UserContext:
-    """仅由已认证的应用边界创建，绝不从聊天文本或 Tool 参数解析。"""
+    """Created only at an authenticated application boundary, never parsed from chat text or tool arguments."""
     user_id: str
     tenant_id: str
     permissions: frozenset[str]
 ```
 
-接着定义读写工具。两者使用同一个 namespace 规则；未保存语言时，本例约定产品默认语言为 `zh-CN`。
+Next, define read and write tools that follow the same namespace convention. In this example, the product defaults to `zh-CN` when no language preference has been saved. The Chinese return strings mean “unsupported language,” “the current user cannot change preferences,” and “language preference saved,” respectively.
 
 ```python
 @tool
@@ -159,29 +159,29 @@ def save_locale(
     locale: str,
     runtime: ToolRuntime[UserContext],
 ) -> str:
-    """保存当前登录用户的界面语言，如 zh-CN 或 en-US。"""
+    """Save the signed-in user's interface language, such as zh-CN or en-US."""
     if locale not in {"zh-CN", "en-US"}:
         return "不支持的语言"
     if "profile:write" not in runtime.context.permissions:
         return "当前用户无权修改偏好"
 
-    # namespace 必须包含租户和用户，避免跨租户/跨用户读取长期数据。
+    # Include both tenant and user in the namespace to avoid cross-tenant/user reads.
     namespace = ("profile", runtime.context.tenant_id, runtime.context.user_id)
     runtime.store.put(namespace, "locale", {"value": locale})
     return f"已保存语言偏好：{locale}"
 
 @tool
 def get_locale(runtime: ToolRuntime[UserContext]) -> str:
-    """读取当前登录用户已保存的界面语言。"""
+    """Read the signed-in user's saved interface language."""
     namespace = ("profile", runtime.context.tenant_id, runtime.context.user_id)
     item = runtime.store.get(namespace, "locale")
     return item.value["value"] if item else "zh-CN"
 ```
 
-最后把依赖类型、Store 和工具接入 Agent，再传入认证层构造的上下文。
+Finally, wire the dependency type, store, and tools into the agent, then pass the context created by the authentication layer. The Chinese user message below asks to set the interface language to `en-US`.
 
 ```python
-store = InMemoryStore()  # 进程内演示；生产环境换成持久化 Store。
+store = InMemoryStore()  # In-process demo; use a persistent store in production.
 agent = create_agent(
     model="<provider>:<your-model-id>",
     tools=[save_locale, get_locale],
@@ -189,7 +189,8 @@ agent = create_agent(
     store=store,
 )
 
-# Web/API 层先验证 session/JWT，再由服务端构造 Context；不要接受客户端声称的 user_id。
+# The web/API layer validates the session/JWT before the server builds Context.
+# Do not accept a client-asserted user_id.
 authenticated_context = UserContext(
     user_id="u_123",
     tenant_id="tenant_acme",
@@ -201,115 +202,115 @@ result = agent.invoke(
 )
 ```
 
-`context_schema=UserContext` 声明 Agent 的 Context 类型，`context=` 才传入本次调用的数据；`ToolRuntime[UserContext]` 注解本身不会完成认证或构造身份。模型可见的工具参数只有 `locale`，不含 `runtime`。如果工具把身份或 namespace 写进结果、错误或日志，它们仍可能泄漏，不能把参数隐藏理解为全面脱敏。
+`context_schema=UserContext` declares the agent's context type; `context=` supplies the data for this invocation. The `ToolRuntime[UserContext]` annotation does not itself authenticate a user or construct an identity. The model-visible tool arguments contain only `locale`, not `runtime`. If a tool writes identity or namespace information into results, errors, or logs, that information can still leak. Hiding an argument is not comprehensive redaction.
 
-可信身份边界在 Agent 外部：认证层验证凭证、查出服务端权限后才构造 `UserContext`。不要从用户消息、模型输出、工具参数或浏览器传入的 `user_id` 创建它；工具服务还应对该身份重新执行授权。`runtime.state` 是当前线程的业务状态，不应用来伪造身份；`runtime.store` 也不是访问控制系统。
+The trusted identity boundary sits outside the agent. The authentication layer constructs `UserContext` only after validating credentials and looking up server-side permissions. Do not construct it from user messages, model output, tool arguments, or a browser-supplied `user_id`. The tool service should authorize that identity again. `runtime.state` holds the current thread's business state and must not be used to manufacture an identity; `runtime.store` is not an access-control system either.
 
-工具返回字符串或字典时，通常会作为工具结果交给模型，不会把字典里的任意字段自动合并进 Agent State。需要更新自定义状态时，应使用 `Command(update=...)`，并按工具消息协议补齐对应 `tool_call_id` 的 `ToolMessage`。不要直接修改 `runtime.state` 中的共享列表：并行工具、reducer 和检查点要求状态更新经过运行时提交。
+A string or dictionary returned by a tool is normally passed to the model as a tool result. Arbitrary dictionary fields are not automatically merged into Agent State. To update custom state, use `Command(update=...)` and include the `ToolMessage` with the corresponding `tool_call_id`, as required by the tool-message protocol. Do not directly mutate shared lists in `runtime.state`: parallel tools, reducers, and checkpoints require state updates to be submitted through the runtime.
 
-## 5.6 异步工具怎么处理
+## 5.6 How Should Asynchronous Tools Work?
 
-搜索、数据库和远程 API 通常是 **I/O 密集型**。底层客户端支持异步时，工具也应使用原生 `async def`，并通过 Agent 的 `ainvoke` 或异步流式接口调用。
+Search, database access, and remote API calls are usually **I/O-bound**. When the underlying client supports asynchronous operation, the tool should use native `async def` and be invoked through the agent's `ainvoke` or asynchronous streaming interface.
 
-> **最常见的假异步**：只把函数声明成 `async def`，内部却继续调用阻塞式 HTTP 客户端——**这种写法不会自动提高并发能力**。
+> **The most common form of fake async** is declaring a function with `async def` while still calling a blocking HTTP client inside it. **That does not automatically improve concurrency.**
 
-**工具是否异步，应该和底层客户端以及整条 Agent 调用链保持一致。**
+**The tool's execution mode should match both the underlying client and the entire agent call chain.**
 
-## 5.7 错误应该怎么分类
+## 5.7 How Should Errors Be Classified?
 
-工具调用失败时，不应先把所有情况都归为可重试错误，因为不同失败意味着完全不同的下一步。
+Do not classify every failed tool call as retryable. Different failures require entirely different next steps.
 
-| 失败类型 | 例子 | 正确处理 |
+| Failure type | Examples | Correct handling |
 |---|---|---|
-| **参数错误** | 日期格式错误、缺必填字段 | 先让 **Schema 拦截**，再把可修正信息交给模型重填 |
-| **业务结果** | 库存不足、无权限、订单不存在 | **不是故障**，工具说清原因，让 Agent 换路径或告知用户 |
-| **临时故障** | 网络超时、限流、服务不可用 | **有上限**的重试 + 退避 + **总超时** |
-| **真实缺陷** | 程序 Bug、数据损坏、权限配置错误 | **不应统一转成「调用失败」后继续执行**，否则掩盖真正的问题 |
+| **Argument error** | Invalid date format, missing required field | Let the **schema reject it**, then give the model actionable feedback to correct the arguments |
+| **Business outcome** | Insufficient stock, no permission, order not found | **Not a system fault**; explain the reason so the agent can take another path or inform the user |
+| **Transient failure** | Network timeout, rate limiting, unavailable service | **Bounded** retries + backoff + an **overall timeout** |
+| **Actual defect** | Programming bug, corrupted data, misconfigured permissions | **Do not turn everything into “call failed” and continue**; doing so hides the underlying problem |
 
-> **对于付款、发邮件、创建订单等有副作用的工具**，应设计业务幂等键；是否需要人工审批由风险和业务策略决定。审批不能代替幂等，用户批准一次也不应导致重复执行。
+> **For side-effecting tools such as payment, email, and order creation**, design business-level idempotency keys. Whether human approval is needed depends on risk and business policy. Approval does not replace idempotency: one user approval must not lead to repeated execution.
 
-## 5.8 注册后还要检查什么
+## 5.8 What Should You Check After Registration?
 
-**一个能被 Agent 调用的函数，并不等于一个可以安全上线的工具。** 沿着一次真实调用往下走：
+**A function that an agent can call is not necessarily a tool that is safe to deploy.** Follow an actual call from start to finish:
 
 ```mermaid
 flowchart TB
-    P1["① 模型准备调用前<br/>名称/描述会不会与其他工具混淆<br/>Schema 有没有限制枚举、范围、必填"]
-    P2["② 进入执行阶段<br/>身份和权限来自可信 Runtime 而非模型参数<br/>远程调用有超时、重试上限、并发限制<br/>会改外部状态就补幂等、审批、审计"]
-    P3["③ 调用结束后<br/>日志与 Trace 要能排查错误<br/>但不能记录密钥、完整身份凭证或不必要的敏感数据"]
+    P1["① Before the model calls the tool<br/>Could its name or description be confused<br/>with another tool?<br/>Does the schema constrain enums, ranges,<br/>and required fields?"]
+    P2["② During execution<br/>Identity and permissions come from trusted<br/>runtime data, not model arguments<br/>Remote calls have timeouts, retry limits,<br/>and concurrency limits<br/>Changes to external state need<br/>idempotency, approval, and auditing"]
+    P3["③ After the call<br/>Logs and traces must support diagnosis<br/>without recording secrets, complete credentials,<br/>or unnecessary sensitive data"]
     P1 --> P2 --> P3
 
     style P2 fill:#fff3cd
 ```
 
-### 5.8.1 工具数量不是越多越好
+### 5.8.1 More Tools Are Not Always Better
 
-一次性向模型暴露大量相似工具，会增加选择错误和参数混淆的概率。更合理的做法是**根据用户权限和当前任务动态缩小工具集合**（可用 Middleware 实现，见 [第四章](04-build-agent.md)）。
+Exposing many similar tools at once increases the likelihood of selection errors and argument confusion. A better approach is to **dynamically narrow the tool set based on user permissions and the current task**. Middleware can implement this; see [Chapter 4](04-build-agent.md).
 
-工具 Schema 本身也占输入 Token。工具裁剪应同时测「目标工具是否仍在候选集」和「候选集内选择是否正确」，否则节省 Token 的代价可能是根本无法完成任务。两次参数相同的调用也不一定是重复业务动作：`tool_call_id` 用于关联模型消息，支付或发信的幂等键应绑定业务请求，不能只靠模型生成的调用 ID。
+Tool schemas also consume input tokens. When reducing the tool set, measure both whether the target tool remains among the candidates and whether the model selects correctly within that set. Otherwise, token savings may come at the cost of making the task impossible. Two calls with identical arguments are not necessarily duplicate business actions: `tool_call_id` correlates model messages, while an idempotency key for a payment or message should identify the business request. Do not rely solely on a model-generated call ID.
 
-## 5.9 常见错误
+## 5.9 Common Mistakes
 
-### 5.9.1 把工具描述当成普通注释
+### 5.9.1 Treating Tool Descriptions as Ordinary Comments
 
-**它是模型与业务代码之间的调用合同**，描述模糊模型就会选错。
+**The description is part of the calling contract between the model and business code.** Vague descriptions lead to wrong selections.
 
-### 5.9.2 一上来就继承 `BaseTool`
+### 5.9.2 Starting by Subclassing `BaseTool`
 
-**四种方式是随复杂度上升的路径**，绝大多数业务工具 `@tool` 就够了。
+**The four methods form a progression in complexity.** `@tool` is sufficient for most business tools.
 
-### 5.9.3 把 `user_id` 放进模型可见 Schema
+### 5.9.3 Putting `user_id` in the Model-Visible Schema
 
-模型可能填错，也可能被恶意提示诱导——**可信参数必须从 Runtime 注入**。
+The model may supply it incorrectly or be manipulated by a malicious prompt. **Trusted parameters must be injected by the runtime.**
 
-### 5.9.4 混淆 `context` / `state` / `store`
+### 5.9.4 Confusing `context` / `state` / `store`
 
-分别对应**本次调用上下文、会话短期状态、跨会话长期数据**。
+They represent **this invocation's context, short-term conversation state, and long-term data across conversations**, respectively.
 
-### 5.9.5 假异步
+### 5.9.5 Fake Async
 
-`async def` 里包阻塞客户端，**并发能力不会凭空提高**。
+Wrapping a blocking client in `async def` **does not create concurrency out of thin air**.
 
-### 5.9.6 把所有失败统一重试
+### 5.9.6 Retrying Every Kind of Failure
 
-**业务结果不该重试，真实缺陷更不该被掩盖成「调用失败」。**
+**Business outcomes should not be retried as failures, and actual defects must not be hidden behind a generic “call failed.”**
 
-### 5.9.7 重试没有退避和总超时
+### 5.9.7 Retrying Without Backoff or an Overall Timeout
 
-**Agent 只会在一个坏掉的服务前反复等待。**
+**The agent will simply keep waiting on a broken service.**
 
-### 5.9.8 有副作用的工具没有幂等键
+### 5.9.8 Omitting Idempotency Keys for Side-Effecting Tools
 
-一次重试就可能变成**重复扣款、重复发信**。
+A single retry can become a **duplicate charge or message**.
 
-### 5.9.9 一次性暴露几十个相似工具
+### 5.9.9 Exposing Dozens of Similar Tools at Once
 
-**选择错误和参数混淆的概率随之上升**，应按权限和任务动态裁剪。
+**Selection errors and argument confusion become more likely.** Narrow the set dynamically according to permissions and the task.
 
-### 5.9.10 日志里记录敏感数据
+### 5.9.10 Logging Sensitive Data
 
-Trace 要能排查问题，**但不能落密钥和完整身份凭证**。
+Traces must support troubleshooting, **but must not store secrets or complete identity credentials**.
 
-## 5.10 本章总结
+## 5.10 Chapter Summary
 
-1. **Tool = 模型可见的调用合同 + 运行时可执行函数**，name / description / args_schema 给模型看，executor 给应用跑；
-2. **四种定义方式是一条复杂度递增的路径**：普通函数 → `@tool` → `StructuredTool` → `BaseTool`；
-3. **`@tool` 是大多数业务工具的首选**，Pydantic 字段描述与枚举既指导模型也拦截非法输入；
-4. **`StructuredTool` 解决运行时组装**（改名、同步异步合一），**`BaseTool` 提供完整执行定制**；资源生命周期仍由应用管理；
-5. **参数必须二分**：任务参数由模型生成，**可信参数由运行时注入**；
-6. **ToolRuntime 三作用域**：`context_schema` 定义并接入可信的调用上下文，context（调用上下文）、state（会话状态）、store（跨会话长期）各司其职；
-7. **异步要真异步**，底层客户端、工具、调用链三者一致；
-8. **错误分四类**：参数错误、业务结果、临时故障、真实缺陷——处理方式完全不同；
-9. **有副作用的工具需要幂等与审计**，人工审批按风险配置，不代替幂等；
-10. **上线检查沿一次真实调用走**：选择前看契约、执行时看权限与限流、结束后看日志脱敏；
-11. **工具数量要治理**，按权限和任务动态缩小可见集合。
+1. **Tool = model-visible calling contract + runtime-executable function.** The model sees name / description / args_schema; the application runs the executor.
+2. **The four definition methods form a progression in complexity**: ordinary function → `@tool` → `StructuredTool` → `BaseTool`.
+3. **`@tool` is the first choice for most business tools.** Pydantic field descriptions and enum constraints guide the model and reject invalid inputs.
+4. **`StructuredTool` handles runtime assembly** (renaming and combining sync/async implementations); **`BaseTool` supports full execution customization**. The application still manages resource lifecycles.
+5. **Separate two kinds of parameters**: the model generates task arguments; **the runtime injects trusted parameters**.
+6. **ToolRuntime has three scopes**: `context_schema` defines and wires the trusted invocation context; context (invocation context), state (conversation state), and store (long-term data across conversations) each have a distinct role.
+7. **Async must be genuinely asynchronous**: the underlying client, tool, and call chain must agree.
+8. **Classify errors into four groups**: argument errors, business outcomes, transient failures, and actual defects. They require different handling.
+9. **Side-effecting tools need idempotency and auditing.** Configure human approval according to risk; it does not replace idempotency.
+10. **Review deployment readiness along a real call**: inspect the contract before selection, authorization and rate limits during execution, and log redaction afterward.
+11. **Manage the number of tools** by dynamically narrowing the visible set based on permissions and the task.
 
-注册工具时，更关键的是把「模型看得见的契约」和「服务端执行的安全边界」彻底分开：前者决定模型能否选对，后者决定系统是否安全。
+When registering tools, the essential distinction is between the model-visible contract and the server-side execution boundary. The former determines whether the model can choose correctly; the latter determines whether the system is safe.
 
-## 参考资料
+## References
 
-- [LangChain: Tools 概念文档](https://docs.langchain.com/oss/python/langchain/tools)
-- [LangChain: Agents 概念文档](https://docs.langchain.com/oss/python/langchain/agents)
+- [LangChain: Tools Concepts](https://docs.langchain.com/oss/python/langchain/tools)
+- [LangChain: Agents Concepts](https://docs.langchain.com/oss/python/langchain/agents)
 - [LangChain: Middleware](https://docs.langchain.com/oss/python/langchain/middleware)
-- [langchain-core Tools API 参考](https://reference.langchain.com/python/langchain-core/tools/)
-- [Pydantic 官方文档](https://docs.pydantic.dev/latest/)
+- [langchain-core Tools API Reference](https://reference.langchain.com/python/langchain-core/tools/)
+- [Pydantic Documentation](https://docs.pydantic.dev/latest/)

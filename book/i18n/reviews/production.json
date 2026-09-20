@@ -1,0 +1,1286 @@
+{
+  "scope": "production",
+  "source_commit": "be53fedaedfb28da181db8e95f41bf91100621c4",
+  "pages": [
+    {
+      "path": "docs/engineering/01-foundations/01-llmops-vs-mlops-devops.md",
+      "zh_path": "docs/engineering/01-foundations/01-llmops-vs-mlops-devops.zh.md",
+      "kind": "chapter",
+      "source_sha256": "65d5211383c8b08f8e90e7d665fefacabf22e8b7ca5cc992e254391ebc28b82d",
+      "references_checked": [
+        {
+          "url": "https://cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning",
+          "scope": "MLOps as an extension of software engineering; data/model validation, production drift, CI/CD/CT, and lifecycle responsibilities.",
+          "access": "Consulted on 2026-09-20. Redirected to docs.cloud.google.com; read the first 13,000 characters, including the document's 2024-08-28 review date, DevOps versus MLOps, lifecycle steps, and level-0 discussion. Later maturity-level sections were not read."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "scope": "Workflow versus agent orchestration, starting with simple designs, evaluation, routing, and cost/latency tradeoffs.",
+          "access": "Consulted the first 13,000 characters on 2026-09-20. The page explicitly notes that tooling described in the December 2024 article has changed. No historical framework list or new model recommendation was imported into the translation."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/production-best-practices",
+          "scope": "Provider credentials, staging/production separation, quotas, scaling, and latency considerations.",
+          "access": "Consulted the first 10,000 characters of the official current guide on 2026-09-20. This is the current guide corresponding to the preserved platform.openai.com citation; no exhaustive verification of later sections or model-snapshot reproducibility claims is asserted."
+        }
+      ],
+      "notes": [
+        "Read the complete Chinese chapter and the parent's bilingual contract/glossary before translation. Source revision: be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Complete 102-line translation, not a summary. Preserved all 10 numbered H2/H3 sections, both comparison tables, deterministic-versus-statistical evaluation distinctions, repeated-sampling caveat, snapshot limitations, and training-side responsibilities.",
+        "Translated both Mermaid diagrams' visible labels while preserving graph structure, identifiers, and styling. The existing Mermaid checker passed all 8 diagrams across this bilingual module.",
+        "Chinese companion verified byte-for-byte against git show at the original revision. Heading hierarchy, table rows, link destinations, fences, and numeric content verified. No mathematical expressions occur in this source.",
+        "The a16z and Chip Huyen historical articles remain cited but were not independently rechecked. No factual source correction was made."
+      ]
+    },
+    {
+      "path": "docs/engineering/01-foundations/02-production-architecture-overview.md",
+      "zh_path": "docs/engineering/01-foundations/02-production-architecture-overview.zh.md",
+      "kind": "chapter",
+      "source_sha256": "7c7bef00aaba3a216eb8e4ca2804e2e14c7c5af44525f69b9df7474069b89d77",
+      "references_checked": [
+        {
+          "url": "https://developers.openai.com/api/docs/guides/production-best-practices",
+          "scope": "Production architecture, provider credential handling, environment separation, scaling, caching, rate limits, and latency.",
+          "access": "Read the first 10,000 characters of the official current guide on 2026-09-20. Original citation URL retained. This is a scoped review, not a full review of every provider-specific recommendation."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "scope": "Orchestration, explicit workflow paths versus model-directed tool use, stopping conditions, and beginning with a simpler system.",
+          "access": "Read the first 13,000 characters on 2026-09-20, including the historical-tooling notice, architecture patterns, and agent discussion. Appendices were not inspected."
+        }
+      ],
+      "notes": [
+        "Complete 124-line translation with all 12 numbered H2/H3 sections, two architecture diagrams, the cross-cutting-concerns table, all chapter references, and the full six-part architecture discussion.",
+        "Preserved ingress identity checks versus provider-credential management versus tool resource authorization; no default persistence of raw prompts/responses; small-sample uncertainty; no unauthorized provider fallback; and feedback/holdout separation.",
+        "Chinese companion verified byte-for-byte against be53fedaedfb28da181db8e95f41bf91100621c4. Section numbering, tables, graph counts, fenced blocks, numeric content, and every original link destination were verified. Relative destinations exist; no fragment rewrites were needed.",
+        "Both English diagrams and both Chinese originals passed the existing Mermaid parser in the scope-only module run. No formulas occur in the source.",
+        "The Google SRE introduction, Uber Michelangelo article, and Martin Fowler CD4ML article remain cited but were not rechecked. Architecture prose is the source manuscript's synthesis, not a claim that any one vendor documents the entire diagram."
+      ]
+    },
+    {
+      "path": "docs/engineering/01-foundations/README.md",
+      "zh_path": "docs/engineering/01-foundations/README.zh.md",
+      "kind": "index",
+      "source_sha256": "543560c969c3b02fbfed5d8eb5c223f110b3633033c3dac0d84b75fdebe432d1",
+      "references_checked": [],
+      "notes": [
+        "Read and completely translated the original 10-line module index. English link titles match the translated Chapter 1 and Chapter 2 H1s.",
+        "Index has no external citations; no external-source checks are claimed for this page. Verified both chapter paths and the parent-index path resolve.",
+        "Chinese companion matches the original bytes at be53fedaedfb28da181db8e95f41bf91100621c4, including all unchanged Chinese link destinations for parent-controlled localization.",
+        "No code, diagrams, formulas, or numbered H2/H3 sections occur on this index."
+      ]
+    },
+    {
+      "path": "docs/engineering/02-request-reliability/03-model-gateway-routing-fallback.md",
+      "zh_path": "docs/engineering/02-request-reliability/03-model-gateway-routing-fallback.zh.md",
+      "kind": "chapter",
+      "source_sha256": "d76483dd547b080c801ab41794b6701af2cda880860ba84ce6d90ec40bb704c2",
+      "references_checked": [
+        {
+          "url": "https://docs.litellm.ai/docs/routing",
+          "scope": "Multiple-deployment routing, gateway reliability functions, quotas, cooldowns, and the distinction between routing strategies.",
+          "access": "Read the first 13,000 characters on 2026-09-20. Reviewed the opening capabilities, load-balancing overview, and routing-strategy descriptions. No SDK execution or later-section review is claimed."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/reasoning",
+          "scope": "Model-dependent effort, reasoning-token cost and context accounting, same-family compatibility, and explicit reasoning-state continuation.",
+          "access": "Read characters 0–39,000 on 2026-09-20, including Reasoning effort, Controlling costs, Preserve reasoning across calls, stored/stateless continuation, and Keeping reasoning items in context. Confirmed reasoning_tokens are a breakdown within output_tokens, and incompatible families do not share persisted reasoning. Did not import newer model names or mode defaults into the chapter."
+        }
+      ],
+      "notes": [
+        "Complete 141-line translation with all 17 numbered H2/H3 sections, both tables, the routing diagram, Python routing example, and logical YAML fallback configuration.",
+        "Preserved model × effort routing, evaluation-supported escalation, replay/state limitations, residency and contractual filters, correlated-failure/capacity considerations, shared fallback budgets, safety-policy consistency, and streamed-response handling.",
+        "Only the Python comment was translated; Python ASTs match exactly. Logical model names, deployment IDs, field names, YAML values, and executable behavior are unchanged.",
+        "Chinese bytes match be53fedaedfb28da181db8e95f41bf91100621c4. Heading numbers, table rows, fenced-block languages, original links, and numeric content verified. No math expressions or local fragments occur.",
+        "The scope-only existing Mermaid run passed 6 bilingual diagrams in this module. Bedrock intelligent prompt routing, Fowler CanaryRelease, and the Netflix historical fault-tolerance article remain cited but were not rechecked."
+      ]
+    },
+    {
+      "path": "docs/engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md",
+      "zh_path": "docs/engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.zh.md",
+      "kind": "chapter",
+      "source_sha256": "2f1cede80da2f649d7f9606127908f3428c5d3d3b353b973dfb01788e1cafc02",
+      "references_checked": [
+        {
+          "url": "https://cloud.google.com/storage/docs/retry-strategy",
+          "scope": "Retryability depends on both response type and operation idempotency; transient versus persistent errors; configurable exponential backoff.",
+          "access": "Redirected to docs.cloud.google.com; read the first 9,000 characters on 2026-09-20, covering overview, conditional idempotency, and initial client-library sections. Later retry-antipattern sections were not read, and Cloud Storage defaults were not presented as universal LLM defaults."
+        },
+        {
+          "url": "https://docs.stripe.com/api/idempotent_requests",
+          "scope": "Saved first results including 500, parameter comparison, expiration/reuse, and failures before endpoint execution starts.",
+          "access": "Read the complete returned official page on 2026-09-20. Confirmed the qualifications retained in Section 4.4. No payment requests or other external business actions were executed."
+        },
+        {
+          "url": "https://martinfowler.com/bliki/CircuitBreaker.html",
+          "scope": "Closed/Open/Half-Open states, failure thresholds, recovery probes, reducing cascading failures, and resource-pool considerations.",
+          "access": "Read the complete returned article on 2026-09-20. Its historical Ruby examples and Hystrix references were treated as explanation of the pattern, not current product recommendations."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_bulkhead.html",
+          "scope": "Attempted to inspect the cited bulkhead-architecture guidance.",
+          "access": "Attempted on 2026-09-20. The URL redirected to the generic Reliability Pillar landing page and returned only its title. The specific cited bulkhead content could not be verified; citation preserved unchanged."
+        }
+      ],
+      "notes": [
+        "Complete 146-line translation with all 14 numbered H2/H3 sections, three tables, two Mermaid diagrams, and both Python snippets.",
+        "Preserved 429/500/502/503/504, max_retries=3, base_delay=1.0, three-layer 27-call amplification, all 2s/10s/60s and 1–3/5–15/30–120-second examples, action-level key semantics, unknown outcomes, cancellation limits, and exactly-once caveats.",
+        "The Chinese ValueError string remains byte-identical as a runtime literal and is explained in English immediately below. Only the retry comment changed; both Python ASTs match their originals.",
+        "Verified exact Chinese bytes at be53fedaedfb28da181db8e95f41bf91100621c4, numbered headings, table rows, fences, code syntax/AST equivalence, numeric content, and original link destinations. Both diagram pairs passed the existing Mermaid parser. No formulas occur.",
+        "Python examples were syntax-checked, not run against provider adapters or real downstream APIs. The Netflix historical article was not rechecked. The AWS access failure is a source-access limitation, not a silently repaired citation."
+      ]
+    },
+    {
+      "path": "docs/engineering/02-request-reliability/README.md",
+      "zh_path": "docs/engineering/02-request-reliability/README.zh.md",
+      "kind": "index",
+      "source_sha256": "485a3c65d9f9a649b6bdd5ee2cbd2d62ae2edd282df4eb50f894f1333850cf42",
+      "references_checked": [],
+      "notes": [
+        "Read and completely translated the 10-line index, preserving the explanation of sending a request, receiving its result, routing, fallback, and retry amplification.",
+        "Both English chapter labels match the Chapter 3 and Chapter 4 H1s. Original relative link destinations retained and verified to exist.",
+        "No external citations appear here, so no external-source consultation is claimed for this index. No formulas, diagrams, or code appear.",
+        "Chinese companion is byte-identical to the original at be53fedaedfb28da181db8e95f41bf91100621c4, with Chinese links left unchanged for later localization."
+      ]
+    },
+    {
+      "path": "docs/engineering/03-output-safety/05-structured-output-contracts.md",
+      "zh_path": "docs/engineering/03-output-safety/05-structured-output-contracts.zh.md",
+      "kind": "chapter",
+      "source_sha256": "63d8f1c328cc7a5f96b1ba9096c711119c01bee45a713fb64a7c58b13079d435",
+      "references_checked": [
+        {
+          "url": "https://platform.openai.com/docs/guides/structured-outputs",
+          "scope": "Attempted to consult the originally cited Structured Outputs guide.",
+          "access": "Original URL returned HTTP 403 on 2026-09-20; citation preserved. The corresponding official developers.openai.com guide was consulted instead, as recorded separately."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
+          "scope": "Structured responses versus strict tool calling, JSON syntax versus schema adherence, refusals/truncation, supported schema subsets, and remaining semantic mistakes.",
+          "access": "Read the first 17,000 characters and the returned 35,000–54,000 range on 2026-09-20. Also fetched the official .md representation in memory and read targeted sections: Step 3: Handle edge cases, Supported schemas, Handling mistakes, and Structured Outputs vs JSON mode. Did not claim an exhaustive review of every SDK example."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/reasoning",
+          "scope": "incomplete/max_output_tokens, context exhaustion, reasoning and non-visible formatting tokens, and output usage accounting.",
+          "access": "Read the first 39,000 characters on 2026-09-20. Confirmed the source chapter's token-budget qualifications from Controlling costs and Allocating space for reasoning. No paid API calls were made."
+        },
+        {
+          "url": "https://docs.pydantic.dev/latest/concepts/validators/",
+          "scope": "Receiving-side validation and the distinction between built-in validation and custom business constraints.",
+          "access": "Redirected to pydantic.dev; read the first 10,000 characters on 2026-09-20. This excerpt covers the introduction and initial field-validator sections, not the entire validator reference."
+        },
+        {
+          "url": "https://docs.pydantic.dev/latest/concepts/strict_mode/",
+          "scope": "ConfigDict(strict=True), rejecting coercion, and JSON-input caveats.",
+          "access": "Read the complete returned official Strict Mode page on 2026-09-20 after redirect to pydantic.dev. Used as a supplemental primary source; no Pydantic runtime dependency was installed or application validation executed."
+        },
+        {
+          "url": "https://json-schema.org/specification",
+          "scope": "JSON Schema specification organization, Core versus Validation, and published version metadata.",
+          "access": "Read the complete returned specification landing page on 2026-09-20. Individual normative Core/Validation documents were not inspected; no full conformance claim is made."
+        }
+      ],
+      "notes": [
+        "Complete 152-line translation with all 12 numbered H2/H3 sections, both tables, validation-flow diagram, two Python snippets, and the JSON versioning example.",
+        "Preserved status-before-parsing order, refusal/truncation distinctions, visible-output versus internal-reasoning distinction, schema-version selection by request configuration, sanitized repair details, shared budgets, and transaction-time business checks.",
+        "Preserved original Chinese business-output and exception literals; supplied English explanations without changing runtime values. ORD-2026-0831, 12900 cents, USD, confidence 0.94, regex, identifiers, and all JSON/Python values are unchanged.",
+        "Both Python ASTs and the parsed JSON example match the originals. Exact Chinese bytes, headings, table rows, fences, all link targets, and numbers were checked; the extra occurrence of 100 is solely the English explanation of the preserved Chinese example.",
+        "The existing scope-only Mermaid run passed 6 bilingual diagrams in this module. No formulas occur. Illustrative undefined helpers remain illustrative; code was syntax/AST checked, not executed against a provider.",
+        "Separate Function calling and Anthropic Tool use references were retained but not rechecked. The cross-reference to Claude budget rules remains unchanged and was not independently re-audited."
+      ]
+    },
+    {
+      "path": "docs/engineering/03-output-safety/06-guardrails-degradation.md",
+      "zh_path": "docs/engineering/03-output-safety/06-guardrails-degradation.zh.md",
+      "kind": "chapter",
+      "source_sha256": "d63e186c758d199f584a358ed5b52e0dd1cc4843c83f71bbd15deb3b76a60a7f",
+      "references_checked": [
+        {
+          "url": "https://platform.openai.com/docs/guides/moderation",
+          "scope": "Attempted to consult the original moderation citation.",
+          "access": "Original URL returned HTTP 403 on 2026-09-20. Citation retained; the corresponding official developers.openai.com guide was consulted instead."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/moderation",
+          "scope": "Moderation as policy input, review before output/actions, error handling, and streaming moderation timing.",
+          "access": "Read the first 9,000 characters on 2026-09-20, including workflow selection, generated-content moderation, policy-signal qualifications, error results, and the statement that streamed moderation scores arrive only after full output. Standalone-input examples and the full category list were not reviewed."
+        },
+        {
+          "url": "https://genai.owasp.org/llm-top-10/",
+          "scope": "Located the official output-handling risk guidance linked by the cited overview.",
+          "access": "Consulted on 2026-09-20; simplified extraction returned only a short Improper Output Handling description and a link. Not treated as a complete review of the Top 10."
+        },
+        {
+          "url": "https://genai.owasp.org/llmrisk/llm052025-improper-output-handling/",
+          "scope": "Treating model output as untrusted, downstream validation, context-aware handling, and limiting model privileges.",
+          "access": "Read the complete returned OWASP 2025 risk page on 2026-09-20. Consulted defensively for the manuscript's guardrail/authorization distinction; no vulnerability reproduction or exploitation was performed."
+        }
+      ],
+      "notes": [
+        "Complete 125-line translation with all 11 numbered H2/H3 sections, four tables, two diagrams, the guardrail Python example, and all four degradation options.",
+        "Preserved trusted authorization context, block-before-redact priority, aggregation/rechecking requirements, explicit guardrail-failure behavior, irreversible streaming, tenant/policy/freshness checks for cached answers, and false-positive/false-negative denominators.",
+        "Parent-approved bilingual correction on 2026-09-20: Section 6.6.3 now chooses degraded-service handling by the specific request/action risk, explicit block reason, and business policy rather than a financial/medical topic label. High-impact advice, prohibited actions, and unauthorized requests still obey their restrictions; model switching cannot bypass blocks. This resolves the contradiction with Section 6.4 without introducing legal guidance.",
+        "Evidence for the approved correction: compared original Sections 6.4 and 6.6.3 and reread the first 9,000 characters of https://developers.openai.com/api/docs/guides/moderation, which explicitly describes moderation scores as application-policy signals rather than automatic blocking decisions. Parent authorized this exact minimal bilingual fix after it was reported.",
+        "source_sha256 still identifies the original be53fedaedfb28da181db8e95f41bf91100621c4 Chinese bytes. The companion differs only in the single approved Section 6.6.3 paragraph; preservation validation permits that exact old-to-new text substitution and no broader exception. Python AST, section numbers, table rows, numeric content, fenced blocks, diagram labels, and original links remain unchanged. Both diagram pairs passed the existing Mermaid parser.",
+        "Anthropic's safety bug-bounty article, the NIST AI RMF landing page, and Google's Responsible AI practices page remain cited but were not rechecked. No formula occurs; no live guardrail or moderation request was executed."
+      ]
+    },
+    {
+      "path": "docs/engineering/03-output-safety/README.md",
+      "zh_path": "docs/engineering/03-output-safety/README.zh.md",
+      "kind": "index",
+      "source_sha256": "4588eea9152a9b79658e9a0d5bd7fdb64930eec75cd85963e3e1d72792b0a080",
+      "references_checked": [],
+      "notes": [
+        "Read and completely translated the original 10-line index. Preserved its distinction between request completion and safe, program-consumable output.",
+        "English labels match Chapter 5 and Chapter 6 H1s; all three original relative link destinations resolve. No external citations occur, so references_checked is intentionally empty.",
+        "Chinese companion matches the original bytes at be53fedaedfb28da181db8e95f41bf91100621c4, including unchanged Chinese links.",
+        "Initial scope-wide verification: 9 original pages, 9 English translations, 9 exact Chinese copies, 76 numbered H2/H3 sections, 6 Python AST-equivalent blocks, 1 unchanged parsed JSON block, 1 byte-identical YAML block, and 20 parsed Mermaid diagrams across both languages. A subsequent parent-approved correction changes only the Section 6.6.3 paragraph in both editions, as recorded on that chapter. All translated pages retain the original line counts.",
+        "Existing Mermaid checker was run separately from within only the three owned modules: 8/0, 6/0, 6/0 diagrams/failures. Initial missing jsdom dependency was resolved with npm ci using the existing lockfile; no dependency manifests or checker scripts were changed.",
+        "Scope-specific git diff --check passed. Chinese-only global docs checks and a global MkDocs build were not run or claimed to pass. No commits, paid APIs, manuscript uploads, or out-of-scope manuscript edits were made."
+      ]
+    },
+    {
+      "path": "docs/engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md",
+      "zh_path": "docs/engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.zh.md",
+      "kind": "chapter",
+      "source_sha256": "c1d8d265c002196a80dcd81f25acc3dfd5fc4ac3865b075788a024ca25a45493",
+      "references_checked": [
+        {
+          "url": "https://developers.openai.com/api/docs/deprecations#2026-06-03-evals-platform",
+          "scope": "Checked the 2026-06-03 Evals platform notice, 2026-10-31 read-only transition, and scheduled 2026-11-30 dashboard/API shutdown.",
+          "access": "Fetched official documentation on 2026-09-20; read the relevant notice in the returned excerpt, not the entire deprecation history."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents",
+          "scope": "Checked evaluation task/trial/grader/outcome distinctions, code/model/human graders, and capability-versus-regression evaluation in the introduction and early sections.",
+          "access": "Fetched and read the first approximately 11,000 characters on 2026-09-20; the remainder of this long article was not reread."
+        },
+        {
+          "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats._result_classes.BinomTestResult.proportion_ci.html",
+          "scope": "Attempted to verify the cited binomial confidence-interval documentation.",
+          "access": "The fetched simplified page exposed only its bibliography. This was not treated as a full verification of the API or interval methods; the zero-failure numerical example was independently checked with 1 - 0.05**(1/100)."
+        }
+      ],
+      "notes": [
+        "Complete translation from source revision be53fedaedfb28da181db8e95f41bf91100621c4; Chinese companion preserves original bytes and links. Chapter 7 and all numbered subheadings are retained.",
+        "Preserved development/regression/holdout separation, grouped and temporal splits, slice sample counts, judge calibration and bias checks, paired bootstrap/McNemar discussion, effect sizes, non-inferiority caution, multiple-comparison caveat, and the distinction between threshold pseudocode and significance testing.",
+        "The 50–200 example starting size, non-universal 10–20% review figure, 100-trial example, and historical Evals retirement dates are unchanged. The exact one-sided zero-failure 95% upper bound for 100 trials is 0.029513049607039932, consistent with the stated approximate 3%.",
+        "The Chinese JUDGE_PROMPT and GateDecision message strings remain unchanged as executable example values, with English explanations added outside the code. Both Python ASTs are unchanged. The Mermaid structure and all tables and references are preserved.",
+        "Only the sources and excerpts listed above were accessed for this translation; the other bibliography entries were retained, not represented as freshly reread. No source conflict requiring a change to Chinese technical meaning was established."
+      ]
+    },
+    {
+      "path": "docs/engineering/04-evaluation-observability/08-online-observability-tracing.md",
+      "zh_path": "docs/engineering/04-evaluation-observability/08-online-observability-tracing.zh.md",
+      "kind": "chapter",
+      "source_sha256": "f8c8d81585fef50b8f32a5927e43c3fecf8811ce79e2bb5fa25f8673df857363",
+      "references_checked": [
+        {
+          "url": "https://opentelemetry.io/docs/specs/semconv/gen-ai/",
+          "scope": "Confirmed that the old GenAI semantic-conventions documentation points to a dedicated repository and states that the old location is no longer maintained.",
+          "access": "Official migration notice fetched and read on 2026-09-20."
+        },
+        {
+          "url": "https://github.com/open-telemetry/semantic-conventions-genai",
+          "scope": "Confirmed the dedicated GenAI conventions repository, its spans/metrics/events scope, and its docs/model layout.",
+          "access": "Repository landing README fetched and read on 2026-09-20. Individual convention field definitions, stability states, and instrumentation implementations were not exhaustively audited."
+        }
+      ],
+      "notes": [
+        "Complete translation from source revision be53fedaedfb28da181db8e95f41bf91100621c4; Chinese companion is byte-identical. Preserved Chapter 8 section numbering and every table and reference.",
+        "Preserved span-link versus parent-child causality, actual instrumentation scope, TTFT versus HTTP first byte/heartbeat, version-pinned convention caveats, pre-export minimization, HMAC pseudonymization limits, separate audits and debug traces, sampling bias, metric denominators, and non-averagability of p99.",
+        "Translated Python comments only; HMAC algorithm, key handling, 24-character truncation, dictionary keys, metric formulas, and executable behavior are unchanged. Both snippets parse to source-identical ASTs.",
+        "Retained the original 2026-09-15 migration-check date as an explicitly attributed source-manuscript record, rather than falsely claiming that this translation performed a check on that earlier date.",
+        "The other observability bibliography entries were preserved but not reread. No field-by-field stable-interface claim was added, and no source conflict requiring a meaning change was found."
+      ]
+    },
+    {
+      "path": "docs/engineering/04-evaluation-observability/README.md",
+      "zh_path": "docs/engineering/04-evaluation-observability/README.zh.md",
+      "kind": "index",
+      "source_sha256": "4fd87d20d91c57ca6c57d8b4f7326038cda257e159e6bd7222086605130695e5",
+      "references_checked": [],
+      "notes": [
+        "Complete index translation from source revision be53fedaedfb28da181db8e95f41bf91100621c4; Chinese companion is byte-identical.",
+        "Preserved the distinction between evaluation under specified conditions and real production signals, as well as paired samples, holdouts, confidence intervals, judge bias, sampled traces, and full-traffic SLO metrics.",
+        "Translated both chapter titles and the return link label; all three local link targets and heading levels are unchanged and resolve. No direct external sources are cited on this index."
+      ]
+    },
+    {
+      "path": "docs/engineering/05-release-pipeline/09-prompt-model-data-versioning.md",
+      "zh_path": "docs/engineering/05-release-pipeline/09-prompt-model-data-versioning.zh.md",
+      "kind": "chapter",
+      "source_sha256": "fb7d6fb742944a77dc3855483208bd7c0de7ad4b7bbe15a0cac113a695bd9bb0",
+      "references_checked": [
+        {
+          "url": "https://developers.openai.com/api/docs/models/gpt-4o",
+          "scope": "Verified that gpt-4o and the published gpt-4o-2024-08-06 snapshot are documented, supporting the historical snapshot example rather than a current recommendation.",
+          "access": "Official model page fetched and read on 2026-09-20, including its snapshot list."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/deprecations",
+          "scope": "Checked model retirement/lifecycle qualifications in the official page already fetched for Chapter 7.",
+          "access": "Read the overview, notice-period discussion, and relevant upcoming-deprecation excerpt on 2026-09-20; did not verify every model's regional availability or retirement schedule."
+        },
+        {
+          "url": "https://mlflow.org/docs/latest/model-registry.html",
+          "scope": "Followed the chapter's registry reference.",
+          "access": "Fetch returned a redirect page pointing to /docs/latest/ml/model-registry/ rather than substantive registry documentation."
+        },
+        {
+          "url": "https://mlflow.org/docs/latest/ml/model-registry/",
+          "scope": "Checked the registry overview and early concepts covering lineage, versioning, aliases, tags, and version-associated metadata.",
+          "access": "Fetched and read the first approximately 9,000 characters of the official redirected destination on 2026-09-20; no MLflow API was executed."
+        }
+      ],
+      "notes": [
+        "Complete translation from source revision be53fedaedfb28da181db8e95f41bf91100621c4; Chinese companion is byte-identical. Preserved Chapter 9 numbering, diagram topology, release-manifest table, and references.",
+        "Preserved separate-but-associated prompt/schema versions, PR review with comparative evaluations, floating-alias risks, retirement and service-configuration qualifications, and the absence of a word-for-word reproducibility guarantee from temperature or seed.",
+        "Retained retrieval provenance details, stale index/cache deletion and permission revocation, immutable release combinations, and evaluator/rubric/run identifiers. No rollback is described as restoring revoked access.",
+        "Registry keys, prompt/schema IDs, eval_score 0.94, dates, embedding model, source hash example, and UTC indexed_at value are unchanged. Only code comments were translated; the Chinese changelog value has an English explanation outside the code. Python AST equality and YAML non-comment equality passed.",
+        "DVC and Google Cloud references were retained but not reread. No source conflict requiring a change to the Chinese technical meaning was found."
+      ]
+    },
+    {
+      "path": "docs/engineering/05-release-pipeline/10-llm-cicd-canary-ab.md",
+      "zh_path": "docs/engineering/05-release-pipeline/10-llm-cicd-canary-ab.zh.md",
+      "kind": "chapter",
+      "source_sha256": "f55a0e5c3e641c629b0ec99744cdf3715fd9df510d809a6d2ead0ed881bab0b7",
+      "references_checked": [
+        {
+          "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.ttest_ind.html",
+          "scope": "Verified two-independent-sample semantics and that equal_var=False selects Welch's test without an equal-population-variance assumption; reviewed NaN behavior and result fields in the returned excerpt.",
+          "access": "Fetched and read the first approximately 8,000 characters of official SciPy documentation on 2026-09-20. The example was syntax/AST checked, not executed against SciPy."
+        },
+        {
+          "url": "https://sre.google/workbook/canarying-releases/",
+          "scope": "Checked the partial, time-limited deployment definition, control/canary comparison, automation, and progressive production exposure principles.",
+          "access": "Fetched and read the first approximately 10,000 characters of the original SRE Workbook chapter on 2026-09-20; later worked examples were not reread."
+        }
+      ],
+      "notes": [
+        "Complete translation from source revision be53fedaedfb28da181db8e95f41bf91100621c4; Chinese companion is byte-identical.",
+        "Preserved evaluation as an addition to deterministic tests; shadow side-effect, quota, resource, and processor risks; readonly/replay/mock requirements; and the inability of shadow outputs to measure subsequent user behavior directly.",
+        "Preserved all illustrative traffic percentages, durations, thresholds, YAML anchors/aliases, observation stages, stable randomized assignments, SRM, exposure loss, user correlation, power, sequential-testing and multiple-comparison caveats.",
+        "Retained the operational distinction between rollout risk control and business-effect estimation. The SRE source describes canarying as an A/B process; the chapter distinguishes objectives, not an assertion that the mechanisms can never overlap.",
+        "All three Python snippets have unchanged ASTs. Chinese pause/rollback reason strings remain original values and are explained in English outside the code. YAML executable content is unchanged and parses successfully.",
+        "Preserved fail-closed treatment of missing/nonfinite metrics, full-version rollback, in-flight version stickiness/draining, irreversible side effects, and persistence of security patches, deletion markers, and revocations.",
+        "Other bibliography entries were retained but not reread; no online experiment, significance result, or rollout was performed."
+      ]
+    },
+    {
+      "path": "docs/engineering/05-release-pipeline/README.md",
+      "zh_path": "docs/engineering/05-release-pipeline/README.zh.md",
+      "kind": "index",
+      "source_sha256": "a2eea9e3e79ad56cc533384332e242611c797ab4d9a8ca0c14c7a32a9542f659",
+      "references_checked": [],
+      "notes": [
+        "Complete index translation from source revision be53fedaedfb28da181db8e95f41bf91100621c4; Chinese companion is byte-identical.",
+        "Preserved versioning of prompts/models/data, evaluation gates in CI/CD, and staged deployment. Translated chapter titles consistently with Chapters 9 and 10.",
+        "All three relative targets and the heading hierarchy are unchanged and resolve. No direct external sources are cited on this index."
+      ]
+    },
+    {
+      "path": "docs/engineering/06-performance-operations/11-caching-batching-throughput-cost.md",
+      "zh_path": "docs/engineering/06-performance-operations/11-caching-batching-throughput-cost.zh.md",
+      "kind": "chapter",
+      "source_sha256": "6db75bad2f83f9244176fdf9ae19bc1ef53f65a30fc5eaab88fc2d2d7eaebc8a",
+      "references_checked": [
+        {
+          "url": "https://platform.openai.com/docs/guides/prompt-caching",
+          "scope": "Attempted to access the originally cited prompt-caching guide.",
+          "access": "HTTP 403 on 2026-09-20; substantive checking used the official developers.openai.com counterpart listed next."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/prompt-caching",
+          "scope": "Checked cached KV prefix reuse, remaining computation for new input/output, actual rendered context including tools and multimodal content, model-dependent minimum lengths, and model-dependent cache pricing.",
+          "access": "Fetched and read the first approximately 11,000 characters on 2026-09-20; did not audit every model's caching table or retention/isolation policy."
+        },
+        {
+          "url": "https://platform.openai.com/docs/guides/batch",
+          "scope": "Attempted to access the originally cited Batch API guide.",
+          "access": "HTTP 403 on 2026-09-20; substantive checking used the official developers.openai.com counterpart."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/batch",
+          "scope": "Verified the 50% synchronous-API discount, 24-hour window, JSONL upload/file ID, unique custom_id, unordered output reconciliation, and expiry/partial-result behavior.",
+          "access": "Read the first approximately 12,000 characters plus excerpts around output retrieval and batch expiration on 2026-09-20. No batch request, upload, or paid API call was made."
+        }
+      ],
+      "notes": [
+        "Complete translation from source revision be53fedaedfb28da181db8e95f41bf91100621c4; Chinese companion is byte-identical.",
+        "Preserved exact versus semantic caching, model-specific 0.85–0.95 experimental similarity thresholds, tenant/authorization/version/freshness controls, false-hit and stale-answer metrics, and invalidation on deletion/revocation.",
+        "Preserved answer-cache versus prefix-cache semantics, continued KV attention during generation, rendered-prefix matching, and provider/model-specific pricing and lifetime qualifications rather than substituting current settings into examples.",
+        "Retained the API-independent batch pseudocode and explicit explanation that real OpenAI Batch first uploads a JSONL file and uses its ID. completion_window='24h', all identifiers, and runtime behavior remain unchanged.",
+        "Preserved Python 3.11+ timeout qualification, semaphore limitations, bounded queues, cross-replica RPM/TPM caveats, and total cost per successful task. All three Python ASTs are unchanged; the Mermaid diagram's structure and all table rows are retained.",
+        "Anthropic caching/batching and Google Cloud cost references were retained but not reread. Official OpenAI source access was partial as described, not a claim of exhaustive vendor behavior verification."
+      ]
+    },
+    {
+      "path": "docs/engineering/06-performance-operations/12-slo-capacity-incident-response.md",
+      "zh_path": "docs/engineering/06-performance-operations/12-slo-capacity-incident-response.zh.md",
+      "kind": "chapter",
+      "source_sha256": "b3fbc6f42f197eacad3c40900f9885733bee2a53ee1c58a5f614e7b2a90354f3",
+      "references_checked": [
+        {
+          "url": "https://sre.google/workbook/implementing-slos/",
+          "scope": "Checked user-oriented SLOs, good-events/total-events definitions, request-based error budgets, stakeholder agreement, and the role of an explicit error-budget policy.",
+          "access": "Fetched and read the first approximately 13,000 characters of the original SRE Workbook chapter on 2026-09-20; later sections and linked case studies were not reread."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/rate-limits",
+          "scope": "Checked RPM/TPM and other independent quota dimensions, per-organization/project and model-specific limits, and distinct batch queue limits as the current official counterpart to the chapter's platform.openai.com reference.",
+          "access": "Fetched and read the first approximately 6,500 characters on 2026-09-20. No account-specific quota, capacity test, or provider API was accessed."
+        }
+      ],
+      "notes": [
+        "Complete translation from source revision be53fedaedfb28da181db8e95f41bf91100621c4; Chinese companion is byte-identical.",
+        "Preserved eligible-event denominators and windows, one end-to-end event across retries, legitimate refusals versus false refusals, and the distinction between fallback templates and actual completion.",
+        "Preserved 0.999/0.99 SLO targets, the 8-second threshold, request-unit error-budget formula, shared-denominator assumption, negative overrun values, and the 30-day/1-million/1,000/700/300 example. The Python AST is unchanged.",
+        "Retained request ratios versus downtime, no adding budgets across metrics, security/recovery exception approval, burn-rate windows, hosted/self-hosted capacity distinctions, Little's law assumptions, fallback headroom, and post-failure capacity tests.",
+        "Translated both Mermaid diagrams without changing graph structure; preserved incident command, evidence minimization, reconciliation/compensation, actionable review ownership, and the warning that configuration rollback is not business recovery.",
+        "The SRE Book, Anthropic rate-limit, and PagerDuty references were retained but not reread. No incident exercise or load test was run; no source conflict requiring a meaning change was established."
+      ]
+    },
+    {
+      "path": "docs/engineering/06-performance-operations/13-feedback-loop-data-flywheel.md",
+      "zh_path": "docs/engineering/06-performance-operations/13-feedback-loop-data-flywheel.zh.md",
+      "kind": "chapter",
+      "source_sha256": "d41f90386102b09ff5707e9d1788666d0341d9047b25f77b3267b0c5709ac517",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/langsmith/attach-user-feedback",
+          "scope": "Checked attaching feedback to a trace or child run, preserving the connection between feedback and a specific execution.",
+          "access": "Official SDK guide fetched and read on 2026-09-20. Its live SDK examples were not executed or substituted for the chapter's framework-independent example."
+        },
+        {
+          "url": "https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback",
+          "scope": "Read the primary research abstract describing supervised critique/revision and preference-based reinforcement learning from AI feedback.",
+          "access": "Research landing-page abstract fetched and read on 2026-09-20. The linked full paper/PDF was not fetched, and this abstract is not treated as direct evidence for DPO or a universal fine-tuning sample threshold."
+        },
+        {
+          "url": "https://pair.withgoogle.com/guidebook/",
+          "scope": "Attempted to access the cited People + AI Guidebook.",
+          "access": "Fetch exposed only the title 'PAIR Guidebook'; substantive Feedback + Control chapter content was unavailable in the returned representation and was not claimed as reread."
+        }
+      ],
+      "notes": [
+        "Complete translation from source revision be53fedaedfb28da181db8e95f41bf91100621c4; Chinese companion is byte-identical.",
+        "Preserved explicit/implicit feedback distinctions, self-selection bias in either direction, ambiguous abandonment/follow-up signals, coverage denominators, random human sampling, and the collection-purpose restrictions.",
+        "The implicit-signal Python example is completely unchanged and has an identical AST. Chinese slice identifiers 金额计算错误 and 语气生硬 remain example data with adjacent English explanations.",
+        "Preserved trace/version attribution, sanitization and root-cause triage, regression cases versus independent holdouts, near-duplicate isolation, non-training fixes, learning curves, preference-pair comparability, and no universal fine-tuning data-count threshold.",
+        "Preserved displayed-answer selection effects, self-reinforcement and long-tail risks, authorized representative data, independent evaluation, lineage/deletion limits, and no direct policy rewrite from one unreviewed correction. Both diagrams retain their topology.",
+        "OpenAI fine-tuning and Netflix references were retained but not reread. The chapter makes no new claim about present availability of a particular provider's training product. No training, feedback collection, model experiment, or user-data upload was performed."
+      ]
+    },
+    {
+      "path": "docs/engineering/06-performance-operations/README.md",
+      "zh_path": "docs/engineering/06-performance-operations/README.zh.md",
+      "kind": "index",
+      "source_sha256": "e31b5274fa287a1b3e0e76f83623fb9d56acf2b02c7f589632b843f764bd199a",
+      "references_checked": [],
+      "notes": [
+        "Complete index translation from source revision be53fedaedfb28da181db8e95f41bf91100621c4; Chinese companion is byte-identical.",
+        "Preserved quality/latency constraints, cost per successful task, explicit SLO denominators/windows, feedback-use authorization and triage, and the warning that more hits, quota, or feedback do not automatically improve outcomes.",
+        "Translated all three chapter titles consistently with Chapters 11–13 and retained all four local targets and heading levels. Local targets resolve; this index cites no direct external sources."
+      ]
+    },
+    {
+      "path": "docs/engineering/README.md",
+      "zh_path": "docs/engineering/README.zh.md",
+      "kind": "index",
+      "source_sha256": "ceade065f4d655407aff5e50539797d1ff07f19dcb4312953cad47bb8c514a23",
+      "references_checked": [],
+      "notes": [
+        "Source revision: be53fedaedfb28da181db8e95f41bf91100621c4. Read the complete source and the parent translation contract/glossary before editing. The Chinese companion is byte-for-byte identical to the source revision, including its original relative links.",
+        "Translated the entire topic introduction, scope distinctions, six-module index, relationship diagram, comparison tables, reading paths, and interview-preparation cautions. Preserved all paths, links, numbers, and the warning against claiming illustrative figures as personal achievements.",
+        "This index contains no direct external references. Its local targets were checked for existence; the chapter references checked below are not a claim that all linked topics were reread.",
+        "Scope validation passed for 11 pairs: 7 chapters and 4 indexes. All Chinese companions match git-show source bytes and hashes; all numbered H2/H3 hierarchies, table row/cell counts, fence languages/order, and 107 link targets/order match the sources. English links remain ordinary .md targets. There are no display-math blocks in this scope.",
+        "All 13 Python blocks parsed and have identical ASTs before/after comment translation; both YAML examples retain identical non-comment content. Ruby standard-library YAML parsed 8 front matter blocks and both YAML examples. The absent .venv, unavailable Python PyYAML, and unavailable js-yaml were bypassed without dependency installation.",
+        "All 10 English Mermaid diagrams retain node/edge structure and have translated visible labels. The existing repository Mermaid parser completed successfully, including these diagrams. git diff --check passed. No global Chinese-content validator, full site build, browser rendering, or publication was performed.",
+        "Only the assigned 11 English originals and their 11 Chinese companions were written by this subtask; concurrent translations were left untouched. The coordinating task subsequently combined the complete production scope into one local commit without navigation, manifest, root-index, or script changes.",
+        "Final coordinator validation across the production scope: 25 chapters and 16 indexes in both editions; original source hashes checked for all 41 pages. Chinese preservation allows only the exact parent-approved Section 6.6.3 paragraph and NIST E2025 URL corrections recorded on the three affected chapters.",
+        "All 19 Python examples were syntax-checked and compared by executable AST; both JSON examples and three YAML examples retained their data/semantics. Parsed 30 English front matter blocks. Preserved 50 English Mermaid graph structures and parsed all 535 repository diagrams with the existing checker, including all 100 diagrams in these paired production pages.",
+        "Numbered heading hierarchy, fence types/counts, tables, lists, source citations with only the approved NIST link exceptions, ordinary .md English links, absence of Chinese English-page fragment anchors, and internal link existence were checked. Retained Chinese strings are example/runtime data with English explanations, not missing prose translation.",
+        "Pure arithmetic checks covered the 27-call retry-amplification example, the approximately 3% upper bound for 100 zero-failure trials, the 1000/700/300 request error budget, and the complete FDE CNY cost/time/payback calculation. No provider request, real business action, online experiment, or attack was executed.",
+        "No display or inline LaTeX expressions occur in these 41 source pages; mathematical code and inline calculations remain intact. No global Chinese-only check_docs.py pass, bilingual site build, browser rendering, or publication is claimed. Parent-controlled Chinese internal-link localization remains pending."
+      ]
+    },
+    {
+      "path": "docs/fde/01-foundations/01-forward-deployed-engineering.md",
+      "zh_path": "docs/fde/01-foundations/01-forward-deployed-engineering.zh.md",
+      "kind": "chapter",
+      "source_sha256": "926e9a9e87c4a668a13f59abb89198dd4d8aea2270540665224a714b64f8a4fd",
+      "references_checked": [
+        {
+          "url": "https://developers.openai.com/api/docs/deprecations",
+          "scope": "Read the Evals-platform notice: read-only on 2026-10-31 and dashboard/API shutdown scheduled for 2026-11-30. Preserved the manuscript's 2026-09-15 historical review date rather than rewriting it as a new release claim.",
+          "access": "Public page read during translation; relevant notice accessible."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/your-data",
+          "scope": "Read training opt-in, abuse-monitoring versus application state, default up-to-30-day retention and exceptions, ZDR approval/eligibility, Responses storage, and third-party MCP retention. Confirmed that store=false is not a universal no-retention control.",
+          "access": "Read the relevant first 18,000 characters; did not review every regional-residency provision or customer contract."
+        },
+        {
+          "url": "https://www.palantir.com/docs/foundry/security/overview/",
+          "scope": "Read mandatory versus discretionary controls and the explicit statement that discretionary row/column controls do not extend to downstream outputs or exports.",
+          "access": "Public documentation accessible; redirected to the equivalent URL without the trailing slash."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "scope": "Read the historical-tooling notice, workflow/agent distinction, simplest-sufficient-system advice, and the link to Managed Agents.",
+          "access": "First 5,000 characters read; did not treat historical tool lists as current procurement recommendations."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/managed-agents",
+          "scope": "Read separation of session log, harness, and sandbox; independent recovery; credential isolation; distinction between session and model context.",
+          "access": "Relevant first 9,000 characters accessible; no service was deployed or exercised."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents",
+          "scope": "Read Descript's three evaluation dimensions, human calibration, Bolt's static/browser/model grading, capability versus regression suites, and evaluation design/review guidance.",
+          "access": "First 30,000 characters read across two requests; no vendor evaluation results reproduced."
+        },
+        {
+          "url": "https://devblogs.microsoft.com/all-things-azure/only-believe-what-you-can-validate/",
+          "scope": "Confirmed the relatively isolated COBOL module, five-minute generation of more than 2,500 words, superficial initial expert response, and rule-by-rule confirmation recommendation.",
+          "access": "Article text accessible; did not import unrelated numerical context-window claims."
+        },
+        {
+          "url": "https://deploy.co/",
+          "scope": "Confirmed build, prove, generalize and the path from customer work into product capabilities, SDK, authoring, evaluation, and reliability tools.",
+          "access": "Public text accessible; no claim of access to internal delivery results."
+        },
+        {
+          "url": "https://www.baseten.co/blog/forward-deployed-engineering/",
+          "scope": "Read engineering-organization placement, hiring for software fundamentals, and 70% product integration as a target, not a measured achieved rate.",
+          "access": "Article text accessible."
+        },
+        {
+          "url": "https://aws.amazon.com/blogs/machine-learning/how-inrix-accelerates-transportation-planning-with-amazon-bedrock/",
+          "scope": "Read cross-disciplinary planning, RAG recommendations, conceptual visualization, and wording that design cycles could potentially fall from weeks to days.",
+          "access": "Main article text accessible; preserved expected benefit versus measured outcome and did not treat concept images as engineering approval."
+        },
+        {
+          "url": "https://x.com/vasuman/article/2057177266984226892",
+          "scope": "Read Audit/Evals/Deployment, on-site observation, volume and duration, integration without wholesale migration, and staged autonomy. Preserved the chapter's qualifications of mixed-input agent selection, human-step grading, and blanket retries.",
+          "access": "Article text accessible through web retrieval; no linked agent implementation instructions executed."
+        },
+        {
+          "url": "https://hamel.dev/blog/posts/field-guide/",
+          "scope": "Read NurtureBoss conversation viewer, bottom-up failure classification, date handling, human handoff, rescheduling, and colocating context for review.",
+          "access": "Relevant first 12,000 characters accessible; did not add the article's numerical performance claims to the manuscript."
+        },
+        {
+          "url": "https://x.com/run_maotui/status/2100157320944881776",
+          "scope": "Read the product-work discussion on source verification, project context, requirement selection, design constraints, PRDs for people and agents, decision updates, acceptance, and post-launch feedback.",
+          "access": "Substantive post text returned; translated the complete existing Section 1.2.1 rather than copying the post or importing its additional examples."
+        }
+      ],
+      "notes": [
+        "Read all 616 source lines before translation. Preserved all numbered sections through 1.14, including the full new 1.2.1 product/design collaboration discussion and all eight public field accounts.",
+        "Preserved the fictional Chengchuan/Hailan setting, Xiao Chen, dialogue, event sequence, and explicit fictional-case note; did not recast it as an American project or the author's experience.",
+        "Preserved the order JSON byte-for-byte, including SO-1048, T-1842 context, BR-6205, 2026-09-08T09:59:40+08:00, quantity fields, null delivery commitment, and version 17.",
+        "Preserved all acceptance-group counts, 80/200/100 sample distinctions, 8-second and 10-second conditions, 60-second freshness, retry limits, rollout percentages, financial assumptions and CNY amounts. Added an explicit currency clarification without converting the amounts.",
+        "Retained the distinction between targets, illustrative estimates, observed public accounts, and proven customer outcomes; retained source-review dates and provider-specific retention limitations.",
+        "Translated all five diagrams and all tables without altering graph structure or mathematical calculations. Chinese companion is an exact copy; its internal links remain intentionally untouched for parent localization.",
+        "Historical Palantir Medium/blog 403 access notes remain historical. Those three links and the Gov recruitment link were not re-opened in this translation; no new access or case-detail claim is made.",
+        "Further-reading links not listed under references_checked were preserved, not independently re-reviewed. No paid model calls, customer-system operations, or external manuscript uploads were performed."
+      ]
+    },
+    {
+      "path": "docs/fde/01-foundations/README.md",
+      "zh_path": "docs/fde/01-foundations/README.zh.md",
+      "kind": "index",
+      "source_sha256": "30b292801387b86532e2969ddb5f187dc07a10513634bf804b26963e3bd82316",
+      "references_checked": [],
+      "notes": [
+        "Translated the complete module index, description, interview-reading guidance, product-manager subsection pointer, and onward link to Chapter 2.",
+        "References are internal navigation only. Retained ordinary .md English destinations; Chinese companion bytes and links are unchanged."
+      ]
+    },
+    {
+      "path": "docs/fde/02-field-practice/02-delivery-lessons.md",
+      "zh_path": "docs/fde/02-field-practice/02-delivery-lessons.zh.md",
+      "kind": "chapter",
+      "source_sha256": "c83a73e137b5b31ea79ae925545abc93ec02fda828ffe86e02b8cc36d569e911",
+      "references_checked": [
+        {
+          "url": "https://raw.githubusercontent.com/davidahmann/applied-ai-field-guide/6b557eb74ae1cc8dd82ab8048991c8fa54ce6a02/examples/invoice-exception/engagement/field-evidence.md",
+          "scope": "Read the fictional sold-brief conflict, designated-reviewer policy, scoped decision, and explicit lack of production/customer-acceptance evidence.",
+          "access": "Full pinned raw file accessible; repository code was not run."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/davidahmann/applied-ai-field-guide/6b557eb74ae1cc8dd82ab8048991c8fa54ce6a02/examples/invoice-exception/engagement/adoption-and-handoff.md",
+          "scope": "Read receiving-team exercises for evaluation cases, release/rollback, reconciliation, and support. Confirmed these are planned teaching exercises, not completed customer trials.",
+          "access": "Full pinned raw file accessible."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/Dan-Cleary/fdestack/552446066986969c789d3f44beb42b0cc4d6ad66/templates/unknowns.md",
+          "scope": "Read high/medium/low unresolved-question categories and blocking distinction.",
+          "access": "Full pinned raw file accessible; related triage workflows were not separately re-executed or traced."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/Dan-Cleary/fdestack/552446066986969c789d3f44beb42b0cc4d6ad66/skills/poc/SKILL.md",
+          "scope": "Read mandatory write-back of technical facts, design decisions, and cross-customer lessons, plus the distinction between mocked and real behavior.",
+          "access": "Full pinned raw file accessible; instructions were treated as source material, not executed."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/Dan-Cleary/fdestack/552446066986969c789d3f44beb42b0cc4d6ad66/skills/integrate/SKILL.md",
+          "scope": "Confirmed rebuild from project records and explicit prohibition on reading PoC files is behavioral, not enforced filesystem isolation.",
+          "access": "Full pinned raw file accessible; instructions were not executed."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/memovai/openfde/e2dec1608f7cdebd8cfe587cd94fc0c346bff6bb/ARCHITECTURE.md",
+          "scope": "Read local SQLite ledger, source/fact/task separation, provenance and supersession, and task-context architecture.",
+          "access": "Full pinned architecture text accessible; architectural assertions were not integration-tested."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/memovai/openfde/e2dec1608f7cdebd8cfe587cd94fc0c346bff6bb/apps/cli/src/commands/eval.ts",
+          "scope": "Read rubric lookup, judge selection, verdict audit note, and appended evaluation case; confirmed the command records a judgment.",
+          "access": "Full pinned TypeScript file read; no paid judge call executed."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/memovai/openfde/e2dec1608f7cdebd8cfe587cd94fc0c346bff6bb/packages/core/src/dispatch/tasks.ts",
+          "scope": "Read legal task transitions and transitionTask; confirmed review can transition to accepted without checking a passing evaluation.",
+          "access": "Full pinned TypeScript file read; static source inspection only."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/memovai/openfde/e2dec1608f7cdebd8cfe587cd94fc0c346bff6bb/packages/core/src/extraction/anthropic.ts",
+          "scope": "Read text and base64 attachment assembly and the client.messages.parse call; confirmed extraction sends supplied material to the model provider.",
+          "access": "Full pinned TypeScript file read; no customer data supplied and no API called."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/suboss87/fdeops/cc96340955b8a1de1aac8d5f971f794c4f8e6d6c/skills/fde/references/hold-scope.md",
+          "scope": "Read origin/impact/status recording and current-phase/next-phase/separate-project scope choices.",
+          "access": "Full pinned raw file accessible; source instructions not executed."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/suboss87/fdeops/cc96340955b8a1de1aac8d5f971f794c4f8e6d6c/skills/fde/references/close.md",
+          "scope": "Read distinction between promised, measured and customer-accepted value, conditional pending acceptance, and operational handoff for the person responding to alerts.",
+          "access": "Full pinned raw file accessible."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/suboss87/fdeops/cc96340955b8a1de1aac8d5f971f794c4f8e6d6c/PRIVACY.md",
+          "scope": "Read local-tooling versus model-service transmission, cloud synchronization/backup qualifications, and raw-file access bypassing CLI redaction.",
+          "access": "Full pinned raw file accessible; no privacy guarantees inferred beyond the cited version."
+        }
+      ],
+      "notes": [
+        "Read the entire 178-line Chinese chapter and translated all sections 2.1-2.8, the scope-change diagram, five tables, quotes, counterexamples, and three receiving-team exercises.",
+        "Kept the order-assistant narrative and all four projects at their exact cited commits; retained the 2026-09-10 collection and 2026-09-15 historical review dates.",
+        "Preserved technical completion versus customer acceptance, skill instructions versus filesystem enforcement, and local-first storage versus actual model-provider transmission.",
+        "All original reference URLs remain in the English chapter; references_checked records the raw URLs actually read. Repository landing pages, encode-pattern.md and overview links not listed were retained without a fresh content review.",
+        "No customer exercise, production deployment, tool installation, or paid model evaluation was performed. The Chinese companion is byte-identical to the baseline with internal links unchanged."
+      ]
+    },
+    {
+      "path": "docs/fde/02-field-practice/README.md",
+      "zh_path": "docs/fde/02-field-practice/README.zh.md",
+      "kind": "index",
+      "source_sha256": "ad5d7baa0a19d4f9e3e869515440fbda8d7c134d4c5cf36876e142a87508d3ad",
+      "references_checked": [],
+      "notes": [
+        "Translated all description, introduction, chapter entry, and reading guidance; retained distinctions among missing code, information, and decisions.",
+        "Internal-navigation index only; no external references independently checked. Chinese source and links preserved unchanged."
+      ]
+    },
+    {
+      "path": "docs/fde/README.md",
+      "zh_path": "docs/fde/README.zh.md",
+      "kind": "index",
+      "source_sha256": "33c10c43fdc52ecfdca8685337249b44fdf8e1890b47ad174bf2cb8e34e567b0",
+      "references_checked": [],
+      "notes": [
+        "Translated the full topic description, chapter reading sequence, new product/design pointer, both module entries, diagram labels, and six-row relationship table.",
+        "Preserved graph structure and ordinary .md English links. Chinese source bytes and navigation were left unchanged for parent localization.",
+        "This index introduces no independent source claims beyond its linked chapters; no external references were separately checked here."
+      ]
+    },
+    {
+      "path": "docs/safety/01-threat-modeling/01-ai-threat-modeling-attack-surface.md",
+      "zh_path": "docs/safety/01-threat-modeling/01-ai-threat-modeling-attack-surface.zh.md",
+      "kind": "chapter",
+      "source_sha256": "3e1fbecbd69c4f52705867f6672951d91f26c133eea8f42d977ced751734d44c",
+      "references_checked": [
+        {
+          "url": "https://atlas.mitre.org/",
+          "scope": "Attempted to consult the official ATLAS overview.",
+          "access": "2026-09-20: the simplified response exposed only the MITRE ATLAS title. The dynamic knowledge base and individual case studies were not independently inspected."
+        },
+        {
+          "url": "https://www.nist.gov/itl/ai-risk-management-framework",
+          "scope": "Voluntary status of AI RMF 1.0, its revision status, and the 2024 release of the Generative AI Profile.",
+          "access": "2026-09-20: official overview text read. It explicitly states that AI RMF 1.0 is being revised; no unpublished successor was substituted."
+        },
+        {
+          "url": "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence",
+          "scope": "Publication identity, year, and DOI for NIST AI 600-1.",
+          "access": "2026-09-20: official citation metadata read; the full profile PDF was not reviewed."
+        },
+        {
+          "url": "https://genai.owasp.org/llm-top-10/",
+          "scope": "The ten LLM01-LLM10 category names and their 2025 edition labels.",
+          "access": "2026-09-20: simplified extraction was incomplete; subsequently read the category names from the official page HTML using a local standard-library parser."
+        },
+        {
+          "url": "https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/",
+          "scope": "Identity and purpose of the separate threat-model-based Agentic AI Threats and Mitigations guide.",
+          "access": "2026-09-20: official landing-page description read; linked guide not downloaded."
+        },
+        {
+          "url": "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/",
+          "scope": "Existence, edition, and autonomous-agent focus of the Agentic Applications 2026 Top 10.",
+          "access": "2026-09-20: official landing-page description read; full linked document not reviewed."
+        },
+        {
+          "url": "https://www.nist.gov/publications/adversarial-machine-learning-taxonomy-and-terminology-attacks-and-mitigations",
+          "scope": "Check of the source manuscript's E2025 reference identity.",
+          "access": "2026-09-20: official citation metadata identifies a 2024 publication with DOI 10.6028/NIST.AI.100-2e2023, not E2025."
+        },
+        {
+          "url": "https://doi.org/10.6028/NIST.AI.100-2e2025",
+          "scope": "Verified destination for the parent-approved E2025 citation correction.",
+          "access": "2026-09-20: confirmed redirect to the official NIST.AI.100-2e2025.pdf resource. The fetch returned binary PDF data, not readable report text; report contents were not reviewed."
+        },
+        {
+          "url": "https://csrc.nist.gov/pubs/ai/100/2/e2025/final",
+          "scope": "Publication identity of the E2025 edition and its March 2025 publication date.",
+          "access": "2026-09-20: read official landing-page metadata, authors, and revision notices. Did not read the full PDF or revalidate all chapter claims against it."
+        }
+      ],
+      "notes": [
+        "Read the translation contract and glossary in the solid-doodle worktree read-only. Original source verified against baseline be53fedaedfb28da181db8e95f41bf91100621c4 before copying.",
+        "Initially preserved all 12814 source bytes in the Chinese companion. Subsequently applied only the parent-approved citation URL correction described below. All 17 headings and all three diagram graphs remain intact.",
+        "Preserved the L0-L5 caveat: these are local discussion labels, not a standard or monotonically increasing privilege hierarchy. Preserved the refund-agent example, independent caller/resource authorization, asset table, lifecycle table, and cross-references.",
+        "Parent-approved bilingual link correction on 2026-09-20: changed only the NIST E2025 citation URL from the E2023 landing page to https://doi.org/10.6028/NIST.AI.100-2e2025. The label and body are unchanged. Evidence is publication metadata and DOI reachability, not a full-PDF review; no claim of revalidating every technical judgment is made.",
+        "source_sha256 remains the original be53fedaedfb28da181db8e95f41bf91100621c4 hash. Across nine page pairs, all Chinese bytes remain original except the exact approved NIST URL replacement in Chapters 1 and 4. Heading levels/numbers, tables, lists/checklists, fences, inline literals, and links were checked. All 13 English diagram topologies are preserved.",
+        "Existing scripts/check_mermaid.mjs was run from each assigned module directory: 6, 6, and 14 diagrams parsed respectively, with zero failures (26 bilingual diagrams total). Scoped git diff --check passed. No executable code blocks or mathematical expressions occur in these nine source pages.",
+        "This is scoped translation evidence, not a global bilingual validation or a browser-rendering review. No attacks were reproduced, no targets probed, and no manuscript was uploaded to an external service."
+      ]
+    },
+    {
+      "path": "docs/safety/01-threat-modeling/README.md",
+      "zh_path": "docs/safety/01-threat-modeling/README.zh.md",
+      "kind": "index",
+      "source_sha256": "d624d25d0ce87d29e87ce3dc13d6e2e4795f5daa37345bfecd269ac1e591c35e",
+      "references_checked": [],
+      "notes": [
+        "Original 363 bytes verified against baseline be53fedaedfb28da181db8e95f41bf91100621c4 and copied byte-for-byte. English index is 449 bytes.",
+        "Fully translated the module introduction, chapter title, Chapters heading, and return-link label. Preserved the one-chapter list, two-heading hierarchy, and ordinary .md link destinations.",
+        "This index cites no external source directly. Chinese links were deliberately left untouched in the exact companion for the parent migration to handle."
+      ]
+    },
+    {
+      "path": "docs/safety/02-prompt-content-attacks/02-prompt-injection-jailbreak-system-prompt-leakage.md",
+      "zh_path": "docs/safety/02-prompt-content-attacks/02-prompt-injection-jailbreak-system-prompt-leakage.zh.md",
+      "kind": "chapter",
+      "source_sha256": "5b913a933b50a06696ac4fa43ea5e9873e503c4b48f351c3d35cb7804a00e686",
+      "references_checked": [
+        {
+          "url": "https://genai.owasp.org/llmrisk/llm01-prompt-injection/",
+          "scope": "Direct/indirect injection, distinction from jailbreak objectives, input representations, and independent privilege controls.",
+          "access": "2026-09-20: official explanatory and mitigation sections read in the first 8000 characters; trailing reference material was truncated. No scenarios were executed."
+        },
+        {
+          "url": "https://genai.owasp.org/llmrisk/llm072025-system-prompt-leakage/",
+          "scope": "System prompts must not be secrets or security controls; sensitive-data disclosure and deterministic authorization remain separate concerns.",
+          "access": "2026-09-20: official page text read, including prevention and mitigation guidance."
+        },
+        {
+          "url": "https://www.anthropic.com/research/many-shot-jailbreaking",
+          "scope": "Original study's model/settings dependence, in-context learning explanation, and mitigation/utility tradeoffs.",
+          "access": "2026-09-20: research article text read. Linked full paper and experiment code were not inspected or run; no payloads or experimental procedures were added to the manuscript."
+        },
+        {
+          "url": "https://arxiv.org/abs/2307.15043",
+          "scope": "Published abstract's claims about automatically found adversarial suffixes and cross-model transfer.",
+          "access": "2026-09-20: title and full abstract read from arXiv HTML. Full paper, attack code, and demonstrations were not reviewed or executed."
+        }
+      ],
+      "notes": [
+        "Original 11797 bytes preserved byte-for-byte; English translation is 14422 bytes. All 18 headings, four tables, and two diagram graphs retained.",
+        "Retained every taxonomy row and illustrative approach, multi-turn/context-contamination/cross-agent mechanisms, five jailbreak categories, detection tradeoffs, and operational privacy requirements without adding operational attack steps.",
+        "Preserved the warning that a model saying it ignored rules is not proof of an authorization failure, and that prompt confidentiality cannot support security controls.",
+        "Many-shot results remain limited to tested models and settings; no universal relationship between context-window size and vulnerability was asserted.",
+        "All original citations remain. HackAPrompt and the ATLAS technique page were not separately consulted in this review. No source claim implies reproduction of any attack."
+      ]
+    },
+    {
+      "path": "docs/safety/02-prompt-content-attacks/03-output-handling-secret-exfiltration.md",
+      "zh_path": "docs/safety/02-prompt-content-attacks/03-output-handling-secret-exfiltration.zh.md",
+      "kind": "chapter",
+      "source_sha256": "786304087c8d597e6643e849d218560d1cbf0515f472c94835794f1a7ce4c739",
+      "references_checked": [
+        {
+          "url": "https://genai.owasp.org/llmrisk/llm052025-improper-output-handling/",
+          "scope": "Untrusted model output, downstream execution/rendering risks, parameterized queries, and context-aware output handling.",
+          "access": "2026-09-20: official page text read; no linked exploitation demonstrations were followed or run."
+        },
+        {
+          "url": "https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/",
+          "scope": "Credential/PII exposure, least-privilege access, minimization, and limits of prompt-only restrictions.",
+          "access": "2026-09-20: official page text read."
+        },
+        {
+          "url": "https://owasp.org/www-community/attacks/CSV_Injection",
+          "scope": "Formula-leading characters, quote/apostrophe mitigation limitations, and client-specific save/reopen behavior.",
+          "access": "2026-09-20: redirected to https://community.owasp.org/attacks/CSV_Injection; current official community page read. No spreadsheet payload or formula was executed."
+        }
+      ],
+      "notes": [
+        "Original 10883 bytes preserved byte-for-byte; English translation is 12618 bytes. All 16 headings, four tables, the eight-item checklist, and the diagram graph retained.",
+        "Preserved the existing inert attacker.example Markdown example exactly as inline code, including the Chinese test value 示意数据, with an English explanation. The example URL was never requested.",
+        "Preserved the differences among SQL parameterization, shell argument validation, HTML sanitization, Markdown URL/resource restrictions, CSV formula defenses, and server-side tool authorization.",
+        "Retained proxy/SSRF and allowed-domain attacker-account qualifications, redirects/final-address checks, the 1 bit side-channel example, and the distinction between runtime exposure and later training.",
+        "Imprompter and the indirect prompt injection paper remain cited but were not independently read in this review. The references_checked list does not claim otherwise."
+      ]
+    },
+    {
+      "path": "docs/safety/02-prompt-content-attacks/README.md",
+      "zh_path": "docs/safety/02-prompt-content-attacks/README.zh.md",
+      "kind": "index",
+      "source_sha256": "676220ac586b36c6a7620d806d10bb89450f96c2cf2ab92141d1cd4a026953f0",
+      "references_checked": [],
+      "notes": [
+        "Original 650 bytes verified against the baseline and preserved byte-for-byte. English index is 748 bytes.",
+        "Fully translated the taxonomy/output-handling module description, retained the architectural-defense cross-reference instead of duplicating its content, and retained both numbered chapter entries and the return link.",
+        "Two-heading hierarchy and all four link destinations preserved. No external references are directly cited here; Chinese companion links remain untouched for the parent."
+      ]
+    },
+    {
+      "path": "docs/safety/03-data-model-supply-chain/04-training-finetuning-rag-poisoning.md",
+      "zh_path": "docs/safety/03-data-model-supply-chain/04-training-finetuning-rag-poisoning.zh.md",
+      "kind": "chapter",
+      "source_sha256": "6d98387884caf0d4ba4ba2ecaa309c275ba3a364b9b84112fe4559fd7bed8dea",
+      "references_checked": [
+        {
+          "url": "https://www.anthropic.com/research/small-samples-poison",
+          "scope": "600M-13B model range, approximately 250 documents, narrow gibberish objective, absolute-count finding, and limitations on extrapolation.",
+          "access": "2026-09-20: full research article text read. No experiments were reproduced; linked full paper and attack code were not inspected. No operational details from the article were added."
+        },
+        {
+          "url": "https://arxiv.org/abs/1905.12457",
+          "scope": "Identity and abstract-level scope of the LSTM text-classification backdoor study.",
+          "access": "2026-09-20: title and full abstract read from arXiv HTML; full paper and implementation not inspected."
+        },
+        {
+          "url": "https://arxiv.org/abs/2306.17194",
+          "scope": "Identity and abstract-level claims about instruction-tuning data quality and behavior changes.",
+          "access": "2026-09-20: title and full abstract read from arXiv HTML; full paper, pipeline, and experiments not inspected or run."
+        },
+        {
+          "url": "https://genai.owasp.org/llmrisk/llm042025-data-and-model-poisoning/",
+          "scope": "Lifecycle poisoning categories, provenance, data review, training monitoring, and model backdoor risks.",
+          "access": "2026-09-20: official page text read; source manuscript's more precise distinction between weight changes and RAG context changes retained."
+        },
+        {
+          "url": "https://www.nist.gov/publications/adversarial-machine-learning-taxonomy-and-terminology-attacks-and-mitigations",
+          "scope": "Edition identity of the manuscript's NIST taxonomy citation.",
+          "access": "2026-09-20: citation metadata read; the URL identifies E2023 published in 2024 despite the manuscript's E2025 label."
+        },
+        {
+          "url": "https://doi.org/10.6028/NIST.AI.100-2e2025",
+          "scope": "Verified E2025 destination for the exact parent-approved bibliography correction, shared with Chapter 1.",
+          "access": "2026-09-20: DOI resolves to the official E2025 PDF. Report contents were not read or used to claim a full technical re-review."
+        },
+        {
+          "url": "https://csrc.nist.gov/pubs/ai/100/2/e2025/final",
+          "scope": "Official E2025 identity and March 2025 publication metadata.",
+          "access": "2026-09-20: landing-page metadata, authors, and revision notices read; full report not reviewed."
+        }
+      ],
+      "notes": [
+        "Initially preserved all 9079 source bytes in the Chinese companion; subsequently applied only the parent-approved NIST citation URL correction. All 15 headings, two tables, and three diagram graphs remain intact.",
+        "Preserved write-access versus attack-success distinction; training-weight changes versus RAG context changes; source removal versus index/cache/summary/adapter cleanup; and the lack of a universal difficulty ranking.",
+        "Preserved all trigger examples at their original conceptual level, RLHF reward-model versus DPO preference-pair mechanisms, and limits of active testing, rare-token signals, and loss anomalies.",
+        "The 600M-13B and approximately 250-document result remains tied to the narrow objective and training settings; no success threshold or frontier-model extrapolation was introduced.",
+        "Parent-approved bilingual link correction on 2026-09-20, shared with Chapter 1: replaced only the NIST citation's E2023 landing-page URL with the verified E2025 DOI https://doi.org/10.6028/NIST.AI.100-2e2025. Label and body remain unchanged. DOI resolution and official March 2025 publication metadata were checked, not the full PDF. source_sha256 still refers to the unmodified be53 original; preservation permits only this exact URL substitution. The original web-scale poisoning and BadNets references remain but were not independently read in this review."
+      ]
+    },
+    {
+      "path": "docs/safety/03-data-model-supply-chain/05-model-supply-chain-serialization-risks.md",
+      "zh_path": "docs/safety/03-data-model-supply-chain/05-model-supply-chain-serialization-risks.zh.md",
+      "kind": "chapter",
+      "source_sha256": "63d54721474c4fe6d380728512c40d2fe0cc247acda7b905afb89eb5ae3fac71",
+      "references_checked": [
+        {
+          "url": "https://docs.pytorch.org/docs/2.6/notes/serialization.html#torch-load-with-weights-only-true",
+          "scope": "Historical PyTorch 2.6 default when pickle_module is omitted, restricted construction, disabled dynamic import, and allowlisting cautions.",
+          "access": "2026-09-20: the versioned 2.6 documentation was read through the weights_only and troubleshooting sections. This was not replaced with current-version behavior."
+        },
+        {
+          "url": "https://huggingface.co/docs/hub/security-pickle",
+          "scope": "Pickle execution risk, safetensors alternative, provenance checks, and the scanner's explicit non-foolproof disclaimer.",
+          "access": "2026-09-20: first 10000 characters read, including mitigation and scanner-limit sections. Trailing potential-solutions text was truncated; no sample code was run."
+        },
+        {
+          "url": "https://cyclonedx.org/capabilities/mlbom/",
+          "scope": "AI/ML-BOM coverage of datasets, model provenance, dependencies, and configurations.",
+          "access": "2026-09-20: official capability page text read."
+        },
+        {
+          "url": "https://genai.owasp.org/llmrisk/llm032025-supply-chain/",
+          "scope": "Third-party models, adapters, supplier accounts, licenses, dependency inventories, and signing/hash controls.",
+          "access": "2026-09-20: first 8000 characters of official page read, including risks and mitigation guidance; later scenarios/references were truncated."
+        },
+        {
+          "url": "https://www.sigstore.dev/",
+          "scope": "Attempted consultation of the official signing-project overview.",
+          "access": "2026-09-20: simplified extraction exposed only the Sigstore title. No detailed signing or trust-root documentation was independently reviewed."
+        }
+      ],
+      "notes": [
+        "Original 9366 bytes preserved byte-for-byte; English translation is 10834 bytes. All 14 headings, two tables, six checklist items, and two diagram graphs retained.",
+        "Preserved all original runtime/API literals, including latest, main, .pt, .bin, torch.load(), pickle_module, weights_only=True/False, safetensors, tokenizer.py, modeling_*.py, trust_remote_code, and __reduce__. Natural English word order changes their placement, not their values.",
+        "Preserved the PyTorch 2.6 version and pickle_module qualification, restricted-loading-versus-sandbox distinction, unsafe allowlist caveat, and separate remote-code execution risk.",
+        "Preserved the limits of signatures and attacker-supplied hashes, the ML-BOM inventory role, licensing qualification, and non-bitwise distributed-training reproducibility.",
+        "The existing diagram is conceptual only. No model files were downloaded or loaded and no deserialization or exploitation code was written or executed. Sleepy Pickle and the ATLAS supply-chain technique reference remain cited but were not independently consulted."
+      ]
+    },
+    {
+      "path": "docs/safety/03-data-model-supply-chain/06-privacy-pii-memory-leakage.md",
+      "zh_path": "docs/safety/03-data-model-supply-chain/06-privacy-pii-memory-leakage.zh.md",
+      "kind": "chapter",
+      "source_sha256": "a7cdb767f7ef66be6eec1b7890e07eedd59900b2f74f6c5fe23695e4c8e00544",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2012.07805",
+          "scope": "Extraction versus training-data access, memorized PII, and examples present in only one document.",
+          "access": "2026-09-20: title and full abstract read from arXiv HTML; full paper and extraction experiments not reviewed or run."
+        },
+        {
+          "url": "https://arxiv.org/abs/2202.07646",
+          "scope": "Relationships involving model capacity, duplicated examples, and prompt context length, with model-family qualifications.",
+          "access": "2026-09-20: simplified fetch exposed only a title; subsequently read the full abstract from official arXiv HTML. Full paper not reviewed."
+        },
+        {
+          "url": "https://arxiv.org/abs/1610.05820",
+          "scope": "Membership inference as determining whether a record belonged to training, distinct from reconstructing its text.",
+          "access": "2026-09-20: title and full abstract read from arXiv HTML; no attack implementation or experiment was inspected or run."
+        },
+        {
+          "url": "https://arxiv.org/abs/1607.00133",
+          "scope": "Identity and abstract-level privacy-accounting objective of Deep Learning with Differential Privacy.",
+          "access": "2026-09-20: simplified fetch exposed only a title; subsequently read the full abstract from arXiv HTML. Algorithm details and proofs were not independently re-derived."
+        },
+        {
+          "url": "https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/",
+          "scope": "PII and sensitive data exposure, minimization, access controls, tokenization, and retention transparency.",
+          "access": "2026-09-20: official page text read."
+        },
+        {
+          "url": "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence",
+          "scope": "Publication identity of NIST AI 600-1.",
+          "access": "2026-09-20: official citation metadata read; the full profile's privacy sections were not independently inspected."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/your-data",
+          "scope": "Default exclusion from training, opt-in sharing, abuse-monitoring logs, application state, ZDR eligibility/feature limitations, and residency limitations.",
+          "access": "2026-09-20: first 27500 characters read in two requests, including retention controls, endpoint exceptions, and residency exclusions. The full model/region matrix and any customer's contract were not reviewed."
+        },
+        {
+          "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng",
+          "scope": "Articles 5, 6, and 17; Chapter V Article 44; and the pseudonymization/anonymity distinction in Recital 26.",
+          "access": "2026-09-20: after a truncated initial fetch, read the complete text of Articles 5, 6, 17, and 44 plus the relevant Recital 26 passage from official HTML. The whole regulation, subsequent case law, and jurisdiction-specific obligations were not reviewed."
+        }
+      ],
+      "notes": [
+        "Original 11190 bytes preserved byte-for-byte; English translation is 13685 bytes. All 17 headings, three tables, and two diagram graphs retained.",
+        "Preserved weights-based memorization versus application storage leakage; extraction versus membership inference; statistical-evidence limitations; and the absence of a membership-inference prerequisite for deletion.",
+        "Preserved epsilon/delta, record-level versus user-level protection, composition, clipping/noise/accounting, population-pattern inference, and the fact that DP does not replace authorization. No mathematical formulas occur in the source.",
+        "Preserved authentication-derived tenant IDs, cache/summary/placeholder authorization scope, independent-request state isolation, memory controls, backup expiry, and deletion-marker replay after restoration.",
+        "Kept no-training, no-retention, and residency as distinct vendor commitments, with endpoint/eligibility/contract qualifications rather than universal claims.",
+        "Retained GDPR exceptions and the distinction between pseudonymization and anonymization. The chapter remains educational, not legal advice; determinations of applicable obligations remain with privacy/legal owners."
+      ]
+    },
+    {
+      "path": "docs/safety/03-data-model-supply-chain/README.md",
+      "zh_path": "docs/safety/03-data-model-supply-chain/README.zh.md",
+      "kind": "index",
+      "source_sha256": "31323fc75b2a7c41545fa9a9626f4012a9f048f1a6b0b792f5d42dcb351794f6",
+      "references_checked": [],
+      "notes": [
+        "Original 680 bytes verified against the baseline and preserved byte-for-byte. English index is 778 bytes.",
+        "Fully translated the data/model supply-chain and privacy introduction, all three chapter titles, the RAG-security cross-reference, and the return link.",
+        "Two-heading hierarchy, three numbered chapter entries, and all five link destinations preserved. No external references are directly cited by the index. Chinese link rewriting is deliberately deferred to the parent."
+      ]
+    },
+    {
+      "path": "docs/safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md",
+      "zh_path": "docs/safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.zh.md",
+      "kind": "chapter",
+      "source_sha256": "1c8e3be2e5f72ec42eacc01f94cb2112de0a25688d67fedbb89d62f6ee21320d",
+      "references_checked": [
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization",
+          "scope": "Versioned HTTP authorization scope, different STDIO credential handling, OAuth 2.1 draft status, and resource/audience requirements.",
+          "access": "Read official specification on 2026-09-20; retrieved the opening 17000 characters. Preserved the explicitly cited 2026-07-28 version rather than substituting a latest-version claim."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc8693.html",
+          "scope": "Section 1.1 delegation versus impersonation, subject_token and actor_token; Section 4.1 current versus historical nested act claims and access-control semantics.",
+          "access": "Read Section 1.1 via web retrieval and Section 4.1 in the official raw HTML on 2026-09-20. Confirmed that historical actors are informational only, not additional authorization."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc7662.html",
+          "scope": "Protected-resource token introspection, active state, authorization metadata, and protected introspection endpoints.",
+          "access": "Read the official introduction and Sections 1–2.1 on 2026-09-20; no introspection endpoint was called."
+        },
+        {
+          "url": "https://cap-lore.com/CapTheory/ConfusedDeputy.html",
+          "scope": "Original confused deputy reference.",
+          "access": "Retrieval attempted on 2026-09-20 but failed at the transport layer. The historical attribution and original citation are retained; no claim of having reread the original essay."
+        },
+        {
+          "url": "https://spiffe.io/",
+          "scope": "SPIFFE/SPIRE identity control plane across heterogeneous infrastructure.",
+          "access": "Read official overview on 2026-09-20; did not validate a particular cloud federation implementation."
+        },
+        {
+          "url": "https://csrc.nist.gov/pubs/sp/800/207/final",
+          "scope": "Identity of the cited Zero Trust Architecture publication and August 2020 publication date.",
+          "access": "Read official publication landing page on 2026-09-20; the PDF was not independently reviewed in this translation pass."
+        },
+        {
+          "url": "https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/",
+          "scope": "OWASP's threat-model-based reference and mitigation guidance for agentic systems.",
+          "access": "Read the resource overview on 2026-09-20; the linked full guide was not independently reviewed."
+        }
+      ],
+      "notes": [
+        "Complete translation from source commit be53fedaedfb28da181db8e95f41bf91100621c4; the Chinese companion is byte-identical to that commit, including metadata and links.",
+        "Preserved all numbered headings, three Mermaid graphs, both tables, all seven release checks, delegation counterexamples, action-bound approval requirements, and revocation limitations.",
+        "Retained subject_token, actor_token, act, act_as, and on_behalf_of literally; preserved the distinction between authentication, authorization, workload identity, and audit identifiers.",
+        "Retained the policy-based meaning of permission intersection and the qualification that token exchange alone does not attenuate authority.",
+        "English links still use ordinary .md destinations. There were no Chinese fragment anchors to repair. Chinese link migration is deliberately left to the parent.",
+        "Validated heading numbering, line/block coverage, fence kinds, table/checklist counts, links, Chinese-byte preservation, and Mermaid graph topology; all scoped Mermaid blocks passed the existing Mermaid parser. No math or executable code blocks occur in this page.",
+        "No exploit reproduction, target probing, token exchange execution, or silent factual correction was performed."
+      ]
+    },
+    {
+      "path": "docs/safety/04-agent-execution-isolation/08-code-execution-browser-computer-use-sandboxing.md",
+      "zh_path": "docs/safety/04-agent-execution-isolation/08-code-execution-browser-computer-use-sandboxing.zh.md",
+      "kind": "chapter",
+      "source_sha256": "baa456f3a0337493e5583cd2325c2275e75710fc6d2c6f47d61d36aef3ed4116",
+      "references_checked": [
+        {
+          "url": "https://gvisor.dev/docs/architecture_guide/intro/",
+          "scope": "User-space application kernel, interception and implementation of system calls, reduced host-kernel exposure, and distinction from a syscall filter or hypervisor.",
+          "access": "Read official architecture introduction on 2026-09-20, following the subject of the existing gVisor citation; no sandbox was executed."
+        },
+        {
+          "url": "https://firecracker-microvm.io/",
+          "scope": "Original Firecracker project citation.",
+          "access": "Retrieval attempted on 2026-09-20 but failed at the transport layer. The citation remains unchanged; official repository architecture documentation was consulted instead."
+        },
+        {
+          "url": "https://github.com/firecracker-microvm/firecracker/blob/main/docs/design.md",
+          "scope": "Separate Linux host and guest kernels, KVM/VMM isolation, sandboxing, and host responsibility for egress filtering.",
+          "access": "Read official design documentation on 2026-09-20. No benchmarks or isolation tests were run, and no performance figures were added."
+        },
+        {
+          "url": "https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Same-origin_policy",
+          "scope": "Cross-origin read restrictions, the distinction between navigation and reads, and cookie Domain/Path/Secure/HttpOnly qualifications.",
+          "access": "Initial simplified retrieval returned only the title. Subsequently retrieved and read the relevant HTML text directly on 2026-09-20 without saving it to disk."
+        },
+        {
+          "url": "https://github.com/anthropics/claude-quickstarts/tree/main/computer-use-demo",
+          "scope": "Dedicated low-privilege VM/container precautions, restricted internet and sensitive-data access, human confirmation, visual injection risks, and weak separation in the demo.",
+          "access": "Read the official README security cautions and isolation limitations on 2026-09-20. No demo, model API, or computer-use workflow was run."
+        },
+        {
+          "url": "https://genai.owasp.org/llmrisk/llm062025-excessive-agency/",
+          "scope": "Excessive functionality, permissions, autonomy, downstream authorization, least privilege, and human approval.",
+          "access": "Read the official LLM06:2025 entry's risk description and mitigations on 2026-09-20; preserved its 2025 designation."
+        }
+      ],
+      "notes": [
+        "Complete translation from source commit be53fedaedfb28da181db8e95f41bf91100621c4; the Chinese companion preserves original bytes and links.",
+        "Preserved the absence of a fixed risk ranking, the host-mount/cloud-credential counterexample, four isolation levels and their tradeoffs, browser versus CSRF distinctions, and desktop-specific risks.",
+        "Translated all visible labels in two Mermaid graphs while preserving graph topology. Preserved both tables, all eight release checks, and every numbered subsection.",
+        "Retained mandatory network-layer enforcement, DNS/IPv4/IPv6 and redirect coverage, per-service internal access exceptions, action-bound credential injection, minimal logging, and the warning that an allowlist is not complete DLP.",
+        "The original MITRE ATLAS citation is preserved but was not independently rechecked in this pass. No contemporary capability or benchmark claims were added.",
+        "Validated all paired page structure, links, fences, and source bytes; Mermaid parsing passed. There are no math expressions or executable code blocks to translate.",
+        "Defensive educational translation only: no sandbox escape attempts, egress bypass tests, vulnerability reproduction, or target probing."
+      ]
+    },
+    {
+      "path": "docs/safety/04-agent-execution-isolation/README.md",
+      "zh_path": "docs/safety/04-agent-execution-isolation/README.zh.md",
+      "kind": "index",
+      "source_sha256": "c4fc79e424550a283e3e66da24426f35a8eea098cb11b6c941650f6ef8bc642e",
+      "references_checked": [],
+      "notes": [
+        "Complete translation from source commit be53fedaedfb28da181db8e95f41bf91100621c4; README.zh.md is byte-identical to the original, with Chinese links unchanged.",
+        "Preserved the division of responsibility between protocol-level security, architecture-level least privilege, organization-wide identity governance, and execution isolation.",
+        "Chapter 7 and Chapter 8 link labels match their English H1 titles; all five internal destinations remain ordinary .md paths and exist.",
+        "This index has no external bibliography, diagrams, math, code examples, or numbered H2/H3 sections. No external source is claimed as independently checked for the index itself.",
+        "Validated page coverage, line structure, link destinations, and Chinese-byte preservation."
+      ]
+    },
+    {
+      "path": "docs/safety/05-assurance-governance/09-security-evaluation-red-teaming-continuous-assurance.md",
+      "zh_path": "docs/safety/05-assurance-governance/09-security-evaluation-red-teaming-continuous-assurance.zh.md",
+      "kind": "chapter",
+      "source_sha256": "3f0235d1a2ed0fa5254473e30e964f56949a5a6d3bfeb33c9479ecb522944083",
+      "references_checked": [
+        {
+          "url": "https://www.nist.gov/itl/ai-risk-management-framework",
+          "scope": "Voluntary AI RMF status and lifecycle risk-management purpose.",
+          "access": "Read official overview on 2026-09-20; it notes that AI RMF 1.0 is being revised. No unpublished replacement framework is implied."
+        },
+        {
+          "url": "https://airc.nist.gov/airmf-resources/playbook/",
+          "scope": "Govern/Map/Measure/Manage functions and voluntary, non-checklist status of suggested actions.",
+          "access": "Read official Playbook overview on 2026-09-20."
+        },
+        {
+          "url": "https://airc.nist.gov/AI_RMF_Knowledge_Base/AI_RMF/Core_And_Profiles/5-sec-core",
+          "scope": "AI RMF 1.0 Core's continuous lifecycle risk management, independent perspectives, and Measure guidance to test before deployment and regularly in operation.",
+          "access": "Read official Core text on 2026-09-20; redirected to https://airc.nist.gov/airmf-resources/airmf/5-sec-core/. This is explicitly a 2023 AI RMF 1.0 excerpt."
+        },
+        {
+          "url": "https://github.com/leondz/garak",
+          "scope": "Scanner purpose and static, dynamic, and adaptive probes for LLM failure modes.",
+          "access": "Read official README on 2026-09-20; the historical citation redirects to https://github.com/NVIDIA/garak. The original link is preserved. No scanner was installed or run."
+        },
+        {
+          "url": "https://github.com/Azure/PyRIT",
+          "scope": "Project identity as an open-source generative-AI risk identification framework.",
+          "access": "Read the official project overview on 2026-09-20. Retrieval exposed only overview text, so detailed orchestration APIs were not independently checked. No framework was installed or run."
+        },
+        {
+          "url": "https://arxiv.org/abs/2402.04249",
+          "scope": "HarmBench's standardized automated-red-teaming evaluation purpose and comparable assessment across methods, models, and defenses.",
+          "access": "Simplified retrieval returned only the title; the full abstract was then retrieved from the original arXiv HTML and read on 2026-09-20. The full paper and experiments were not reproduced."
+        },
+        {
+          "url": "https://arxiv.org/abs/2202.03286",
+          "scope": "Language-model-generated red-team test cases, diversity/cost tradeoffs, and the role of model-based red teaming as one tool among others.",
+          "access": "Read the original arXiv abstract from HTML on 2026-09-20 after title-only simplified retrieval. No attack methods were executed or expanded into operational instructions."
+        },
+        {
+          "url": "https://genai.owasp.org/resource/llm-ai-cybersecurity-governance-checklist/",
+          "scope": "Original governance checklist reference.",
+          "access": "Retrieval attempted on 2026-09-20 returned HTTP 404. Citation preserved; the checklist contents were not independently revalidated."
+        }
+      ],
+      "notes": [
+        "Complete translation from source commit be53fedaedfb28da181db8e95f41bf91100621c4 with byte-identical Chinese companion.",
+        "Preserved authorized scope, rates, timing, stop conditions, incident contacts, synthetic identities, test funds, isolated tenants, controlled receivers, and the prohibition on real personal data or production secrets in test payloads.",
+        "Preserved model proposal versus accepted execution versus actual harm, ASR denominator and k-attempt distinctions, adaptive-selection bias, objective/session-level uncertainty, utility metrics, independent holdouts, and auditing model-judge success claims.",
+        "Retained the specific MTTD versus recovery/repair versus patch lead-time distinctions; avoided translating governance processes as generic closed-loop slogans.",
+        "All headings, three tables, two Mermaid graphs and their topology, references, internal links, and source line structure were preserved. Mermaid parsing and paired structural checks passed.",
+        "No math or executable code blocks occur in the page. This work ran no red-team framework, exploit, target probe, model evaluation, or paid API."
+      ]
+    },
+    {
+      "path": "docs/safety/05-assurance-governance/10-ai-governance-risk-classification-audit-provenance.md",
+      "zh_path": "docs/safety/05-assurance-governance/10-ai-governance-risk-classification-audit-provenance.zh.md",
+      "kind": "chapter",
+      "source_sha256": "e1017619731903b8ed9b784f7913b7e92e307f996e7da0c0f2205e52330b3f0d",
+      "references_checked": [
+        {
+          "url": "https://www.nist.gov/itl/ai-risk-management-framework",
+          "scope": "Voluntary organizational AI risk-management framework and its historical AI RMF 1.0 context.",
+          "access": "Read official overview on 2026-09-20; retained the distinction between voluntary governance guidance and legal duties."
+        },
+        {
+          "url": "https://airc.nist.gov/AI_RMF_Knowledge_Base/AI_RMF/Core_And_Profiles/5-sec-core",
+          "scope": "Govern as a cross-cutting function addressing responsibilities, processes, documentation, legal issues, and third-party risk throughout the lifecycle.",
+          "access": "Read official AI RMF 1.0 Core excerpt on 2026-09-20; redirected to https://airc.nist.gov/airmf-resources/airmf/5-sec-core/."
+        },
+        {
+          "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=OJ:L_202601744",
+          "scope": "Regulation (EU) 2026/1744, Article 1 points (39) and (40), Article 113 amendments, existing-system transitions, and Article 4 entry into force.",
+          "access": "Read official regulation text and the relevant operative provisions on 2026-09-20. Confirmed 2027-12-02 and 2028-08-02 application dates, the Article 6(5) exception, and third-day-after-publication entry into force."
+        },
+        {
+          "url": "https://digital-strategy.ec.europa.eu/en/policies/regulatory-framework-ai",
+          "scope": "Separate risk, GPAI, transparency, and implementation timelines; confirmation of the AI Omnibus entering into force on 2026-07-27.",
+          "access": "Read official Commission overview on 2026-09-20. Its summary still uses political-agreement wording in one timeline passage; relied on the official operative regulation, not that summary wording, for legal status."
+        },
+        {
+          "url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng",
+          "scope": "GDPR Articles 33 and 34: controller/processor notification roles, authority/data-subject thresholds, time limits, and exceptions.",
+          "access": "Read the official introductory text, then retrieved and read Articles 33 and 34 directly from the official HTML on 2026-09-20. No cross-border transfer prerequisite appears in those provisions."
+        },
+        {
+          "url": "https://spec.c2pa.org/specifications/specifications/2.2/explainer/Explainer.html",
+          "scope": "C2PA 2.2 asset-bound provenance claims, signature/trust validation, and the explicit non-goal of establishing factual truth.",
+          "access": "Read the versioned official explainer on 2026-09-20. Kept version 2.2 and the source's explicit qualification that this is not a latest-version claim."
+        },
+        {
+          "url": "https://arxiv.org/abs/1810.03993",
+          "scope": "Model cards as documentation of intended uses, evaluation conditions, performance characteristics, and other relevant model context.",
+          "access": "Read the original arXiv abstract from HTML on 2026-09-20 after title-only simplified retrieval. The full paper was not independently reviewed."
+        },
+        {
+          "url": "https://openai.com/index/system-card/",
+          "scope": "Original system-card reference.",
+          "access": "Retrieval attempted on 2026-09-20 returned HTTP 403. Preserved the citation and did not claim access to the blocked article."
+        },
+        {
+          "url": "https://genai.owasp.org/resource/llm-ai-cybersecurity-governance-checklist/",
+          "scope": "Original governance checklist reference.",
+          "access": "Retrieval attempted on 2026-09-20 returned HTTP 404. Preserved the citation rather than silently substituting another publication."
+        }
+      ],
+      "notes": [
+        "Complete translation from source commit be53fedaedfb28da181db8e95f41bf91100621c4; the Chinese companion is byte-identical, including the historical regulatory review note.",
+        "Preserved the source's 2026-09-15 regulatory review date, 2026-07-24 publication date, 2026-07-27 entry-into-force date, 2027-12-02 and 2028-08-02 application dates, legal article references, and C2PA 2.2 qualification. This is educational material, not a legal opinion.",
+        "Preserved the internal-management classification table versus statutory classification distinction, separate GPAI and transparency obligations, intended-use/role/jurisdiction exceptions, and legally responsible review.",
+        "Retained audit versus explainability distinctions, post-hoc chain-of-thought limitations, evidence minimization, separation of approval/execution/audit duties, and meaningful human oversight.",
+        "Retained signing versus encryption, provenance versus truth versus moderation, missing credentials not proving forgery, watermark/detector limitations, and rollback not undoing prior harm.",
+        "All numbered headings, two tables, two Mermaid graphs and topology, eight release checks, reference URLs, internal links, and line structure were preserved; Mermaid parsing and paired structural checks passed.",
+        "The original Regulation (EU) 2024/1689 citation remains unchanged but was not separately reread in full; the current amendment and cited GDPR provisions received direct primary-source checks. No source factual error requiring a semantic correction was identified.",
+        "No math or executable code blocks occur in this page; no full-site publishing, regulatory certification, external manuscript upload, or paid API use occurred."
+      ]
+    },
+    {
+      "path": "docs/safety/05-assurance-governance/README.md",
+      "zh_path": "docs/safety/05-assurance-governance/README.zh.md",
+      "kind": "index",
+      "source_sha256": "0102b026ecbb6c5bcff44a709f4fd2791c5359d6485b3e536f1571d64d5603b7",
+      "references_checked": [],
+      "notes": [
+        "Complete translation from source commit be53fedaedfb28da181db8e95f41bf91100621c4; README.zh.md is byte-identical to the original, with Chinese links unchanged.",
+        "Preserved the scope distinction between application-level ASR/utility evaluation and organization-wide evaluation, red teaming, assurance, governance, auditing, and provenance.",
+        "Chapter 9 and Chapter 10 link labels match their English H1 titles; all five internal destinations remain ordinary .md paths and exist.",
+        "No external bibliography, diagrams, math, code examples, or numbered H2/H3 sections occur in this index. External checks are documented on its linked chapters, not claimed independently here.",
+        "Validated page coverage, line structure, link destinations, and Chinese-byte preservation."
+      ]
+    },
+    {
+      "path": "docs/safety/README.md",
+      "zh_path": "docs/safety/README.zh.md",
+      "kind": "index",
+      "source_sha256": "213e5ff3e50e6878940b5e7523a3a212852fd1d594507088e358cd07e17e2b66",
+      "references_checked": [
+        {
+          "url": "https://www.nist.gov/itl/ai-risk-management-framework",
+          "scope": "The topic introduction's distinction between a voluntary NIST framework and applicable law.",
+          "access": "Read official overview on 2026-09-20, confirming voluntary use."
+        },
+        {
+          "url": "https://spec.c2pa.org/specifications/specifications/2.2/explainer/Explainer.html",
+          "scope": "The concluding interview distinction that C2PA does not establish factual truth.",
+          "access": "Read the versioned official C2PA explainer on 2026-09-20."
+        }
+      ],
+      "notes": [
+        "Complete translation from source commit be53fedaedfb28da181db8e95f41bf91100621c4; README.zh.md preserves every source byte, including links.",
+        "Translated metadata description, all five module entries, the full primary-treatment table, every reading path, and the concluding technical/legal qualifications.",
+        "Preserved the Mermaid graph and all edges while translating visible labels. Module 4/5 titles match their translated indexes; module 1–3 link destinations are unchanged and owned by the adjacent translation scope.",
+        "The English title uses AI Safety, Security, and Governance to cover both behavioral safety and cybersecurity without narrowing the Chinese topic's scope.",
+        "Validated link existence, ordinary .md English targets, fence structure, table coverage, graph topology, line coverage, and byte preservation; Mermaid parsing passed.",
+        "Across this exclusive scope, all 7 source pages and 7 companions were checked and all 20 bilingual Mermaid blocks parsed successfully. No math expressions or executable code blocks occur in scope.",
+        "No global Chinese-only check was represented as bilingual validation. Root indexes, navigation, scripts, manifests, and unrelated concurrent work were not edited, and no commit was created.",
+        "Final scoped git diff --check passed. Full MkDocs/site rendering was not run because this worktree has no .venv/bin/python. Initial additional YAML/Markdown parser attempts found no yaml or js-yaml dependency; the coordinator subsequently parsed all 30 English metadata blocks across the production scope and all three YAML examples with Ruby's existing standard-library parser, without adding dependencies. Structural Markdown checks and the installed Mermaid parser also passed."
+      ]
+    }
+  ]
+}

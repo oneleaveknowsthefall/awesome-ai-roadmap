@@ -1,37 +1,37 @@
 ---
-description: 比较 PTQ、QAT、GPTQ、AWQ 等大模型量化方法，解释精度、显存、吞吐、硬件支持和校准数据之间的取舍。
+description: Compare LLM quantization methods including PTQ, QAT, GPTQ, and AWQ, explaining tradeoffs among quality, GPU memory, throughput, hardware support, and calibration data.
 ---
 
-# 第十五章：模型量化
+# Chapter 15: Model Quantization
 
-## 15.1 量化是什么，何时值得做
+## 15.1 What quantization does, and when it is worthwhile
 
-量化用更少的位表示权重或中间状态。训练通常采用混合精度，可能组合 BF16/FP16、FP32 主权重或优化器状态，也有针对特定硬件的低精度训练；不能把训练中的所有张量都当作同一格式。
+Quantization represents weights or intermediate states with fewer bits. Training typically uses mixed precision, potentially combining BF16/FP16 with FP32 master weights or optimizer states; hardware-specific low-precision training also exists. Not every training tensor uses the same format.
 
-只看权重的理想裸存储，使用十进制 GB：
+Considering only ideal raw weight storage, in decimal GB:
 
-| 模型 | FP16 权重 | INT4 权重 |
+| Model | FP16 weights | INT4 weights |
 |---|---|---|
 | 7B | $7 \times 10^9 \times 2 = 14$ GB | $7 \times 10^9 \times 0.5 = 3.5$ GB |
 | 70B | $70 \times 10^9 \times 2 = 140$ GB | $70 \times 10^9 \times 0.5 = 35$ GB |
 
-70B 的 FP16 裸权重约 140 GB，并不能推出「至少四张 A100 80GB」：两张卡的总容量已有可能容纳权重，但能否运行目标上下文与并发，要加上 KV、激活、通信缓冲、workspace 及分片/复制开销。
+A 70B model's roughly 140 GB of raw FP16 weights does not imply a minimum of four A100 80GB GPUs. Two GPUs may have enough aggregate capacity for the weights, but the target context and concurrency also require KV storage, activations, communication buffers, workspace, and sharding or replication overhead.
 
-INT4 的实际存储还包含 scale、zero point、对齐和未量化层，通常大于表中数字。单卡可装下某个量化模型，不代表目标负载的延迟和并发可接受。
+Actual INT4 storage includes scales, zero points, alignment, and unquantized layers, so it usually exceeds the table's figures. Fitting a quantized model on one GPU does not establish acceptable latency or concurrency for the target workload.
 
-### 15.1.1 第二个收益：速度
+### 15.1.1 A second potential benefit: speed
 
-低比特权重可降低权重访存量（4-bit 相对 16-bit 为四分之一），但端到端速度取决于硬件是否有匹配 kernel、反量化开销、batch 与是否受 KV Cache 限制，不能从位宽直接推导固定加速比。
+Low-bit weights reduce weight memory traffic: 4-bit weights need one-quarter of the data of 16-bit weights. End-to-end speed, however, depends on matching hardware kernels, dequantization overhead, batch size, and whether the KV cache is the bottleneck. Bit width alone cannot establish a fixed speedup.
 
-### 15.1.2 但不是免费午餐
+### 15.1.2 It is not a free lunch
 
-把连续权重映射到有限表示会引入表示误差；端到端任务质量是否下降、下降多少，取决于格式、校准、模型和任务。整个量化算法要回答的核心问题是：
+Mapping continuous weights into a finite representation introduces representation error. Whether task quality drops, and by how much, depends on the format, calibration, model, and task. Quantization algorithms address a central question:
 
-> **如何在最小的精度损失下，把高精度数压到低精度数？**
+> **How can high-precision values be represented at low precision with as little accuracy loss as possible?**
 
-## 15.2 核心机制：连续到离散的映射
+## 15.2 The core mechanism: mapping continuous values to discrete levels
 
-量化应先明确整数范围。以**非对称 4-bit 无符号量化**为例， $q_{\min}=0$、 $q_{\max}=15$，对校准范围 $[x_{\min},x_{\max}]$：
+First specify the integer range. For **asymmetric unsigned 4-bit quantization**, let $q_{\min}=0$ and $q_{\max}=15$. Given a calibration range $[x_{\min},x_{\max}]$:
 
 $$
 s = \frac{x_{\max}-x_{\min}}{q_{\max}-q_{\min}},\qquad
@@ -43,22 +43,22 @@ q=\mathrm{clip}\left(\mathrm{round}\left(\frac{x}{s}\right)+z,q_{\min},q_{\max}\
 \hat{x}=s(q-z)
 $$
 
-若范围为 $[-2.5,2.5]$，采用 ties-to-even 舍入，则 $s=5/15=1/3$、 $z=8$。对 $x=0.7$，得到 q=10，反量化值为 2/3，约 0.667，绝对误差约 0.033。计算时不应先把 scale 截短到 0.333。
+For the range $[-2.5,2.5]$, using ties-to-even rounding gives $s=5/15=1/3$ and $z=8$. For $x=0.7$, q=10 and the dequantized value is 2/3, approximately 0.667, with an absolute error of approximately 0.033. Do not truncate the scale to 0.333 before calculating.
 
-常见的**对称有符号 INT4**则取 $q\in[-8,7]$，通常令 $s=\max(|x_{\min}|,|x_{\max}|)/7$、 $q=\mathrm{clip}(\mathrm{round}(x/s),-8,7)$、 $\hat{x}=sq$。具体范围、分组粒度和舍入规则由格式与 kernel 决定。
+Common **symmetric signed INT4** instead uses $q\in[-8,7]$, typically with $s=\max(|x_{\min}|,|x_{\max}|)/7$, $q=\mathrm{clip}(\mathrm{round}(x/s),-8,7)$, and $\hat{x}=sq$. The exact range, grouping granularity, and rounding rules depend on the format and kernel.
 
-**不同算法的差别在于**：怎么算 scale 和 zero_point、怎么处理 outlier、怎么补偿量化误差。
+**Algorithms differ in** how they choose scale and zero_point, handle outliers, and compensate for quantization error.
 
-上述非对称公式假设非零范围且需要让零可表示；实践通常把 0 纳入校准范围。退化的常量范围须单独处理，不能让 scale 为零。量化误差有两类：范围内的舍入误差，以及超出范围后被截断的 clipping 误差。缩小范围能细化刻度，却可能增加截断误差。
+The asymmetric formulas above assume a nonzero range and require zero to be representable; implementations commonly include 0 in the calibration range. A degenerate constant range needs separate handling so the scale does not become zero. Quantization has two types of error: rounding within the range and clipping outside it. A narrower range gives finer resolution but may increase clipping error.
 
 ```python
 def quantize_uint4(x, x_min, x_max):
-    """非对称 4-bit 无符号量化，返回整数、scale 与 zero point。"""
+    """Asymmetric unsigned 4-bit quantization; return the integer, scale, and zero point."""
     q_min, q_max = 0, 15
     s = (x_max - x_min) / (q_max - q_min)
-    # zero point 让实数 0 落在整数格点上
+    # The zero point maps real-valued 0 onto an integer grid point.
     z = min(max(q_min - round(x_min / s), q_min), q_max)
-    q = min(max(round(x / s) + z, q_min), q_max)  # 超出范围即产生截断误差
+    q = min(max(round(x / s) + z, q_min), q_max)  # Out-of-range values incur clipping error.
     return q, s, z
 
 
@@ -67,281 +67,281 @@ def dequantize_uint4(q, s, z):
 
 
 def quantize_int4(x, absmax):
-    """对称有符号量化：q 取 [-8, 7]，zero point 恒为 0。"""
+    """Symmetric signed quantization: q is in [-8, 7], with zero point fixed at 0."""
     s = absmax / 7
     return min(max(round(x / s), -8), 7), s
 ```
 
 
-### 15.2.1 对称与非对称
+### 15.2.1 Symmetric and asymmetric quantization
 
-| 风格 | 假设 | 适合 |
+| Style | Assumption | Typical use |
 |---|---|---|
-| **对称量化** | 用 0 为中心的整数范围，通常令 $z=0$，公式更简单 | 常见于权重 |
-| **非对称量化** | 用 scale 与 zero point 对齐非对称范围 | 常见于激活值，也可用于权重 |
+| **Symmetric quantization** | Use an integer range centered at 0, usually with $z=0$, simplifying the formula | Common for weights |
+| **Asymmetric quantization** | Use scale and zero point to align an asymmetric range | Common for activations; also applicable to weights |
 
-### 15.2.2 粒度与训练方式是另外两条轴
+### 15.2.2 Granularity and training method are separate dimensions
 
-| 维度 | 选择与代价 |
+| Dimension | Choices and costs |
 |---|---|
-| per-tensor / per-channel / per-group | 粒度越细，通常越能适应局部分布，但 scale/零点元数据更多，kernel 布局更复杂 |
-| 静态 / 动态激活量化 | 静态范围来自校准，运行开销较小但怕分布漂移；动态范围在运行时估计，增加归约和缩放开销 |
-| PTQ | 在训练后量化，常用少量校准数据，不进行完整量化感知训练 |
-| QAT | 训练时模拟或引入目标量化误差，常用近似梯度，使权重适应低精度；需要训练数据和额外优化成本 |
+| Per-tensor / per-channel / per-group | Finer granularity usually fits local distributions better, but adds scale/zero-point metadata and complicates kernel layouts |
+| Static / dynamic activation quantization | Static ranges come from calibration, lowering runtime overhead but risking distribution shift; dynamic ranges are estimated at runtime, adding reduction and scaling work |
+| PTQ | Quantize after training, often with a small calibration set, without full quantization-aware training |
+| QAT | Simulate or introduce target quantization error during training, commonly using approximate gradients so weights adapt to low precision; requires training data and additional optimization |
 
-W4A16 表示 4-bit 权重、16-bit 激活，不等于所有矩阵乘法都用 INT4 算术，也不包含 KV 精度。W8A8、FP8、NF4 的数值编码与计算路径不同，不能只按「几 bit」认定可互换。
+W4A16 means 4-bit weights and 16-bit activations. It does not mean every matrix multiplication uses INT4 arithmetic, and it does not specify KV precision. W8A8, FP8, and NF4 have different numerical encodings and computation paths; equal bit widths do not make them interchangeable.
 
-例如每 128 个 4-bit 权重共用一个 16-bit scale，仅这一项元数据就使平均位宽变为 `4 + 16/128 = 4.125` bit；再加零点、对齐和保留高精度的层，实际文件会更大。这是存储示例，不指定某个 checkpoint 的布局。
+For example, one 16-bit scale per 128 4-bit weights raises the average bit width to `4 + 16/128 = 4.125` bit from that metadata alone. Zero points, alignment, and layers retained at high precision increase file size further. This is a storage example, not the layout of a particular checkpoint.
 
-## 15.3 各位数的精度边界
+## 15.3 Quality limits at different bit widths
 
-| 量化位数 | 7B 权重的理想裸存储 | 质量风险 | 实用性 |
+| Precision | Ideal raw storage for 7B weights | Quality risk | Practical role |
 |---|---|---|---|
-| FP16 | 14 GB | 相对基线 | 训练与推理均可使用 |
-| **INT8** | 7 GB | 通常较低，仍需验证 | 常见折中 |
-| **INT4** | 3.5 GB | 对格式和任务更敏感 | 常见部署选择 |
-| INT3 | 2.6 GB | 风险更高 | 资源受限时评估 |
-| INT2 | 1.75 GB | 风险很高 | 仅在专门验证后使用 |
+| FP16 | 14 GB | Reference baseline | Usable for training and inference |
+| **INT8** | 7 GB | Often lower, but still needs validation | Common compromise |
+| **INT4** | 3.5 GB | More sensitive to format and task | Common deployment choice |
+| INT3 | 2.6 GB | Higher risk | Evaluate under resource constraints |
+| INT2 | 1.75 GB | Very high risk | Use only after dedicated validation |
 
-### 15.3.1 不存在固定的位宽断崖
+### 15.3.1 There is no universal bit-width cliff
 
-位宽降低通常使误差控制更难，但不存在统一的「INT4 到 INT3 必然陡降、INT2 不能用」。模型大小、group size、量化算法、校准数据和任务都会改变曲线；GPTQ 原论文及作者实现就包含 2/3/4-bit 实验。
+Lower bit widths generally make error control harder, but there is no universal rule that INT4 to INT3 must cause a sharp collapse or that INT2 is unusable. Model size, group size, algorithm, calibration data, and task all change the curve. The original GPTQ paper and its authors' implementation include 2/3/4-bit experiments.
 
 ```mermaid
 flowchart LR
-    A["高精度基线"] --> B["选择格式与分组"]
-    B --> C["量化并验证质量"]
-    C --> D["测容量、吞吐与延迟"]
-    D --> E["按业务约束决定是否降位"]
+    A["High-precision<br/>baseline"] --> B["Choose format<br/>and grouping"]
+    B --> C["Quantize and<br/>validate quality"]
+    C --> D["Measure capacity,<br/>throughput, and latency"]
+    D --> E["Decide whether to lower precision<br/>under business constraints"]
 
     style C fill:#e6f4ea
     style E fill:#fdecea
 ```
 
-> 即使 INT8 也不是绝对无损。需要检查数学、代码、长上下文和工具调用，不能只看一项困惑度。
+> Even INT8 is not absolutely lossless. Test math, code, long contexts, and tool calls rather than relying on a single perplexity score.
 
-### 15.3.2 平均精度损失掩盖了任务差异
+### 15.3.2 Average quality loss hides differences between tasks
 
-**精度损失不是均匀分布的。**
+**Quality degradation is not evenly distributed.**
 
-| 任务类型 | 常见风险 |
+| Task type | Common risk |
 |---|---|
-| 简单分类、抽取 | 可能较小，但与校准集相关 |
-| 通用对话 | 需要质量与风格回归测试 |
-| **数学推理** | 对误差、格式和长链推理可能更敏感 |
-| **长链路代码生成** | 应测编译、测试通过率与长上下文退化 |
+| Simple classification and extraction | Potentially small, but dependent on the calibration set |
+| General conversation | Requires quality and style regression testing |
+| **Mathematical reasoning** | May be more sensitive to errors, formatting, and long reasoning chains |
+| **Long-chain code generation** | Test compilation, test pass rates, and long-context degradation |
 
-GPTQ 和 AWQ 分别通过输出重构与激活感知缩放改善低比特权重量化，不能只用任务难度概括其机制。
+GPTQ and AWQ improve low-bit weight quantization through output reconstruction and activation-aware scaling, respectively. Task difficulty alone does not explain their mechanisms.
 
-## 15.4 GPTQ：基于误差补偿的逐层量化
+## 15.4 GPTQ: layer-wise quantization with error compensation
 
-直接逐元素 round-to-nearest（RTN）不考虑输入通道相关性，相同大小的权重误差可能产生很不相同的输出误差。
+Elementwise round-to-nearest (RTN) ignores correlations between input channels. Weight errors of the same magnitude can produce very different output errors.
 
-GPTQ 逐层近似最小化校准集上的输出重构误差：
+GPTQ approximately minimizes each layer's output reconstruction error on calibration data:
 
 $$
 \min_{\widehat W}\left\Vert WX-\widehat WX\right\Vert_F^2
 $$
 
-其中量化后的权重必须受目标量化网格约束，否则直接取原权重即可使误差为零。X 是当前线性层的校准输入。该二次目标的 Hessian 与 `XXᵀ` 有关，不是对完整语言模型训练损失计算精确 Hessian。量化一列后，用二阶信息修正**同一层剩余未量化的权重**，通常配合阻尼和分块更新以提高稳定性与效率。
+The quantized weights must be constrained to the target quantization grid; otherwise, retaining the original weights trivially gives zero error. X is the calibration input to the current linear layer. This quadratic objective's Hessian relates to `XXᵀ`; it is not the exact Hessian of the full language model training loss. After quantizing a column, second-order information corrects **the remaining unquantized weights in the same layer**, usually with damping and blockwise updates for stability and efficiency.
 
-### 15.4.1 流程
+### 15.4.1 Procedure
 
 ```mermaid
 flowchart TB
-    S1["① 准备代表性校准输入"]
-    S1 --> S2["② 收集当前层输入<br/>构造带阻尼的二阶信息"]
-    S2 --> S3["③ 按指定列顺序量化<br/>不是默认先量化最不重要权重"]
-    S3 --> S4["④ 补偿同层未量化权重"]
-    S4 --> MORE{"当前层还有未量化列？"}
-    MORE -->|有| S3
-    MORE -->|无| NEXT{"还有待量化层？"}
-    NEXT -->|有| S2
-    NEXT -->|无| DONE["导出量化权重"]
+    S1["① Prepare representative<br/>calibration inputs"]
+    S1 --> S2["② Collect the current layer's inputs<br/>Build damped second-order information"]
+    S2 --> S3["③ Quantize in the specified column order<br/>Not least-important weights first<br/>by default"]
+    S3 --> S4["④ Compensate unquantized weights<br/>in the same layer"]
+    S4 --> MORE{"Unquantized columns<br/>remain in this layer?"}
+    MORE -->|Yes| S3
+    MORE -->|No| NEXT{"More layers to quantize?"}
+    NEXT -->|Yes| S2
+    NEXT -->|No| DONE["Export quantized weights"]
 
     style S4 fill:#e8f0fe
 ```
 
-### 15.4.2 优缺点
+### 15.4.2 Strengths and limitations
 
-| 优点 | 缺点 |
+| Strength | Limitation |
 |---|---|
-| 利用输入相关性补偿输出误差 | 二阶矩阵、分解与更新带来校准时间和内存开销 |
-| 可评估 2/3/4-bit 与不同分组 | 低位宽能否满足质量要求需实测 |
-| 经典方案为 weight-only，不需要全模型重训练 | 激活常保持高精度；能否加速取决于 kernel，不必然慢于 AWQ |
+| Uses input correlations to compensate for output error | Second-order matrices, factorization, and updates add calibration time and memory costs |
+| Supports evaluating 2/3/4-bit precision and different groups | Low-bit quality must be measured |
+| The classic method is weight-only and needs no full-model retraining | Activations commonly remain high precision; acceleration depends on kernels and is not necessarily slower than AWQ |
 
-原算法可用固定列顺序；作者后来加入的 `act-order` 是按激活大小降序量化，不是「优先量化不重要权重」。工具是否仍维护与 GPTQ 算法是否可用是两回事，新部署需检查当前模型支持和输出格式。
+The original algorithm can use a fixed column order. The authors' later `act-order` option quantizes in descending activation magnitude, not in order of least-important weights first. A tool's maintenance status and the viability of the GPTQ algorithm are separate questions; new deployments must check current model support and output formats.
 
-## 15.5 AWQ：激活感知的权重保护
+## 15.5 AWQ: activation-aware weight protection
 
-MIT 提出的思路很直接：先找出真正需要保护的权重。
+The MIT approach starts with a straightforward idea: identify which weights actually need protection.
 
-### 15.5.1 洞见：保护激活敏感的通道
+### 15.5.1 The insight: protect activation-sensitive channels
 
-AWQ 论文用「保留约 1% 显著权重为高精度」的对照实验说明，不同权重的量化敏感度差异很大。**论文没有给出“1% 权重贡献 99% 输出”的定律**，实际 AWQ 也不是必须将这 1% 存成 FP16。
+The AWQ paper uses a comparison that retains approximately 1% of salient weights at high precision to demonstrate large differences in quantization sensitivity. **It does not establish a law that “1% of weights contribute 99% of the output,”** and actual AWQ does not require storing that 1% in FP16.
 
-### 15.5.2 怎么保护：依据输入激活做缩放
+### 15.5.2 The mechanism: scale according to input activations
 
-对线性层 Y=WX，权重误差引起的输出变化为 ΔY=ΔW·X，因此输入通道的幅度和相关性都重要。
+For a linear layer Y=WX, the output change caused by weight error is ΔY=ΔW·X, so both input-channel magnitudes and correlations matter.
 
-若某些输入通道的激活幅度较大，同样的权重误差会更强地影响层输出。AWQ 使用校准输入的逐通道幅度，而不是只按权重绝对值排序。
+If an input channel has large activations, the same weight error affects the layer output more strongly. AWQ uses per-channel magnitudes from calibration inputs rather than merely ranking weights by absolute value.
 
-设 S 是正的对角缩放矩阵，量化前有等价关系：
+Let S be a positive diagonal scaling matrix. Before quantization:
 
 $$
 WX=(WS)(S^{-1}X)
 $$
 
-对 WS 量化、同时反向缩放输入，可减小部分显著通道的输出误差；输入缩放通常可合并到前序算子。缩放也可能扩大所在 group 的量化范围，损害其他通道，因此 AWQ 搜索缩放强度并进行裁剪，而非简单无限放大重要权重。
+Quantizing WS while inversely scaling the input can reduce output error for some salient channels; input scaling can usually be fused into a preceding operator. Scaling may also widen the group's quantization range and harm other channels. AWQ therefore searches scaling strength and applies clipping rather than increasing important weights without limit.
 
-> **等价的是量化前的缩放变换；量化后的模型仍有误差**，不能据此声称 AWQ 与原模型输出完全相同。
+> **The scaling transformation is equivalent before quantization; the quantized model still has error.** This identity does not establish that AWQ produces outputs identical to the original model.
 
-### 15.5.3 优缺点
+### 15.5.3 Strengths and limitations
 
-| 优点 | 缺点 |
+| Strength | Limitation |
 |---|---|
-| **可使用高效 kernel**：权重布局可针对目标硬件优化 | **极端低位的表现要实测**；不同模型与实现结论可能相反 |
-| **激活感知缩放**：可改善部分模型的低比特质量 | 同样需要校准数据 |
-| 不需要 GPTQ 式的二阶矩阵分解 | 缩放搜索、裁剪和校准仍有耗时，不能按参数量给固定分钟数 |
+| **Can use efficient kernels**: weight layouts can be optimized for target hardware | **Very low-bit performance must be measured**; different models and implementations can reverse the comparison |
+| **Activation-aware scaling** can improve low-bit quality for some models | Still requires calibration data |
+| Does not require GPTQ-style second-order matrix factorization | Scaling search, clipping, and calibration still take time; parameter count alone cannot give a fixed number of minutes |
 
-AWQ 与 GPTQ 都需比较质量和实际执行路径。W4A16 在低批量、权重带宽受限时可能有效；大批量 prefill 中，反量化和 GEMM 效率可能改变结论。
+Compare both quality and actual execution paths for AWQ and GPTQ. W4A16 can help at low batch sizes when weight bandwidth is limiting; dequantization and GEMM efficiency can change the result during large-batch prefill.
 
-> 不混淆层次：GPTQ/AWQ 是算法，FP8/NF4 是数值格式，Marlin/CUTLASS 属于执行内核或内核库，GGUF 是容器。AutoAWQ 官方仓库已声明弃用并指向 `llm-compressor`；不要把旧工具安装教程当作算法的当前支持矩阵。
+> Keep the levels distinct: GPTQ/AWQ are algorithms, FP8/NF4 are numerical formats, Marlin/CUTLASS are execution kernels or kernel libraries, and GGUF is a container. AutoAWQ's official repository declares it deprecated and points to `llm-compressor`; an old installation tutorial is not the algorithm's current support matrix.
 
-## 15.6 QLoRA 如何在冻结的低比特基座上微调？
+## 15.6 How does QLoRA fine-tune a frozen low-bit base?
 
-QLoRA 冻结低比特基座，训练附加的高精度 LoRA 参数；它降低基座存储，却不把所有训练计算都变成 4-bit。GPTQ 和 AWQ 主要解决部署时的权重量化，QLoRA 则把量化与适配器训练结合起来。
+QLoRA freezes a low-bit base and trains additional high-precision LoRA parameters. It reduces base-model storage without making all training computation 4-bit. GPTQ and AWQ mainly address deployment-time weight quantization, whereas QLoRA combines quantization with adapter training.
 
-### 15.6.1 NF4 是非均匀量化
+### 15.6.1 NF4 is nonuniform quantization
 
-普通 INT4 是**均匀分隔**（16 个值平均分布）。
+Ordinary INT4 uses **uniform spacing**: 16 evenly spaced values.
 
-NF4 针对近似正态分布的权重设计非均匀 codebook，零附近刻度更密，尾部更稀。实际权重不必严格正态，分块归一化也会改变分布；该假设不是所有张量的保证。
+NF4 uses a nonuniform codebook designed for approximately normally distributed weights, with denser levels near zero and sparser levels in the tails. Actual weights need not be strictly normal, and blockwise normalization also changes their distribution; the assumption is not guaranteed for every tensor.
 
-它在 QLoRA 论文的设置中优于所比较的均匀整数或浮点 4-bit 格式，不代表对任意模型和指标均最优。
+NF4 outperformed the compared uniform integer and floating-point 4-bit formats in the QLoRA paper's setting. That does not make it optimal for every model and metric.
 
-### 15.6.2 另外两个优化
+### 15.6.2 Two additional optimizations
 
-| 优化 | 作用 |
+| Optimization | Purpose |
 |---|---|
-| **双重量化** | 连量化用的 scale 常数也再量化一次，进一步省显存 |
-| **分页优化器** | 用统一内存在 CPU/GPU 间迁移优化器状态，缓解部分显存峰值；迁移有性能成本，也不能消除所有 OOM |
+| **Double quantization** | Quantize the scale constants themselves to save more memory |
+| **Paged optimizers** | Use unified memory to move optimizer state between CPU and GPU, reducing some memory spikes; migration has performance costs and does not prevent every OOM |
 
-QLoRA 论文报告过在单张 48 GB GPU 上微调 65B 的配置，这是特定序列长度、batch、优化器与检查点设置下的结果，不能变成按显存选模型的通用表。长上下文激活仍可能主导峰值。详见[第八章](../02-training-alignment/08-finetuning.md)。
+The QLoRA paper reports a configuration that fine-tunes a 65B model on one 48 GB GPU. That result depends on particular sequence lengths, batch sizes, optimizer settings, and checkpointing, not a universal model-selection table based on memory alone. Long-context activations can still dominate peak usage. See [Chapter 8](../02-training-alignment/08-finetuning.md).
 
-关键是**冻结 4-bit 基座，只训练高精度 LoRA 适配器**；计算时按需反量化，让梯度通过基座计算路径传给适配器。它不是直接用梯度更新离散 INT4/NF4 编码，也不等同于全参数 QAT。
+The key is to **freeze the 4-bit base and train only high-precision LoRA adapters**. Dequantize as needed for computation, allowing gradients to flow through the base computation to the adapters. This does not directly update discrete INT4/NF4 codes with gradients and is not full-parameter QAT.
 
-## 15.7 怎么选
+## 15.7 Choosing an approach
 
-| 场景 | 推荐方案 | 理由 |
+| Scenario | Candidate approach | Reason |
 |---|---|---|
-| **生产部署，看重速度** | AWQ / GPTQ / FP8 / 框架原生 INT4 | **看目标框架和 GPU kernel 支持，不能只背一个名字** |
-| **部署质量优先** | 高精度基线，再比较 INT8 / INT4 | 以业务允许的退化为门槛，不承诺量化无损 |
-| **显存受限的适配器微调** | QLoRA NF4 | 先估算激活、适配器和优化器峰值 |
-| **边缘部署（手机 / 笔记本）** | 设备运行时支持的低比特格式，如 GGUF 的 Q4_K_M | 检查内存、带宽、功耗与算子支持 |
-| **CPU 部署** | llama.cpp + GGUF | 无 GPU 也能跑 |
+| **Production deployment prioritizing speed** | AWQ / GPTQ / FP8 / framework-native INT4 | **Check the target framework and GPU kernels rather than memorizing one algorithm name** |
+| **Deployment prioritizing quality** | Establish a high-precision baseline, then compare INT8 / INT4 | Use acceptable business degradation as the threshold; do not promise lossless quantization |
+| **Memory-constrained adapter fine-tuning** | QLoRA NF4 | Estimate peak activations, adapters, and optimizer state first |
+| **Edge deployment: phones / laptops** | Low-bit formats supported by the device runtime, such as GGUF Q4_K_M | Check memory, bandwidth, power, and operator support |
+| **CPU deployment** | llama.cpp + GGUF | Can run without a GPU |
 
-### 15.7.1 三个关键提示
+### 15.7.1 Three practical reminders
 
-**① AWQ vs GPTQ 怎么选**
+**① Choosing AWQ versus GPTQ**
 
-先查目标模型、GPU 与框架支持的量化格式，再在相同位宽、分组、校准集和业务评测下比较。已有权重文件及转换成本也影响选择，不预设 AWQ 速度更快或 GPTQ 精度更高。
+First check formats supported by the target model, GPU, and framework. Then compare at the same bit width, grouping, calibration set, and business evaluation. Existing weight files and conversion costs matter too; do not assume AWQ is faster or GPTQ more accurate.
 
-> **不要脱离框架支持谈算法好坏。** 最后跑得快不快，取决于**量化格式和推理 kernel 是否匹配**。
+> **Do not judge an algorithm independently of framework support.** Runtime speed depends on **whether the quantization format matches the inference kernel**.
 
-**② INT4 vs INT8 怎么选**
+**② Choosing INT4 versus INT8**
 
-显存够时用高精度作为质量基线；容量或权重带宽紧张时评估低位宽。若瓶颈是长上下文 KV 而非权重，仅降低权重位宽可能不够；若瓶颈是大批量计算，要看 W8A8/FP8 等算术路径，而不只是压缩率。
+Use high precision as a quality baseline when memory permits; evaluate lower bit widths when capacity or weight bandwidth is tight. If long-context KV storage is the bottleneck rather than weights, reducing weight precision alone may be insufficient. If large-batch computation is limiting, examine arithmetic paths such as W8A8/FP8, not just compression ratios.
 
-**③ GGUF 是什么**
+**③ What is GGUF?**
 
-> **GGUF 不是量化算法，是 llama.cpp 用的文件格式。**
+> **GGUF is a file format used by llama.cpp, not a quantization algorithm.**
 
-它内部可以存各种量化方案的权重（Q4_K_M、Q5_K_M、Q8_0 等），**是一个容器**。这跟 AWQ/GPTQ 这种「算法」不是一个层级——**混淆这两者是很常见的错误**。
+It can store weights using different quantization schemes, including Q4_K_M, Q5_K_M, and Q8_0. **It is a container**, not the same kind of thing as an algorithm such as AWQ/GPTQ. **Confusing these levels is a common mistake.**
 
-## 15.8 四个副作用与陷阱
+## 15.8 Four side effects and pitfalls
 
-### 15.8.1 Outlier 异常值问题
+### 15.8.1 Outliers
 
-当一组权重中出现幅度很大的异常值，按最大值定范围会拉宽量化刻度，使该组普通权重的分辨率下降；影响程度取决于分布与分组。
+A large-magnitude outlier in a weight group widens a max-based quantization range, reducing resolution for ordinary weights in that group. The impact depends on the distribution and grouping.
 
-**应对**：分组缩小受异常值影响的范围，裁剪在尾部误差与主体分辨率间取舍。AWQ 依据激活敏感度缩放，GPTQ 依据输入相关性补偿，都不是简单「找出最大权重优先保护」。SmoothQuant 则通过等价缩放把激活量化难度转移到权重，服务于 W8A8；不要与 AWQ 的权重量化目标混淆。
+**Response**: grouping limits the region affected by an outlier; clipping trades tail error against resolution for the bulk of values. AWQ scales according to activation sensitivity, while GPTQ compensates using input correlations. Neither simply protects the largest weights first. SmoothQuant instead uses equivalent scaling to transfer activation quantization difficulty to weights for W8A8; do not confuse that objective with AWQ's weight quantization.
 
-### 15.8.2 KV Cache 量化的挑战
+### 15.8.2 Challenges in KV cache quantization
 
-KV Cache 已有研究与框架实现，不能用「才刚起步」判断可用性；支持情况取决于模型架构、attention 后端和目标位宽。
+KV cache quantization already has research and framework implementations; “it is only just beginning” is not a useful availability criterion. Support depends on model architecture, attention backend, and target bit width.
 
-在部分长上下文或高并发负载中，KV 可超过权重（见[第十四章](14-kv-cache.md)）。K 的误差影响注意力分数，V 的误差影响聚合结果；实际收益还要计入 scale、残留窗口和转换成本，测长文检索及推理质量。
+In some long-context or highly concurrent workloads, KV storage can exceed weight storage; see [Chapter 14](14-kv-cache.md). K errors affect attention scores, while V errors affect aggregation. Include scales, residual windows, and conversion costs when measuring gains, and test long-document retrieval and reasoning quality.
 
-### 15.8.3 不同任务的敏感度差异巨大
+### 15.8.3 Task sensitivity varies greatly
 
-不存在可迁移的“INT4 平均损失”。**部署量化模型前必须在自己的业务场景下做评测，不能直接套用论文或他人的平均数。**
+There is no transferable “average INT4 loss.” **Evaluate a quantized model on your own business scenarios before deployment rather than applying a paper's or another team's average.**
 
-### 15.8.4 与其他优化的兼容性
+### 15.8.4 Compatibility with other optimizations
 
-量化要和 Flash Attention、KV Cache、Speculative Decoding 同时使用，**不同框架支持度差别很大**。
+When combining quantization with Flash Attention, KV caching, and speculative decoding, **framework support varies considerably**.
 
-**选量化方案前先看部署框架支持哪些，再用自己的业务集压测质量和吞吐。**
+**Check which combinations the serving framework supports before choosing a quantization method, then test quality and throughput on your own workload.**
 
-## 15.9 常见错误
+## 15.9 Common mistakes
 
-### 15.9.1 说不出量化的基本机制
+### 15.9.1 Being unable to explain the basic mapping
 
-线性整数格式常用 scale + zero point，NF4 则通过非均匀 codebook 表示；先确定格式再解释映射。
+Linear integer formats commonly use a scale and zero point; NF4 uses a nonuniform codebook. Identify the format before explaining its mapping.
 
-### 15.9.2 认为精度损失是线性的
+### 15.9.2 Assuming quality loss is linear
 
-损失未必线性，也不存在统一断崖；更换 group size、校准或算法可以改变曲线。
+Degradation need not be linear, and no universal cliff exists. Changing group size, calibration, or algorithm can change the curve.
 
-### 15.9.3 给 INT4 套用统一精度损失
+### 15.9.3 Assigning one universal quality penalty to INT4
 
-数学推理与长链代码等任务可能更敏感；必须在自己的业务集实测。
+Mathematical reasoning and long-chain code tasks can be more sensitive. Measure on your own business test set.
 
-### 15.9.4 说不出 GPTQ 和 AWQ 的核心创新
+### 15.9.4 Missing the core innovations in GPTQ and AWQ
 
-GPTQ 用校准输入的二阶信息补偿同层未量化权重；AWQ 用激活感知缩放与裁剪保护敏感通道，两者通常都属于 PTQ。
+GPTQ uses second-order information from calibration inputs to compensate unquantized weights within the same layer. AWQ uses activation-aware scaling and clipping to protect sensitive channels. Both are usually PTQ methods.
 
-### 15.9.5 把 GGUF 当成量化算法
+### 15.9.5 Treating GGUF as a quantization algorithm
 
-它是文件格式、是容器，跟 AWQ/GPTQ 不是一个层级；扩展名也不能说明具体量化精度。
+It is a file format and container, not an algorithm like AWQ/GPTQ. Its extension alone does not identify the quantization precision.
 
-### 15.9.6 脱离框架和 GPU 谈算法好坏
+### 15.9.6 Judging algorithms without the framework and GPU
 
-跑得快不快取决于量化格式与推理 kernel 是否匹配。
+Speed depends on a match between quantization format and inference kernel.
 
-### 15.9.7 忽略 outlier 问题
+### 15.9.7 Ignoring outliers
 
-异常值会放宽所在量化组的范围；权重异常值、激活异常值与输出敏感性并非同一概念。
+Outliers widen the range of their quantization group. Weight outliers, activation outliers, and output sensitivity are not the same concept.
 
-### 15.9.8 认为量化模型不能再训练
+### 15.9.8 Assuming quantized models cannot be trained further
 
-QLoRA 训练的是适配器，冻结的低比特基座参与前向和梯度传播路径，不是直接更新整数编码。
+QLoRA trains adapters. Its frozen low-bit base participates in forward computation and the gradient propagation path; it does not directly update integer codes.
 
-## 15.10 本章总结
+## 15.10 Chapter summary
 
-1. **线性整数均匀量化**常用 scale + zero point 映射；NF4 等非均匀格式使用 codebook，不能一概而论；
-2. **两个潜在收益**：4-bit 权重裸存储与权重访存量可降至 FP16 的四分之一；端到端速度取决于 kernel 和工作负载；
-3. **对称量化常用于权重，非对称量化常用于激活，但不是硬规则**；应以格式、kernel、校准数据和任务评测为准；
-4. **位宽越低通常越需谨慎评测**；INT8、INT4、INT3 的实际边界不能脱离模型、格式与任务；
-5. **平均指标掩盖任务差异**，应分别测试数学、代码、长上下文和结构化输出；
-6. **GPTQ 使用逐层重构目标的二阶信息补偿量化误差**，不是默认先量化低重要性权重；
-7. **AWQ 用激活感知缩放与裁剪改善权重量化**，等价变换不代表量化无损；
-8. **QLoRA 使用冻结 NF4 基座与可训练适配器**，配合双重量化和分页优化器降低微调显存；
-9. **GGUF 是文件格式不是算法**，是最容易混淆的一点；
-10. **选型不能脱离框架和 GPU kernel**，最终性能取决于格式与 kernel 是否匹配；
-11. **四个陷阱**：异常值、KV 精度与后端限制、校准/任务分布差异、与其他优化的兼容性。
+1. **Linear uniform integer quantization** commonly uses scale and zero-point mappings; nonuniform formats such as NF4 use codebooks. Do not generalize one mechanism to all formats.
+2. **Two potential benefits**: raw 4-bit weight storage and weight traffic can be one-quarter of FP16; end-to-end speed depends on kernels and workload.
+3. **Symmetric quantization is common for weights and asymmetric quantization for activations, but neither is a hard rule**. Follow the format, kernel, calibration data, and task evaluation.
+4. **Lower bit widths usually require more careful evaluation**. Practical INT8, INT4, and INT3 limits depend on the model, format, and task.
+5. **Average metrics hide task differences**. Test math, code, long contexts, and structured output separately.
+6. **GPTQ compensates quantization error with second-order information from a layer-wise reconstruction objective**. It does not default to quantizing unimportant weights first.
+7. **AWQ improves weight quantization through activation-aware scaling and clipping**. An equivalent pre-quantization transformation does not imply lossless quantization.
+8. **QLoRA uses a frozen NF4 base and trainable adapters**, with double quantization and paged optimizers to lower fine-tuning memory use.
+9. **GGUF is a file format, not an algorithm**, an especially common source of confusion.
+10. **Selection depends on the framework and GPU kernels**. Final performance depends on the format–kernel match.
+11. **Four pitfalls**: outliers, KV precision and backend limitations, calibration/task distribution differences, and compatibility with other optimizations.
 
 
-## 参考资料
+## References
 
 - [GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers](https://arxiv.org/abs/2210.17323)
 - [AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration](https://arxiv.org/abs/2306.00978)
-- [QLoRA: Efficient Finetuning of Quantized LLMs（NF4）](https://arxiv.org/abs/2305.14314)
+- [QLoRA: Efficient Finetuning of Quantized LLMs (NF4)](https://arxiv.org/abs/2305.14314)
 - [LLM.int8(): 8-bit Matrix Multiplication for Transformers at Scale](https://arxiv.org/abs/2208.07339)
 - [SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models](https://arxiv.org/abs/2211.10438)
 - [Optimal Brain Compression: A Framework for Accurate Post-Training Quantization and Pruning](https://arxiv.org/abs/2208.11580)
 - [llama.cpp / GGUF](https://github.com/ggml-org/llama.cpp)
 - [AutoAWQ](https://github.com/casper-hansen/AutoAWQ)
-- [GPTQ 作者实现：列顺序、act-order 与分组](https://github.com/IST-DASLab/gptq)
-- [AWQ 原论文：逐通道缩放与搜索](https://arxiv.org/html/2306.00978v5)
-- [PyTorch AO：Quantization-Aware Training](https://docs.pytorch.org/ao/main/workflows/qat.html)
+- [GPTQ authors' implementation: column order, act-order, and grouping](https://github.com/IST-DASLab/gptq)
+- [AWQ paper: per-channel scaling and search](https://arxiv.org/html/2306.00978v5)
+- [PyTorch AO: Quantization-Aware Training](https://docs.pytorch.org/ao/main/workflows/qat.html)

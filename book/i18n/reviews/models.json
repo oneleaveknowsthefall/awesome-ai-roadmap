@@ -1,0 +1,982 @@
+{
+  "scope": "models",
+  "source_commit": "be53fedaedfb28da181db8e95f41bf91100621c4",
+  "pages": [
+    {
+      "path": "docs/llm/01-foundations/01-what-is-llm.md",
+      "zh_path": "docs/llm/01-foundations/01-what-is-llm.zh.md",
+      "kind": "chapter",
+      "source_sha256": "6086f653f462024ca2a4da37f5f648f344cf277425879ab820ca7f0ac72a4e50",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/1810.04805",
+          "scope": "Confirmed the BERT paper title returned by the abstract-page fetch.",
+          "limitations": "The fetch exposed only the title, not the abstract or paper; substantive checks used the HTML version below."
+        },
+        {
+          "url": "https://arxiv.org/html/1810.04805v2",
+          "scope": "Read the available introduction excerpt and all of section 3.1, Pre-training BERT: bidirectional representations, MLM versus NSP, 15% target selection, the 80/10/10 replacement split, and BooksCorpus/Wikipedia word counts.",
+          "limitations": "Selected sections only, not the complete paper or appendices. Other chapter references were retained, not newly read in this migration."
+        }
+      ],
+      "notes": "Preserved all seven numbered sections, eight reference destinations, tables, caveats about pretraining history and task-specific heads, the autoregressive loss, in-context-learning costs, scaling-law limits, metric-dependent emergence, and the ten-category selection example. The Chinese refund/shipping classification block is byte-identical and has an English explanation of the labels and messages. Kept model inference distinct from reasoning and retained the different word/token units rather than comparing them as interchangeable counts. Validation matched the source heading hierarchy, table widths, lists, inline identifiers, all three fenced blocks, and the one LaTeX block; both translated Mermaid diagrams and their Chinese companions parsed. Chinese bytes match baseline be53fedaedfb28da181db8e95f41bf91100621c4."
+    },
+    {
+      "path": "docs/llm/01-foundations/02-transformer-architecture.md",
+      "zh_path": "docs/llm/01-foundations/02-transformer-architecture.zh.md",
+      "kind": "chapter",
+      "source_sha256": "51e98ff67e4563a7ad33ea71a5d65932b2f8205eae1457d56f1f2d1ce2751ff9",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/1706.03762v7",
+          "scope": "Read sections 3.1–3.5 on residual/normalization placement, shifted decoder targets, Q/K/V roles, scaled dot-product and multi-head attention, position-wise FFNs, embeddings, and sinusoidal encoding; also read the available section 4 text on complexity, sequential operations, and dependency paths.",
+          "limitations": "The initial simplified fetch selected section 4; a subsequent in-memory HTML extraction supplied section 3. The HTML-to-text extraction flattens mathematical layout. This was a selected-section review, not a complete paper read or browser rendering test."
+        },
+        {
+          "url": "https://arxiv.org/html/1810.04805v2",
+          "scope": "Read the introduction excerpt and section 3.1 for the encoder/MLM comparison and the distinction between training objectives and learned representations.",
+          "limitations": "Did not re-read BERT's full task evaluation or the other normalization, GLU, and interpretability papers cited in this chapter."
+        }
+      ],
+      "notes": "Retained the repaired complete DecoderBlock, including QKV and output projections, strict upper-triangular mask, two residual additions, RMSNorm, and SwiGLU. Only comments and the explanatory docstring changed in its Python; ASTs match after removing docstrings for both Python blocks. Preserved the next-token Chinese sample tokens and their alignment, with English Input/Target labels and a gloss. Kept permutation equivariance distinct from invariance, attention's existing nonlinearity, and the training/prefill/decode distinction. All eight numbered sections, five exact LaTeX blocks, five fences, eleven link destinations, table/list structures, and inline identifiers passed preservation checks; both English and both Chinese diagrams parsed. Chinese companion is byte-exact to the baseline. Code was checked structurally, not executed as a PyTorch training or inference test."
+    },
+    {
+      "path": "docs/llm/01-foundations/03-attention-variants.md",
+      "zh_path": "docs/llm/01-foundations/03-attention-variants.zh.md",
+      "kind": "chapter",
+      "source_sha256": "284e4f899d67c7cac3fb3113b1c1162129ccb72bda9d81c30fa3df9b4296d46b",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2305.13245",
+          "scope": "Confirmed the GQA paper title returned by the abstract-page fetch.",
+          "limitations": "Only the title was exposed; this response did not verify the technical method."
+        },
+        {
+          "url": "https://aclanthology.org/2023.emnlp-main.298/",
+          "scope": "Read the returned title and publication metadata for the GQA paper.",
+          "limitations": "Markdown simplification failed and the first 10,000 raw HTML characters were largely navigation and metadata; the paper body and abstract were not checked through this page."
+        },
+        {
+          "url": "https://arxiv.org/html/2305.13245v3",
+          "scope": "Read section 2, Method, including checkpoint conversion, mean-pooling K/V projections, continued pretraining, grouped query heads, the MQA/MHA endpoints, cache reduction, and sharding replication.",
+          "limitations": "Did not read the full experiments or independently recheck the particular 5% compute setting in this selected section; the original manuscript's qualified value is preserved."
+        },
+        {
+          "url": "https://github.com/Dao-AILab/flash-attention/blob/1f7ce2f7cb503473559f3d44d575ae05b1ed8557/README.md",
+          "scope": "Read the first 18,000 characters of the pinned README, including FlashAttention-2/3/4 descriptions, Hopper/Blackwell and CuTeDSL scope, hardware/dtype/head-dimension requirements, grouped K/V divisibility, and cache/causal-mask API documentation.",
+          "limitations": "The README was truncated after the API material; later benchmark and release-history content was not read. No kernels, GPU compatibility tests, or performance experiments were run. The manuscript retains the pinned snapshot rather than treating it as a current default-backend guarantee."
+        },
+        {
+          "url": "https://github.com/deepseek-ai/DeepSeek-V2",
+          "scope": "Read the first 14,000 characters of the official README, including the explicit DeepSeek 67B baseline for the 93.3% cache reduction and the architecture description of joint low-rank K/V compression.",
+          "limitations": "The README response was truncated during inference examples. The complete paper, projection-absorption derivation, and implementation were not read; the original decoupled-RoPE explanation was preserved without claiming fresh full verification."
+        }
+      ],
+      "notes": "Preserved all seven numbered sections, the three exact equations, and all twelve source URLs. The repaired GQA example still projects only G KV heads, repeats each group with repeat_interleave, maps Q head i to i // (H // G), and limits its is_causal example to equal-length prefill. Python AST equivalence, inline constants, and diagram topology checks passed. Independently recomputed 16,777,216,000 bytes = 15.625 GiB; retained GB/GiB distinctions, the 32-head MHA assumption, and the 8-KV-head alternative. MQA/GQA architectural changes, MLA cache representation, online-softmax rescaling, and FlashAttention IO implementation remain separate. Both English and both Chinese Mermaid diagrams parsed; all three fences, table/list structures, and the Chinese baseline bytes passed checks. No factual correction was made."
+    },
+    {
+      "path": "docs/llm/01-foundations/04-position-encoding.md",
+      "zh_path": "docs/llm/01-foundations/04-position-encoding.zh.md",
+      "kind": "chapter",
+      "source_sha256": "1bc46a5e38c31af44d7d902aa50e7b0ab31a0b112c9381185aada95edb3a2a9c",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/1706.03762v7",
+          "scope": "Read section 3.5 on adding sinusoidal positional encodings and representing a fixed offset through a linear transformation.",
+          "limitations": "Selected-section HTML review only; no new experiment establishes out-of-training-length generalization."
+        },
+        {
+          "url": "https://arxiv.org/abs/2104.09864",
+          "scope": "Confirmed the RoFormer paper title returned by the abstract-page fetch.",
+          "limitations": "Only the title was returned; the derivation was checked in the HTML version below."
+        },
+        {
+          "url": "https://arxiv.org/html/2104.09864v5",
+          "scope": "Read the returned section 3.4.1, Derivation of RoPE under 2D, including content dependence, position difference n−m, norm preservation, and the rotation solution.",
+          "limitations": "The simplified response contained this section rather than the complete paper; experiments and other theoretical sections were not reviewed."
+        },
+        {
+          "url": "https://arxiv.org/html/2306.15595v2",
+          "scope": "Read the abstract explaining position-index downscaling, fine-tuning, and the risk of extreme attention scores under direct RoPE extrapolation.",
+          "limitations": "Abstract only; the detailed bounds, experiments, and other cited extension/ALiBi sources were not newly reviewed."
+        }
+      ],
+      "notes": "Kept all seven H2 sections and four numbered H3 subsections, including the full sinusoidal-offset matrix derivation and RoPE relative-position derivation. All seven LaTeX blocks are byte-identical; no signs, bases, frequencies, indices, or interpolation ratios were rewritten. The original Chinese word-order pair is retained with English glosses, rather than replacing token data. Preserved causal-mask qualifications, cache-position consistency, MLA compatibility limits, static versus dynamic scaling, ALiBi's 2021/2022 chronology, and the distinction among accepting, storing, and effectively using 128K. Eleven links, table/list structures, inline identifiers, and the diagram topology match the source; both edition diagrams parsed. Chinese bytes remain exactly the baseline. Rendered GitHub/Wiki math was not previewed."
+    },
+    {
+      "path": "docs/llm/01-foundations/05-tokenizer.md",
+      "zh_path": "docs/llm/01-foundations/05-tokenizer.zh.md",
+      "kind": "chapter",
+      "source_sha256": "eaaec2eea64807c53f4d30b352b09eeffa15942c0ab885d60dcd624a67c1338d",
+      "references_checked": [
+        {
+          "url": "https://huggingface.co/docs/transformers/tokenizer_summary",
+          "scope": "Read the returned Tokenization algorithms page, including BPE training and byte-level coverage, Unigram, SentencePiece as a library, WordPiece, and character/word granularity comparisons.",
+          "limitations": "This is the current rendered documentation page, not a pinned library version or all linked papers. Its simplified generalizations were not used to remove the manuscript's coverage and normalization caveats."
+        },
+        {
+          "url": "https://huggingface.co/docs/transformers/chat_templating",
+          "scope": "Read the returned Chat templates guide through Model training: serialization of role/content messages into tokens, model-specific control tokens, generation prompts, continuation, special-token duplication, and template consistency.",
+          "limitations": "No model or tokenizer was downloaded or executed. The migration does not adopt new API options from the current documentation or claim that hypothetical sample segmentations were measured."
+        }
+      ],
+      "notes": "Translated all eight numbered H2 sections and nineteen H3 subsections, retaining the eight-point summary, seven common mistakes, ten source destinations, and all tables/examples. Preserved 你好，世界, 人工智能, 人工, and 智能 as Chinese tokenization data with English explanations; kept lowest123 and the hypothetical strawberry split unchanged. Distinguished BPE/Unigram/WordPiece algorithms from SentencePiece, byte coverage from Unicode boundaries, EOS from external stopping, and chat serialization from authorization. All four fences, list/table structures, inline IDs/constants, and both Mermaid graph topologies match the source; all four diagrams across the two editions parsed. There are no LaTeX blocks or executable Python blocks. No vocabulary counts or token-budget examples were converted into measured results; Chinese bytes are baseline-exact."
+    },
+    {
+      "path": "docs/llm/01-foundations/README.md",
+      "zh_path": "docs/llm/01-foundations/README.zh.md",
+      "kind": "index",
+      "source_sha256": "1381ac0c1fe341a648ece1a4b8ba768cc4b96656b486b6062fe46872a1bb7d90",
+      "references_checked": [],
+      "notes": "Translated the module description, learning sequence, five chapter titles, and return label. The index links retain the original five normal .md chapter paths and ../README.md; all six local destinations exist and the titles match the English chapter H1s. The Tokenizer → Transformer → output-distribution sequence and requirements to calculate tensor/KV-cache sizes remain intact. The Chinese navigation file is an untouched byte-for-byte baseline copy; companion-link rewriting is reserved for the coordinator."
+    },
+    {
+      "path": "docs/llm/02-training-alignment/06-llm-training.md",
+      "zh_path": "docs/llm/02-training-alignment/06-llm-training.zh.md",
+      "kind": "chapter",
+      "source_sha256": "3375b206997ef09fd5cbc8d748d16fd28a3ed0fdf7240849bfa8d7a0b67b024c",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2307.09288v2",
+          "scope": "Read the extracted Appendix A.6 contamination discussion, then targeted original-HTML passages around the 2-trillion-token pretraining count and 27,540 SFT annotations, including answer-token loss masking.",
+          "limitations": "Selected passages, not the complete paper or model card. The initial text extraction surfaced Appendix A.6 rather than the requested training material; direct HTML text inspection supplied the relevant training passages."
+        },
+        {
+          "url": "https://arxiv.org/html/2407.21783v3",
+          "scope": "Read introduction passages on 405B parameters, 15.6T tokens, compute-optimal flagship versus longer-trained smaller models, and SFT/rejection-sampling/DPO post-training.",
+          "limitations": "Introduction excerpts only; detailed training and evaluation sections were not read in full."
+        },
+        {
+          "url": "https://arxiv.org/html/2203.15556v1",
+          "scope": "Read the introduction and targeted compute-optimal derivation passage containing FLOPs approximately 6ND and the optimal parameter/data exponents.",
+          "limitations": "Selected passages rather than a full-paper review; the chapter's GPT-3 FLOPs example was independently checked arithmetically."
+        },
+        {
+          "url": "https://arxiv.org/html/2305.18290v3",
+          "scope": "Read the extracted Section 4: KL-regularized optimal policy, reward reparameterization, cancellation of the prompt-only partition term, Bradley-Terry preference loss, gradient discussion, and offline pipeline.",
+          "limitations": "Section 4 only; appendices and empirical results were not read in full. No claim of finite-data equivalence with PPO was added."
+        },
+        {
+          "url": "https://arxiv.org/html/2501.12948v1",
+          "scope": "Read the extracted introduction and contributions describing the pretrained V3 base, R1-Zero, and the full R1 cold-start SFT/RL/filtering/SFT/RL workflow; also read the accuracy/format reward passage.",
+          "limitations": "Initial-version selected passages only, not a review of later R1 releases or all reported evaluations."
+        },
+        {
+          "url": "https://arxiv.org/abs/2305.11206",
+          "scope": "Read the LIMA abstract confirming the 65B LLaMA base, 1,000 curated prompt-response examples, supervised loss, and stated evaluation setting.",
+          "limitations": "Abstract only; no full reading of the study's data curation, evaluations, or limitations."
+        }
+      ],
+      "notes": "Fully read and translated the original chapter without changing factual content. Preserved the three-stage framework's non-mandatory ordering, distinction between SFT annotations and broader annotation counts, prompt masking versus forward computation, preference limitations, and R1 versus R1-Zero. The original two-line Chinese sky-color training sample is unchanged and now has an English explanation. Baseline be53fedaedfb28da181db8e95f41bf91100621c4 bytes match the Chinese companion exactly. All 17 numbered H2/H3 headings, 3 display formulas, 3 fences, 21 list items, table shapes, and 9 source links were preserved; both Mermaid diagrams retain their topology with English labels."
+    },
+    {
+      "path": "docs/llm/02-training-alignment/07-scaling-law-emergence.md",
+      "zh_path": "docs/llm/02-training-alignment/07-scaling-law-emergence.zh.md",
+      "kind": "chapter",
+      "source_sha256": "cde7b5ac0e25bc17f56b23eccb9131217756c47a44ceec40b98a3e728774514e",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2001.08361",
+          "scope": "Read the abstract on cross-entropy power laws, parameter/data/compute scaling, fixed-budget allocation, and early stopping of larger models.",
+          "limitations": "Abstract only; Kaplan's complete fitted equations and experiments were not re-reviewed."
+        },
+        {
+          "url": "https://arxiv.org/html/2203.15556v1",
+          "scope": "Read the introduction plus targeted abstract and derivation/Table 2 text around 400+ models, 70M to over 16B parameters, 5B-500B tokens, FLOPs approximately 6ND, exponent derivation, and Kaplan's 0.73/0.27 comparison.",
+          "limitations": "Selected passages only. The introduction says over 400B tokens while the abstract states 500B; the manuscript's 500B statement matches the abstract and was retained. No full downstream benchmark review."
+        },
+        {
+          "url": "https://arxiv.org/abs/2304.15004",
+          "scope": "Read the abstract through direct HTML extraction: metric-dependent apparent emergence on fixed outputs, the mathematical model, and the three stated empirical analyses.",
+          "limitations": "The initial web extraction returned only the title; direct HTML inspection recovered the abstract. The full experiments and proofs were not read."
+        },
+        {
+          "url": "https://arxiv.org/html/2407.21783v3",
+          "scope": "Read introduction passages distinguishing the approximately compute-optimal 405B flagship from smaller models trained beyond their training-compute-optimal point.",
+          "limitations": "Introduction excerpts only; no fresh assessment of model benchmark claims."
+        },
+        {
+          "url": "https://arxiv.org/html/2505.09388v1",
+          "scope": "Read introduction passages on roughly 36T pretraining tokens, the three-stage training description, and the report's small-model/flagship knowledge-transfer framing; inspected the strong-to-weak-distillation section heading.",
+          "limitations": "The full Section 4.5 distillation procedure was not read; only its heading and introductory framing were inspected."
+        },
+        {
+          "url": "https://arxiv.org/html/2402.03300v2",
+          "scope": "Read the introduction and contributions describing the 120B-token mathematical corpus filtered from Common Crawl and GRPO's group-based baseline.",
+          "limitations": "The entire corpus construction and pretraining evaluation were not reviewed; selected GRPO passages were separately checked for Chapters 10 and 11."
+        },
+        {
+          "url": "https://arxiv.org/html/2501.12948v1",
+          "scope": "Read introduction and reward-modeling passages distinguishing a pretrained base and rule-based verifiable task feedback from training without prior data.",
+          "limitations": "Selected initial-version passages only; this does not establish an unlimited open-environment knowledge-acquisition claim."
+        }
+      ],
+      "notes": "Retained the full Kaplan/Chinchilla argument, the fixed-budget versus fixed-model counterexample for GPT-3, unit consistency in lifecycle accounting, Gopher/Chinchilla comparison, 20N caveats, all emergence counterexamples, and data/system constraints. Used inference for serving execution and test-time compute, reasoning for task-solving behavior, and recall only where appropriate elsewhere in the module. All 24 numbered headings, 7 exact display formulas, 2 Mermaid fences, 23 list items, table shapes, and 8 citations remain. The Chinese companion is baseline-byte-identical. No factual corrections were made and no new scale thresholds were introduced."
+    },
+    {
+      "path": "docs/llm/02-training-alignment/08-finetuning.md",
+      "zh_path": "docs/llm/02-training-alignment/08-finetuning.zh.md",
+      "kind": "chapter",
+      "source_sha256": "4c9621401dc27f5fce0401e1a6c1e1a6aacfbf6c41cb98f4f66654f21bdb24ca",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2106.09685",
+          "scope": "Read the LoRA abstract on freezing pretrained weights, trainable low-rank factors, memory/trainable-parameter savings, and conditional inference-overhead claims.",
+          "limitations": "Abstract only; no attempt to generalize the paper's particular benchmark ratios."
+        },
+        {
+          "url": "https://arxiv.org/abs/2305.14314",
+          "scope": "Attempted the cited QLoRA abstract URL; the web extractor exposed the title only.",
+          "limitations": "No substantive abstract content was available from this extraction. The paper's HTML introduction was read instead, recorded separately."
+        },
+        {
+          "url": "https://arxiv.org/html/2305.14314",
+          "scope": "Read the extracted QLoRA introduction covering frozen 4-bit weights with trainable adapters, NF4, double quantization, paged optimizers, and the single-48GB-GPU 65B experiment.",
+          "limitations": "Introduction only; detailed quantization equations, kernels, and experiments were not read in full or reproduced."
+        },
+        {
+          "url": "https://huggingface.co/docs/transformers/v4.46.3/model_memory_anatomy",
+          "scope": "Read targeted memory-anatomy passages listing weights, gradients, optimizer states, activations, temporary buffers, and the documented 18-byte mixed-precision configuration with FP32 gradients.",
+          "limitations": "Documentation excerpts only. The manuscript explicitly assumes 16-bit gradients for its 112GB example and separately gives 126GB for FP32 gradients; those configuration-dependent examples were retained and checked arithmetically, not replaced with a universal value."
+        },
+        {
+          "url": "https://arxiv.org/html/2305.18290v3",
+          "scope": "Read Section 4's policy/reference preference loss and its derivation from particular reward and preference assumptions.",
+          "limitations": "Section 4 only; no full empirical comparison of fine-tuning combinations."
+        },
+        {
+          "url": "https://arxiv.org/abs/2305.11206",
+          "scope": "Read the LIMA abstract to check the limited 65B/1,000-example experiment behind the chapter's data-size caution.",
+          "limitations": "Abstract only; the result is not treated as a universal sample-count guarantee."
+        }
+      ],
+      "notes": "Preserved error attribution before fine-tuning, retrieval recall versus generator behavior, the independent parameterization/objective axes, conditional 112GB/126GB state accounting, LoRA's 1/128 single-matrix example, QLoRA storage-versus-compute precision, all experiment-selection rows, regression criteria, and reproducibility artifacts. Amounts originally expressed in Chinese units were converted without changing value: 2000万 parameters became 20 million; annotation cost remained yuan rather than being converted to dollars. Verified all 18 numbered headings, the exact LoRA formula, the decision diagram's topology, 28 list items, all table shapes, and 6 source links. Chinese bytes are unchanged."
+    },
+    {
+      "path": "docs/llm/02-training-alignment/09-lora.md",
+      "zh_path": "docs/llm/02-training-alignment/09-lora.zh.md",
+      "kind": "chapter",
+      "source_sha256": "daf39d64c16a26be1fc13252c4e926b297fcb7a6012ac10f0a78913b9d89b520",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2106.09685",
+          "scope": "Read the LoRA abstract for frozen-base low-rank adaptation, empirical rank-deficiency framing, and inference-overhead context.",
+          "limitations": "Abstract only; initialization and API details were checked in versioned PEFT source rather than claimed as a full paper review."
+        },
+        {
+          "url": "https://arxiv.org/html/2305.14314",
+          "scope": "Read the QLoRA introduction for quantized-base plus trainable-adapter mechanics and the role of quantization.",
+          "limitations": "Introduction only; quantized merge kernels were not executed or exhaustively reviewed."
+        },
+        {
+          "url": "https://huggingface.co/docs/peft/v0.17.0/en/developer_guides/lora",
+          "scope": "Requested the chapter's versioned developer guide; the tool redirected to the versioned LoRA package reference, whose configuration excerpt was read.",
+          "limitations": "The requested developer-guide page was not retrieved as such. The redirect and fallback source checks are recorded rather than silently changing the manuscript's existing citation."
+        },
+        {
+          "url": "https://huggingface.co/docs/peft/v0.17.0/package_reference/lora",
+          "scope": "Read the first 12,000 extracted characters, including target_modules, lora_alpha, use_rslora, bias, modules_to_save, and initialization options.",
+          "limitations": "Partial package-reference page; its introductory LoRA paper link/abstract refers to speech rescoring, so that introduction was not relied on for original LoRA history or mechanisms. Detailed API and implementation checks were limited to the recorded fields and source excerpts."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/huggingface/peft/v0.17.0/docs/source/en/developer_guides/lora.md",
+          "scope": "Attempted to access the versioned developer-guide source as a fallback.",
+          "limitations": "HTTP 404; no content read. Versioned implementation excerpts were used for initialization and scaling instead."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/huggingface/peft/v0.17.0/src/peft/tuners/lora/layer.py",
+          "scope": "Read reset_lora_parameters and scaling excerpts confirming Kaiming-uniform linear A, zero linear B, and alpha/sqrt(r) versus alpha/r.",
+          "limitations": "Selected functions only, not the full implementation. The excerpt also distinguishes embedding initialization; the chapter's linear-layer matrix convention was preserved."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/huggingface/peft/v0.17.0/src/peft/tuners/lora/model.py",
+          "scope": "Read add_weighted_adapter's signature/docstring and the cat-rank/configuration checks: cat adds ranks and target-module types must be compatible.",
+          "limitations": "Selected source windows only; the complete weighted-merge implementation and all module-conflict branches were not reviewed or executed."
+        },
+        {
+          "url": "https://huggingface.co/docs/transformers/v4.46.3/model_memory_anatomy",
+          "scope": "Read the memory-component and precision-accounting excerpts to check the chapter's explicit, conditional state budget.",
+          "limitations": "Documentation excerpts, not measured memory usage. The book's 112GB configuration is distinct from the documentation's 18-byte FP32-gradient example."
+        }
+      ],
+      "notes": "Kept column-vector matrix shapes, zero-initialization gradient reasoning, rank-versus-full-rank distinctions, all four Python examples, merge/quantization caveats, sequential adapter switching versus request isolation, rollback conditions, scaling-rule distinctions, and the cross-term warning for mixing factors. Only Python comments changed; AST comparison proves executable statements, identifiers, strings, arguments, and numbers are unchanged in all four snippets. Preserved 18 numbered headings, 5 exact display formulas, 5 fences, 13 list items, all comparison tables, and 8 original reference links. Verified the illustrative 14.25GB/70GB arithmetic; no training or serving claims were added. The Chinese companion is byte-exact."
+    },
+    {
+      "path": "docs/llm/02-training-alignment/10-post-training.md",
+      "zh_path": "docs/llm/02-training-alignment/10-post-training.zh.md",
+      "kind": "chapter",
+      "source_sha256": "629aa3ff6e74df8307958fe1fcb81bab291e22b2f3e31f32e8e5efc1f5cc689c",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2305.18290v3",
+          "scope": "Read Section 4 on reward reparameterization, relative preference margins, and the offline DPO pipeline.",
+          "limitations": "No full-paper or finite-data benchmark review; relative margin is not presented as a guarantee of increasing each chosen answer's absolute probability."
+        },
+        {
+          "url": "https://arxiv.org/html/2402.03300v2",
+          "scope": "Read the introduction and contributions plus actual Sections 4.1.2 and 4.1.3 passages on outcome/group reward normalization and process supervision; the returned window also covered the start of iterative RL in 4.1.4.",
+          "limitations": "Selected sections only. The original normalization equation omits the small epsilon safeguard; the manuscript already explains epsilon as an implementation safeguard and was preserved unchanged."
+        },
+        {
+          "url": "https://arxiv.org/html/2501.12948v1",
+          "scope": "Read the introduction's distinction between R1-Zero and the full R1 pipeline and the actual reward-modeling passage on accuracy/format rewards and absence of neural outcome/process RMs.",
+          "limitations": "Initial report only, selected passages; no full evaluation review or extrapolation to later versions."
+        },
+        {
+          "url": "https://arxiv.org/html/2307.09288v2",
+          "scope": "Read selected SFT/pretraining and contamination passages, including the transition into the RLHF description.",
+          "limitations": "This source access did not fully re-review the report's rejection-sampling/PPO sequence. That existing citation and claim were translated, not independently claimed as comprehensively checked."
+        },
+        {
+          "url": "https://arxiv.org/html/2407.21783v3",
+          "scope": "Read the introduction's explicit SFT, rejection sampling, and DPO post-training description.",
+          "limitations": "Introduction only; individual iterative data-generation details were not fully reviewed."
+        },
+        {
+          "url": "https://arxiv.org/abs/2212.08073",
+          "scope": "Read the Constitutional AI abstract distinguishing supervised self-critique/revision from AI-preference-model training followed by RL.",
+          "limitations": "Abstract only; no complete review of prompts, principles, or evaluations."
+        },
+        {
+          "url": "https://arxiv.org/abs/2309.00267",
+          "scope": "Read the abstract describing summarization/helpful-dialogue/harmless-dialogue comparisons, same-size or same-checkpoint evaluators, and direct-RLAIF without separate RM training.",
+          "limitations": "Abstract of the served v3 entry only; no full experimental reproduction or cost extrapolation."
+        }
+      ],
+      "notes": "Preserved all distinctions among supervision source, optimizer, and data-generation loop; PPO roles; DPO margins; outcome versus process GRPO; zero-advantage groups; accuracy plus format rewards; rejection-sampling fine-tuning versus inference-only best-of-N; and both Constitutional AI stages. The Chinese prompt/chosen/rejected strings remain unchanged with an English explanation; Python keys and behavior are AST-identical. Translated the conceptual text pipeline and Mermaid labels, retaining both diagrams' topology. All 26 numbered headings, 3 unchanged display formulas, 4 fences, 28 list items, table shapes, and 10 citations remain; the only extra explanatory paragraph identifies the retained Chinese example data. Chinese companion bytes match the baseline."
+    },
+    {
+      "path": "docs/llm/02-training-alignment/11-dpo-vs-ppo.md",
+      "zh_path": "docs/llm/02-training-alignment/11-dpo-vs-ppo.zh.md",
+      "kind": "chapter",
+      "source_sha256": "73cf7db69e3cd93a5d22c490bd6da9110df67e0f90f01ee70deb3c27d2574044",
+      "references_checked": [
+        {
+          "url": "https://spinningup.openai.com/en/latest/algorithms/ppo.html",
+          "scope": "Read the first 17,000 extracted characters, including PPO-Clip background, equations, positive/negative advantage cases, the warning that clipping is not a hard constraint, exploration discussion, pseudocode, and the PyTorch parameter documentation.",
+          "limitations": "The remainder of the TensorFlow documentation and reference list was not read; this is the served latest documentation rather than a version-pinned historical implementation."
+        },
+        {
+          "url": "https://arxiv.org/html/2305.18290v3",
+          "scope": "Read Section 4 in full as extracted: optimal policy, partition function, additive reward term, cancellation under Bradley-Terry comparisons, full DPO loss, gradient discussion, and reference initialization/offline pipeline.",
+          "limitations": "Appendix A was linked but not read in full; the manuscript's complete derivation was preserved and its display formulas checked byte-for-byte against baseline, not claimed as a reproduced experiment."
+        },
+        {
+          "url": "https://arxiv.org/html/2402.03300v2",
+          "scope": "Read introduction and outcome/process-supervision passages confirming group-relative advantages, normalized rewards, and removal of a learned critic.",
+          "limitations": "Selected passages only; no full optimization or stability study was re-evaluated."
+        },
+        {
+          "url": "https://arxiv.org/html/2501.12948v1",
+          "scope": "Read the pretrained-base and R1-Zero/R1 workflow introduction plus accuracy/format reward-modeling text.",
+          "limitations": "Selected initial-version passages only; no claim that rule rewards are unique to GRPO or that later R1 releases share this exact workflow."
+        },
+        {
+          "url": "https://arxiv.org/html/2407.21783v3",
+          "scope": "Read the introduction identifying DPO within Llama 3's SFT/rejection-sampling/post-training procedure.",
+          "limitations": "Introduction only; no independent review of the complete post-training experiment suite."
+        }
+      ],
+      "notes": "Retained the restricted PPO-RLHF versus standard offline DPO comparison, old-policy/reference-policy distinction, clipping-as-incentive limitation, GAE indexing and terminal bootstrap caveat, every optimal-policy/partition-function derivation step, summed-token likelihood, masking/cache constraints, beta interpretation, chosen-likelihood counterexample, and fair-cost evaluation criteria. All 18 numbered headings and 11 LaTeX blocks are exact in hierarchy/content respectively. The Python loss snippet has an identical AST, both Mermaid graphs retain topology, and all 22 list items, table rows, and 9 source URLs remain. Chinese companion is byte-identical. No reference-free objective, algorithm variant, or factual correction was introduced."
+    },
+    {
+      "path": "docs/llm/02-training-alignment/README.md",
+      "zh_path": "docs/llm/02-training-alignment/README.zh.md",
+      "kind": "index",
+      "source_sha256": "52254f92f2bfc285d1731e732d27d482c3f8749623691358bf84f11cb7f2aa84",
+      "references_checked": [],
+      "notes": "Translated the module description, scope, all six chapter titles, four reading-guide bullets, version/measurement caveat, Agent Post-Training continuation, and LLM return link. Kept all normal English .md targets and preserved the Chinese index byte-for-byte for the coordinator's later Chinese-link rewrite. Navigation targets exist. Module-wide checks passed: 7 Chinese baseline hashes; 121 numbered headings; 30 exact math blocks with balanced braces; 18 fence pairs; 6 Python blocks with identical ASTs; 10 English Mermaid graphs with unchanged topology; 126 table rows/shapes; 50 unchanged external reference URLs. A subsequent readability pass inserted br line breaks into long English Mermaid node and edge labels, particularly LR graphs, without changing their words or topology. Existing scoped Mermaid runner parsed all 20 bilingual diagrams with zero failures. git diff --check passed. Global check_docs and site builds were not run or represented as passing; no runtime training/API examples were executed."
+    },
+    {
+      "path": "docs/llm/03-inference-serving/12-decoding-strategies.md",
+      "zh_path": "docs/llm/03-inference-serving/12-decoding-strategies.zh.md",
+      "kind": "chapter",
+      "source_sha256": "48e77bc6214a37c6d3a0a5a590812b8b06d8854c3b59bb249421f42bb8429f07",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2211.17192v2",
+          "scope": "Read the returned introduction, then extracted and read standardized sampling, speculative acceptance and residual correction, Algorithm 1, and wall-time analysis excerpts. Checked target-distribution preservation, rejection handling, bonus-token behavior, transformed sampling distributions, and the limited scope of the T5-XXL 2–3x result.",
+          "limitations": "The initial web extraction returned only the introduction; targeted HTML text excerpts supplied the algorithm. The full paper, appendices, and experimental implementation were not reviewed or reproduced."
+        },
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-30B-A3B",
+          "scope": "Read the model overview, thinking/non-thinking mode instructions, and Best Practices sampling settings; verified the thinking-mode warning against greedy decoding.",
+          "limitations": "Model-card review only; did not download weights or run generation, and did not generalize settings to other Qwen revisions."
+        },
+        {
+          "url": "https://docs.vllm.ai/en/stable/features/batch_invariance/",
+          "scope": "Read the returned batch-invariance documentation, including deterministic kernels, disabled nondeterministic optimizations, hardware restrictions, beta status, and the performance tradeoff.",
+          "limitations": "Documentation semantics checked, not runtime reproducibility across hardware or framework versions."
+        }
+      ],
+      "notes": "Translated all 182 source lines without reducing the 120 nonempty-line structure, 15 numbered H2/H3 headings, tables, examples, or follow-up questions. Retained the 0.30 versus 0.36 greedy counterexample, beam-search length bias, plurality rather than strict-majority voting, and cost/latency distinctions. All four LaTeX expressions and all seven citation URLs match the baseline exactly. Mermaid labels are English; the Chinese companion matches baseline be53fedaedfb28da181db8e95f41bf91100621c4 byte-for-byte. No factual or executable changes."
+    },
+    {
+      "path": "docs/llm/03-inference-serving/13-temperature-top-p-top-k.md",
+      "zh_path": "docs/llm/03-inference-serving/13-temperature-top-p-top-k.zh.md",
+      "kind": "chapter",
+      "source_sha256": "d6668e4e4753ec0c1fb63f852593234ac78fb57709d1767d6b99fa291453c7a0",
+      "references_checked": [
+        {
+          "url": "https://huggingface.co/docs/transformers/v4.56.2/en/generation_strategies",
+          "scope": "Read the basic greedy, multinomial sampling, and beam-search sections, including do_sample and num_beams conditions.",
+          "limitations": "The response was truncated at 10000 characters in advanced decoding material. Review covers the version-pinned basic configuration distinctions, not every generation mode or newer versions."
+        },
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-30B-A3B",
+          "scope": "Checked both original-model sampling rows: thinking Temperature=0.6/TopP=0.95/TopK=20/MinP=0 and non-thinking Temperature=0.7/TopP=0.8/TopK=20/MinP=0, including the greedy-decoding warning.",
+          "limitations": "Recommended values were read from the model card, not experimentally validated for a business workload."
+        },
+        {
+          "url": "https://docs.vllm.ai/en/stable/features/batch_invariance/",
+          "scope": "Checked that reproducibility depends on deterministic model computation as well as the sampling seed, and that batch-invariant kernels have support restrictions and costs.",
+          "limitations": "No sampling or GPU determinism experiment was run."
+        }
+      ],
+      "notes": "Preserved all 180 lines, 16 numbered headings, both LaTeX formulas, numerical probability tables, parameter-order counterexamples, boundary caveats, and five source URLs. The PR9-fixed sample_next function has an identical Python AST after ignoring comments/docstrings: clone(), exclusive cumulative mass, masking, tie handling, and normalization were not changed. Only explanatory comments were translated. The original Chinese tokenization example 北京 is retained with the English gloss Beijing. The Chinese copy is byte-identical to the baseline."
+    },
+    {
+      "path": "docs/llm/03-inference-serving/14-kv-cache.md",
+      "zh_path": "docs/llm/03-inference-serving/14-kv-cache.zh.md",
+      "kind": "chapter",
+      "source_sha256": "ee8f97ddb23057d15a30750c66e75a926a0cb187e560a003fbaa2bcc2413ca3a",
+      "references_checked": [
+        {
+          "url": "https://docs.vllm.ai/en/stable/design/prefix_caching/",
+          "scope": "Read the first 14000 characters covering parent-prefix hashes, block tokens, LoRA/multimodal/salt keys, complete-block caching, reference counts, allocation, freeing, and eviction.",
+          "limitations": "The final worked-example portion was truncated. No cache implementation was executed or profiled."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/prompt-caching",
+          "scope": "Read the first 18000 characters covering default enablement, full rendered-prefix matching, model-dependent implicit/explicit breakpoints, cache-write/read pricing, retention, routing, and the beginning of the model comparison.",
+          "limitations": "The model comparison and later sections were truncated; no paid request or cache hit was produced. Historical source-manuscript review dates remain explicitly attributed rather than presented as this migration's work."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/anthropics/anthropic-sdk-python/main/src/anthropic/types/cache_control_ephemeral_param.py",
+          "scope": "Read the entire returned SDK type definition: ephemeral cache control, TTL literals 5m and 1h, and the documented 5m default.",
+          "limitations": "Checked the current source file, not an installed SDK release or server behavior."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/anthropics/anthropic-cookbook/main/misc/prompt_caching.ipynb",
+          "scope": "Read selected notebook cells on top-level automatic cache_control, explicit content-block breakpoints, automatic breakpoint placement, multi-turn examples, and the choosing-an-approach comparison.",
+          "limitations": "Selected source cells only; notebook outputs were not treated as new measurements, and no notebook or API request was executed."
+        }
+      ],
+      "notes": "Preserved all 245 lines, 20 numbered headings, three LaTeX expressions, the MHA/GQA/MQA capacity table with decimal/binary units, billing break-even example, KIVI grouping distinction, and all eight citations. Both Python snippets have unchanged ASTs, including model IDs, API fields, max_tokens, Chinese document placeholder, and Chinese question. Added an English explanation of those retained input strings without changing execution. Kept causal-state assumptions, masking caveats, prefix isolation, and KV-versus-answer-cache distinctions. The Chinese companion and its links remain baseline-exact."
+    },
+    {
+      "path": "docs/llm/03-inference-serving/15-quantization.md",
+      "zh_path": "docs/llm/03-inference-serving/15-quantization.zh.md",
+      "kind": "chapter",
+      "source_sha256": "965ad0db5e8e2cf8a1eb033f861184bcec0917a9ec0ffa11b4ba1740e0294612",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2306.00978v5",
+          "scope": "Read the returned Section 3.2 on activation-aware per-channel scaling, salient versus non-salient error, scaling search, clipping, and fusing inverse input scaling into preceding operators.",
+          "limitations": "The extractor returned Section 3.2 rather than the entire paper. No full-paper or benchmark reproduction claim is made."
+        },
+        {
+          "url": "https://github.com/IST-DASLab/gptq",
+          "scope": "Read the repository README covering 2/3/4-bit support, grouping, static groups, act-order as descending activation size, and workload-specific kernel limitations.",
+          "limitations": "README only; did not audit gptq.py, install CUDA kernels, or reproduce reported perplexity and speed results."
+        },
+        {
+          "url": "https://arxiv.org/abs/2305.14314",
+          "scope": "Read the abstract through direct HTML text extraction: frozen 4-bit base, gradients into LoRA adapters, NF4, double quantization, paged optimizers, and the reported 65B/48GB configuration.",
+          "limitations": "The first web-fetch result exposed only the title; a second direct HTML read exposed the abstract. Full methods, experimental settings, and appendices were not read."
+        },
+        {
+          "url": "https://github.com/casper-hansen/AutoAWQ",
+          "scope": "Read the deprecation notice and alternative pointing to vllm-project/llm-compressor, plus the returned kernel/batch tradeoff discussion.",
+          "limitations": "The initial direct extraction matched page metadata rather than the notice; a subsequent visible-text extraction confirmed the notice and replacement link. The web response was truncated later in the README. No implementation or current compatibility matrix was tested."
+        }
+      ],
+      "notes": "Translated all 347 lines and retained 36 numbered headings, 20 exact LaTeX expressions, all tables, all eight common-mistake subsections, and 11 citation URLs. Preserved PR9 quantization fixes byte-for-byte at the executable AST level, excluding only translated comments/docstrings. Independently executed the unchanged example: unsigned q=10, z=8, s=1/3 and reconstruction 2/3; signed clipping remains [-8,7]. Kept ties-to-even rounding, nonzero-range assumptions, metadata costs, GPTQ same-layer compensation, AWQ pre-quantization equivalence, and frozen-base QLoRA distinctions. No factual correction was made; Chinese bytes match the baseline."
+    },
+    {
+      "path": "docs/llm/03-inference-serving/19-moe.md",
+      "zh_path": "docs/llm/03-inference-serving/19-moe.zh.md",
+      "kind": "chapter",
+      "source_sha256": "d00eab62d24ea18a4d9157eee91a65ab15baa9e821f0b71d54043b609301743d",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2412.19437v2",
+          "scope": "Read the introduction and targeted Section 2.1.2 and 4.2 excerpts: bias affects selection rather than output mixing weights, the complementary sequence-wise auxiliary loss remains, first three FFNs are dense, 256 routed plus one shared expert, Top-8, 671B/37B parameters, and training-cost accounting exclusions.",
+          "limitations": "The initial web extraction returned the introduction only. Direct HTML excerpts supplied routing and architecture details; the full report, appendices, and training system were not reviewed or reproduced."
+        },
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-30B-A3B",
+          "scope": "Checked the model overview's 30.5B total/3.3B active counts, 128 experts with 8 activated, and GQA architecture.",
+          "limitations": "Original model-card configuration only; not a comparison of current model performance or serving benchmarks."
+        }
+      ],
+      "notes": "Preserved all 219 lines, 20 numbered headings, four exact formulas, the historical model-comparison table, three raw-storage estimates, capacity/drop/dropless/Expert Choice distinctions, and all nine citations. The Top-2 routing pseudocode has an identical AST. English consistently distinguishes inference execution from reasoning, parameter capacity from knowledge, and active computation from resident storage. Translated both Mermaid diagrams without altering topology. Preserved V3's small auxiliary term and the limits on training-cost claims; the paired Chinese file remains byte-exact."
+    },
+    {
+      "path": "docs/llm/03-inference-serving/20-deployment-frameworks.md",
+      "zh_path": "docs/llm/03-inference-serving/20-deployment-frameworks.zh.md",
+      "kind": "chapter",
+      "source_sha256": "297770bfd8580731207ed2359dbfcc84359d5f82909c3902e04df1f3a8b86105",
+      "references_checked": [
+        {
+          "url": "https://huggingface.co/docs/text-generation-inference/main/en/index",
+          "scope": "Read the maintenance-mode notice, recommendation to consider other runtimes, and the returned feature list including SSE, continuous batching, Prometheus, and OpenTelemetry.",
+          "limitations": "Documentation status and advertised features only; did not audit component protocols or test an existing TGI deployment."
+        },
+        {
+          "url": "https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md",
+          "scope": "Read targeted returned-HTML excerpts listing multi-user parallel decoding and continuous batching.",
+          "limitations": "Excerpts included GitHub's embedded rendered-content serialization. The entire server README, multi-GPU parameter matrix, and actual server execution were not reviewed."
+        },
+        {
+          "url": "https://nvidia.github.io/TensorRT-LLM/quick-start-guide.html",
+          "scope": "Read the online trtllm-serve and offline LLM API sections, including model loading by repository/checkpoint and FP8 hardware qualifications.",
+          "limitations": "Quick-start documentation only; did not compile an engine, launch serving, or verify all backend/model combinations. The unrelated VisualGen example was not used as evidence for LLM serving."
+        }
+      ],
+      "notes": "Retained all 280 lines, 28 numbered headings, framework comparisons, nine summary items, hidden pitfalls, full SLO metric table, open-loop versus closed-loop testing, and all 16 citation URLs. Kept the 16-token/200-token/13-block/208-token/8-unused-position allocation example, the 4096-token contrast, and both translated diagrams. Distinguished paging, continuous batching, prefix reuse, and prefill/decode disaggregation; did not turn model support into a speed ranking. The original TGI check date is explicitly a source-manuscript date. Chinese bytes and links remain unchanged."
+    },
+    {
+      "path": "docs/llm/03-inference-serving/README.md",
+      "zh_path": "docs/llm/03-inference-serving/README.zh.md",
+      "kind": "index",
+      "source_sha256": "1590c7731d42a924b02f0687310ef2ae56310672b06af5e99f91d328056aa5c4",
+      "references_checked": [],
+      "notes": "Paired and translated the complete 22-line module index, retaining all six chapter links, their existing nonconsecutive chapter numbers, the parent-index link, and the three-level reading guidance. English links retain normal .md paths; all 14 internal links across this module resolve and contain no translated-heading fragments. Across the seven pages, validation preserved 135 numbered headings, 33 exact math expressions, 56 citation URLs, all table-row and list-item counts, and five executable Python ASTs. On integration follow-up, inserted <br/> in long English Mermaid labels, particularly LR diagrams, and independently compared all nine diagrams' node/edge/shape/direction/style skeletons against the baseline after excluding only visible labels; all matched. Rechecked executable strings and business prompt inputs through AST equality excluding comments/docstrings. Existing Mermaid parser rerun from this module reported diagrams=18 failures=0 for both editions. git diff --check passed. No global check_docs, MkDocs build, browser math rendering, or model/API execution was claimed. No edits outside the assigned module except this authorized session evidence artifact; no commit, branch change, push, or PR."
+    },
+    {
+      "path": "docs/llm/04-prompt-reliability/16-prompt-engineering.md",
+      "zh_path": "docs/llm/04-prompt-reliability/16-prompt-engineering.zh.md",
+      "kind": "chapter",
+      "source_sha256": "a73e866740c8aadd08c8a08bb37be4ffda6dd864ba47812ca85a098f6d19e3ce",
+      "references_checked": [
+        {
+          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
+          "scope": "Read the first 16000 characters of extracted documentation, including the guidance to use direct instructions, avoid unnecessary step-by-step prompts for reasoning models, use delimiters for clarity, and start zero-shot before adding examples.",
+          "limitations": "Partial page, not a complete documentation or model-family review. Historical model-specific guidance was not generalized to every current model."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
+          "scope": "Read extracted characters 0-19000, including the explicit comparison that JSON mode ensures valid JSON while Structured Outputs adds schema adherence.",
+          "limitations": "Partial page; the later supported-schema and error-handling sections were not read in full. No API calls or schema-conformance experiments were run."
+        },
+        {
+          "url": "https://arxiv.org/abs/2310.05736",
+          "scope": "Confirmed the LLMLingua paper title returned by the abstract-page fetch.",
+          "limitations": "The extractor returned only a title, not the abstract or paper. Mechanism checking used the HTML URL recorded separately."
+        },
+        {
+          "url": "https://arxiv.org/html/2310.05736",
+          "scope": "Read selected introduction and methodology excerpts about budget control, demonstration-level compression, iterative token-level compression, small-model perplexity, and distribution alignment.",
+          "limitations": "Targeted excerpts from downloaded HTML only; did not read the entire paper or reproduce its reported performance."
+        },
+        {
+          "url": "https://arxiv.org/html/2310.06839",
+          "scope": "Read selected LongLLMLingua introduction and contribution excerpts on question-aware compression, information density, positional bias, and document reordering.",
+          "limitations": "Targeted excerpts only; benchmark tables and claimed numerical gains were not independently evaluated."
+        },
+        {
+          "url": "https://arxiv.org/abs/2104.08691",
+          "scope": "Confirmed the title The Power of Scale for Parameter-Efficient Prompt Tuning.",
+          "limitations": "The abstract-page extractor returned only a title. The separate HTML check supplied the mechanism evidence."
+        },
+        {
+          "url": "https://arxiv.org/html/2104.08691",
+          "scope": "Read selected introduction and Prompt Tuning section excerpts describing frozen model weights, continuous embedding-space prompts, concatenation with input embeddings, and backpropagation updating only prompt parameters.",
+          "limitations": "Not a full-paper read or training replication; the task-adaptation versus arbitrary-document-compression distinction was preserved without introducing new results."
+        }
+      ],
+      "notes": "Fully read the baseline Chinese chapter before translation. All original Chinese prompt inputs and the XML prompt remain byte-identical inside their fences; English explanations make every requested role, audience, format, sentiment label, and Chinese-character limit accessible without changing the actual inputs. Preserved the three-stage summary example, JSON-mode/schema/business-validation distinction, held-out evaluation loop, compression tradeoffs, and every common-mistake subsection. Baseline be53fedaedfb28da181db8e95f41bf91100621c4 was checked directly with git show; the Chinese companion is byte-exact. Automated parity checks passed for 30 numbered H2/H3 sections, 14 fenced blocks, 18 table rows, and all 10 link targets. Both English Mermaid diagrams retain node/edge topology and passed the existing parser. No factual changes were made."
+    },
+    {
+      "path": "docs/llm/04-prompt-reliability/17-cot.md",
+      "zh_path": "docs/llm/04-prompt-reliability/17-cot.zh.md",
+      "kind": "chapter",
+      "source_sha256": "279f65a960c98f8c65eb87a5f9f3e25f98629c35d275cc11d07ac4579a050683",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2307.13702",
+          "scope": "Confirmed the title Measuring Faithfulness in Chain-of-Thought Reasoning.",
+          "limitations": "The abstract-page extraction returned only a title; no abstract content was available through that extraction."
+        },
+        {
+          "url": "https://arxiv.org/html/2307.13702",
+          "scope": "Read the extracted early-answering section and results, then selected HTML excerpts describing adding mistakes, paraphrasing, and task-dependent reliance on reasoning text.",
+          "limitations": "Selected sections and excerpts only, not a complete paper read; did not reproduce interventions or numerical results."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/reasoning-best-practices",
+          "scope": "Checked the prompting section within the first 16000 extracted characters: explicit step-by-step prompting can be unnecessary or detrimental for the reasoning models discussed.",
+          "limitations": "The page is model- and version-specific; no universal prescription was inferred, and the remainder after the fetched range was not reviewed."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/reasoning",
+          "scope": "Read the first 19500 extracted characters, including model-dependent reasoning.effort, internal-token billing, max_output_tokens covering reasoning/visible/non-visible-formatting tokens, and incomplete responses before any visible output.",
+          "limitations": "Partial current API documentation; no live requests or cross-provider compatibility tests were performed."
+        },
+        {
+          "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-extended-thinking.html",
+          "scope": "Read the first 14000 extracted characters, including the 1024-token minimum, manual budget below max_tokens, supported interleaved-thinking exception, summarized-thinking billing, and model-specific adaptive-thinking notes.",
+          "limitations": "Bedrock-specific and partial-page evidence; this does not establish identical behavior for every Anthropic endpoint or every model mode."
+        }
+      ],
+      "notes": "Retained the original Chinese apple problem and all three original output lines, with complete English explanations preserving 5, 2, 3, and 6. Kept the marginalization formula byte-for-byte and preserved its qualification that a single sampled chain does not enumerate the sum. Maintained the distinction between the mode and a strict majority, equivalent-answer normalization, verification versus voting, answer correctness versus step validity versus explanation faithfulness, and effort versus temperature versus output caps. The Chinese companion exactly matches baseline bytes. Checks passed for 28 numbered sections, 3 fences, 18 table rows, all 15 link targets, unchanged inline/display math, and the two translated Mermaid diagrams' topology and parser validity. No new vendor behavior was asserted."
+    },
+    {
+      "path": "docs/llm/04-prompt-reliability/18-hallucination.md",
+      "zh_path": "docs/llm/04-prompt-reliability/18-hallucination.zh.md",
+      "kind": "chapter",
+      "source_sha256": "1e9e3c38f86f7478bc3d8620741a64dd5466702634968e22c951f575efd06db7",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2207.05221",
+          "scope": "Read the first 7000 extracted characters of the introduction and contributions, covering P(True), P(IK), task generalization, and difficulty with out-of-distribution calibration.",
+          "limitations": "Partial paper; no calibration experiments were rerun, and no universal production abstention procedure was inferred."
+        },
+        {
+          "url": "https://arxiv.org/html/2310.13548",
+          "scope": "The initial extractor returned a poem-dataset appendix excerpt. A subsequent direct HTML read inspected abstract/introduction and selected human-preference findings, including that humans and preference models sometimes prefer persuasive sycophantic answers over truthful ones.",
+          "limitations": "Selected excerpts, not the full paper; the finding was kept conditional rather than presented as an inevitable effect of RLHF."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
+          "scope": "Checked the JSON-mode versus schema-adherence comparison in extracted characters 10000-19000, after reading the first 10000 characters.",
+          "limitations": "Only the opening and comparison portions were reviewed, not every schema limitation or content-error section. Structural checks were not treated as evidence of factual correctness."
+        }
+      ],
+      "notes": "Preserved both counterexamples separating external factuality from source faithfulness, all three proposed causes, calibration and answer-coverage conditions, the three mitigation levels, and the restricted-task versus open-domain guarantee distinction. The Chinese Lu Xun query and hypothetical character distribution remain unchanged, including 35%, 32%, 18%, and 15%; English prose explains why these are illustrative rather than measured tokenizer probabilities. Kept the 12% revenue-check example with entity, fiscal year, currency, growth definition, and table checks. The Chinese file is byte-identical to baseline. Automated checks passed for 27 numbered sections, 4 fences, 33 table rows, all 14 link targets, the intact sample-data fence, and three translated Mermaid diagrams with unchanged topology and valid syntax."
+    },
+    {
+      "path": "docs/llm/04-prompt-reliability/README.md",
+      "zh_path": "docs/llm/04-prompt-reliability/README.zh.md",
+      "kind": "index",
+      "source_sha256": "e27f47cf257d98a27130b53d76466d62f2b752bbca1be1cc4b580ff5e0c07d9a",
+      "references_checked": [],
+      "notes": "Translated the module overview and its diagnostic reading question without turning the index into a summary substitute for the chapters. Preserved navigation order 16, 17, 18 and all four relative destinations, including the parent LLM index. English titles agree with the chapter H1s. The Chinese companion and its original links remain byte-exact; coordinator rewriting of Chinese link targets is intentionally deferred."
+    },
+    {
+      "path": "docs/llm/05-evaluation-selection/21-evaluation-metrics.md",
+      "zh_path": "docs/llm/05-evaluation-selection/21-evaluation-metrics.zh.md",
+      "kind": "chapter",
+      "source_sha256": "1244bf60aa5789d73656f32d11dc19841d637c9d2ab6b6b0f2665e1aab9e9e30",
+      "references_checked": [
+        {
+          "url": "https://raw.githubusercontent.com/openai/human-eval/master/human_eval/evaluation.py",
+          "scope": "Read the returned complete evaluation.py file, checking estimate_pass_at_k, the n-c < k branch, averaging per-problem estimates, and the requirement that sample counts meet k.",
+          "limitations": "Read the current master-branch implementation rather than a pinned historical revision; no generated code or benchmark suite was executed."
+        },
+        {
+          "url": "https://arxiv.org/html/2406.12045",
+          "scope": "After an initial extractor result containing a sample interaction, direct HTML excerpts were read for final-database-state evaluation and the pass^k versus pass@k definitions and estimators.",
+          "limitations": "Selected abstract, introduction, and metric-definition passages only; did not read every task, trajectory, or experimental result."
+        },
+        {
+          "url": "https://openai.com/index/why-we-no-longer-evaluate-swe-bench-verified/",
+          "scope": "Attempted to verify the existing time-sensitive SWE-bench Verified caveat. The web extractor returned the article title; a direct HTML request returned HTTP 403 Forbidden.",
+          "limitations": "Article body unavailable. The existing baseline claim about stopping score reporting and recommending SWE-bench Pro was preserved, not independently reverified or expanded. Coordinator should treat this as an access limitation, not a successful full-source check."
+        }
+      ],
+      "notes": "Kept every benchmark row and version/subset/tool/budget caveat, including MMLU's 57 subjects, HumanEval's 164 tasks, SWE-bench Verified's 500 tasks, and the explicit institutional scope of the OpenAI caveat. Preserved pass@k mathematics exactly, the pass^k distinction, all task-metric rows, contamination safeguards, judge-bias controls, paired testing, and the 80/100 example with roughly 4 percentage points of standard error. The Chinese companion matches baseline. Validation passed for 20 numbered sections, 2 fences, 30 table rows, all 17 link targets, unchanged inline/display math, and both translated Mermaid diagrams. Global check_docs was deliberately not run or represented as passing because bilingual support is coordinated separately."
+    },
+    {
+      "path": "docs/llm/05-evaluation-selection/22-model-selection.md",
+      "zh_path": "docs/llm/05-evaluation-selection/22-model-selection.zh.md",
+      "kind": "chapter",
+      "source_sha256": "fef9d24f083c46d150ebb1821898c54eb2b3b848d264237907a66df8de943a2f",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2406.18665",
+          "scope": "Read the extracted introduction describing preference-trained routing between strong and weak models, cost-quality objectives, and the distinction from calling multiple models for each query.",
+          "limitations": "Introduction only; no router training, benchmark replication, or savings claim for the manuscript's financial-report scenario."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/your-data",
+          "scope": "Read the first 14500 extracted characters, covering non-training defaults, abuse-monitoring logs versus application state, approval-dependent retention controls, endpoint differences, and third-party MCP retention policies.",
+          "limitations": "Partial current documentation, not a legal/compliance opinion or review of every endpoint and customer agreement. No data was sent to model APIs."
+        }
+      ],
+      "notes": "Preserved the four selection dimensions and hard-constraint ordering, all deployment and technical-report comparison rows, financial-report workflow, routing/cascade/fallback distinctions, offline data restrictions, and the six-step checklist. Translated the workflow diagram's prose while intentionally retaining its output requirement to produce a report in Chinese. The cost-per-success formula is byte-exact; failed attempts, zero-success handling, double-counting risks, tail latency, versioning, idempotency, and safe handoff qualifications remain. Checked 21 numbered sections, 3 fences, 28 table rows, all 12 link targets, formula equality, and both Mermaid diagrams' topology and syntax. The non-Mermaid workflow fence is explanatory prose, not executable code, and was translated without changing its sequence. Chinese bytes match baseline."
+    },
+    {
+      "path": "docs/llm/05-evaluation-selection/README.md",
+      "zh_path": "docs/llm/05-evaluation-selection/README.zh.md",
+      "kind": "index",
+      "source_sha256": "7e917544b5343add4053aebac0655038fbfecfca6d374b580ff807bbf833114b",
+      "references_checked": [],
+      "notes": "Preserved the index's three decision distinctions: model versus agent-system scores, at-least-once success versus repeated-run reliability, and token price versus successful-task cost. Chapter order remains 21 then 22; all three relative links and matching English chapter titles were checked. The Chinese index is an exact original-byte copy, with no link rewriting performed."
+    },
+    {
+      "path": "docs/llm/06-multimodal/23-multimodal-models.md",
+      "zh_path": "docs/llm/06-multimodal/23-multimodal-models.zh.md",
+      "kind": "chapter",
+      "source_sha256": "e8ab5258ce020826c1a327521a7cd129cc6452e7c8f6a8f56fdcd9ad85e952b5",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2301.12597",
+          "scope": "Read the extracted model-pretraining section, then direct HTML excerpts on Q-Former's learnable queries and information bottleneck, frozen encoder/LLM during pretraining, and image-captioning fine-tuning that updates the image encoder and Q-Former.",
+          "limitations": "Selected sections only; not a complete BLIP-2 paper read or experimental replication."
+        },
+        {
+          "url": "https://arxiv.org/html/2304.08485",
+          "scope": "Read selected architecture and two-stage training excerpts: original linear projection, frozen vision encoder and LLM in feature alignment, and updating projection plus LLM while retaining the frozen vision encoder in instruction tuning.",
+          "limitations": "Original LLaVA source only; no claim that later LLaVA variants share this exact projector or training schedule."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/huggingface/evaluate/main/metrics/wer/README.md",
+          "scope": "Read the complete returned WER metric card, including its substitutions/deletions/insertions definition, reference-word denominator, example outputs, and limitations.",
+          "limitations": "Metric documentation rather than execution of the WER implementation; Chinese segmentation and empty-reference policy remain explicitly task-defined in the manuscript."
+        }
+      ],
+      "notes": "Maintained all encoder/connector alternatives and named historical architectures, modality-specific representation tradeoffs, the doubled-dimensions/four-times-patches example, decimal-point OCR failure, cascaded/direct audio contrast, and intact-versus-broken-cup evidence counterexample. All three display formulas and inline mathematical expressions are unchanged. Preserved 100%-exceeding WER and empty-reference caveats, Chinese CER/segmentation rules, frozen-training distinctions, cache-key boundaries, media-resource limits, perception-versus-reasoning diagnosis, and indirect-injection safeguards. Checks passed for 14 numbered sections, 21 table rows, all 10 link targets, English metadata/H1, and exact Chinese baseline bytes. This page contains no fenced code or Mermaid; no executable behavior was introduced."
+    },
+    {
+      "path": "docs/llm/06-multimodal/README.md",
+      "zh_path": "docs/llm/06-multimodal/README.zh.md",
+      "kind": "index",
+      "source_sha256": "231bb3edcba749ba7399bd0976388ed47f46f0766d1afa204ff5592b087f9a04",
+      "references_checked": [],
+      "notes": "Translated the module's input/output distinction and its diagnostic comparison of perceptual loss, reasoning errors, and insufficient evidence. Preserved the single Chapter 23 entry and return-to-LLM navigation, with both relative targets resolving and the title matching the English chapter. Chinese source and links are byte-identical to baseline. Across this owned scope, the existing Mermaid checker was run from each module directory: 14 diagrams, 8 diagrams, and 0 diagrams respectively, all with zero failures; these totals include both language editions."
+    },
+    {
+      "path": "docs/llm/README.md",
+      "zh_path": "docs/llm/README.zh.md",
+      "kind": "index",
+      "source_sha256": "6db760f2648c94e6b7e78ed3fd06bef75d29b49552898d02d8cf7683f38c3c04",
+      "references_checked": [],
+      "notes": "Translated the six-module navigation, dependency diagram, four reading paths, and both FAQ answers in full. Retained the nonsequential chapter ranges and the distinction between historical papers and current deployment comparisons. All links keep their original normal .md targets; the Chinese companion is byte-identical to the baseline. This navigation page cites no external sources."
+    },
+    {
+      "path": "docs/multimodal/01-foundations/01-multimodal-fusion-architecture.md",
+      "zh_path": "docs/multimodal/01-foundations/01-multimodal-fusion-architecture.zh.md",
+      "kind": "chapter",
+      "source_sha256": "08a42baaba60667185ccf6960647b0bb65b5353f048b2b9a831a12e57df908f0",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2204.14198",
+          "scope": "Attempted to inspect the cited Flamingo abstract page; the extraction exposed its title only.",
+          "limitations": "No substantive architecture verification was possible from this extraction; the HTML version was checked separately."
+        },
+        {
+          "url": "https://arxiv.org/html/2204.14198v1",
+          "scope": "Read the extracted discussion of few-shot learning tradeoffs and targeted architecture passages describing 64 resampler outputs, learnable latent queries, frozen language layers, and a tanh gate initialized to zero.",
+          "limitations": "Selected passages only, not the complete paper or every cited architecture report. The initial HTML extraction selected a discussion subsection rather than the paper's beginning."
+        }
+      ],
+      "notes": "Read the complete Chinese page before copying. Preserved the continuous/discrete, interaction-layer, and trainable-parameter distinctions; Qwen-VL is not reduced to an MLP, and GPT-4o internals remain undisclosed. Every mathematical expression is byte-identical; table dimensions, Mermaid graph topology, numbered hierarchy, and link destinations match the baseline. Translated visible diagram labels without changing IDs and wrapped long LR labels with <br/>. Chinese companion matches baseline bytes; no factual correction was made."
+    },
+    {
+      "path": "docs/multimodal/01-foundations/README.md",
+      "zh_path": "docs/multimodal/01-foundations/README.zh.md",
+      "kind": "index",
+      "source_sha256": "0afc9dff93b17b8774250d3dd61e3c1a6daa922e832f172b79e27e813b2623af",
+      "references_checked": [],
+      "notes": "Retained the four architecture review questions and every navigation destination, including connections to the other four multimodal modules and the LLM overview. Localized the description and display titles while keeping the module path independent of language. The Chinese index is a byte-exact baseline copy."
+    },
+    {
+      "path": "docs/multimodal/02-vision-document/02-vlm-grounding.md",
+      "zh_path": "docs/multimodal/02-vision-document/02-vlm-grounding.zh.md",
+      "kind": "chapter",
+      "source_sha256": "4a3319cbe6692d98a3156b55476242d30a09367c175bd2d563b3b89def288898",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2407.07726",
+          "scope": "Attempted to inspect the cited PaliGemma abstract page; only its title was returned.",
+          "limitations": "Title-only access could not verify the coordinate protocol; checked the versioned HTML next."
+        },
+        {
+          "url": "https://arxiv.org/html/2407.07726v1",
+          "scope": "Read Section 3.2.5 on the pretraining task mixture, including grounded captioning's ymin/xmin/ymax/xmax order and normalized coordinates binned into 1024 location tokens.",
+          "limitations": "This section only, not the full report. Qwen-VL's distinct coordinate protocol and the other detection references were preserved from the manuscript rather than independently re-read."
+        }
+      ],
+      "notes": "Kept visual localization separate from evidence grounding in RAG. Preserved the literal box example, the [0,1000) expression, PaliGemma's 1024-token order, IoU equation, threshold-boundary qualification, absent-target negatives, and inverse-transform warning. All capability/evaluation table rows and three numbered common mistakes remain. Original Chinese referring expressions and the cat-counting question remain verbatim with English glosses; this page contains no executable test code."
+    },
+    {
+      "path": "docs/multimodal/02-vision-document/03-ocr-document-ai.md",
+      "zh_path": "docs/multimodal/02-vision-document/03-ocr-document-ai.zh.md",
+      "kind": "chapter",
+      "source_sha256": "72652af30fccb80ea7535b2537731fb8d766200684c0025b6f912ab30ef56fe5",
+      "references_checked": [
+        {
+          "url": "https://docs.aws.amazon.com/textract/latest/APIReference/API_AnalyzeDocument.html",
+          "scope": "Read the returned API overview, request syntax, FeatureTypes parameter, and response descriptions. Confirmed that synchronous AnalyzeDocument can request FORMS and TABLES together, returns related Block objects, and points to StartDocumentAnalysis for asynchronous processing.",
+          "limitations": "The retrieved document was truncated at 9500 characters in the error section; remaining errors and linked pages were not read. No cloud extraction calls or accuracy experiments were run."
+        }
+      ],
+      "notes": "Preserved the reading-order caveat for LayoutLM, the recognition-supervision distinction for OCR-free Donut, the TATR/OCR boundary, and the TEDS-versus-GriTS variants. Kept AnalyzeDocument, FeatureTypes, FORMS, TABLES, and StartDocumentAnalysis unchanged. All field-validation examples, scan-quality failure cases, evaluation rows, error-isolation controls, and source URLs remain. The Chinese chart-question input is retained with an English gloss; Chinese companion bytes are unchanged."
+    },
+    {
+      "path": "docs/multimodal/02-vision-document/04-computer-use.md",
+      "zh_path": "docs/multimodal/02-vision-document/04-computer-use.zh.md",
+      "kind": "chapter",
+      "source_sha256": "7e30537a3b02da7096b960d49114fdcd6d296939a5db115d4fcd190566111dbd",
+      "references_checked": [
+        {
+          "url": "https://openai.com/index/introducing-operator/",
+          "scope": "Attempted to verify the historical Operator integration notice.",
+          "limitations": "HTTP 403; no page body was available. The existing manuscript's 2025-07-17 historical qualification was retained, not newly asserted as independently verified."
+        },
+        {
+          "url": "https://www.anthropic.com/news/3-5-models-and-computer-use",
+          "scope": "Read the returned announcement, including the upgraded Claude 3.5 Sonnet computer-use public beta, screenshot-driven interaction, experimental limitations, and recommendations to begin with low-risk tasks.",
+          "limitations": "The historical announcement does not establish current model support. Linked documentation, videos, and model cards were not read."
+        }
+      ],
+      "notes": "Preserved the perception/action loop and its Mermaid topology; separated tool-call success from verified task completion. Kept screenshot scaling, stale accessibility trees, post-confirmation page changes, idempotent versus irreversible retries, OSWorld/WebArena conditions, and the three systems' version/history limits. The original Chinese Save label, click instruction, and brief malicious-screen-text example remain verbatim with English glosses. The latter is explanatory defensive context; no exploit procedure or new operational capability was added."
+    },
+    {
+      "path": "docs/multimodal/02-vision-document/README.md",
+      "zh_path": "docs/multimodal/02-vision-document/README.zh.md",
+      "kind": "index",
+      "source_sha256": "ced1f2daec35d04b6f5f59f94094b2b86d5bb677c57af4c7c8f6441dd6d7271c",
+      "references_checked": [],
+      "notes": "Retained all three chapter entries, the two-edge grounding-to-document/GUI diagram, and the full coordinate-to-field-to-structure-to-post-action-state review chain. The caution that OCR need not depend on referring expressions and Document AI need not emit boxes remains explicit. All four navigation links preserve their ordinary English-edition paths."
+    },
+    {
+      "path": "docs/multimodal/03-speech-audio/05-asr-tts-audio-lm.md",
+      "zh_path": "docs/multimodal/03-speech-audio/05-asr-tts-audio-lm.zh.md",
+      "kind": "chapter",
+      "source_sha256": "e528a2b244cf587ac6dc6587600d2c8351d1f4ca86e9a81b55d70970e52ded1a",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2301.02111",
+          "scope": "Attempted to inspect the VALL-E abstract page; the returned extraction contained its title only.",
+          "limitations": "Substantive claims were checked in the versioned HTML instead."
+        },
+        {
+          "url": "https://arxiv.org/html/2301.02111v1",
+          "scope": "Read the introduction covering the 3-second reference prompt, English LibriLight data, unseen-speaker evaluation, and retention of acoustic environment/emotion. Read a targeted non-autoregressive modeling passage covering quantizer layers 2 through 8.",
+          "limitations": "Not a complete paper read; no listening tests or synthesis experiments were performed. Other ASR/audio-model references remain preserved but were not individually re-read."
+        }
+      ],
+      "notes": "Retained CTC collapse ordering and conditional-independence qualifications, RNN-T right-context dependence, original Whisper's 680,000-hour quantity, and VALL-E's 3-second example. Preserved RVQ and bitrate LaTeX exactly, with bit/s distinct from sample rate and generation steps. Translated the explanatory inline WER arithmetic into English without changing its calculation; kept the over-100% case, Chinese CER qualification, partial-hypothesis stability, and cloning-authorization safeguards. The Chinese question about anger in a recording is preserved with an English gloss."
+    },
+    {
+      "path": "docs/multimodal/03-speech-audio/06-realtime-duplex-voice.md",
+      "zh_path": "docs/multimodal/03-speech-audio/06-realtime-duplex-voice.zh.md",
+      "kind": "chapter",
+      "source_sha256": "d10c8b3d22dde4d34635606d81ce121144ff1cc1847b94204236d0b37746ec2e",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/html/2410.00037v1",
+          "scope": "The initial extraction exposed part of Appendix F's synthetic transcript examples. Subsequently read targeted abstract and multi-stream-modeling passages describing time-aligned text before audio, user/model audio streams, and their concatenation for joint modeling.",
+          "limitations": "Only bounded passages, not the full report. The appendix examples were not treated as evidence for architecture. No dialogue-latency measurements were reproduced."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/realtime-conversations/",
+          "scope": "Read the first 11000 characters of the conversation/session guide and targeted Interruption and Truncation passages. Checked the distinction between generated and played audio, server-managed WebRTC/SIP truncation, and client-managed WebSocket playback/truncation.",
+          "limitations": "The guide redirects to the same path without a trailing slash. Only the opening and targeted interruption text were read, not every event reference or linked page. Current examples were not copied into the manuscript or used to replace its version-neutral explanation."
+        }
+      ],
+      "notes": "Kept conversational duplex separate from transport duplex; cascades remain capable of full duplex. Preserved the interpretation of Moshi Inner Monologue as speech-aligned text, the non-universal 300ms threshold, every latency-table row, and generated/sent/buffered/heard distinctions. The warning that speech truncation cannot roll back executed tools and the four-field interruption debugging note remain. Diagram IDs and edges are unchanged; the longest native-model label uses <br/> for readable LR layout."
+    },
+    {
+      "path": "docs/multimodal/03-speech-audio/README.md",
+      "zh_path": "docs/multimodal/03-speech-audio/README.zh.md",
+      "kind": "index",
+      "source_sha256": "6393995a8d5a694c05c4cba0640054eb34fe8bfaffc8e5c2d53d3c22210683a3",
+      "references_checked": [],
+      "notes": "Preserved the progression from audio representations to dialogue architecture and all three review questions: final transcript correctness, first audible response, and unheard content left in context. Kept the caveats against single-forward-pass native audio and half-duplex-only cascades. Both chapter links, the transport link, return link, and one diagram edge are unchanged; the full-duplex node label wraps across two lines."
+    },
+    {
+      "path": "docs/multimodal/04-generation/07-diffusion-flow-matching-image.md",
+      "zh_path": "docs/multimodal/04-generation/07-diffusion-flow-matching-image.zh.md",
+      "kind": "chapter",
+      "source_sha256": "710fa3f279c0f914907572c4e42b145c2e9ead0653ec91e15de2cb5ac363e131",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2210.02747",
+          "scope": "Attempted to inspect the cited Flow Matching abstract page; only its title was extracted.",
+          "limitations": "No mechanism verification from this title-only extraction."
+        },
+        {
+          "url": "https://arxiv.org/html/2210.02747v2",
+          "scope": "Read Section 1, including simulation-free CNF training, regression to target vector fields, conditional flow matching, diffusion paths as special cases, and conditional optimal-transport paths.",
+          "limitations": "Introduction only; did not read the complete derivation, appendices, or all other cited generation papers. No sampling experiments were run."
+        }
+      ],
+      "notes": "Preserved every DDPM, score, CFG, ODE, and CFM formula byte-for-byte, including opposite time conventions for DDPM and the linear flow example. Retained the w=1 convention, two-prediction CFG cost, conditional-straight versus marginal-curved distinction, and historical architecture-disclosure limits. Kept all evaluation rows, the two-blue-cups/red-plate counterexample with its original Chinese prompt and an English gloss, sampler-control variables, and three common mistakes; internal source links are unchanged. Cross-module comparison confirmed the exact multiset of inline LaTeX expressions; the opening English sentence mentions p(x|c) before c to fit English word order, without changing the mathematical expressions or their relationship."
+    },
+    {
+      "path": "docs/multimodal/04-generation/08-video-generation.md",
+      "zh_path": "docs/multimodal/04-generation/08-video-generation.zh.md",
+      "kind": "chapter",
+      "source_sha256": "800d7755eb257780ecf7c5a17bf6137a67ffdb2fe170bfa702061c5bf2ea2847",
+      "references_checked": [
+        {
+          "url": "https://openai.com/index/video-generation-models-as-world-simulators/",
+          "scope": "Attempted to inspect the 2024 Sora report for patch and variable-size claims.",
+          "limitations": "Web extraction returned only the title; a direct retrieval returned HTTP 403. The existing report-specific qualifications were retained without claiming new verification of the body."
+        },
+        {
+          "url": "https://arxiv.org/html/2311.17982v1",
+          "scope": "Read the returned portion of Appendix G.1 on subject consistency, background consistency, temporal flickering, their feature/metric definitions, and static versus dynamic evaluation examples.",
+          "limitations": "The extraction was truncated at 8500 characters. Other appendix dimensions, the complete paper, and experiments were not read or reproduced."
+        }
+      ],
+      "notes": "Preserved the exact spatiotemporal sequence-length and attention-complexity expressions, including the divisibility assumption and FlashAttention's non-elimination of quadratic compute. Kept Sora claims tied to the 2024 report, separated SVD paper scope from released weights, and retained all long-video tradeoffs. Identity preservation remains distinct from frozen pixels; static-video smoothness remains a counterexample to treating one VBench dimension as sufficient."
+    },
+    {
+      "path": "docs/multimodal/04-generation/README.md",
+      "zh_path": "docs/multimodal/04-generation/README.zh.md",
+      "kind": "index",
+      "source_sha256": "7fd90319be3f8b8391e120f9c97d5f1b5d21fe4e26a3d80e6f3e1528101cde7e",
+      "references_checked": [],
+      "notes": "Kept both chapter entries and the image-to-video progression diagram. Preserved the separation of objectives from backbones, the need for temporal/history support, and both counterexamples: a straight conditional path does not guarantee one-step generation, and smooth frames do not guarantee correct motion. No navigation targets changed."
+    },
+    {
+      "path": "docs/multimodal/05-data-training-evaluation/09-multimodal-data-alignment.md",
+      "zh_path": "docs/multimodal/05-data-training-evaluation/09-multimodal-data-alignment.zh.md",
+      "kind": "chapter",
+      "source_sha256": "b8c4015ac0f4db2f2db0f2652862ae4edb90f96ed0600deead60350f5e1331a5",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2309.14525",
+          "scope": "Attempted to inspect the cited LLaVA-RLHF abstract page; only its title was returned.",
+          "limitations": "Title-only extraction did not substantiate reward-model mechanics."
+        },
+        {
+          "url": "https://arxiv.org/html/2309.14525v1",
+          "scope": "Read the extracted hallucination-evaluation prompt examples and targeted abstract/introduction passages about supplementing reward models with image captions and ground-truth multiple-choice options to reduce reward hacking.",
+          "limitations": "Not a full-paper read. The extracted evaluation prompt was treated as source material, not instructions to this task. Other dataset and captioning papers were retained but not independently re-read."
+        }
+      ],
+      "notes": "Retained every data-objective table row, source/licensing qualification, grouped-split leakage example, and synthetic-caption mixture caveat. Kept original LLaVA's text-only GPT-4 annotation route rather than implying image access. Preserved absent/blurry/indeterminate-identity cases and the cannot-determine answer in their original Chinese with English glosses, plus media replacement controls, effective-token/loss-weight accounting, same-input DPO pairing, and refusal-versus-helpfulness evaluation. Translated factuality distinctly from general response style."
+    },
+    {
+      "path": "docs/multimodal/05-data-training-evaluation/10-evaluation-safety-serving.md",
+      "zh_path": "docs/multimodal/05-data-training-evaluation/10-evaluation-safety-serving.zh.md",
+      "kind": "chapter",
+      "source_sha256": "6b18baad31088f1b97ac0ab5637d0acfdf0b0d0d804a330357ad49054b01ca49",
+      "references_checked": [
+        {
+          "url": "https://docs.vllm.ai/en/stable/design/prefix_caching/",
+          "scope": "Read the first 10000 characters covering prefix-dependent block hashes, additional multimodal hashes and adapter identifiers, image placeholders, cache isolation through salts, and the beginning of KV-block operations.",
+          "limitations": "The page was truncated during the duplicate-block example. This checks a documented implementation, not every serving engine or performance benefit. No load test or cache experiment was run."
+        },
+        {
+          "url": "https://spec.c2pa.org/specifications/specifications/2.1/specs/C2PA_Specification.html",
+          "scope": "Read bounded introduction and trust-model-related excerpts describing cryptographically verifiable information, digital signatures, tamper evidence, and issuer trust.",
+          "limitations": "The complete fixed-version specification was not read. No claim is made that 2.1 is current, and no signature or watermark detection experiment was performed."
+        }
+      ],
+      "notes": "Preserved benchmark-release versus source-date distinctions and uncertainty when contamination cannot be ruled out. Kept typographic confusion, indirect injection, and adversarial perturbations separate at the original non-operational level. Retained C2PA's fixed 2.1 scope, absence-of-watermark counterexample, all three serving stages, feature-versus-prefix-KV cache dependencies, tenant safeguards, and four numbered mistakes. No factual revisions or new attack procedures were introduced."
+    },
+    {
+      "path": "docs/multimodal/05-data-training-evaluation/README.md",
+      "zh_path": "docs/multimodal/05-data-training-evaluation/README.zh.md",
+      "kind": "index",
+      "source_sha256": "98b617b599917ed45b77eba37cd6372d946f333f0d7c49f52f8e04819c7a652e",
+      "references_checked": [],
+      "notes": "Preserved the data-to-validation diagram, wrapping its long English node labels with <br/>, and the requirement to decide splits, decontamination, permissions, and budgets during collection and design rather than after training. All four diagnostic distinctions remain: similarity versus correct pairing, release date versus contamination, credentials versus truth, and features versus arbitrary-context KV reuse. Chapter and overview navigation stays on normal .md paths."
+    },
+    {
+      "path": "docs/multimodal/README.md",
+      "zh_path": "docs/multimodal/README.zh.md",
+      "kind": "index",
+      "source_sha256": "a7cbebccfa714ef461ced46da0c909ab938402b3566678ca87760684e6f35735",
+      "references_checked": [],
+      "notes": "Translated all five module descriptions and reading paths, diagram labels, and the four-row cross-topic ownership table. Preserved the boundary between model-level grounding and multimodal RAG, computer-use-specific risks and general agent security, and voice session control versus transport. Product names still do not imply undisclosed architectures. The Chinese companion and all normal .md link targets remain unchanged. No external references appear on this navigation page."
+    }
+  ]
+}

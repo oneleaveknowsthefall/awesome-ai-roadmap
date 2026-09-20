@@ -11,7 +11,7 @@ const sha256 = (data) => createHash("sha256").update(data).digest("hex");
 
 export function validateJob(job) {
   if (!/^[a-f0-9]{64}$/.test(job.key) || !["mermaid", "inline", "display"].includes(job.kind) ||
-      typeof job.source !== "string") {
+      typeof job.source !== "string" || !["en", "zh-CN"].includes(job.language ?? "en")) {
     throw new Error("invalid render job");
   }
   if (job.kind === "mermaid" &&
@@ -83,7 +83,7 @@ export async function render(requestPath, outputDirectory) {
       }
     });
     page.on("pageerror", (error) => failures.push(error.message));
-    await page.setContent(`<!doctype html><html lang="zh-CN"><head>
+    await page.setContent(`<!doctype html><html lang="en"><head>
       <link rel="stylesheet" href="${origin}/@fontsource/noto-sans-sc/400.css">
       <style>
         body { margin:0; background:white; color:#111; font:20px "Noto Sans SC",sans-serif; }
@@ -116,7 +116,9 @@ export async function render(requestPath, outputDirectory) {
     }, origin);
     const results = [];
     for (const [index, job] of jobs.entries()) {
-      const cacheFile = path.join(outputDirectory, `${job.key}.json`);
+      const language = job.language ?? "en";
+      const cacheKey = `${job.key}-${language}`;
+      const cacheFile = path.join(outputDirectory, `${cacheKey}.json`);
       let cached;
       try {
         cached = JSON.parse(await fs.readFile(cacheFile, "utf8"));
@@ -127,7 +129,7 @@ export async function render(requestPath, outputDirectory) {
           throw error;
         }
       }
-      if (cached?.version === version) {
+      if (cached?.version === version && cached.language === language) {
         const images = [cached, ...cached.tiles];
         let intact = true;
         for (const image of images) {
@@ -146,6 +148,7 @@ export async function render(requestPath, outputDirectory) {
       let geometry;
       try {
         geometry = await page.evaluate(async (job) => {
+          document.documentElement.lang = job.language ?? "en";
           const stage = document.getElementById("stage");
           stage.replaceChildren();
           stage.style.padding = job.kind === "inline" ? "2px" : "12px";
@@ -186,7 +189,7 @@ export async function render(requestPath, outputDirectory) {
       if (geometry.width > 16000 || geometry.height > 16000 || geometry.width * geometry.height > 40_000_000) {
         throw new Error(`${job.key}: image too large; revise diagram layout explicitly`);
       }
-      const file = `${job.key}.png`;
+      const file = `${cacheKey}.png`;
       const screenshot = await page.screenshot({
         path: path.join(outputDirectory, file),
         clip: { x: 0, y: 0, width: geometry.width, height: geometry.height },
@@ -195,7 +198,7 @@ export async function render(requestPath, outputDirectory) {
       const detail = [];
       if (job.kind === "mermaid") {
         for (const [number, clip] of tiles(geometry.width, geometry.height).entries()) {
-          const tileFile = `${job.key}-${number + 1}.png`;
+          const tileFile = `${cacheKey}-${number + 1}.png`;
           const data = await page.screenshot({
             path: path.join(outputDirectory, tileFile), clip, captureBeyondViewport: true,
           });
@@ -203,7 +206,7 @@ export async function render(requestPath, outputDirectory) {
         }
       }
       const result = {
-        key: job.key, kind: job.kind, version, file, ...geometry,
+        key: job.key, kind: job.kind, language, version, file, ...geometry,
         sha256: sha256(screenshot), tiles: detail,
       };
       const pendingCache = `${cacheFile}.${process.pid}.tmp`;

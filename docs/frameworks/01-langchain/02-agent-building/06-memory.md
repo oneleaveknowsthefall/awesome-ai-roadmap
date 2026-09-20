@@ -1,133 +1,135 @@
 ---
-description: 按线程状态与跨线程 Store 设计记忆，区分上下文裁剪、状态删除、历史检查点清理和长期记忆权限治理。
+description: Design memory around thread-scoped state and cross-thread stores, distinguishing context trimming, state deletion, historical checkpoint cleanup, and authorization for long-term memory.
 ---
 
-# 第六章：LangChain 的短期记忆与长期记忆
+# Chapter 6: Short-Term and Long-Term Memory in LangChain
 
-## 6.1 应该记住什么
+## 6.1 What Should the Agent Remember?
 
-**记忆设计的第一步不是选数据库，而是确定作用域。**
+**The first step in memory design is defining scope, not choosing a database.**
 
-假设用户正在规划杭州旅行：
+Suppose a user is planning a trip to Hangzhou:
 
-| 信息 | 性质 | 归属 |
+| Information | Scope | Where it belongs |
 |---|---|---|
-| 当前对话提到的日期、预算、下一步计划 | **只服务于这次任务** | 短期状态 |
-| 一周后新建会话，Agent 仍知道他不吃辣、喜欢住地铁附近 | **跨会话仍然有效** | 长期记忆 |
+| Dates, budget, and next steps discussed in the current conversation | **Relevant only to this task** | Short-term state |
+| In a new conversation a week later, the agent still knows the user avoids spicy food and prefers staying near a subway station | **Still valid across conversations** | Long-term memory |
 
 ```mermaid
 flowchart TB
-    A["当前线程运行到了哪里"] --> B["State + Checkpointer"]
-    C["未来其他线程仍可能用到的<br/>用户偏好与事实"] --> D["Store"]
+    A["How far the current thread has progressed"] --> B["State + Checkpointer"]
+    C["User preferences and facts<br/>that future threads may need"] --> D["Store"]
 
     style B fill:#e8f0fe
     style D fill:#e6f4ea
 ```
 
-## 6.2 短期记忆如何实现
+## 6.2 How Is Short-Term Memory Implemented?
 
-`create_agent` 底层运行在 LangGraph 上。**Agent State 默认包含 `messages`**，也可以扩展订单号、当前步骤、工具调用次数等业务字段。
+`create_agent` runs on LangGraph. **Agent State includes `messages` by default** and can be extended with business fields such as an order ID, current step, or tool-call count.
 
-### 6.2.1 只有 State 还不够
+### 6.2.1 State Alone Is Not Enough
 
-**请求可能由不同服务实例处理，进程也可能重启**——因此需要 Checkpointer 持久化执行状态。
+**Different service instances may handle requests, and processes may restart.** A checkpointer is therefore needed to persist execution state.
 
 ```python
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 
-# Checkpointer 按 thread_id 保存线程内的 Agent State
+# The checkpointer saves thread-scoped Agent State by thread_id.
 agent = create_agent(
     model="<provider>:<your-model-id>",
     tools=[],
     checkpointer=InMemorySaver(),
 )
 
-# 两次调用复用同一个 thread_id，表示它们属于同一会话线程
+# Reusing thread_id identifies both calls as part of the same conversation thread.
 config = {"configurable": {"thread_id": "chat-1001"}}
 
-# 第一轮把用户姓名写入当前线程的 messages 状态
+# The first turn records the user's name in this thread's messages state.
 agent.invoke(
     {"messages": [{"role": "user", "content": "我叫小林"}]},
     config=config,
 )
 
-# 第二轮会先恢复同一线程之前保存的状态
+# The second turn first restores the previously saved state of the same thread.
 result = agent.invoke(
     {"messages": [{"role": "user", "content": "我叫什么？"}]},
     config=config,
 )
 ```
 
-`InMemorySaver` 只适合本地演示。生产环境要换成持久化实现，否则进程退出后状态会丢失。
+The Chinese messages say “My name is Xiaolin” and “What is my name?” They are retained as conversation test data.
 
-### 6.2.2 Checkpoint 保存的不只是聊天记录
+`InMemorySaver` is suitable only for local demonstrations. Use a persistent implementation in production; otherwise, state disappears when the process exits.
 
-**它保存的是图执行过程中的 State 快照**，因此还能支撑：
+### 6.2.2 A Checkpoint Saves More Than Chat History
 
-- 暂停恢复
-- 人工审批
-- 故障恢复
+**It saves a snapshot of state during graph execution**, so it also supports:
 
-## 6.3 消息太多怎么办
+- Pausing and resuming
+- Human approval
+- Failure recovery
 
-Checkpointer 能保存历史，但每次是否把全部历史交给模型，要另外控制。消息越多，Token、延迟和干扰越大。
+## 6.3 What If There Are Too Many Messages?
 
-| 策略 | 作用 | 主要风险 |
+A checkpointer can save history, but deciding whether to send all of it to the model on each call is a separate concern. More messages mean more tokens, higher latency, and more distraction.
+
+| Strategy | Effect | Main risk |
 |---|---|---|
-| **仅在模型请求侧裁剪** | 只选择部分消息进入本次模型上下文，不提交状态更新 | **持久状态仍会继续增长** |
-| **删除当前状态消息** | 通过 `RemoveMessage` 等更新当前 State | 后续上下文失去该信息，但**旧 checkpoint 可能仍保留原文** |
-| **摘要** | 把早期历史压缩成简短语义摘要 | 可能遗漏细节或**逐轮失真** |
+| **Trim only the model request** | Select some messages for this model context without submitting a state update | **Persisted state continues to grow** |
+| **Delete messages from current state** | Update current state using `RemoveMessage` or similar mechanisms | Future context loses the information, but **older checkpoints may still contain the original text** |
+| **Summarize** | Compress earlier history into a short semantic summary | Details may be lost, or **distortion may accumulate over successive turns** |
 
-### 6.3.1 不能只按条数处理
+### 6.3.1 Message Count Alone Is Not Enough
 
-- 客服 Agent 可能需要保护**当前工单和用户承诺**；
-- 代码 Agent 可能需要保护**最新报错和修改记录**。
+- A support agent may need to preserve **the current ticket and commitments made to the user**.
+- A coding agent may need to preserve **the latest error and change history**.
 
-策略应同时考虑 Token 预算、消息角色和业务重要性（记忆压缩的通用方法见 [Agent 主题](../../../agent/README.md)）。
+The strategy should consider token budget, message roles, and business importance together. For general memory-compression methods, see the [Agents topic](../../../agent/README.md).
 
-还要保留工具调用协议的完整性：不能留下没有对应 AI 工具请求的 `ToolMessage`，也不能保留请求却删掉所需结果。摘要宜保留来源、未完成动作与不可丢失的承诺，而不只是泛化的聊天主题。合规删除则是另一条链路：当前 State、历史 checkpoint、Store、Trace、备份都需要按保留策略处理，`RemoveMessage` 不是物理擦除 API。
+Preserve the integrity of the tool-calling protocol too: do not leave a `ToolMessage` without its corresponding AI tool request, or keep a request while removing its required result. A summary should retain sources, unfinished actions, and commitments that must not be lost—not merely broad conversation topics. Deletion for compliance is a separate process: current state, historical checkpoints, stores, traces, and backups must all be handled under retention policies. `RemoveMessage` is not a physical-erasure API.
 
-## 6.4 长期记忆如何实现
+## 6.4 How Is Long-Term Memory Implemented?
 
-**新 `thread_id` 默认不会继承旧线程的 State——这是正确的线程隔离。** 如果某条信息需要跨线程使用，就应提炼后写入 Store。
+**A new `thread_id` does not inherit an old thread's state by default. That is correct thread isolation.** If information needs to be used across threads, extract the relevant content and write it to a store.
 
-### 6.4.1 Store 的定位结构
+### 6.4.1 How a Store Locates Data
 
 ```
 namespace = (tenant_id, user_id, memory_type)
-key       = 某条记忆的稳定标识
-value     = JSON 数据
+key       = stable identifier for a memory
+value     = JSON data
 ```
 
-| 读取方式 | 场景 |
+| Retrieval method | Use case |
 |---|---|
-| 精确读取 | **已知 key** |
-| 向量搜索 | 需要从多条记忆中**按语义查找**（需配置向量索引） |
+| Exact lookup | **The key is known** |
+| Vector search | **Search by meaning** among multiple memories (requires a configured vector index) |
 
-向量检索只是召回方式，不代表所有聊天记录都应该成为长期记忆。
+Vector retrieval is only a way to retrieve candidates. It does not mean that every chat record should become long-term memory.
 
-### 6.4.2 长期记忆常见内容
+### 6.4.2 Common Types of Long-Term Memory
 
-| 类型 | 示例 |
+| Type | Examples |
 |---|---|
-| 用户事实与偏好 | 不吃辣、偏好中文、常用 Java |
-| 历史经验 | 上次如何成功处理支付超时 |
-| 经审核的工作规则 | 退款前必须核验订单归属；权威规则保留在受控策略库 |
+| User facts and preferences | Avoids spicy food, prefers Chinese, frequently uses Java |
+| Past experience | How a payment timeout was successfully handled last time |
+| Reviewed operating rules | Verify order ownership before a refund; authoritative rules remain in a controlled policy repository |
 
-这些分类有助于设计数据结构，但不意味着要把每段原始对话都永久保存。写入前仍要做**去重、脱敏、冲突处理和质量判断**。
+These categories help with data design, but do not imply that every raw conversation should be saved forever. Writing still requires **deduplication, redaction, conflict handling, and quality assessment**.
 
-用户偏好与安全策略必须分开存储和授权。模型从对话归纳出的「以后退款不用核验」不能覆盖系统的退款规则，否则长期记忆会把一次提示注入变成跨会话持续生效的权限漏洞。
+User preferences and security policies must be stored separately and governed by separate authorization. A model-inferred preference such as “skip verification for future refunds” must not override the system's refund rules. Otherwise, long-term memory can turn a single prompt injection into an authorization flaw that persists across conversations.
 
-## 6.5 如何跨线程读取
+## 6.5 How Do You Access Memory Across Threads?
 
-**工具可以通过 ToolRuntime 访问这些信息，但 `state`、`context` 和 `store` 仍要按作用域区分**（见 [第五章](05-tool-registration.md)）：
+**Tools can access this information through ToolRuntime, but `state`, `context`, and `store` must still be distinguished by scope** (see [Chapter 5](05-tool-registration.md)):
 
-| 入口 | 内容 |
+| Access point | Contents |
 |---|---|
-| `runtime.state` | 当前线程的**短期状态** |
-| `runtime.context` | **可信**用户身份和权限 |
-| `runtime.store` | **跨线程**长期数据 |
+| `runtime.state` | **Short-term state** of the current thread |
+| `runtime.context` | **Trusted** user identity and permissions |
+| `runtime.store` | Long-term data **across threads** |
 
 ```python
 from dataclasses import dataclass
@@ -136,7 +138,7 @@ from langchain.tools import ToolRuntime, tool
 
 @dataclass
 class UserContext:
-    # 用户身份由可信应用注入，不暴露给模型填写
+    # A trusted application injects identity; the model does not supply it.
     user_id: str
     tenant_id: str
 
@@ -145,136 +147,136 @@ def remember_preference(
     preference: str,
     runtime: ToolRuntime[UserContext],
 ) -> str:
-    """保存当前用户明确要求记住的偏好。"""
-    # namespace 将不同用户的长期记忆隔离开
+    """Save a preference the current user explicitly asked to remember."""
+    # The namespace separates different users' long-term memories.
     namespace = (runtime.context.tenant_id, runtime.context.user_id, "preferences")
-    # key 为 main，本例只维护一条当前偏好记录
+    # With the key main, this example keeps only one current preference record.
     runtime.store.put(namespace, "main", {"text": preference})
     return "偏好已保存"
 ```
 
-这是工具片段，需像[第五章](05-tool-registration.md)一样给 `create_agent` 接入 `context_schema=UserContext`、`store`，并在调用时传可信 `context`。模型只负责生成 `preference`，身份由已认证的应用注入，避免模型通过自填身份越权；业务服务仍需授权，namespace 本身不是安全隔离机制。
+The Chinese return value means “preference saved.” This is a tool snippet: as in [Chapter 5](05-tool-registration.md), wire `context_schema=UserContext` and `store` into `create_agent`, and pass trusted `context` when invoking it. The model generates only `preference`; the authenticated application injects identity so the model cannot gain unauthorized access by supplying its own identity. The business service still needs authorization checks. A namespace is not, by itself, a security isolation mechanism.
 
-**两个不同 `thread_id` 的会话，在可信租户与用户身份相同且获得授权时，可访问同一个长期记忆 namespace**；其他用户或租户必须被服务端权限隔离。
+**Conversations with two different `thread_id` values can access the same long-term memory namespace when they have the same trusted tenant and user identity and are authorized to do so.** Server-side permissions must isolate other users and tenants.
 
-## 6.6 什么时候写入长期记忆
+## 6.6 When Should Long-Term Memory Be Written?
 
-长期记忆会带来收益，也会引入噪声、冲突和隐私风险；把每句闲聊都存进去通常得不偿失。
+Long-term memory can help, but it also introduces noise, conflicts, and privacy risks. Saving every casual remark usually creates more problems than it solves.
 
-| 触发 | 写入时机 |
+| Trigger | When to write |
 |---|---|
-| 用户明确说「请记住」 | **主链路实时写入**，信息立即生效 |
-| 普通对话中推断出的偏好和经验 | **会话结束后由后台任务**提炼、去重、脱敏再写入 |
+| The user explicitly says “please remember” | **Write immediately on the main execution path** so the information takes effect at once |
+| Preferences and experience inferred from ordinary conversation | **A background job after the conversation** extracts, deduplicates, and redacts information before writing it |
 
-**无论实时还是后台写入，都应保存来源、时间和置信度**，并支持更新、纠错和删除。
+**Whether writing immediately or in the background, record the source, time, and confidence**, and support updates, corrections, and deletion.
 
-订单金额、账户余额和库存等实时事实仍应查询权威业务系统，不能用长期记忆代替真实数据库。
+Current facts such as order amounts, account balances, and inventory must still be queried from authoritative business systems. Long-term memory is not a replacement for the actual database.
 
-## 6.7 生产环境要注意什么
+## 6.7 What Matters in Production?
 
 ```mermaid
 flowchart TB
-    P1["① 数据能否可靠保存<br/>内存实现随进程退出而丢失<br/>线上要数据库型 Checkpointer 和 Store<br/>表结构与迁移纳入部署流程"]
-    P2["② 这是谁的记忆<br/>thread_id / tenant_id / user_id 必须来自可信身份体系<br/>不信任模型生成的身份<br/>不允许客户端随意指定别人的 namespace"]
-    P3["③ 记忆会过时、冲突、被纠正<br/>去重、更新、过期淘汰<br/>支持用户查看/更正/导出/删除<br/>敏感信息默认不记，需保存的加密并限权<br/>日志与 Trace 不能成为另一个泄漏口"]
-    P4["④ 记忆是否真的改善结果<br/>不能只看写入了多少条"]
+    P1["① Can data be saved reliably?<br/>In-memory data disappears when the process exits<br/>Production needs database-backed<br/>checkpointers and stores<br/>Include schemas and migrations in deployment"]
+    P2["② Whose memory is this?<br/>thread_id / tenant_id / user_id<br/>must come from a trusted identity system<br/>Do not trust model-generated identities<br/>Do not let clients choose another user's namespace"]
+    P3["③ Memories become stale, conflict, and need correction<br/>Deduplicate, update, and expire records<br/>Let users view, correct, export, and delete<br/>Do not remember sensitive information by default;<br/>encrypt and restrict access to what must be retained<br/>Logs and traces must not become another leak"]
+    P4["④ Does memory actually improve results?<br/>Counting written records is not enough"]
     P1 --> P2 --> P3 --> P4
 
     style P2 fill:#fff3cd
 ```
 
-### 6.7.1 评测必须沿整条链路走
+### 6.7.1 Evaluate the Entire Memory Process
 
-| 环节 | 检查 |
+| Stage | What to check |
 |---|---|
-| 写入 | 这条信息**是否值得写入** |
-| 召回 | 相关问题**能否召回**，无关问题**会不会误召回** |
-| 使用 | 注入模型后**是否真正改善答案** |
+| Writing | **Is this information worth saving**? |
+| Retrieval | **Is it retrieved for relevant questions**, and **incorrectly retrieved for unrelated questions**? |
+| Use | **Does it actually improve the answer** after being supplied to the model? |
 
-只有写入、召回和使用三步都有效，记忆才不是一个不断膨胀的数据库。
+Memory becomes more than an ever-growing database only when writing, retrieval, and use all work.
 
-## 6.8 旧 Memory 还能用吗
+## 6.8 Can the Older Memory Classes Still Be Used?
 
-旧教程常见的 `ConversationBufferMemory`、`ConversationSummaryMemory` 属于 **Chain 时代的抽象**，目前主要位于 `langchain-classic`，适合维护存量项目。
+`ConversationBufferMemory` and `ConversationSummaryMemory`, common in older tutorials, are **abstractions from the Chain era**. They now mainly reside in `langchain-classic` and are relevant to maintaining existing projects.
 
-**v1 新项目更推荐**：
+**For new v1 projects, prefer**:
 
-| 职责 | 方式 |
+| Responsibility | Mechanism |
 |---|---|
-| 管理线程内状态 | **AgentState + Checkpointer** |
-| 管理跨线程长期记忆 | **Store + namespace/key** |
-| 管理裁剪、摘要和写入策略 | **Middleware 或图节点** |
+| Manage state within a thread | **AgentState + Checkpointer** |
+| Manage long-term memory across threads | **Store + namespace/key** |
+| Manage trimming, summarization, and writing policies | **Middleware or graph nodes** |
 
-这套方式把状态作用域、持久化和记忆治理拆得更清楚，也更适合有工具调用、暂停恢复和多用户隔离要求的 Agent。
+This approach separates state scope, persistence, and memory governance more clearly. It also better suits agents that need tool calling, pause/resume behavior, and multi-user isolation.
 
-## 6.9 常见错误
+## 6.9 Common Mistakes
 
-### 6.9.1 先选数据库再想作用域
+### 6.9.1 Choosing a Database Before Defining Scope
 
-**第一步是判断这条信息是线程内的还是跨线程的。**
+**First determine whether the information belongs within a thread or across threads.**
 
-### 6.9.2 用 `InMemorySaver` 上生产
+### 6.9.2 Using `InMemorySaver` in Production
 
-**进程退出状态全丢。**
+**All state disappears when the process exits.**
 
-### 6.9.3 以为 Checkpoint 只是聊天记录
+### 6.9.3 Assuming a Checkpoint Is Only Chat History
 
-**它是图执行的 State 快照**，正因如此才能支撑暂停恢复和人工审批。
+**It is a state snapshot of graph execution.** That is precisely why it can support pause/resume behavior and human approval.
 
-### 6.9.4 把「能保存」等同于「都要塞给模型」
+### 6.9.4 Assuming Everything Saved Must Be Sent to the Model
 
-Token、延迟和干扰都会上升，**必须裁剪/删除/摘要**。
+Token usage, latency, and distraction all increase. **Trim, delete, or summarize history.**
 
-### 6.9.5 按固定条数裁剪
+### 6.9.5 Trimming by a Fixed Message Count
 
-**当前工单、用户承诺、最新报错**这类消息不能被机械裁掉。
+Do not mechanically discard messages such as **the current ticket, commitments to users, or the latest error**.
 
-### 6.9.6 混淆裁剪与删除
+### 6.9.6 Confusing Trimming with Deletion
 
-仅裁剪模型请求不减少持久状态；删除当前 State 不等于删除历史 checkpoint。先说清改的是哪一层，再讨论恢复和隐私。
+Trimming only the model request does not reduce persisted state. Deleting current state does not delete historical checkpoints. Identify which layer is changing before discussing recovery and privacy.
 
-### 6.9.7 把所有聊天记录写进向量库
+### 6.9.7 Writing All Chat History to a Vector Database
 
-**向量检索只是召回方式**，不代表什么都该长期保存。
+**Vector retrieval is only a way to retrieve candidates.** It does not mean everything should be retained long term.
 
-### 6.9.8 让模型生成 `user_id`
+### 6.9.8 Letting the Model Generate `user_id`
 
-会被提示注入诱导访问他人数据，**身份必须来自可信 Context**。
+Prompt injection can induce access to someone else's data. **Identity must come from trusted context.**
 
-### 6.9.9 用长期记忆代替权威数据库
+### 6.9.9 Replacing an Authoritative Database with Long-Term Memory
 
-**余额、库存、订单金额这类实时事实必须现查。**
+**Current facts such as balances, inventory, and order amounts must be queried when needed.**
 
-### 6.9.10 记忆只写不治理
+### 6.9.10 Writing Memory Without Governing It
 
-**没有去重、更新、过期和用户可删除能力**，记得越多风险越大。
+**Without deduplication, updates, expiration, and user-controlled deletion**, remembering more creates more risk.
 
-### 6.9.11 评测只统计写入条数
+### 6.9.11 Evaluating Only the Number of Records Written
 
-**要看召回准确率和是否真的改善了答案。**
+**Measure retrieval accuracy and whether memory actually improves answers.**
 
-## 6.10 本章总结
+## 6.10 Chapter Summary
 
-1. **两条主线**：短期记忆是线程级 State，由 Checkpointer 按 `thread_id` 保存；长期记忆是跨线程数据，由 Store 按 namespace / key 管理；
-2. **记忆设计第一步是确定作用域**，不是选数据库；
-3. **Checkpoint 保存的是 State 快照**，因此还能支撑暂停恢复、人工审批、故障恢复；
-4. **历史管理三策略**：请求侧裁剪（状态仍增长）、状态删除（历史 checkpoint 未必清除）、摘要（可能失真）；
-5. **裁剪要按 Token 预算 + 消息角色 + 业务重要性**，不能只数条数；
-6. **新线程不继承旧 State 是正确的隔离**，跨线程信息要提炼后写入 Store；
-7. **Store 用 namespace + key 定位**，精确读取与向量搜索并存；
-8. **ToolRuntime 三入口不可混用**：state / context / store；
-9. **写入时机二分**：明确要求实时写，推断出的偏好后台提炼写；
-10. **实时事实不能用长期记忆代替权威系统**；
-11. **生产四关**：可靠持久化 → 可信身份隔离 → 记忆治理与隐私 → 沿写入/召回/使用三步评测；
-12. **旧 Memory 类属 Chain 时代**，已入 `langchain-classic`。
+1. **Two mechanisms**: short-term memory is thread-level state saved by a checkpointer under `thread_id`; long-term memory is cross-thread data managed by a store under namespace / key.
+2. **Start memory design by defining scope**, not choosing a database.
+3. **Checkpoints save state snapshots**, supporting pause/resume behavior, human approval, and failure recovery.
+4. **Three history-management strategies**: request-side trimming (state still grows), state deletion (historical checkpoints may remain), and summarization (which can distort information).
+5. **Trim using token budget + message roles + business importance**, not message count alone.
+6. **A new thread not inheriting old state is correct isolation.** Extract information that needs to cross threads and write it to a store.
+7. **Stores locate data by namespace + key**, supporting both exact lookup and vector search.
+8. **Do not confuse ToolRuntime's three access points**: state / context / store.
+9. **Two writing schedules**: write immediately when explicitly asked; extract inferred preferences in the background.
+10. **For current facts, long-term memory cannot replace authoritative systems.**
+11. **Four production requirements**: reliable persistence → isolation based on trusted identity → memory governance and privacy → evaluation of writing, retrieval, and use.
+12. **Older Memory classes belong to the Chain era** and have moved to `langchain-classic`.
 
-LangChain 的记忆按作用域分成两套机制：线程内用 State 和持久化 Checkpointer 保存执行进度，线程外用 Store 积累经过筛选的信息。namespace 负责定位，服务端授权负责防止串户；裁剪、摘要和保留策略则分别控制模型上下文与存储增长。
+LangChain divides memory into two mechanisms by scope: within a thread, state and a persistent checkpointer save execution progress; beyond a thread, a store accumulates selected information. Namespaces locate data; server-side authorization prevents cross-user access. Trimming, summarization, and retention policies control the model's context and storage growth at their respective layers.
 
-## 参考资料
+## References
 
 - [LangChain: Short-term Memory](https://docs.langchain.com/oss/python/langchain/short-term-memory)
 - [LangChain: Long-term Memory](https://docs.langchain.com/oss/python/langchain/long-term-memory)
-- [LangGraph 持久化文档](https://docs.langchain.com/oss/python/langgraph/persistence)
-- [LangGraph Store 文档](https://docs.langchain.com/oss/python/langgraph/stores)
+- [LangGraph: Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)
+- [LangGraph: Stores](https://docs.langchain.com/oss/python/langgraph/stores)
 - [LangChain: Middleware](https://docs.langchain.com/oss/python/langchain/middleware)
-- [LangChain v1 迁移指南](https://docs.langchain.com/oss/python/migrate/langchain-v1)
+- [LangChain v1 Migration Guide](https://docs.langchain.com/oss/python/migrate/langchain-v1)

@@ -1,53 +1,53 @@
 ---
-description: 区分工具调用、JSON 模式和严格结构化输出，处理拒绝、截断、类型校验与业务语义边界。
+description: Distinguish tool calling, JSON mode, and strict structured outputs, and handle refusals, truncation, type validation, and business-semantic requirements.
 ---
 
-# 第五章：结构化输出与契约校验
+# Chapter 5: Structured Outputs and Contract Validation
 
-## 5.1 为什么下游系统不能直接消费自由文本
+## 5.1 Why downstream systems cannot consume free text directly
 
-生产系统里的 LLM 输出既可能展示给人，也可能被程序解析——填进数据库字段、驱动一次 API 调用、拼进另一个 Prompt。自由文本生成天然带有格式不稳定的风险:同一个 Prompt 多次调用,模型可能这次输出 `{"amount": 100}`,下次输出 `金额是100元`。**契约校验的作用,是在模型输出和下游程序之间建立一层可验证的接口。**
+In production, LLM outputs may be displayed to people or parsed by programs: written into database fields, used to drive an API call, or inserted into another prompt. Free-text generation carries an inherent risk of inconsistent formatting. Given the same prompt, a model might produce `{"amount": 100}` on one call and `金额是100元` (“the amount is 100 yuan”) on the next. **Contract validation establishes a verifiable interface between model output and downstream programs.**
 
 ```mermaid
 flowchart TB
-    P["Prompt"] --> M["模型生成"]
-    M --> RAW["原始输出"]
-    RAW --> STATUS{"正常完成且未拒绝?"}
-    STATUS -->|否| STOP["按拒绝、截断或失败处置"]
-    STATUS -->|是| PARSE["解析 JSON"]
-    PARSE -->|解析成功| SCHEMA{"符合 Schema?"}
-    PARSE -->|解析失败| REPAIR{"可修复且还有预算?"}
-    SCHEMA -->|否| REPAIR
-    REPAIR -->|是| M
-    REPAIR -->|否| STOP
-    SCHEMA -->|是| BUSINESS["核对业务事实与权限"]
-    BUSINESS --> DOWNSTREAM["通过后交给下游消费"]
+    P["Prompt"] --> M["Model generation"]
+    M --> RAW["Raw output"]
+    RAW --> STATUS{"Completed normally, without refusal?"}
+    STATUS -->|No| STOP["Handle refusal, truncation, or failure"]
+    STATUS -->|Yes| PARSE["Parse JSON"]
+    PARSE -->|Parse succeeds| SCHEMA{"Conforms to schema?"}
+    PARSE -->|Parse fails| REPAIR{"Repairable, with budget remaining?"}
+    SCHEMA -->|No| REPAIR
+    REPAIR -->|Yes| M
+    REPAIR -->|No| STOP
+    SCHEMA -->|Yes| BUSINESS["Verify business facts and permissions"]
+    BUSINESS --> DOWNSTREAM["Pass to downstream consumers after approval"]
 
     style SCHEMA fill:#fff3cd
 ```
 
-顺序是先检查响应状态，再解析 JSON、验证 Schema，最后核对业务条件。解析和 Schema 校验可以由同一个库完成，但它们不是同一个判断；任何一层失败，都不能把半成品交给下游执行。
+Check response status first, then parse JSON and validate the schema, and finally verify business conditions. A single library may perform both parsing and schema validation, but these are different checks. Failure at any stage must prevent an unfinished result from reaching downstream execution.
 
-## 5.2 接口形式与约束强度要分开看
+## 5.2 Interface form and constraint strength are separate questions
 
-| 手段 | 约束强度 | 说明 |
+| Method | Constraint strength | Explanation |
 |---|---|---|
-| **Prompt 里描述格式要求** | 弱 | 只是"建议",模型仍可能不遵守,尤其在长上下文或复杂任务里 |
-| **JSON mode** | 语法约束 | 面向合法 JSON，不等于符合指定字段和类型的 Schema |
-| **Function Calling / Tool Use** | 取决于配置 | 是生成工具参数的接口，不天然保证 Schema；严格工具调用也可以使用 Structured Outputs |
-| **严格结构化输出 / 约束解码** | Schema 约束 | 在模型、接口和 Schema 子集被支持且生成正常完成时约束输出结构 |
+| **Format instructions in the prompt** | Weak | Merely a request; the model may not comply, particularly with long contexts or complex tasks |
+| **JSON mode** | Syntax constraint | Targets valid JSON, not necessarily a schema's required fields and types |
+| **Function calling / tool use** | Configuration-dependent | An interface for generating tool arguments, not an inherent schema guarantee; strict tool calling can also use Structured Outputs |
+| **Strict structured outputs / constrained decoding** | Schema constraint | Constrains output structure when the model, interface, and schema subset are supported and generation completes normally |
 
-OpenAI 的 [Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs) 可用于结构化回答，也可用于严格工具调用。**先检查响应状态和拒绝信号，再解析完整对象**：拒绝可能不符合业务 Schema，长度上限或中断可能留下不完整输出，未支持的 Schema 则可能在请求时被拒绝。约束解码不保证金额、币种或业务事实正确；可验证的语义应在运行时核对，离线评测衡量剩余错误率。
+OpenAI's [Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs) can be used for both structured responses and strict tool calling. **Check response status and refusal signals before parsing a complete object.** A refusal may not conform to the business schema, a length limit or interruption may leave output incomplete, and an unsupported schema may cause the request to be rejected. Constrained decoding does not guarantee that amounts, currencies, or business facts are correct. Verify checkable semantics at runtime, and use offline evaluation to measure the remaining error rate.
 
-换成推理模型，这个顺序仍然适用。Schema 约束的是可见输出的结构，不能由「输出合法」反推内部推理受控。
+The same sequence applies to reasoning models. A schema constrains the structure of visible output; valid output does not establish that internal reasoning is controlled.
 
-没有答案也不一定是格式出了错。OpenAI Responses API 返回 `incomplete` 时，先查 `incomplete_details.reason`。若值为 `max_output_tokens`，说明生成触及了 token 限制，但还要结合实际用量和上下文余量，判断是输出额度不够，还是生成过程中用尽了上下文空间。确认后再决定增加输出额度、精简输入或拆分任务，并守住剩余费用和时限。按 5.5 节原样重试可能再次截断，不应当作默认解决办法。
+A missing answer is not necessarily a formatting problem. When the OpenAI Responses API returns `incomplete`, first inspect `incomplete_details.reason`. A value of `max_output_tokens` means generation reached a token limit, but actual usage and available context space must also be examined to determine whether the output allowance was insufficient or the context window filled during generation. Only then decide whether to increase the output allowance, shorten the input, or split the task, while respecting the remaining cost and time budgets. Repeating the same request as described in Section 5.5 may truncate again and should not be the default remedy.
 
-预留多少输出空间，要按 API 对总用量的定义计算，而不是只估算 JSON 的长度。OpenAI 的 `max_output_tokens` 还包含推理和不可见的格式化 token；Claude 的手动预算规则及不同模式的例外，见 [LLM 第 17 章 §17.6.7](../../llm/04-prompt-reliability/17-cot.md)。
+Reserve output space according to the API's definition of total usage, not just the expected JSON length. OpenAI's `max_output_tokens` also includes reasoning and non-visible formatting tokens. For Claude's manual budget rules and mode-specific exceptions, see [LLM Chapter 17, §17.6.7](../../llm/04-prompt-reliability/17-cot.md).
 
-## 5.3 用 Schema 做双重校验:生成时约束 + 接收后再验证
+## 5.3 Validate twice: constrain generation and check the received output
 
-即使使用了约束解码,**接收端仍然应该做一次独立的 Schema 校验**,不能假设生成端一定生效:
+Even with constrained decoding, **the receiving side should independently validate the schema** rather than assume the generation constraint took effect:
 
 ```python
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -68,11 +68,11 @@ def parse_model_output(raw_json: str) -> ExtractedOrder:
         raise ContractViolation("订单输出未通过契约校验") from e
 ```
 
-上例按 Pydantic v2 编写，禁止隐式类型转换和额外字段，但仍不保证币种真实存在、订单属于当前租户或金额等于账本。执行前还要查权威数据源并授权。异常链可能包含原始输入，日志不得自动全量序列化它。流式工具参数必须在完整接收并验证后才可执行。
+The exception message states that the order output failed contract validation. This Pydantic v2 example rejects implicit type conversions and extra fields, but still does not establish that the currency exists, the order belongs to the current tenant, or the amount matches the ledger. Consult authoritative data sources and authorize the action before execution. The exception chain may contain raw input; logs must not automatically serialize it in full. Streamed tool arguments must be completely received and validated before execution.
 
-## 5.4 契约要有版本号
+## 5.4 Contracts need version numbers
 
-下游消费方和模型输出方对 Schema 的理解必须严格对齐,否则新增一个字段就可能让老版本的解析代码报错。契约应该像 API 一样版本化:
+The downstream consumer and model-output producer must agree precisely on the schema. Otherwise, even adding a field may break an older parser. Version contracts as you would APIs:
 
 ```json
 {
@@ -84,17 +84,17 @@ def parse_model_output(raw_json: str) -> ExtractedOrder:
 }
 ```
 
-这是扩展契约的独立示例，新增了 `schema_version` 和 `confidence`，不能直接传给 5.3 节禁止额外字段的模型类。请求配置决定预期的 `schema_version`，不能让模型声明任意版本后就选择更宽松的解析器。Prompt 与 Schema 分别编号、显式关联并一起发布。示例的 `confidence` 只是一个数值，不是经校准的正确概率，不能单独作为支付或自动审批依据。
+This is a separate example of an extended contract. It adds `schema_version` and `confidence`, so it cannot be passed directly to the model class in Section 5.3, which forbids extra fields. Request configuration determines the expected `schema_version`; do not let the model declare an arbitrary version and thereby select a more permissive parser. Give prompts and schemas separate version identifiers, associate them explicitly, and release them together. The example's `confidence` is just a number, not a calibrated probability of correctness, and must not independently justify a payment or automated approval.
 
-## 5.5 修复策略:校验失败之后怎么办
+## 5.5 Repair strategies: what happens after validation fails?
 
-| 策略 | 适用场景 | 代价 |
+| Strategy | Suitable situation | Cost |
 |---|---|---|
-| **原样重试** | 偶发的格式错误 | 一次额外的模型调用费用 |
-| **把错误信息回填给模型再试一次** | 可定位的字段或类型错误 | 增加调用、延迟与注入面，收益应在业务数据上测量 |
-| **规则修复(如去除多余的 Markdown 代码块标记)** | 已知的、固定模式的格式问题 | 几乎零成本,但只能覆盖已知问题 |
-| **降级到更严格约束解码的模型** | 反复失败 | 见[第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.md)的回退链路 |
-| **走降级路径,不再尝试解析** | 重试多次仍失败 | 见[第 6 章](06-guardrails-degradation.md) |
+| **Retry unchanged** | Occasional formatting errors | The cost of another model call |
+| **Feed the error back to the model and try again** | A field or type error that can be located | Additional calls, latency, and exposure to injection; measure the benefit on business data |
+| **Rule-based repair, such as removing extra Markdown fences** | Known formatting problems with fixed patterns | Almost no cost, but only covers known problems |
+| **Fall back to a model with stricter constrained decoding** | Repeated failures | See the fallback chain in [Chapter 3](../02-request-reliability/03-model-gateway-routing-fallback.md) |
+| **Use a degraded-service path and stop parsing attempts** | Continued failure after multiple retries | See [Chapter 6](06-guardrails-degradation.md) |
 
 ```python
 def parse_with_repair(raw_text: str, schema: type, max_repairs: int = 1):
@@ -111,38 +111,38 @@ def parse_with_repair(raw_text: str, schema: type, max_repairs: int = 1):
             raw_text = regenerate_with_error_context(errors)
 ```
 
-## 5.6 常见错误
+## 5.6 Common mistakes
 
-### 5.6.1 只在 Prompt 里描述格式,不做任何程序化校验
+### 5.6.1 Describing the format in a prompt without programmatic validation
 
-"请用 JSON 格式回答"不是可执行的契约。程序消费场景应按接口能力选择严格结构化输出，并保留接收端校验及拒绝、截断处理。
+“Please respond in JSON” is not an executable contract. For programmatic consumers, choose strict structured outputs according to the interface's capabilities, while retaining receiving-side validation and handling for refusals and truncation.
 
-### 5.6.2 假设约束解码 100% 可靠,省略接收端校验
+### 5.6.2 Assuming constrained decoding is 100% reliable and omitting receiving-side validation
 
-约束解码可能因为网关转换、流式截断等原因失效,接收端校验是最后一道防线,不能省略。
+Gateway transformations, truncated streams, and similar issues can defeat the expected guarantee of constrained decoding. Receiving-side validation is the last line of defense and cannot be omitted.
 
-### 5.6.3 Schema 变更没有版本号
+### 5.6.3 Changing a schema without versioning it
 
-新增或修改字段却不升版本号,会让老版本的下游解析逻辑在不知情的情况下悄悄出错,这类问题往往过很久才被发现。
+Adding or changing fields without a version increment can silently break older downstream parsing logic. Such failures can remain unnoticed for a long time.
 
-### 5.6.4 校验失败后无脑原样重试
+### 5.6.4 Blindly retrying the same request after validation fails
 
-同样的 Prompt 可能重复原来的错误，回填错误也不保证有效。先判断失败能否通过重新生成解决，再在共同的次数、费用与超时预算内选择修复方式；拒绝、权限不足和不支持的 Schema 不能靠反复生成解决。
+The same prompt may repeat the original error, and feeding back an error does not guarantee a fix. First determine whether regeneration can resolve the failure, then choose a repair method within the shared attempt, cost, and timeout budgets. Repeated generation cannot solve refusals, insufficient permissions, or unsupported schemas.
 
-### 5.6.5 混淆"格式正确"和"内容正确"
+### 5.6.5 Confusing correct format with correct content
 
-合法 JSON 不是授权证明。金额、日期、资源归属等可验证条件，应由服务端执行前核对；评测不能替代每一次交易的业务校验。规则修复只适合无歧义格式变化，不应猜测并更改金额等业务值。
+Valid JSON is not proof of authorization. The server should verify checkable conditions, such as amounts, dates, and resource ownership, before execution. Evaluation cannot replace business validation for each transaction. Rule-based repair is appropriate only for unambiguous formatting changes, not for guessing or modifying business values such as amounts.
 
-## 5.7 本章总结
+## 5.7 Chapter summary
 
-1. **程序需要结构化字段或执行动作时，不能直接信任自由文本**，应建立可验证的契约；单纯展示文本也仍需按渲染环境做安全处理;
-2. **工具调用是接口形式，不是固定的约束等级**；JSON 语法约束与严格 Schema 约束要区分;
-3. **约束解码解决格式问题,不解决内容语义问题**,两者需要不同的机制兜底;
-4. **接收端必须独立做 Schema 校验**,不能假设生成端一定按约束生效;
-5. **契约需要版本号**,Prompt 和它对应的输出 Schema 应作为同一个可版本化单元管理;
-6. **校验失败要有分级修复策略**,从原样重试到回填错误上下文,再到最终的降级路径。
+1. **When programs need structured fields or execute actions, free text cannot be trusted directly.** Establish a verifiable contract. Even text intended only for display still needs safety measures appropriate to its rendering context.
+2. **Tool calling is an interface form, not a fixed level of constraint.** Distinguish JSON syntax constraints from strict schema constraints.
+3. **Constrained decoding addresses format, not semantic correctness.** These need different safeguards.
+4. **The receiving side must independently validate the schema.** Do not assume generation constraints were applied successfully.
+5. **Contracts need version numbers.** Manage a prompt and its corresponding output schema as one versionable unit.
+6. **Use graduated repair strategies after validation fails,** from an unchanged retry to error-context feedback and, ultimately, a degraded-service path.
 
-## 参考资料
+## References
 
 - [OpenAI: Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs)
 - [OpenAI: Reasoning models](https://developers.openai.com/api/docs/guides/reasoning)

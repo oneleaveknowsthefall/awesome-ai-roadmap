@@ -1,73 +1,73 @@
 ---
-description: 推导扩散噪声预测与条件 Flow Matching 的训练目标，说明 DDIM、CFG、隐空间压缩和图像生成评测的适用条件。
+description: Derive noise-prediction and conditional flow-matching objectives, explaining the assumptions behind DDIM, CFG, latent-space compression, and image-generation evaluation.
 ---
 
-# 第七章：扩散模型、Flow Matching 与图像生成
+# Chapter 7: Diffusion Models, Flow Matching, and Image Generation
 
-> 本章聚焦图像生成模型背后的**生成式建模范式**（Diffusion、Flow Matching）及其在文本到图像任务中的具体应用；视频生成在时序一致性上引入的额外问题见 [第八章](08-video-generation.md)。这里讨论的是"如何从噪声生成数据"，与 [第一章](../01-foundations/01-multimodal-fusion-architecture.md)讨论的"如何把多模态输入接入语言模型做理解"是不同方向的问题。
+> This chapter focuses on the **generative modeling paradigms** behind image generation—diffusion and flow matching—and their application to text-to-image tasks. For the additional temporal-consistency problems of video generation, see [Chapter 8](08-video-generation.md). Generating data from noise is a different question from connecting multimodal inputs to a language model for understanding, covered in [Chapter 1](../01-foundations/01-multimodal-fusion-architecture.md).
 
-## 7.1 生成式建模的核心问题
+## 7.1 The central problem of generative modeling
 
-图像生成学习可采样的数据分布；文本到图像还要学习给定条件 $c$ 的分布 $p(x\mid c)$。本章讨论扩散与 Flow Matching：前者可从离散加噪链出发，后者以连续速度场为基础，两者又能在特定连续时间参数化下联系起来。它们不是图像生成的全部方法，自回归、GAN 等路线也存在。
+Image generation learns a data distribution that can be sampled; text-to-image generation must also learn the distribution $p(x\mid c)$ given a condition $c$. This chapter covers diffusion and flow matching. The former can start from a discrete noising chain; the latter is based on a continuous velocity field. They can also be related under particular continuous-time parameterizations. They are not the only image-generation methods: autoregressive models, GANs, and other approaches exist.
 
-## 7.2 扩散模型：加噪与去噪
+## 7.2 Diffusion models: adding and removing noise
 
-DDPM（Denoising Diffusion Probabilistic Models）定义了一个固定的**前向加噪过程**：从真实数据 $x_0$ 出发，经过 $T$ 步逐渐加入高斯噪声，最终得到近似纯噪声的 $x_T$：
+Denoising Diffusion Probabilistic Models (DDPM) define a fixed **forward noising process**. Starting from real data $x_0$, Gaussian noise is gradually added over $T$ steps until $x_T$ is approximately pure noise:
 
 $$
 q(x_t\mid x_{t-1})=\mathcal{N}\left(x_t;\sqrt{1-\beta_t}x_{t-1},\ \beta_t I\right)
 $$
 
-其中 $\beta_t$ 是噪声调度系数。令 $\bar\alpha_t=\prod_{s=1}^{t}(1-\beta_s)$，可以直接采样任意时刻的带噪样本，无需训练时逐步跑完整条链：
+Here, $\beta_t$ is a noise-schedule coefficient. Defining $\bar\alpha_t=\prod_{s=1}^{t}(1-\beta_s)$ lets us directly sample a noisy example at any time without traversing the entire chain during training:
 
 $$
 x_t=\sqrt{\bar\alpha_t}x_0+\sqrt{1-\bar\alpha_t}\epsilon,\qquad
 \epsilon\sim\mathcal{N}(0,I)
 $$
 
-简化噪声预测损失让网络预测这里的**累计噪声** $\epsilon$，不是某一步刚加入的独立噪声：
+The simplified noise-prediction loss trains the network to predict the **aggregate noise** $\epsilon$ here, not the independent noise newly added at a particular step:
 
 $$
 \mathcal{L}=\mathbb{E}_{x_0,\epsilon,t}\left[\lVert \epsilon-\epsilon_\theta(x_t,t)\rVert^2\right]
 $$
 
-推理时结合网络预测与采样器更新状态，逐步从噪声产生样本。这里的 **score** 指对数概率密度对样本的梯度，不是评价图片质量的分数。在上述高斯加噪条件下，噪声预测与**带噪边缘分布**的 score 存在比例关系：
+At inference time, network predictions and sampler updates progressively transform noise into a sample. The **score** here is the gradient of log probability density with respect to the sample, not an image-quality rating. Under the Gaussian noising process above, noise prediction is proportional to the score of the **noisy marginal distribution**:
 
 $$
 s_\theta(x_t,t)=-\frac{\epsilon_\theta(x_t,t)}{\sqrt{1-\bar\alpha_t}}
 $$
 
-这不是直接估计干净数据分布在所有时刻的梯度。噪声预测、数据预测和速度参数化可以换算，但不同时间步权重和噪声日程会改变实际优化问题，不能概括为任意训练目标都完全等价。
+This does not directly estimate the gradient of the clean-data distribution at every time. Noise prediction, data prediction, and velocity parameterizations can be converted into one another, but time-step weighting and noise schedules change the actual optimization problem. Arbitrary training objectives are not all equivalent.
 
-## 7.3 Latent Diffusion：把扩散过程搬到隐空间
+## 7.3 Latent diffusion: moving diffusion into latent space
 
-Latent Diffusion 先训练压缩自编码器，在较低空间分辨率的 latent 上学习去噪，再解码回图像。原论文讨论 KL 正则和向量量化等自编码器方案，Stable Diffusion 1/2 使用 KL 正则自编码器，不能把所有 LDM 都限定为同一种 VAE。文本条件通过去噪网络中选定的交叉注意力模块注入，不是字面上的每一层。压缩减少空间计算，但文字、小纹理和精确几何可能在自编码阶段就丢失；增加采样步数不能恢复 tokenizer 无法表示的细节。
+Latent diffusion first trains a compressive autoencoder, learns denoising over lower-spatial-resolution latents, and then decodes them into images. The original paper discusses autoencoders with KL regularization and vector quantization, among other options. Stable Diffusion 1/2 uses a KL-regularized autoencoder; not every LDM should be restricted to that same kind of VAE. Text conditioning enters selected cross-attention modules in the denoising network, not literally every layer. Compression reduces spatial computation, but text, fine textures, and exact geometry may already be lost during autoencoding. More sampling steps cannot restore details that the tokenizer cannot represent.
 
-## 7.4 采样加速与可控性
+## 7.4 Faster sampling and controllability
 
-原始 DDPM 的采样沿多步反向链运行，成本主要取决于网络调用次数。采样加速和条件引导是两个不同问题：
+Original DDPM sampling follows a multi-step reverse chain, with cost primarily determined by the number of network evaluations. Sampling acceleration and conditional guidance are distinct problems:
 
-- **DDIM 采样**：构造与 DDPM 共享训练目标的非马尔可夫过程；随机性参数设为零时得到确定性采样，也可选非零随机性。它可使用更稀疏的时间网格，但减少步数是质量—成本取舍，不保证同等质量。其连续极限与 ODE 有联系，不能把有限步 DDIM 简化为精确求解 ODE；
-- **无分类器引导（Classifier-Free Guidance）**：训练时随机丢弃条件（文本）信息，让模型同时学会有条件和无条件生成，推理时按权重外推两者的预测差异，增强生成结果与文本条件的一致性，代价是引导强度过高会牺牲多样性和真实感，需要按任务调节引导系数。
+- **DDIM sampling** constructs a non-Markovian process sharing DDPM's training objective. Setting its stochasticity parameter to zero gives deterministic sampling; nonzero stochasticity is also possible. A sparser time grid can be used, but reducing steps is a quality–cost tradeoff, not a guarantee of equal quality. Its continuous limit is related to an ODE, but finite-step DDIM should not be described as an exact ODE solution.
+- **Classifier-free guidance (CFG)** randomly drops conditioning information, such as text, during training so the model learns both conditional and unconditional generation. At inference time, a weighted extrapolation of the difference between their predictions strengthens adherence to the text condition. Excessive guidance can sacrifice diversity and realism, so the coefficient needs task-specific tuning.
 
-例如噪声预测形式的 CFG 可写为：
+For example, CFG in noise-prediction form is:
 
 $$
 \hat\epsilon=\epsilon_\theta(x_t,t,\varnothing)+
 w\left[\epsilon_\theta(x_t,t,c)-\epsilon_\theta(x_t,t,\varnothing)\right]
 $$
 
-这里 $w=1$ 是普通条件预测；其他资料可能采用相差 1 的系数定义，不能直接照搬数值。标准 CFG 每步需要条件、无条件两份预测，虽然可合并批处理，却不是免费的采样加速。负面提示替换无条件分支或模型做过引导蒸馏时，含义又不同。
+Here, $w=1$ is ordinary conditional prediction. Other sources may define the coefficient with an offset of 1, so values cannot be copied blindly. Standard CFG needs both conditional and unconditional predictions at every step. They may be batched together, but this is not free sampling acceleration. Replacing the unconditional branch with a negative prompt, or using a guidance-distilled model, changes the interpretation again.
 
-## 7.5 Flow Matching 学什么，为什么训练时不必求解整条轨迹？
+## 7.5 What does flow matching learn, and why does training not require solving the full trajectory?
 
-Flow Matching 通过采样路径上的位置与对应速度来训练速度场，不必在每次训练更新中模拟完整轨迹；推理时才沿学到的场积分。它可以选择扩散式概率路径，也可以选择其他路径，并不要求先定义离散的“加噪—去噪”马尔可夫链。连续常微分方程为：
+Flow matching trains a velocity field by sampling positions along a path and their corresponding velocities. It does not need to simulate the complete trajectory for every training update; integration along the learned field happens at inference. It can use diffusion probability paths or other paths, without first defining a discrete noising–denoising Markov chain. Its continuous ordinary differential equation is:
 
 $$
 \frac{dx_t}{dt}=v_\theta(x_t,t)
 $$
 
-以噪声 $z$ 和数据 $x$ 的线性条件路径为例，这一节用 $t=0$ 表示噪声、 $t=1$ 表示数据，时间方向与前面的 DDPM 记号相反：
+Consider a linear conditional path between noise $z$ and data $x$. This section uses $t=0$ for noise and $t=1$ for data, reversing the time direction of the DDPM notation above:
 
 $$
 x_t=(1-t)z+tx,\qquad
@@ -75,58 +75,58 @@ x_t=(1-t)z+tx,\qquad
 \mathbb{E}_{z,x,t}\left[\lVert v_\theta(x_t,t)-(x-z)\rVert^2\right]
 $$
 
-最简单的设置是独立采样标准高斯噪声 `z` 与训练数据 `x`，并在 `[0,1]` 均匀采样 `t`；改变端点配对或时间采样会改变训练条件。训练时直接采样 $(z,x,t)$ 并回归条件速度，无需数值积分完整 ODE；推理时才用求解器积分。关键追问是：**条件样本对的路径是直线，学到的边缘速度场轨迹却不一定是直线**。模型在同一位置学习多个条件速度的平均，有限容量与数值离散化又会引入误差，所以线性插值并不保证一步或少步生成。Rectified Flow 的 reflow 与蒸馏正是进一步改善轨迹和采样效率的手段。
+The simplest setup independently samples standard Gaussian noise `z` and training data `x`, with `t` uniform on `[0,1]`. Changing endpoint pairings or time sampling changes the training conditions. Training directly samples $(z,x,t)$ and regresses the conditional velocity, without numerically integrating the entire ODE; a solver performs integration at inference. The key follow-up is that **straight conditional paths between sample pairs do not imply straight trajectories in the learned marginal velocity field**. At the same location, the model learns an average of multiple conditional velocities, while finite capacity and numerical discretization introduce further errors. Linear interpolation therefore does not guarantee one-step or few-step generation. Rectified flow's reflow and distillation are methods for further improving trajectories and sampling efficiency.
 
-Stable Diffusion 3 的公开论文结合 rectified flow、时间步采样重加权与 MMDiT：文本和图像有各自权重，通过联合注意力交换信息。Flow Matching 是训练目标，Transformer 是网络骨干，两者不是必须绑定。
+The published Stable Diffusion 3 paper combines rectified flow, reweighted time-step sampling, and MMDiT. Text and images have separate weights and exchange information through joint attention. Flow matching is a training objective; a Transformer is a network backbone. They are not inseparable.
 
-Diffusion 与 Flow Matching 并非互斥的两套体系——在特定路径假设下，两者的训练目标可以相互推导，实践中的差异更多体现在噪声调度、路径设计和工程实现的选择上，而非根本不同的生成原理。
+Diffusion and flow matching are not mutually exclusive systems. Under particular path assumptions, their objectives can be derived from one another. Practical differences lie more in noise schedules, path design, and engineering choices than in entirely different generative principles.
 
-## 7.6 主流系统的架构定位
+## 7.6 Architectural positioning of representative systems
 
-| 系统 | 骨干架构 | 关键设计 |
+| System | Backbone architecture | Key design |
 |---|---|---|
-| Stable Diffusion（1/2 版本） | U-Net + 隐空间扩散 | 已发布权重；使用需核对对应许可证 |
-| Stable Diffusion 3 | MMDiT + Rectified Flow | 图文双向交互及时间步采样设计 |
-| DALL·E 3（2023 技术报告） | 隐空间生成；附录另披露将 latent 还原为像素的扩散解码器 | 重点研究合成与原始描述混合；部分架构披露不等于完整训练实现公开 |
-| Imagen | 像素空间级联扩散（基础分辨率 + 超分辨率级联） | 依赖大规模纯文本预训练语言模型作为文本编码器 |
+| Stable Diffusion (versions 1/2) | U-Net + latent diffusion | Released weights; check the applicable license before use |
+| Stable Diffusion 3 | MMDiT + rectified flow | Bidirectional image–text interaction and time-step sampling design |
+| DALL·E 3 (2023 technical report) | Latent-space generation; the appendix additionally discloses a diffusion decoder mapping latents back to pixels | Focuses on mixing synthetic and original captions; partial architectural disclosure is not a complete public training implementation |
+| Imagen | Cascaded pixel-space diffusion: base resolution plus super-resolution cascades | Uses a language model pretrained on large-scale text-only data as its text encoder |
 
-表格用于定位已公开的设计，不是截至某日的产品排行榜。没有披露的内部结构应保留未知；也不应由几个代表模型推断所有图像生成方法都属于扩散或流匹配。
+This table locates publicly described designs, not a product leaderboard as of a particular date. Undisclosed internals should remain unknown. A few representative models also do not establish that every image-generation method uses diffusion or flow matching.
 
-## 7.7 评测：自动指标与人工评估缺一不可
+## 7.7 Evaluation: automatic metrics and human assessment are both necessary
 
-| 维度 | 指标 | 局限 |
+| Dimension | Metric | Limitations |
 |---|---|---|
-| 图像质量/多样性 | FID（Fréchet Inception Distance） | 比较 Inception 特征均值与协方差的高斯近似距离，不直接测每张图的文本遵循 |
-| 文本-图像一致性 | CLIPScore | 依赖 CLIP 的图文对齐能力，可能与人类对"是否遵循提示词"的判断不完全一致 |
-| 整体偏好 | 人工两两比较（Human Preference） | 更贴近实际使用体验，但成本高、结果受评审人群影响 |
+| Image quality and diversity | FID (Fréchet Inception Distance) | Compares Gaussian approximations based on Inception feature means and covariances; does not directly measure each image's text adherence |
+| Text–image consistency | CLIPScore | Depends on CLIP alignment and may disagree with human judgments of prompt adherence |
+| Overall preference | Human pairwise comparisons | Closer to actual user experience, but expensive and affected by the reviewer population |
 
-FID 和 CLIPScore 分数改善不等于人类偏好改善，两者在评测中经常出现不一致的排名，生产系统的模型选型应结合人工评估，不能只依赖单一自动指标。
+Improved FID and CLIPScore do not necessarily mean improved human preference. Rankings often disagree, so production model selection should include human evaluation rather than rely on one automatic metric.
 
-对“两个蓝杯子在红盘子左侧”一类提示，应分别检查数量、属性绑定、相对位置与文字渲染；全局 CLIP 相似度可能掩盖局部条件错误。比较采样器时固定模型、提示集、随机种子策略、分辨率、引导定义和网络调用次数，同时报告时延与显存，避免把计算预算不同误当成方法优劣。
+For a prompt such as “两个蓝杯子在红盘子左侧” (“two blue cups to the left of a red plate”), separately check count, attribute binding, relative position, and text rendering. Global CLIP similarity can hide local condition errors. When comparing samplers, fix the model, prompt set, random-seed policy, resolution, guidance definition, and number of network evaluations. Report latency and GPU memory too, so unequal compute budgets are not mistaken for methodological superiority.
 
-## 7.8 常见错误
+## 7.8 Common mistakes
 
-### 7.8.1 把"步数越多越好"当成普适规则
+### 7.8.1 Assuming more steps are always better
 
-采样步数的收益取决于模型是否针对少步训练或蒸馏、求解器阶数、时间网格和引导强度。增加步数可能改善离散误差，但不能消除数据偏差或自编码器损失；应在目标模型上测质量—时延曲线，不能从 DDIM 或 Flow Matching 名称直接推断需要几步。
+The benefit of sampling steps depends on whether the model was trained or distilled for few-step generation, the solver order, time grid, and guidance strength. More steps may reduce discretization error but cannot eliminate data bias or autoencoder losses. Measure the quality–latency curve on the target model; the labels “DDIM” and “flow matching” alone do not tell you how many steps it needs.
 
-### 7.8.2 无分类器引导系数"一律调高"
+### 7.8.2 Always increasing classifier-free guidance
 
-提高引导系数在一定区间内可能改善文本遵循，但不是单调保证。过高可能导致饱和、失真和多样性下降，应按具体模型、参数化及提示类型调节。
+Increasing guidance may improve text adherence over a certain range, but this is not a monotonic guarantee. Excessive guidance can cause saturation, distortion, and reduced diversity. Tune it for the specific model, parameterization, and prompt type.
 
-### 7.8.3 用 FID 分数直接排名不同分辨率或数据集下训练的模型
+### 7.8.3 Ranking models trained at different resolutions or on different datasets by FID alone
 
-FID 对图像分辨率、参考数据集选择和特征提取网络版本敏感，跨论文、跨设置直接比较分数具有误导性，必须在相同评测协议下复现比较。
+FID is sensitive to image resolution, the reference dataset, and the feature-extractor version. Direct cross-paper or cross-setting comparisons are misleading; reproduce comparisons under the same evaluation protocol.
 
-## 7.9 本章总结
+## 7.9 Chapter summary
 
-1. 扩散与 Flow Matching 都可实现从噪声采样数据，其联系需要明确路径、参数化和时间步权重；
-2. Latent Diffusion 把扩散搬到自编码器压缩后的隐空间，降低计算量的同时引入重建质量边界；
-3. DDIM 与无分类器引导分别解决采样步数和文本一致性问题，是提升生成效率与可控性的核心技术；
-4. Flow Matching 可无需模拟轨迹进行训练；条件路径笔直不保证生成轨迹笔直，少步质量仍需验证；
-5. FID、CLIPScore 等自动指标各有局限，生产系统的模型选型应结合人工偏好评估。
+1. Diffusion and flow matching can both sample data from noise. Their relationship requires explicit path assumptions, parameterizations, and time-step weights.
+2. Latent diffusion moves the process into an autoencoder's compressed space, reducing computation while imposing reconstruction-quality limits.
+3. DDIM and classifier-free guidance address sampling steps and text consistency respectively, providing core techniques for efficient and controllable generation.
+4. Flow matching can train without trajectory simulation. Straight conditional paths do not guarantee straight generation trajectories, and few-step quality still needs validation.
+5. Automatic metrics such as FID and CLIPScore have distinct limitations; production model selection should include human preference evaluation.
 
-## 参考资料
+## References
 
 - [Denoising Diffusion Probabilistic Models (DDPM)](https://arxiv.org/abs/2006.11239)
 - [Denoising Diffusion Implicit Models (DDIM)](https://arxiv.org/abs/2010.02502)

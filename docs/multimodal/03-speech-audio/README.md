@@ -1,25 +1,25 @@
 ---
-description: 汇总语音识别、合成、音频表示与全双工交互，区分离散和连续表示、流式时延与打断状态管理。
+description: Connect speech recognition, synthesis, audio representations, and full-duplex interaction, distinguishing discrete and continuous representations, streaming latency, and interruption-state management.
 ---
 
-# 多模态 · 语音与音频
+# Multimodal · Speech and Audio
 
-覆盖语音识别、语音合成、通用音频理解与音频语言模型的架构演进，以及实时全双工语音对话的建模与工程要点。
+This module covers the evolution of architectures for speech recognition, speech synthesis, general audio understanding, and audio language models, followed by modeling and engineering considerations for real-time full-duplex voice dialogue.
 
-## 章节
+## Chapters
 
-1. [第五章：语音识别、合成与音频语言模型](05-asr-tts-audio-lm.md)
-2. [第六章：实时全双工语音交互](06-realtime-duplex-voice.md)
+1. [Chapter 5: Speech Recognition, Synthesis, and Audio Language Models](05-asr-tts-audio-lm.md)
+2. [Chapter 6: Real-Time Full-Duplex Voice Interaction](06-realtime-duplex-voice.md)
 
-## 模块内关系
+## Connections within the module
 
 ```mermaid
 flowchart LR
-    A[ASR / TTS /<br/>Audio-Language 模型] --> B[实时全双工语音交互]
+    A[ASR / TTS /<br/>Audio-Language Models] --> B[Real-Time Full-Duplex<br/>Voice Interaction]
 ```
 
-第五章区分连续音频特征、语义 token 与 codec 声学 token，以及各自的监督目标；第六章再比较级联和原生语音到语音架构。原生模型不等于一次前向完成回复，级联管线也不等于只能半双工。
+Chapter 5 distinguishes continuous audio features, semantic tokens, and acoustic codec tokens, along with their supervision objectives. Chapter 6 then compares cascaded and native speech-to-speech architectures. A native model does not finish a response in one forward pass, and a cascade is not limited to half duplex.
 
-复习应能分别解释“最终转写是否正确”“第一段回复何时听到”“被打断后用户没听到的内容是否留在上下文”。传输协议与音频处理的相关实现见 [Tools · SSE、WebSocket 与 WebRTC](../../tools/05-transport-gateway/13-sse-websocket-webrtc.md)。
+You should be able to explain separately whether the final transcript is correct, when the first response becomes audible, and whether unheard content remains in context after an interruption. For transport protocols and audio-processing implementation, see [Tools · SSE, WebSocket, and WebRTC](../../tools/05-transport-gateway/13-sse-websocket-webrtc.md).
 
-返回 [多模态相关知识点](../README.md)。
+Return to [Multimodal Topics](../README.md).

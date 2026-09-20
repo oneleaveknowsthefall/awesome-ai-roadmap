@@ -1,205 +1,205 @@
 ---
-description: 从模型输出、任务知识和外部能力连接三个层次比较 Function Calling、Skill 与 MCP，并说明三者如何组合。
+description: Compare function calling, Skills, and MCP through model output, task knowledge, and external capability integration, and see how the three can work together.
 ---
 
-# 第十章：Function Calling、MCP、Skill 三者关系
+# Chapter 10: How Function Calling, MCP, and Skills Fit Together
 
-## 10.1 为什么会有三个概念
+## 10.1 Why are there three concepts?
 
-最典型的误解是把这三个当成「不同厂商在不同时期推出的竞争方案，选一个用就行」。
+The typical misconception is that these are competing solutions introduced by different vendors at different times, and you only need to choose one.
 
-它们是**可组合的三种接口与内容机制**，不是必须逐层依赖的技术栈。
+They are **three composable interface and content mechanisms**, not a technology stack in which every layer must depend on the next.
 
-可以先看**每句话的主语是谁**：
+Start by asking **who is speaking in each case**:
 
-| | 谁在说话 | 说什么 |
+| | Who is speaking | What they say |
 |---|---|---|
-| **Function Calling** | 模型 | 「我要调这个函数，参数是这些」 |
-| **MCP** | 工具服务 | 「我能提供这些函数」 |
-| **Skill** | 操作手册 | 「用这些工具，按这个流程做」 |
+| **Function Calling** | The model | “I want to call this function with these arguments.” |
+| **MCP** | The tool service | “These are the functions I provide.” |
+| **Skill** | The operating manual | “Use these tools and follow this procedure.” |
 
-主语不同、对话对象不同、粒度不同——这就是三者的本质差异。
+Different speakers, different counterparts, and different granularities explain the essential distinction.
 
-### 10.1.1 代表性发布节点不等于依赖关系
+### 10.1.1 Release milestones do not establish dependencies
 
 ```mermaid
 timeline
-    title 三种机制的代表性发布时间
-    2023 : Function Calling : 问题「模型只会生成文本<br/>怎么让它触发外部调用」
-    2024 : MCP : 问题「每个应用都在重复<br/>写对接各种工具的代码」
-    2025 : Agent Skill : 问题「工具有了<br/>但 Agent 不知道该按什么流程用」
+    title Representative release milestones for the three mechanisms
+    2023 : Function Calling : Problem - a model generates text<br/>How can it request an external call?
+    2024 : MCP : Problem - every application repeats<br/>the work of integrating different tools
+    2025 : Agent Skill : Problem - tools are available<br/>but the agent lacks a procedure for using them
 ```
 
-这条时间线指 OpenAI Function Calling、MCP 和 Anthropic Agent Skills 的发布节点，不是工具调用、接口标准化或流程复用思想的起源。三者分别处理：
+The timeline marks the releases of OpenAI Function Calling, MCP, and Anthropic Agent Skills. It does not date the origins of tool use, interface standardization, or reusable procedures. Their respective concerns are:
 
-- Function Calling 解决**调用协议**问题：模型和程序之间需要一套结构化的表达方式；
-- MCP 处理重复对接的问题，把工具、资源和提示模板的接入**标准化**，让兼容的应用复用服务端能力；
-- Skill 处理任务步骤和标准的重复维护，组织**知识与流程复用**，并不要求工具先通过 MCP 接入。
+- Function calling addresses the **call interface**: the model and application need a structured way to express calls.
+- MCP addresses repeated integration work by **standardizing** access to tools, resources, and prompt templates, so compatible applications can reuse server capabilities.
+- Skills address repeated maintenance of task steps and standards by organizing **reusable knowledge and procedures**. They do not require tools to be connected through MCP first.
 
-## 10.2 从「谁和谁通信」定位三者
+## 10.2 Identify the communicating parties
 
 ```mermaid
 flowchart TB
-    subgraph L3["第三层 · Skill"]
+    subgraph L3["Layer 3 · Skill"]
         direction LR
-        AGENT[Agent] <-->|"扫描 / 加载"| KM["知识模块<br/>SKILL.md + 脚本 + 模板"]
+        AGENT[Agent] <-->|"Scan / load"| KM["Knowledge module<br/>SKILL.md + scripts + templates"]
     end
 
-    subgraph L2["第二层 · MCP"]
+    subgraph L2["Layer 2 · MCP"]
         direction LR
         CLIENT[MCP Client] <-->|"JSON-RPC<br/>tools/list · tools/call"| SERVER[MCP Server]
     end
 
-    subgraph L1["第一层 · Function Calling"]
+    subgraph L1["Layer 1 · Function Calling"]
         direction LR
-        MODEL[模型] <-->|"tool_calls JSON<br/>tool 消息回填"| HOST[宿主程序]
+        MODEL[Model] <-->|"tool_calls JSON<br/>Results returned in tool messages"| HOST[Host application]
     end
 
-    L3 -.->|"可选：流程中使用 MCP"| L2
-    L2 -.->|"可选：Host 转成 FC 格式<br/>并回传结果"| L1
+    L3 -.->|"Optional: use MCP in the procedure"| L2
+    L2 -.->|"Optional: host converts to FC format<br/>and returns results"| L1
 
     style L3 fill:#e6f4ea
     style L2 fill:#e8f0fe
     style L1 fill:#fef7e0
 ```
 
-| 层次 | 发生在哪两个角色之间 | 本质 | 粒度 |
+| Layer | Communicating parties | Nature | Granularity |
 |---|---|---|---|
-| Function Calling | 模型 ↔ 宿主程序 | 单次调用的格式规范 | 一次函数调用 |
-| MCP | MCP Client ↔ MCP Server | 工具的标准化封装与发现 | 一个工具 / 一组工具 |
-| Skill | Agent ↔ 知识模块 | 流程与标准的可复用封装 | 一类完整任务 |
+| Function Calling | Model ↔ host application | Format for an individual call | One function call |
+| MCP | MCP client ↔ MCP server | Standardized tool packaging and discovery | A tool or set of tools |
+| Skill | Agent ↔ knowledge module | Reusable packaging of procedures and standards | A complete class of tasks |
 
-注意粒度的跨度：「查询订单表」是一个 **MCP 工具**，「代码审查」「数据分析报告」是一个 **Skill**——一个 Skill 内部可能有好几个步骤，每步可调用多个 MCP 工具；由 LLM 驱动时，常以 Function Calling 或结构化输出表达调用意图。
+Notice the difference in granularity. Querying an order table is an **MCP tool**; code review or producing a data-analysis report is a **Skill**. A Skill may contain several steps, each of which may call multiple MCP tools. When an LLM drives the process, it commonly expresses its intent to call a tool through function calling or structured output.
 
-## 10.3 组合关系不是强制依赖
+## 10.3 Composition does not mean mandatory dependency
 
-可以用反例检查是否混淆了职责：
+Counterexamples help reveal whether responsibilities have been confused:
 
 ```mermaid
 flowchart TB
-    S["Skill<br/>定义流程"] --> H["Host / Agent<br/>选择与执行"]
-    H --> M["MCP Client<br/>调用 Server"]
-    H --> LOCAL["本地函数 / CLI / API"]
-    F["Function Calling<br/>模型提出调用"] --> H
-    RULE["规则工作流 / 人工操作"] --> H
+    S["Skill<br/>Defines the procedure"] --> H["Host / Agent<br/>Selection and execution"]
+    H --> M["MCP Client<br/>Calls the server"]
+    H --> LOCAL["Local function / CLI / API"]
+    F["Function Calling<br/>Model proposes a call"] --> H
+    RULE["Rule-based workflow / human action"] --> H
 
     style S fill:#e6f4ea
     style M fill:#e8f0fe
     style F fill:#fef7e0
 ```
 
-这些路径都能成立：
+All of these paths are possible:
 
-- **没有原生 Function Calling**，Host 仍可用结构化文本、规则或人工选择触发工具；区别在可靠性和适配成本；
-- **MCP 可与 Function Calling 配合**：许多 Host 会把 MCP Tool 转成模型 schema，但 MCP 不强制这条适配路径。[第六章](../02-mcp/06-mcp-vs-function-calling.md) 详细拆过这条时序链；
-- **需要外部操作的 Skill 依赖宿主提供相应能力，而非特定协议**：执行中可使用 MCP、内嵌函数或其他受控集成。
+- **Without native function calling**, a host can still trigger tools through structured text, rules, or human selection. The differences lie in reliability and adaptation cost.
+- **MCP can work with function calling**. Many hosts convert MCP tools into model schemas, but MCP does not require this adaptation path. [Chapter 6](../02-mcp/06-mcp-vs-function-calling.md) examines that sequence in detail.
+- **A Skill that requires external actions depends on the host providing the corresponding capabilities, not on a particular protocol**. It can use MCP, embedded functions, or other controlled integrations during execution.
 
-仅有 Function Calling 加执行器就能工作；确定性程序也能单独用 MCP；纯写作 Skill 可以不调任何外部工具。三者都不是另外两者成立的必要条件。
+Function calling with an executor can work on its own. A deterministic program can use MCP alone. A writing-only Skill can avoid external tools entirely. None of the three is a prerequisite for either of the others.
 
-## 10.4 三种边界，三种不同的失败
+## 10.4 Three boundaries, three kinds of failure
 
-| | 边界 | 典型失败 |
+| | Boundary | Typical failures |
 |---|---|---|
-| **Function Calling** | 模型提议 → 应用执行 | 工具选错、参数语义错、未授权调用 |
-| **MCP** | Client → Server | 版本不兼容、认证失败、超时后结果未知 |
-| **Skill** | 可复用知识 → 当前任务上下文 | 错误触发、过时指令、脚本依赖缺失 |
+| **Function Calling** | Model proposal → application execution | Wrong tool selected, semantically wrong arguments, unauthorized calls |
+| **MCP** | Client → server | Incompatible versions, authentication failures, unknown outcomes after timeouts |
+| **Skill** | Reusable knowledge → current task context | Incorrect activation, outdated instructions, missing script dependencies |
 
-“参数是合法 JSON”“Server 能连接”“Skill 已加载”分别只证明一个环节通过，不能证明整个任务完成。
+“The arguments are valid JSON,” “the server is reachable,” and “the Skill is loaded” each establish only that one stage passed. None proves that the whole task is complete.
 
-## 10.5 一个完整场景串起三层
+## 10.5 A complete scenario connecting the three layers
 
-用户说：**「帮我分析最近三个月的销售数据，找出下滑的产品线，给改进建议。」**
+The user asks in Chinese: **“帮我分析最近三个月的销售数据，找出下滑的产品线，给改进建议。”** In English: “Analyze sales data from the last three months, identify declining product lines, and suggest improvements.”
 
 ```mermaid
 sequenceDiagram
-    participant U as 用户
+    participant U as User
     participant A as Agent
-    participant SK as Skill 层
+    participant SK as Skill layer
     participant MC as MCP Client
     participant MS as MCP Servers
-    participant M as 模型
+    participant M as Model
 
-    U->>A: 分析销售数据并给建议
-    A->>SK: 扫描 Skill 元数据
-    SK-->>A: 匹配到「数据分析报告」Skill
-    A->>SK: 加载 SKILL.md 正文
-    SK-->>A: 流程：取数 → 趋势分析 → 按模板成文
+    U->>A: Analyze sales data and suggest improvements
+    A->>SK: Scan Skill metadata
+    SK-->>A: Match the data-analysis report Skill
+    A->>SK: Load the SKILL.md body
+    SK-->>A: Procedure: fetch data → analyze trends → write from template
 
-    Note over A,MS: 第一步：取数
-    A->>M: 任务 + 流程 + 可用工具定义
+    Note over A,MS: Step 1: Fetch data
+    A->>M: Task + procedure + available tool definitions
     M-->>A: tool_calls: query_database(sql=...)
-    A->>A: 校验查询范围、参数与用户权限
-    A->>MC: 路由调用
-    MC->>MS: tools/call → 数据库 Server
-    MS-->>MC: 查询结果
-    MC-->>A: 结果
-    A->>M: tool 消息回填
+    A->>A: Validate query scope, arguments, and user authorization
+    A->>MC: Route the call
+    MC->>MS: tools/call → database Server
+    MS-->>MC: Query results
+    MC-->>A: Results
+    A->>M: Return results in a tool message
 
-    Note over A,MS: 第二步：趋势分析
+    Note over A,MS: Step 2: Analyze trends
     M-->>A: tool_calls: run_python(code=...)
-    A->>A: 检查执行权限、隔离与资源预算
-    A->>MC: 路由调用
-    MC->>MS: tools/call → Python 执行器 Server
-    MS-->>MC: 分析结果
-    MC-->>A: 结果
-    A->>M: tool 消息回填
+    A->>A: Check execution permissions, isolation, and resource budgets
+    A->>MC: Route the call
+    MC->>MS: tools/call → Python executor Server
+    MS-->>MC: Analysis results
+    MC-->>A: Results
+    A->>M: Return results in a tool message
 
-    Note over A,SK: 第三步：按 Skill 模板成文
-    M-->>A: 结构化分析报告
-    A-->>U: 返回报告
+    Note over A,SK: Step 3: Write using the Skill template
+    M-->>A: Structured analysis report
+    A-->>U: Return the report
 ```
 
-放到这个流程里看，三层分工分别是：
+Within this process, the three responsibilities are:
 
-- **Skill 指导流程**——说明先取数、再分析、最后按模板成文。业务告警阈值需声明由谁制定，不能把任意百分比叫作统计显著；
-- **MCP 提供能力发现与调用接口**——Client 从已知 Server 取得工具列表，Host 再按权限和任务筛选，不是连接建立后所有工具自动进入模型上下文；
-- **Function Calling 做模型与工具的通信**——每一次 `tool_calls` 输出和 `tool` 消息回填。
+- **The Skill guides the procedure**: fetch data, analyze it, then write the report using a template. State who defines business alert thresholds; an arbitrary percentage is not statistical significance.
+- **MCP provides interfaces for capability discovery and invocation**: the client obtains tool lists from known servers, and the host filters them by authorization and task. Establishing a connection does not automatically place every tool in the model's context.
+- **Function calling mediates the model's use of tools**: each `tool_calls` output and the corresponding results returned in `tool` messages.
 
-Host 还需验证用户可访问的销售范围、限制 SQL、隔离 Python 执行器，并保留数据时间与来源。MCP 2026-07-28、Agent Skills 文件格式和模型工具 API 的版本分别管理；任何一层升级都要回归这条完整链路。
+The host must also validate which sales data the user may access, constrain SQL, isolate the Python executor, and retain the data's time range and source. Manage the versions of MCP 2026-07-28, the Agent Skills file format, and the model's tool API separately. An upgrade at any layer requires regression testing of the complete chain.
 
-图中展示成功路径。查询失败时不能继续生成销售结论；数据只覆盖部分日期时要明确范围，分析脚本失败则保留已取得的数据并报告缺失步骤。销量下滑不直接证明原因，改进建议还要区分数据支持的判断与待验证假设。
+The diagram shows the successful path. If the query fails, do not proceed to generate sales conclusions. If the data covers only part of the requested period, state the actual scope. If the analysis script fails, retain the data already retrieved and report the missing step. A decline in sales does not establish its cause; improvement recommendations must distinguish conclusions supported by the data from hypotheses that still need testing.
 
-## 10.6 常见错误
+## 10.6 Common mistakes
 
-### 10.6.1 当成三个竞争方案
+### 10.6.1 Treating them as three competing solutions
 
-它们可以共同出现，也可以单独使用；先明确要解决的是模型输出、能力接入还是流程复用。
+They can appear together or be used independently. First determine whether the problem concerns model output, capability integration, or procedure reuse.
 
-### 10.6.2 说不清依赖方向
+### 10.6.2 Misstating the dependency direction
 
-更准确的关系是：Host 按 Skill 指令编排能力；MCP 标准化一部分能力接入；Function Calling 是模型选择工具时常见的表达层。三者可组合，不构成强制的单向依赖。
+A more accurate description is that the host orchestrates capabilities according to Skill instructions; MCP standardizes some capability integrations; and function calling is a common way for a model to express tool selection. The mechanisms compose, but do not form a mandatory one-way dependency chain.
 
-### 10.6.3 认为三者缺一不可
+### 10.6.3 Assuming all three are required
 
-任何一项缺失都可有其他实现路径。小项目也可能需要标准化或流程复用，不能只按项目大小决定。
+Alternative implementation paths exist when any one is absent. Small projects may still need standardization or procedure reuse, so project size alone is not a sufficient criterion.
 
-### 10.6.4 混淆粒度
+### 10.6.4 Confusing granularity
 
-一个 Skill 不等于一个工具。它可描述整类任务，也可只组织写作标准；是否调用工具、调用几次不是格式规定。
+One Skill does not equal one tool. It can describe a whole class of tasks or simply organize writing standards. The format specifies neither whether tools are called nor how many calls are made.
 
-### 10.6.5 把 MCP 说成「Anthropic 版的 Function Calling」
+### 10.6.5 Calling MCP “Anthropic's version of function calling”
 
-MCP 不是 FC 的替代实现，也不建立在 FC 之上。同一个 MCP Server 可以服务不同 Host；当 Host 使用模型工具接口时，可将工具定义翻译成各家的 FC schema，也可采用其他调用路径。
+MCP is neither an alternative implementation of function calling nor a protocol built on top of it. The same MCP server can serve different hosts. When a host uses a model tool interface, it can translate tool definitions into the provider's function-calling schema, but other invocation paths are possible.
 
-### 10.6.6 只背概念不讲协作
+### 10.6.6 Reciting definitions without explaining collaboration
 
-如果要向别人解释这三者，拿一个具体场景把三层串起来，通常比分别背三段定义更能说明问题。
+When explaining the three mechanisms, walking through a concrete scenario that connects them usually communicates more than reciting three separate definitions.
 
-## 10.7 本章总结
+## 10.7 Summary
 
-1. **三者是可组合机制，不是强制依赖栈**；
-2. **主语法可以快速区分**：模型说「我要调」、服务说「我能提供」、手册说「按这个流程做」；
-3. **发布时间不证明依赖**，这几类问题和方法在具体产品发布前已经存在；
-4. **Host 可按 Skill 编排 MCP 或其他能力**；MCP Tool 可由模型提议或确定性流程触发，执行前仍需校验；
-5. **粒度跨度大**：一次调用 / 一个工具 / 一类完整任务；
-6. **不是缺一不可**：FC 配合执行器就能工作，是否引入 MCP 或 Skill 取决于接口和流程的复用需求，而非项目规模门槛；
-7. **完整调用链要包含授权、失败恢复与结果证据**，不能只画成功路径。
+1. **The three mechanisms compose; they do not form a mandatory dependency stack**.
+2. **Identify the speaker to distinguish them quickly**: the model says “I want to call,” the service says “I provide,” and the manual says “follow this procedure.”
+3. **Release dates do not establish dependencies**. These problems and approaches existed before the particular products were released.
+4. **A host can follow a Skill to orchestrate MCP or other capabilities**. MCP tools can be triggered by a model proposal or a deterministic workflow; calls still need validation before execution.
+5. **Their granularities differ substantially**: one call / one tool / a complete class of tasks.
+6. **Not all three are necessary**. Function calling plus an executor can work on its own. Whether to introduce MCP or Skills depends on interface and procedure reuse, not a project-size threshold.
+7. **The complete call chain must include authorization, failure recovery, and evidence for results**, rather than depicting only the successful path.
 
-## 参考资料
+## References
 
-- [OpenAI: Function Calling 指南](https://platform.openai.com/docs/guides/function-calling)
-- [Model Context Protocol 官方文档](https://modelcontextprotocol.io/docs/getting-started/intro)
-- [MCP 规范 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)
+- [OpenAI: Function calling guide](https://platform.openai.com/docs/guides/function-calling)
+- [Model Context Protocol official documentation](https://modelcontextprotocol.io/docs/getting-started/intro)
+- [MCP specification 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)
 - [Anthropic: Introducing Agent Skills](https://www.anthropic.com/news/skills)
-- [Agent Skills 规范](https://agentskills.io/specification)
+- [Agent Skills specification](https://agentskills.io/specification)
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)

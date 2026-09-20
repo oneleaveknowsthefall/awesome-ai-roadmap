@@ -1,23 +1,23 @@
 ---
-description: 对比 stdio 与 Streamable HTTP，按 MCP 2026-07-28 说明元数据、SSE、取消、重试及旧传输兼容。
+description: Compares stdio and Streamable HTTP, explaining metadata, SSE, cancellation, retries, and legacy transport compatibility in MCP 2026-07-28.
 ---
 
-# 第十二章：MCP 的传输层
+# Chapter 12: MCP Transports
 
-## 12.1 传输方式与消息格式是解耦的
+## 12.1 Message format and transport are decoupled
 
-先把消息格式和传输方式分开看：
+First, separate the message format from the transport:
 
 ```mermaid
 flowchart TB
-    subgraph MSG["消息层 · 不变"]
+    subgraph MSG["Message layer · unchanged"]
         J["JSON-RPC 2.0<br/>method / params / id / result / error"]
     end
 
-    subgraph TRANS["传输层 · 可替换"]
-        T1["stdio<br/>本地子进程管道"]
-        T2["Streamable HTTP<br/>远程单端点"]
-        T3["Custom transport<br/>协商的扩展实现"]
+    subgraph TRANS["Transport layer · replaceable"]
+        T1["stdio<br/>Local subprocess pipes"]
+        T2["Streamable HTTP<br/>Single remote endpoint"]
+        T3["Custom transport<br/>Agreed extension implementation"]
     end
 
     J --> T1
@@ -28,24 +28,24 @@ flowchart TB
     style TRANS fill:#e8f0fe
 ```
 
-传输复用 JSON-RPC 方法语义，但请求元数据、取消、故障恢复和认证有绑定差异。切换传输不能只验证“能收到 JSON”。
+Transports reuse JSON-RPC method semantics, but their bindings differ in request metadata, cancellation, recovery, and authentication. Switching transports requires more than verifying that “JSON arrives.”
 
-当前 MCP 标准传输是 stdio 与 Streamable HTTP。**WebSocket 不是标准传输**，但规范允许 Client 与 Server 以可插拔方式实现自定义传输；双方明确协商并正确承载 UTF-8 JSON-RPC 时，可以选择 WebSocket。不能把它误称为标准 MCP transport 或假定所有客户端兼容。
+MCP's current standard transports are stdio and Streamable HTTP. **WebSocket is not a standard transport**, though the specification permits pluggable custom transports. A Client and Server can choose WebSocket if they explicitly agree and correctly carry UTF-8 JSON-RPC. Do not call it a standard MCP transport or assume all Clients support it.
 
-## 12.2 消息格式：JSON-RPC 2.0
+## 12.2 Message format: JSON-RPC 2.0
 
-### 12.2.1 为什么选它
+### 12.2.1 Why use it?
 
-原因很朴素：MCP 需要的就是「Client 调用 Server 的方法，Server 返回结果」这类**远程过程调用（RPC）**。
+The reason is straightforward: MCP needs **remote procedure calls (RPC)** in which a Client invokes a Server method and receives a result.
 
-JSON-RPC 2.0 是轻量 RPC 规范，JSON 易读易调试，可跨语言实现。相较常见的 gRPC/Protobuf 生成代码流程，它不强制代码生成；这不代表没有 Schema 校验，也不代表 gRPC 只能使用静态生成的客户端。
+JSON-RPC 2.0 is lightweight, readable, easy to debug, and implementable across languages. Unlike a typical gRPC/Protobuf code-generation workflow, it does not require generated code. That does not remove schema validation, nor mean that gRPC supports only statically generated clients.
 
-### 12.2.2 消息长什么样
+### 12.2.2 What messages look like
 
-下面为 2026-07-28 请求与完成结果，图片数据用占位符；请求和响应是两条独立消息。
+The following shows a 2026-07-28 request and completion result, with a placeholder for image data. The request and response are two separate messages.
 
 ```jsonc
-// 请求（Client → Server）
+// Request (Client → Server)
 {
   "jsonrpc": "2.0",
   "id": 1,
@@ -61,7 +61,7 @@ JSON-RPC 2.0 是轻量 RPC 规范，JSON 易读易调试，可跨语言实现。
   }
 }
 
-// 响应（Server → Client）
+// Response (Server → Client)
 {
   "jsonrpc": "2.0",
   "id": 1,
@@ -72,46 +72,46 @@ JSON-RPC 2.0 是轻量 RPC 规范，JSON 易读易调试，可跨语言实现。
 }
 ```
 
-三个要点：
+Three points matter:
 
-- **`id` 用于匹配请求与响应**，这是支持并发请求的基础——多个请求可以同时在途，靠 `id` 对上号；
-- **没有 `id` 的请求消息是通知**，不能把所有无 `id` JSON 都当通知；
-- **协议错误用 `error`**，其中 `code`、`message` 必需，`data` 可选；工具执行错误可在正常 `result` 中以 `isError: true` 表达，两层不能混淆。
+- **`id` matches a response to its request.** This enables concurrent requests: several can be in flight at once, and their IDs distinguish them.
+- **A request message without `id` is a notification.** Not every JSON object lacking `id` is a notification.
+- **Protocol errors use `error`**, with required `code` and `message` and optional `data`. A tool-execution error can instead appear inside an ordinary `result` with `isError: true`. Do not confuse the two layers.
 
-## 12.3 传输方式一：stdio
+## 12.3 Transport 1: stdio
 
-### 12.3.1 工作原理
+### 12.3.1 How it works
 
-Client 启动时把 Server **当作子进程拉起来**，通过进程的标准输入（stdin）发请求、从标准输出（stdout）读响应。
+The Client **launches the Server as a subprocess**, writes requests to the process's standard input (`stdin`), and reads responses from its standard output (`stdout`).
 
 ```mermaid
 sequenceDiagram
-    participant C as Host 内的 MCP Client
-    participant OS as 操作系统管道
-    participant S as MCP Server<br/>(子进程)
+    participant C as MCP Client inside the Host
+    participant OS as Operating-system pipes
+    participant S as MCP Server<br/>(subprocess)
 
-    C->>S: 以配置的命令启动子进程
-    C->>OS: 写入 stdin: {"jsonrpc":"2.0","id":1,...}
-    OS->>S: 从 stdin 读出
-    S->>S: 执行工具
-    S->>OS: 写入 stdout: {"jsonrpc":"2.0","id":1,"result":...}
-    OS->>C: 从 stdout 读出
-    Note over C,S: Client 应管理关闭、等待与子进程清理
+    C->>S: Launch subprocess with the configured command
+    C->>OS: Write stdin: {"jsonrpc":"2.0","id":1,...}
+    OS->>S: Read from stdin
+    S->>S: Execute tool
+    S->>OS: Write stdout: {"jsonrpc":"2.0","id":1,"result":...}
+    OS->>C: Read from stdout
+    Note over C,S: Client manages shutdown, waiting, and subprocess cleanup
 ```
 
-这里的「管道」可以理解成**操作系统在内存里给两个进程分配的一段先进先出缓冲区**。Client 往里塞一行 JSON，Server 从另一头读出来处理，处理完往另一条管道塞回去。
+A pipe can be understood as **a first-in, first-out buffer that the operating system allocates in memory for two processes**. The Client writes one line of JSON; the Server reads it from the other end, processes it, and writes back through another pipe.
 
-整个过程**不经过网卡、不经过 TCP/IP 协议栈**，数据在 RAM 里走了一趟就到了。
+This communication **does not traverse a network interface or the TCP/IP stack**. The data travels through RAM.
 
-### 12.3.2 stdio 的三个优点
+### 12.3.2 Three advantages of stdio
 
-| 优点 | 说明 |
+| Advantage | Explanation |
 |---|---|
-| **省去网络往返** | 仍有 JSON 序列化、管道复制和调度开销，不能保证固定倍数提速 |
-| **协议通道不开端口** | Server 自身仍可访问网络或打开端口，要另做隔离 |
-| **便于管理生命周期** | Client 负责启动、关闭管道、等待退出及清理；不能假定父进程退出自动杀掉子进程 |
+| **No network round trip** | JSON serialization, pipe copying, and scheduling still cost time; no fixed speedup is guaranteed |
+| **The protocol channel opens no port** | The Server itself may still access the network or open ports; isolate it separately |
+| **Straightforward lifecycle management** | The Client starts the process, closes pipes, waits for exit, and cleans up; do not assume parent exit automatically kills the child |
 
-配置只需要告诉 Client「用什么命令启动 Server」：
+The configuration needs to tell the Client which command launches the Server:
 
 ```json
 {
@@ -125,39 +125,41 @@ sequenceDiagram
 }
 ```
 
-这是宿主配置示意，启动入口需替换为已安装且固定版本的程序。stdio 消息使用 UTF-8、按换行分隔；消息内部的字符串换行应转义，不能输出多行漂亮打印的 JSON。
+This is illustrative Host configuration; replace the entry point with an installed, version-pinned program. stdio messages are UTF-8 and newline-delimited. Escape newlines inside strings; do not emit pretty-printed, multiline JSON.
 
-### 12.3.3 stdio 最大的坑：stdout 是协议专用通道
+### 12.3.3 The biggest stdio pitfall: stdout is only for protocol messages
 
-[第五章](05-mcp-components.md) 提过，这里再强调一次，因为它是自写 Server 时踩得最多的坑：
+[Chapter 5](05-mcp-components.md) mentioned this, but it deserves emphasis because it is so common in custom Servers:
 
-**stdout 被 JSON-RPC 独占，任何非协议内容写进去都会污染通道，导致 Client 解析失败。**
+**JSON-RPC has exclusive use of stdout. Any non-protocol content contaminates the channel and can make the Client fail to parse it.**
+
+The Chinese strings below are example log data: the first says “querying the database,” and the second says “executing an authorized database query.”
 
 ```python
-# 致命错误：print 写的是 stdout
+# Fatal mistake: print writes to stdout
 print(f"正在查询数据库: {sql}")
 
-# 日志走 stderr，也避免直接记录完整 SQL
+# Send logs to stderr, and avoid logging complete SQL directly
 import sys
 print("正在执行已授权的数据库查询", file=sys.stderr)
 ```
 
-一个 `print` 调试语句就能让整个 Server 挂掉，而且报错信息通常是「JSON 解析失败」，看不出根因。
+A single debugging `print` can break the entire Server, often producing only a “JSON parsing failed” message that hides the root cause.
 
-## 12.4 传输方式二：Streamable HTTP
+## 12.4 Transport 2: Streamable HTTP
 
-### 12.4.1 核心设计：单端点
+### 12.4.1 Core design: one endpoint
 
-远程场景下 Server 作为独立 HTTP 服务运行。当前推荐的传输方式是 **Streamable HTTP**。
+For remote access, the Server runs as an independent HTTP service. The currently recommended transport is **Streamable HTTP**.
 
-核心设计是**用单个 HTTP 端点（通常是 `/mcp`）同时处理请求和响应**：
+Its central design uses **one HTTP endpoint, typically `/mcp`, for requests and responses**:
 
 ```mermaid
 flowchart TB
-    C[Client] -->|"POST /mcp<br/>JSON-RPC 请求"| S[Server]
-    S --> D{"这个操作<br/>需要流式吗?"}
-    D -->|否| R1["返回普通 JSON 响应<br/>Content-Type: application/json"]
-    D -->|是| R2["返回 SSE 流<br/>Content-Type: text/event-stream"]
+    C[Client] -->|"POST /mcp<br/>JSON-RPC request"| S[Server]
+    S --> D{"Does this operation<br/>need streaming?"}
+    D -->|No| R1["Return an ordinary JSON response<br/>Content-Type: application/json"]
+    D -->|Yes| R2["Return an SSE stream<br/>Content-Type: text/event-stream"]
     R1 --> C
     R2 --> C
 
@@ -165,116 +167,116 @@ flowchart TB
     style R2 fill:#fef7e0
 ```
 
-**「按需选择」是关键**：简单同步操作直接返回 JSON，需要流式输出时才返回 SSE 流。不强制建立长连接。
+**Choosing per operation is the point.** Simple synchronous operations return JSON directly; operations that need streaming return SSE. A long-lived connection is not mandatory.
 
-### 12.4.2 优缺点
+### 12.4.2 Benefits and costs
 
-| 优点 | 代价 |
+| Benefit | Cost |
 |---|---|
-| Server 部署在云端，多 Client 共享同一份 | 增加网络路径，端到端延迟仍取决于后端数据位置与处理时间 |
-| 跨机器访问，团队统一管理工具服务 | 需要处理认证、鉴权 |
-| 不需要每个人本地跑一份 | 需要处理网络中断与重连 |
+| A cloud-deployed Server can be shared by multiple Clients | Adds a network path; end-to-end latency still depends on backend data location and processing time |
+| Cross-machine access with centrally managed team tools | Authentication and authorization must be handled |
+| No separate local instance for every person | Network interruptions and reconnection must be handled |
 
-典型场景：团队共用一个部署在服务器上的数据库 MCP Server，所有人连同一个服务，权限和审计集中管理。
+A typical example is a team sharing one database MCP Server deployed on a server, with centralized permissions and auditing.
 
-### 12.4.3 当前版 HTTP 的必需头与响应边界
+### 12.4.3 Required HTTP headers and response boundaries in the current version
 
-以 [2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http)为准：
+Under [2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http):
 
-- 每条 JSON-RPC 请求通过独立 POST 发送，客户端声明 `Accept: application/json, text/event-stream`，两种响应都必须处理；请求体使用 `Content-Type: application/json`。传输还定义通知 POST，但本版核心不使用 HTTP 客户端通知，不能发送 JSON-RPC response 来回答 MRTR。
-- 请求带 `MCP-Protocol-Version` 和 `Mcp-Method`；`tools/call`、`prompts/get`、`resources/read` 还必须带 `Mcp-Name`。版本、方法和名称须与消息体一致，不能只检查其中一份。
-- Server 可通过 `inputSchema` 中的 `x-mcp-header` 将指定参数镜像为 `Mcp-Param-*`。客户端需按规范校验与编码；这些头可能进入代理日志，应做敏感信息最小化。头不是独立授权来源。
-- 当前版已移除 GET 接收流、`Mcp-Session-Id` 和 SSE `Last-Event-ID` 重放。列表变化使用 `subscriptions/listen` 的 POST 响应流；调用进度在原请求响应流，不混发到订阅流。
-- 若最终响应尚未收到，HTTP SSE 响应流断开按请求取消处理；最终响应后的正常关闭不是一次失败。stdio 使用关联原请求的 `notifications/cancelled`。取消只要求尽快停止后续工作，不是撤销已提交的业务副作用。
+- Send each JSON-RPC request in a separate POST. The Client declares `Accept: application/json, text/event-stream` and must handle both response types; the request body uses `Content-Type: application/json`. The transport also defines notification POST mechanics, but this core revision uses no HTTP Client notifications. Do not send a JSON-RPC response to answer MRTR.
+- Requests carry `MCP-Protocol-Version` and `Mcp-Method`. `tools/call`, `prompts/get`, and `resources/read` also require `Mcp-Name`. Version, method, and name must agree with the body; checking only one copy is insufficient.
+- A Server may use `x-mcp-header` in `inputSchema` to mirror designated arguments into `Mcp-Param-*` headers. Clients must validate and encode them as specified. These headers may enter proxy logs, so minimize sensitive information. Headers are not an independent source of authorization.
+- The current version removes the GET receive stream, `Mcp-Session-Id`, and SSE `Last-Event-ID` replay. List changes use the POST response stream of `subscriptions/listen`; call progress stays on the originating request's response stream, not the subscription stream.
+- If the final response has not arrived, an HTTP SSE response-stream disconnect is treated as request cancellation. A normal close after the final response is not a failure. stdio uses `notifications/cancelled` correlated with the original request. Cancellation asks the Server to stop further work as soon as practical; it does not undo committed business side effects.
 
-断线后不能假定“重连继续原调用”。重新提交使用新的请求 ID，但写操作要先核对结果或使用业务幂等键。无状态协议也不等于无状态业务：跨调用状态应通过显式 handle 表达，并绑定调用者、租户和有效期。
+After a disconnect, do not assume reconnection resumes the same call. Resubmission uses a new request ID, but for writes, first reconcile the result or use a business idempotency key. A stateless protocol does not imply stateless business logic: represent cross-call state with explicit handles bound to the caller, tenant, and expiry.
 
-## 12.5 为什么早期的 SSE 双端点方案被弃用
+## 12.5 Why the early two-endpoint SSE design was deprecated
 
-一些早期教程还在讲「HTTP + SSE」传输方式。这是 MCP 最初版本（2024-11-05 规范）的远程方案，**在 2025-03-26 规范里被标记为 deprecated**——保留向后兼容，但新项目不应再用。
+Some early tutorials still describe “HTTP + SSE.” This was the remote transport in the original MCP specification, 2024-11-05. It was **deprecated in 2025-03-26**: retained for backward compatibility, but not for new projects.
 
-### 12.5.1 问题出在两条通道
+### 12.5.1 The problem was the two channels
 
 ```mermaid
 flowchart TB
-    subgraph OLD["旧方案 · HTTP + SSE 双端点"]
-        C1[Client] -->|"POST /messages<br/>发请求"| S1[Server]
-        S1 -->|"GET /sse 长连接<br/>推响应"| C1
+    subgraph OLD["Old design · two HTTP + SSE endpoints"]
+        C1[Client] -->|"POST /messages<br/>Send requests"| S1[Server]
+        S1 -->|"GET /sse long-lived connection<br/>Push responses"| C1
     end
 
-    subgraph NEW["新方案 · Streamable HTTP 单端点"]
-        C2[Client] <-->|"POST /mcp<br/>请求与响应同一条"| S2[Server]
+    subgraph NEW["New design · one Streamable HTTP endpoint"]
+        C2[Client] <-->|"POST /mcp<br/>Request and response on one channel"| S2[Server]
     end
 
     style OLD fill:#fce8e6
     style NEW fill:#e6f4ea
 ```
 
-同一个对话被拆成了两条通道，具体问题是**状态管理复杂**：
+Splitting one exchange across two channels complicates **state management**.
 
-Client POST 了一条消息后网络突然断了——**那条消息到底被处理了没？SSE 流会不会推回结果？** Client 没有简单办法判断，排查链路很长。
+Suppose the network fails just after the Client POSTs a message. **Was the message processed? Will the SSE stream deliver its result?** The Client has no simple answer, and debugging requires tracing a longer path.
 
-两条通道需要关联路由；合并端点减少了这类协调，但并未解决“请求提交后连接断开”的结果未知问题，也不自动提供 exactly-once。
+The two channels require correlated routing. Combining endpoints reduces that coordination, but does not solve the unknown-outcome problem when a connection drops after submission, nor automatically provide exactly-once execution.
 
-### 12.5.2 SSE 还在，只是端点合并了
+### 12.5.2 SSE remains; the endpoints were combined
 
-**Streamable HTTP 并没有抛弃 SSE。**
+**Streamable HTTP did not abandon SSE.**
 
-流式推送的部分底层依然是 SSE（`Content-Type: text/event-stream`），只是把端点从两个合并成了一个。变的是架构，不是底层技术。
+Streaming still uses SSE (`Content-Type: text/event-stream`); the two endpoints became one. The architecture changed, not the underlying technology.
 
-## 12.6 标准传输与自定义传输
+## 12.6 Standard and custom transports
 
-2026-07-28 的 **HTTP 绑定**使用 POST，响应为 JSON 或请求专属 SSE；不要把 HTTP 规则推广到 stdio。标准请求头镜像是必需项，不是任选优化。Server→Client 输入需求用 MRTR 结果返回，不再以独立反向 JSON-RPC 请求发送。
+The **HTTP binding** in 2026-07-28 uses POST, with JSON or request-scoped SSE responses. Do not extend HTTP rules to stdio. Standard request-header mirroring is required, not an optional optimization. Server→Client input requirements come back as MRTR results, no longer as independent reverse JSON-RPC requests.
 
-兼容旧服务时按[版本兼容页](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning)识别协议时代。识别到 `UnsupportedProtocolVersionError` 应选共同支持的现代版本，而不是直接降级；旧版初始化回退需由 dual-era 实现明确支持。鉴权失败不应触发无授权重试。
+For legacy interoperability, identify the protocol era using the [version compatibility page](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning). A recognized `UnsupportedProtocolVersionError` calls for choosing a mutually supported modern version, not immediately downgrading. Legacy initialization fallback must be explicitly supported by a dual-era implementation. Authorization failure must not trigger an unauthenticated retry.
 
-自定义 transport 应满足 MCP 的消息编码和安全要求，并明确规定连接建立、消息边界、认证、关闭与错误处理。WebSocket 可以成为这样的**非标准扩展**，但不会自动获得 stdio/Streamable HTTP 的互操作性。对远程 HTTP 服务，还应校验 `Origin`、实施认证并避免将本地服务暴露到不受信任网络。
+A custom transport should meet MCP's message-encoding and security requirements and define connection setup, message framing, authentication, shutdown, and error handling. WebSocket can be such a **nonstandard extension**, but does not automatically gain stdio/Streamable HTTP interoperability. For remote HTTP services, also validate `Origin`, enforce authentication, and avoid exposing local services to untrusted networks.
 
-## 12.7 常见错误
+## 12.7 Common mistakes
 
-### 12.7.1 把 WebSocket 说成标准 MCP transport
+### 12.7.1 Calling WebSocket a standard MCP transport
 
-MCP 的标准 transport 是 stdio 和 Streamable HTTP。WebSocket 可由双方实现为 custom transport，但不是通用互操作保证。
+MCP's standard transports are stdio and Streamable HTTP. Both parties can implement WebSocket as a custom transport, but that provides no general interoperability guarantee.
 
-### 12.7.2 本地场景想成 HTTP
+### 12.7.2 Assuming a local connection means HTTP
 
-本地独享工具常选 stdio；本地多进程共享服务也可用 HTTP。若使用 localhost HTTP，仍需校验 `Origin`、认证及绑定地址。
+An exclusively used local tool often uses stdio. A local service shared by several processes can use HTTP. Even localhost HTTP needs `Origin` validation, authentication, and an appropriate bind address.
 
-### 12.7.3 把消息格式和传输方式混为一谈
+### 12.7.3 Confusing message format with transport
 
-JSON-RPC 2.0 是消息格式，stdio / Streamable HTTP 是传输方式。核心工具语义可以复用，切换传输仍需适配认证、请求头、取消、连接故障与重试策略。
+JSON-RPC 2.0 is the message format; stdio and Streamable HTTP are transports. Core tool semantics are reusable, but a transport change still requires authentication, headers, cancellation, connection-failure handling, and retry policies to be adapted.
 
-### 12.7.4 认为 Streamable HTTP 抛弃了 SSE
+### 12.7.4 Assuming Streamable HTTP abandoned SSE
 
-它内部流式推送仍然用 SSE，变的是端点数量（两个合成一个），不是底层技术。
+Its streaming still uses SSE. What changed was the endpoint count—from two to one—not the underlying technology.
 
-### 12.7.5 stdio 场景里往 stdout 打日志
+### 12.7.5 Logging to stdout with stdio
 
-一个 `print` 就能让 Server 彻底不可用。日志必须走 stderr。
+One `print` can make the Server unusable. Logs must go to stderr.
 
-### 12.7.6 把 Serverless 实现策略当成协议要求
+### 12.7.6 Treating a serverless implementation strategy as a protocol requirement
 
-当前规范按请求自包含；旧版会话、GET SSE 和 Server→Client request 仅用于兼容。实现时要固定协议版本并按兼容矩阵检测，不能把两代传输语义拼在一起。
+The current specification makes every request self-contained. Legacy sessions, GET SSE, and Server→Client requests exist only for compatibility. Pin the protocol version and detect compatibility using the matrix; do not splice together transport semantics from two eras.
 
-## 12.8 本章总结
+## 12.8 Chapter summary
 
-1. **传输方式与消息格式解耦**，这是理解 MCP 通信的核心；
-2. **消息格式是 JSON-RPC 2.0**，仍需序列化、校验与请求关联；
-3. **stdio 适合本地子进程**，日志与协议流分离，进程生命周期由 Client 落实；
-4. **stdout 被协议独占**，日志必须走 stderr，这是自写 Server 最容易踩的坑；
-5. **远程场景用 Streamable HTTP**：单端点，Server 按需返回普通 JSON 或 SSE 流；
-6. **早期 HTTP + SSE 双端点已 Deprecated**，不等于从兼容实现中全部移除；
-7. **当前 Streamable HTTP 可返回 SSE**，但不保留旧版 session、GET 接收流或 Last-Event-ID 重放；列表变化需显式订阅；
-8. **标准 transport 之外可使用 custom transport**；例如 WebSocket 需由双方显式支持，不能冒充通用标准。
+1. **Message format and transport are decoupled.** This is fundamental to understanding MCP communication.
+2. **The message format is JSON-RPC 2.0.** Serialization, validation, and request correlation still matter.
+3. **stdio suits local subprocesses.** Separate logs from protocol traffic and let the Client manage process lifecycles.
+4. **stdout is reserved for the protocol; logs go to stderr.** This is an especially common pitfall in custom Servers.
+5. **Use Streamable HTTP for remote access:** one endpoint, returning ordinary JSON or an SSE stream as needed.
+6. **The early two-endpoint HTTP + SSE transport is Deprecated**, which does not mean it has disappeared from all compatibility implementations.
+7. **Current Streamable HTTP can return SSE**, but does not retain legacy sessions, GET receive streams, or Last-Event-ID replay. List changes require explicit subscriptions.
+8. **Custom transports are permitted beyond the standard ones.** WebSocket, for example, requires explicit support at both ends and must not be presented as a universal standard.
 
 
-## 参考资料
+## References
 
-- [MCP 规范 2026-07-28：Transports](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
+- [MCP specification 2026-07-28: Transports](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
 - [MCP 2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http)
 - [MCP 2026-07-28 stdio](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio)
-- [MCP 2026-07-28 版本兼容](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning)
-- [MCP 规范 2025-03-26（Streamable HTTP 引入版本）](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
-- [JSON-RPC 2.0 规范](https://www.jsonrpc.org/specification)
-- [MCP 官方 Server 集合](https://github.com/modelcontextprotocol/servers)
+- [MCP 2026-07-28 version compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning)
+- [MCP specification 2025-03-26: the introduction of Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
+- [JSON-RPC 2.0 specification](https://www.jsonrpc.org/specification)
+- [Official MCP Server collection](https://github.com/modelcontextprotocol/servers)
 - [MDN: Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events)

@@ -1,226 +1,227 @@
 ---
-description: 介绍图关系与社区摘要检索，区分 Microsoft GraphRAG 的索引和查询模式，分析逐边证据、增量更新与成本边界。
+description: Introduces retrieval through graph relationships and community summaries, distinguishes Microsoft GraphRAG indexing and query modes, and examines per-edge evidence, incremental updates, and cost limits.
 ---
 
-# 第十六章：GraphRAG 与图检索
+# Chapter 16: GraphRAG and Graph Retrieval
 
-## 16.1 向量检索的结构性局限
+## 16.1 Structural Limits of Vector Retrieval
 
-先看一个具体的失败案例。
+Start with a concrete failure case.
 
-**问题**：「A 公司的最大供应商的主要竞争对手是谁？」
+**Question**: “Who is the main competitor of company A’s largest supplier?”
 
-这个问题需要三步：
+Answering requires three steps:
 
-1. 查出 A 公司的最大供应商是 B 公司；
-2. 查出 B 公司的主要竞争对手是 C 公司；
-3. 回答 C。
+1. Find that company A’s largest supplier is company B.
+2. Find that company B’s main competitor is company C.
+3. Answer C.
 
-**单次向量检索的困难**：它通常把 Query 编码为一个向量，返回最相似的片段；若没有片段同时提到 A、B、C，单次召回未必能给出完整关系链。这个限制不等于向量方法“做不到”多跳：查询分解、多轮检索、实体扩展、后期交互或 Agent 都可以组合多个证据，只是需要额外的控制逻辑与验证。
+**The difficulty for a single vector search**: It usually encodes the query into one vector and returns the most similar passages. If no passage mentions A, B, and C together, one retrieval round may not provide the complete relationship chain. This does not mean that vector-based methods “cannot do” multi-hop reasoning. Query decomposition, multi-round retrieval, entity expansion, late interaction, and agents can all combine multiple pieces of evidence, but require additional control logic and verification.
 
 ```mermaid
 flowchart LR
-    subgraph 向量检索
-        Q1[整个问题一个向量] --> M1[找最相似的片段]
-        M1 --> F1[单轮候选可能<br/>覆盖不全关系链]
+    subgraph Vector retrieval
+        Q1[One vector for<br/>the entire question] --> M1[Find the most<br/>similar passages]
+        M1 --> F1[Single-round candidates may<br/>miss parts of the relationship chain]
     end
-    subgraph 图检索
-        Q2[识别实体 A] --> N1[节点 A]
-        N1 -->|供应关系| N2[节点 B]
-        N2 -->|竞争关系| N3[节点 C]
+    subgraph Graph retrieval
+        Q2[Identify entity A] --> N1[Node A]
+        N1 -->|Supply relationship| N2[Node B]
+        N2 -->|Competitive relationship| N3[Node C]
     end
 ```
 
-> **标准的单轮向量召回不显式表示图拓扑，也不会自行沿关系边遍历。** 对关系链问题，它更适合作为找到证据入口的一环，而非完整推理器。
+> **Standard single-round vector retrieval does not explicitly represent graph topology or traverse relationship edges on its own.** For relationship-chain questions, it is better viewed as a way to find an entry point into the evidence than as a complete reasoning system.
 
-加大 Top-K、换模型或 rerank 有时能改善证据覆盖，但不能替代显式的多步检索、关系建模和答案验证；是否需要这些能力必须在任务集上验证。
+Increasing top-K, changing the model, or adding reranking may improve evidence coverage, but cannot replace explicit multi-step retrieval, relationship modeling, and answer verification. Whether those capabilities are needed must be tested on a task set.
 
-**另一类单轮局部检索较难覆盖的问题**：全局性、主题性的问题。
+**Another class of questions that single-round local retrieval struggles to cover** is global or thematic questions.
 
-「这一千份客户反馈的主要抱怨集中在哪几类？」——这需要**综合整个语料**，而不是找出最相关的几个片段。
+“What are the main categories of complaints across these 1,000 pieces of customer feedback?” requires **synthesizing the whole corpus**, not finding a few highly relevant passages.
 
-## 16.2 GraphRAG 的思路
+## 16.2 The GraphRAG Approach
 
-GraphRAG 泛指利用图结构辅助检索生成的路线。本章构图与社区摘要流程主要对应微软 **Standard GraphRAG**，不能代表所有图 RAG 都必须调用 LLM 抽取。
+GraphRAG broadly refers to approaches that use graph structures to support retrieval-augmented generation. The graph-construction and community-summary workflow in this chapter primarily describes Microsoft’s **Standard GraphRAG**. It does not imply that every graph-based RAG system must use LLM extraction.
 
-### 16.2.1 构建阶段
+### 16.2.1 Construction
 
 ```mermaid
 flowchart TB
-    D[文档] --> C[切分]
-    C --> E[LLM 抽取实体与关系]
-    E --> G[构建知识图谱]
-    G --> COM[社区检测<br/>把强关联节点聚成社区]
-    COM --> SUM[为每个社区生成摘要]
-    SUM --> IDX[(图 + 社区摘要索引)]
+    D[Documents] --> C[Chunking]
+    C --> E[LLM entity and<br/>relationship extraction]
+    E --> G[Build a knowledge graph]
+    G --> COM[Community detection:<br/>group strongly connected nodes]
+    COM --> SUM[Generate a summary<br/>for each community]
+    SUM --> IDX[(Graph and community<br/>summary index)]
 ```
 
-关键在于**社区摘要**这一步：把图划分成若干个紧密关联的子图（社区），为每个社区生成一段摘要。**这些摘要就是回答全局性问题的素材。**
+The key step is **community summarization**: divide the graph into closely connected subgraphs, or communities, and generate a summary for each. **These summaries provide the material for answering global questions.**
 
-### 16.2.2 检索阶段
+### 16.2.2 Retrieval
 
-| 检索模式 | 做法 | 适合 |
+| Retrieval mode | Approach | Suitable for |
 |---|---|---|
-| **局部检索** | 定位问题涉及的实体节点，沿关系边扩展邻居，收集相关文本 | 具体实体的多跳问题 |
-| **全局检索** | 对社区报告执行 map-reduce 式问答与汇总 | 主题性、全局性问题 |
-| **DRIFT** | 以社区信息扩展入口，再生成细化追问 | 需要更广背景的实体问题 |
-| **Basic** | 对文本单元进行基础向量 RAG | 建立普通检索对照 |
+| **Local Search** | Locate entity nodes mentioned in the question, expand through relationship edges, and gather relevant text | Multi-hop questions about specific entities |
+| **Global Search** | Perform map-reduce-style question answering and synthesis over community reports | Thematic and global questions |
+| **DRIFT** | Broaden the starting point with community information, then generate detailed follow-up questions | Entity questions that need wider context |
+| **Basic** | Apply basic vector RAG to text units | Establishing an ordinary retrieval baseline |
 
-微软 Local Search 用实体描述嵌入定位入口，组合相关实体、关系、社区报告和原始文本，再按预算排序过滤。一般图检索可以设 1–3 跳扩展，但不能把这个示例范围说成官方 Local Search 固定算法。
+Microsoft Local Search uses entity-description embeddings to find entry points. It combines related entities, relationships, community reports, and original text, then ranks and filters them to fit a budget. A general graph-retrieval system might expand by 1–3 hops, but that illustrative range is not a fixed algorithm in the official Local Search implementation.
 
-**这个混合思路很重要**：向量负责「从文本世界跳进图世界」，图负责「在结构化世界里走关系」。
+**This hybrid approach matters**: vectors provide the bridge “from the world of text into the graph,” while the graph provides a way to “follow relationships in structured data.”
 
-社区报告能帮助回答“主要有哪些主题”，却不能仅凭摘要声称“某类抱怨占 37%”。比例和总数需要完整统计对象、去重与分类口径，再用结构化计算验收；摘要覆盖不等于全量计数。
+Community reports can help answer “What are the main themes?” They cannot, on the strength of a summary alone, justify “37% of complaints fall into this category.” Percentages and totals require a complete population to count, deduplication, and defined classification rules, followed by verification through structured computation. Summary coverage is not exhaustive counting.
 
-## 16.3 必须诚实说明的代价
+## 16.3 Costs That Must Be Stated Clearly
 
-只讲 GraphRAG 的优点而不谈代价，往往不足以支撑实际选型。
+Discussing GraphRAG’s benefits without its costs rarely provides enough information for a practical decision.
 
-### 16.3.1 事实查找未必值得使用
+### 16.3.1 It May Not Be Worthwhile for Fact Lookup
 
-选型时应先建立一个对照：
+Establish a baseline before choosing the approach:
 
-> **对具体事实查找，先测基础 RAG 是否已经足够，再判断图抽取和额外上下文是否值得。**
+> **For specific fact lookup, first test whether basic RAG is already sufficient. Then decide whether graph extraction and extra context are worth the cost.**
 
-如果一个片段已经包含完整答案，额外扩展实体和关系可能增加噪声与成本；若事实分散在多处，图扩展仍可能有帮助。
+If one passage already contains the full answer, expanding to additional entities and relationships may add noise and expense. If the facts are scattered across multiple sources, graph expansion may still help.
 
-这是任务与实现相关的经验结论，不应泛化为所有 GraphRAG 都一定更差；应以同一数据集、预算和时延约束下的对照实验决定。
+This is an empirical judgment tied to the task and implementation, not a claim that every GraphRAG system necessarily performs worse. Decide through controlled comparisons on the same dataset, under the same budget and latency constraints.
 
-### 16.3.2 索引成本很高
+### 16.3.2 Indexing Can Be Expensive
 
-构建阶段需要**对每个 chunk 调用 LLM 抽取实体和关系**，再对每个社区生成摘要。
+Construction requires **an LLM call for each chunk to extract entities and relationships**, followed by a summary for each community.
 
-不要套用“每百万 Token 几百美元”的固定估算。应统计抽取输入/输出、重复抽取、实体合并、社区报告与向量化，并按实际价格或自托管资源计费。实体密度和社区重组使成本不一定随原文 Token 线性增长。
+Do not apply a fixed estimate such as “a few hundred dollars per million tokens.” Count extraction input and output, repeated extraction, entity merging, community reports, and embedding, then price them using actual rates or self-hosted resources. Entity density and community reorganization mean that cost need not grow linearly with source-text tokens.
 
-官方 **FastGraphRAG** 用 NLP 名词短语与共现关系替代部分 LLM 抽取，降低成本但产生更噪声化的图；共现不等于真实业务关系。应区分 Standard 与 Fast，而不是把一种索引成本推广给整个产品。
+The official **FastGraphRAG** approach replaces some LLM extraction with NLP noun phrases and co-occurrence relationships. This reduces cost but produces a noisier graph; co-occurrence is not the same as a real business relationship. Distinguish Standard from Fast rather than generalizing one indexing cost to the whole product.
 
-Fast 的默认名词短语抽取配置主要面向英语，不能因为中文文本能读入，就认定实体抽取已经适配中文。替换 NLP 模型或分词、句法配置后，需要重新评测实体覆盖、关系噪声与社区报告质量。
+Fast’s default noun-phrase extraction configuration is primarily designed for English. The ability to read Chinese text does not establish that entity extraction supports Chinese adequately. After changing the NLP model, tokenization, or syntactic configuration, reevaluate entity coverage, relationship noise, and community-report quality.
 
-### 16.3.3 更新极其困难
+### 16.3.3 Updates Are Particularly Difficult
 
-新增一份文档，可能改变实体之间的关系，进而改变社区划分，进而使**大量社区摘要失效**。
+Adding one document may change relationships between entities, which may change community assignments and invalidate **many community summaries**.
 
-微软 CLI 文档提供 `standard-update` 与 `fast-update` 索引方法，不能将其描述成“只能全量重建”。但能运行 update 不等于任意修改、删除和派生摘要都会正确同步；应固定安装版本，分别测试新增、替换、撤销和权限变化的依赖更新。LightRAG 也研究增量处理，实际代价仍需同任务比较。
+Microsoft’s CLI documentation provides `standard-update` and `fast-update` indexing methods, so it is incorrect to describe the system as supporting “only full rebuilds.” However, being able to run an update does not establish that arbitrary edits, deletions, and derived summaries will all synchronize correctly. Pin the installed version and separately test dependency updates for additions, replacements, withdrawals, and permission changes. LightRAG also investigates incremental processing; its actual costs still require comparison on the same tasks.
 
-### 16.3.4 抽取质量与证据校验
+### 16.3.4 Extraction Quality and Evidence Verification
 
-Standard 路线依赖 LLM 抽取实体与关系，Fast 路线的 NLP 抽取与共现建图也会产生错误。需要关注：
+The Standard approach depends on LLM extraction of entities and relationships. The Fast approach’s NLP extraction and co-occurrence graph construction can also introduce errors. Watch for:
 
-- **实体消歧问题**：「张三」「张总」「张经理」可能是同一个人，也可能不是；
-- **关系抽取错误**可能被后续路径和摘要反复使用；若没有来源回链，排查会更困难，但边并非“隐形”，可以通过图检查、原文对照和关系约束发现；
-- **抽取的一致性差**：同样的关系在不同文档里可能被抽成不同的关系类型。
+- **Entity disambiguation**: “张三,” “张总,” and “张经理” may refer to the same person, or they may not. These Chinese examples mean Zhang San, an executive addressed as Zhang, and a manager addressed as Zhang.
+- **Relationship-extraction errors** can be reused repeatedly in later paths and summaries. Missing links back to sources make diagnosis harder, but edges are not “invisible”: graph inspection, comparison with source text, and relationship constraints can expose errors.
+- **Inconsistent extraction**: the same relationship may receive different relationship types in different documents.
 
-图中每条事实边应保留支持它的原文、版本、有效期与来源可信度。实体消歧、关系类型约束和人工抽检能改善质量；不能把 LLM 生成的边直接视为已验证事实。
+Every factual edge should retain its supporting source text, version, validity period, and source credibility. Entity disambiguation, relationship-type constraints, and human spot checks can improve quality. An LLM-generated edge is not automatically a verified fact.
 
-权限也要沿派生关系传播。社区报告若汇总了多个权限域，不能只过滤最终返回的原文块，因为报告本身已可能含有受限信息。可在权限域内构图，或让边、描述、报告和缓存继承全部来源限制；删除、撤权和回滚都要覆盖这些派生物。仅给入口实体做 ACL 检查不够。
+Permissions must also propagate through derived relationships. If a community report combines material from multiple authorization domains, filtering only the original text chunks returned at the end is insufficient: the report itself may already contain restricted information. Either build graphs within each authorization domain or make edges, descriptions, reports, and caches inherit all source restrictions. Deletion, permission revocation, and rollback must cover these derived artifacts. Checking the ACL only on the entry entity is not enough.
 
-例如“最大供应商”需要采购金额、统计时间和覆盖范围，只有 `供应商` 边并不能证明“最大”。图路径回答应逐边核验；社区摘要还需回链原文，不能仅引用二次生成的报告来证明具体数值。最坏情况下 h 跳邻域按分支因子约呈 `b^h` 增长，需控制实体数、边类型、遍历深度与 Token 预算。
+For example, establishing the “largest supplier” requires purchase amounts, the measurement period, and the scope of the data. An edge labeled `供应商` (“supplier”) alone does not prove “largest.” Answers based on graph paths need verification edge by edge. Community summaries must also link back to original text; citing a generated report alone cannot substantiate a specific number. In the worst case, an h-hop neighborhood grows roughly as `b^h`, where b is the branching factor. Bound the number of entities, edge types, traversal depth, and token budget.
 
-## 16.4 相关方案对比
+## 16.4 Comparing Related Approaches
 
-| 方案 | 特点 | 适合 |
+| Approach | Characteristics | Suitable for |
 |---|---|---|
-| **GraphRAG**（微软） | 社区检测 + 分层摘要，全局问题能力强 | 主题分析、全局综合 |
-| **LightRAG** | 更轻量，**支持增量更新** | 语料频繁变化的场景 |
-| **HippoRAG** | 借鉴海马体索引理论，用个性化 PageRank 做图遍历 | **多跳问答** |
-| **PathRAG** | 关注图上的关键路径，减少冗余信息 | 路径推理类问题 |
+| **GraphRAG** (Microsoft) | Community detection and hierarchical summaries, with strengths on global questions | Thematic analysis and global synthesis |
+| **LightRAG** | A lighter-weight approach that **supports incremental updates** | Frequently changing corpora |
+| **HippoRAG** | Draws on hippocampal indexing theory and uses personalized PageRank for graph traversal | **Multi-hop question answering** |
+| **PathRAG** | Focuses on key graph paths to reduce redundant information | Questions involving reasoning over paths |
 
-这些方案构图、检索和更新策略不同，不能只用“谁支持增量”区分；微软当前官方实现也有更新方法。
+These approaches differ in graph construction, retrieval, and update strategies. “Which one supports incremental updates?” is not enough to distinguish them; Microsoft’s current official implementation also provides update methods.
 
-## 16.5 什么时候值得用
+## 16.5 When Is It Worth Using?
 
 ```mermaid
 flowchart TB
-    S{问题类型} -->|具体事实查找| NO[先以基础 RAG 为基线<br/>再做对照评测]
-    S -->|需要多跳关系推理| M{关系是否<br/>本身就重要?}
-    S -->|需要全局主题综合| G{语料规模与<br/>预算允许吗?}
-    M -->|是| YES1[考虑图检索]
-    M -->|否| ALT[先试 Agentic RAG<br/>多轮检索也能做多跳]
-    G -->|是| YES2[考虑 GraphRAG]
-    G -->|否| ALT2[比较分组摘要或 RAPTOR<br/>实测构建与查询成本]
+    S{Question type} -->|Specific fact lookup| NO[Start with basic RAG,<br/>then compare experimentally]
+    S -->|Multi-hop relationship reasoning| M{Are the relationships<br/>themselves important?}
+    S -->|Global thematic synthesis| G{Do corpus size and<br/>budget permit it?}
+    M -->|Yes| YES1[Consider graph retrieval]
+    M -->|No| ALT[Try Agentic RAG first:<br/>multiple rounds can handle multiple hops]
+    G -->|Yes| YES2[Consider GraphRAG]
+    G -->|No| ALT2[Compare grouped summaries or RAPTOR;<br/>measure construction and query costs]
 ```
 
-**值得用的信号**：
+**Signals in favor**:
 
-- 领域**本身就是关系密集的**：组织架构、供应链、知识产权、金融关联、代码依赖；
-- 大量真实问题是**多跳的**；
-- 需要**全局主题分析**，且预算允许；
-- 语料**相对稳定**，更新不频繁。
+- The domain is **inherently relationship-dense**: organizational structures, supply chains, intellectual property, financial connections, or code dependencies.
+- Many real questions are **multi-hop**.
+- **Global thematic analysis** is needed and the budget permits it.
+- The corpus is **relatively stable**, with infrequent updates.
 
-**不值得用的信号**：
+**Signals against**:
 
-- 问题以事实查找为主；
-- 语料**高频更新**；
-- 预算敏感；
-- 基础 RAG 还没调好。
+- Questions mostly involve fact lookup.
+- The corpus is **updated frequently**.
+- The budget is tight.
+- Basic RAG has not yet been tuned properly.
 
-**一个重要的替代方案**：**多跳问题也可以用 Agentic RAG 做**——让 Agent 分多轮检索，第一轮查出 B，第二轮查 B 的竞争对手。
+**An important alternative**: **Agentic RAG can also answer multi-hop questions**. An agent can retrieve over multiple rounds, identifying B in the first round and looking up B’s competitors in the second.
 
-比较时可以分别列两本账：
+Keep two separate accounts when comparing them:
 
-- **图检索**：建库计入 Standard/Fast 抽取、实体合并与社区报告；查询按 Local、Global、DRIFT 的候选和调用量计费；更新追踪受影响实体、关系与社区。全局题检查摘要遗漏，多跳题检查实体链接与逐边证据。
-- **Agentic 多轮检索**：复用普通索引时没有额外构图成本，但辅助摘要仍要维护；查询按实际轮次、工具、缓存与停止策略计费；更新仍依赖底层索引。全局题检查遍历覆盖，多跳题检查分解与中间结果，不能因采用 Agent 就假定更新更便宜。
+- **Graph retrieval**: index-construction costs include Standard/Fast extraction, entity merging, and community reports. Query costs depend on the candidates and calls used by Local, Global, or DRIFT. Updates must track affected entities, relationships, and communities. For global questions, check summary omissions; for multi-hop questions, check entity linking and evidence for every edge.
+- **Agentic multi-round retrieval**: reusing an ordinary index avoids extra graph-construction costs, but auxiliary summaries still need maintenance. Query costs depend on actual rounds, tools, caching, and stopping strategies. Updates still depend on the underlying index. For global questions, check coverage across the corpus; for multi-hop questions, check decomposition and intermediate results. Using an agent does not automatically make updates cheaper.
 
-> **结论：多跳不自动意味着需要 GraphRAG。** 先比较查询分解/Agentic 多轮检索、显式关系表与图检索的质量、成本、延迟和更新代价；社区摘要在全局综合中可能有价值，但也不是唯一选择。
+> **Conclusion: multi-hop does not automatically mean GraphRAG is necessary.** First compare query decomposition or agentic multi-round retrieval, explicit relationship tables, and graph retrieval on quality, cost, latency, and update effort. Community summaries may be valuable for global synthesis, but they are not the only option.
 
-## 16.6 一个务实的中间方案
+## 16.6 A Practical Middle Ground
 
-不一定非要上完整的知识图谱。**很多多跳需求可以用更轻的手段满足**：
+A full knowledge graph is not always necessary. **Lighter-weight methods can satisfy many multi-hop requirements**:
 
-- **在元数据里存实体标签**，检索时按实体做过滤和关联；
-- **建立文档之间的显式引用关系**（「本条参见第 X 条」），检索时自动带出被引用内容；
-- **对结构化程度高的部分单独建关系表**，用 SQL 查询，与向量检索结果合并。
+- **Store entity tags in metadata**, then filter and link results by entity during retrieval.
+- **Create explicit references between documents**, such as “For this clause, see Clause X,” and automatically retrieve the referenced material.
+- **Build separate relationship tables for highly structured portions**, query them with SQL, and merge the results with vector-retrieval results.
 
-如果已有可靠实体标签、引用关系或结构化表，这些方案可能减少新增抽取与维护成本；若需要补做消歧、关系标注和持续治理，成本也可能很高。应在同一任务集上比较证据覆盖、更新滞后、索引维护人力、查询延迟与总成本，再判断是否比完整图方案更合适。
+If reliable entity tags, references, or structured tables already exist, these options may reduce the cost of new extraction and maintenance. If disambiguation, relationship labeling, and ongoing governance must be added, they too may be expensive. Compare evidence coverage, update lag, index-maintenance labor, query latency, and total cost on the same task set before deciding whether they are preferable to a full graph approach.
 
-## 16.7 常见错误
+## 16.7 Common Mistakes
 
-### 16.7.1 只讲 GraphRAG 的优点
+### 16.7.1 Discussing Only GraphRAG’s Advantages
 
-如果省略事实查找的对照结果、索引成本和更新困难，就很难完成实际选型。
+Leaving out fact-lookup comparisons, indexing cost, and update difficulties makes a practical selection difficult.
 
-### 16.7.2 把向量检索绝对化为“做不到多跳”
+### 16.7.2 Claiming That Vector Retrieval “Cannot Do Multi-Hop”
 
-单轮向量召回不显式遍历关系，但查询分解、多轮检索、实体扩展和 Agent 能组合证据。关键是比较这些路径与图检索是否满足任务要求。
+Single-round vector retrieval does not explicitly traverse relationships, but query decomposition, multiple retrieval rounds, entity expansion, and agents can combine evidence. The important comparison is whether these approaches or graph retrieval meet the task’s requirements.
 
-### 16.7.3 忽略抽取质量的风险
+### 16.7.3 Ignoring Extraction-Quality Risks
 
-缺少来源回链时，错误边可能难以排查；应保留可检查的边属性与原文定位，并做关系约束和抽样复核。
+Without links back to sources, incorrect edges can be hard to diagnose. Retain inspectable edge attributes and source locations, and apply relationship constraints and sample-based review.
 
-### 16.7.4 不知道 GraphRAG 更新困难
+### 16.7.4 Overlooking the Difficulty of GraphRAG Updates
 
-这在动态语料场景里是决定性的劣势。
+For dynamic corpora, this can be a decisive disadvantage.
 
-### 16.7.5 认为 GraphRAG 是通用升级
+### 16.7.5 Treating GraphRAG as a Universal Upgrade
 
-它针对特定问题类型；对事实查找应先以基础 RAG 为基线比较成本与质量。
+It targets particular kinds of questions. For fact lookup, compare cost and quality against a basic RAG baseline first.
 
-### 16.7.6 不知道多跳还有更便宜的做法
+### 16.7.6 Overlooking Less Expensive Ways to Handle Multiple Hops
 
-Agentic 多轮检索、元数据实体关联都能覆盖部分需求。
+Agentic multi-round retrieval and metadata-based entity linking can cover some of these needs.
 
-## 16.8 本章总结
+## 16.8 Chapter Summary
 
-1. **单轮向量召回不显式遍历关系图**：对多跳问题常需查询分解、多轮检索、实体扩展或图结构；它不是“绝对做不到”；
-2. **较难覆盖的任务**：多跳关系推理、全局主题综合；是否需要图取决于实测；
-3. **微软 Standard 路线**使用 LLM 抽取、社区检测与报告；Fast 使用不同抽取机制。Local 组装实体相关证据，Global 汇总社区报告，另有 DRIFT 和 Basic；
-4. **必须比较的四类约束**：事实查找的投入产出、具体索引与查询模式的成本、更新依赖范围、抽取与证据校验质量；这些都要用对照实验确认；
-5. **相关方案**：LightRAG 支持增量更新，HippoRAG 专长多跳，PathRAG 关注关键路径；
-6. **只需要多跳时，应比较 Agentic 多轮检索、结构化查询与图检索**；全局综合也应以任务评测而非“不可替代”判断；
-7. **务实的中间方案**：元数据实体标签、显式引用关系、结构化部分单独建表。
+1. **Single-round vector retrieval does not explicitly traverse a relationship graph.** Multi-hop questions often need query decomposition, multiple retrieval rounds, entity expansion, or graph structures; they are not “categorically impossible” for vector-based approaches.
+2. **Challenging tasks** include multi-hop relationship reasoning and global thematic synthesis. Whether a graph is needed depends on measurement.
+3. **Microsoft’s Standard approach** uses LLM extraction, community detection, and reports; Fast uses a different extraction mechanism. Local assembles entity-related evidence, Global synthesizes community reports, and DRIFT and Basic provide further options.
+4. **Four constraints to compare**: the return on investment for fact lookup, the cost of the specific indexing and query modes, the scope of update dependencies, and the quality of extraction and evidence verification. All require controlled comparisons.
+5. **Related approaches**: LightRAG supports incremental updates, HippoRAG specializes in multi-hop retrieval, and PathRAG focuses on key paths.
+6. **If multiple hops are the only requirement, compare agentic multi-round retrieval, structured queries, and graph retrieval.** Global synthesis should also be judged through task evaluation rather than claims that an approach is “irreplaceable.”
+7. **Practical middle ground**: metadata entity tags, explicit references, and separate tables for structured portions.
 
-
-## 参考资料
+## References
 
 - [From Local to Global: A Graph RAG Approach to Query-Focused Summarization](https://arxiv.org/abs/2404.16130)
-- [Microsoft GraphRAG 官方文档](https://microsoft.github.io/graphrag/)
-- [Microsoft GraphRAG：索引方法](https://microsoft.github.io/graphrag/index/methods/)
-- [Microsoft GraphRAG：CLI（含更新方法）](https://microsoft.github.io/graphrag/cli/)
-- [Microsoft GraphRAG：查询模式](https://microsoft.github.io/graphrag/query/overview/)
-- [Microsoft GraphRAG：Local Search](https://microsoft.github.io/graphrag/query/local_search/)
+- [Microsoft GraphRAG documentation](https://microsoft.github.io/graphrag/)
+- [Microsoft GraphRAG: Indexing Methods](https://microsoft.github.io/graphrag/index/methods/)
+- [Microsoft GraphRAG: CLI Reference, including update methods](https://microsoft.github.io/graphrag/cli/)
+- [Microsoft GraphRAG: Query Modes](https://microsoft.github.io/graphrag/query/overview/)
+- [Microsoft GraphRAG: Local Search](https://microsoft.github.io/graphrag/query/local_search/)
 - [LightRAG: Simple and Fast Retrieval-Augmented Generation](https://arxiv.org/abs/2410.05779)
 - [HippoRAG: Neurobiologically Inspired Long-Term Memory for Large Language Models](https://arxiv.org/abs/2405.14831)
 - [PathRAG: Pruning Graph-based Retrieval Augmented Generation with Relational Paths](https://arxiv.org/abs/2502.14902)
 - [Agentic Retrieval-Augmented Generation: A Survey on Agentic RAG](https://arxiv.org/abs/2501.09136)
 
-微软在线文档查阅于 2026-09-15；CLI 选项与库实现会变化，复现时以锁定版本及其配置为准。
+The Chinese source records access to Microsoft’s online documentation on 2026-09-15. CLI options and library implementations can change; use a pinned version and its configuration when reproducing behavior.
+
+For this translation, the linked official documentation was checked for Standard/Fast extraction, English-oriented NLP defaults, update methods, and Local/Global/DRIFT/Basic behavior. Relevant passages in the GraphRAG, LightRAG, HippoRAG, and PathRAG papers were also checked; the Agentic RAG survey was checked at the abstract level only. No indexing runs, update tests, or comparative benchmarks were performed.

@@ -1,219 +1,218 @@
 ---
-description: 解释 Self-RAG、Corrective RAG、RAPTOR 和 Agentic RAG 的控制机制，区分论文方法与工程简化，评估训练、索引及多轮成本。
+description: Explains the control mechanisms of Self-RAG, Corrective RAG, RAPTOR, and Agentic RAG, distinguishes paper methods from engineering simplifications, and evaluates training, indexing, and multi-round costs.
 ---
 
-# 第十五章：高级 RAG 范式
+# Chapter 15: Advanced RAG Paradigms
 
-## 15.1 三代 RAG 的演进逻辑
+## 15.1 How the Three RAG Paradigms Developed
 
-Naive、Advanced、Modular 是综述中的组织方式，不是严格的版本标准或必经代际。理解时应看控制流、训练要求和适用问题，而不是只列名字。
+Naive, Advanced, and Modular are categories used in a survey, not formal version standards or mandatory stages of development. To understand them, examine their control flow, training requirements, and target problems rather than simply listing names.
 
 ```mermaid
 flowchart LR
-    N[Naive RAG<br/>检索一次 直接生成] --> A[Advanced RAG<br/>检索前后加优化环节]
-    A --> M[Modular RAG<br/>组件化 可编排 可循环]
+    N[Naive RAG<br/>Retrieve once, then generate] --> A[Advanced RAG<br/>Optimize before and after retrieval]
+    A --> M[Modular RAG<br/>Composable components,<br/>orchestration, and loops]
 ```
 
-| 组织方式 | 关注点与边界 |
+| Organization | Focus and boundaries |
 |---|---|
-| Naive RAG | 用检索、拼接、生成建立基本链路；若缺少质量控制，容易使用无关或不充分证据 |
-| Advanced RAG | 优化检索前后环节，如改写、混合召回、重排和压缩；是否有循环由实现决定 |
-| Modular RAG | 强调组件替换、路由、分支与循环的可组合性；灵活性增加，也增加调试与成本管理负担 |
+| Naive RAG | Establishes a basic retrieval, concatenation, and generation pipeline; without quality controls, it can use irrelevant or insufficient evidence |
+| Advanced RAG | Optimizes stages before and after retrieval, such as rewriting, hybrid retrieval, reranking, and compression; whether it includes loops depends on the implementation |
+| Modular RAG | Emphasizes the ability to compose interchangeable components, routing, branches, and loops; greater flexibility also increases debugging and cost-management effort |
 
-> **比“属于第几代”更有用的问题是：谁决定下一步，依据什么中间结果，何时停止。**
+> **More useful than asking “Which generation is it?” is asking: who decides the next step, on the basis of which intermediate results, and when does the process stop?**
 
-而当这个「改变走向」的决策权交给 LLM 自己时，就演变成了 Agentic RAG（15.6）。
+When the LLM itself receives the authority to change that course, the approach becomes Agentic RAG (Section 15.6).
 
-## 15.2 Self-RAG：让模型自己决定要不要检索、检索得对不对
+## 15.2 Self-RAG: Learning Whether to Retrieve and Whether the Evidence Is Useful
 
-Self-RAG 的做法是训练模型在生成过程中输出特殊的**反思标记**，用来自我判断：
+Self-RAG trains a model to emit special **reflection tokens** during generation to assess the following:
 
-| 判断 | 含义 |
+| Judgment | Meaning |
 |---|---|
-| 需不需要检索 | 这个问题是否需要外部知识 |
-| 检索到的内容相关吗 | 每个片段是否与问题相关 |
-| 生成的内容被材料支撑吗 | 输出是否有依据 |
-| 这个回答有用吗 | 整体质量评估 |
+| Is retrieval needed? | Does this question require external knowledge? |
+| Is the retrieved content relevant? | Is each passage relevant to the question? |
+| Is the generated content supported by the material? | Is there evidence for the output? |
+| Is this answer useful? | An assessment of overall answer quality |
 
-**它解决的问题**：Naive RAG 是「无条件检索、无条件使用」，既浪费（不需要检索时也检索），又危险（检索到不相关内容也硬用）。
+**The problem it addresses**: Naive RAG “always retrieves and always uses what it retrieves.” This is both wasteful, because it retrieves even when retrieval is unnecessary, and risky, because it uses retrieved content even when that content is irrelevant.
 
-这些反思能力是**训练出来的**，需要专门的训练数据和微调流程。**很多工程实现只是借用了它的思路（用提示让模型做类似判断），而不是复现原论文的训练方法**，两者不能混为一谈。
+These reflection capabilities are **learned through training** and require dedicated training data and a fine-tuning process. **Many engineering implementations borrow only the idea, prompting a model to make similar judgments rather than reproducing the original paper’s training method.** The two should not be conflated.
 
-## 15.3 CRAG：检索质量不行时怎么补救
+## 15.3 CRAG: Recovering from Poor Retrieval
 
-这里有一个常见的命名歧义：
+There is a common naming ambiguity:
 
-> **Corrective RAG（一种方法）和 CRAG Benchmark（一个评测基准）是完全不同的两个东西，不要混淆。**
+> **Corrective RAG, a method, and the CRAG Benchmark, an evaluation benchmark, are two different things. Do not confuse them.**
 
-Corrective RAG 的做法是用一个轻量的评估器给检索结果打分，再按分数分三档处理：
+Corrective RAG uses a lightweight evaluator to score retrieval results, then handles them in three categories:
 
 ```mermaid
 flowchart TB
-    R[检索结果] --> E[轻量评估器打分]
-    E -->|正确| C[精炼: 去掉无关部分 保留核心]
-    E -->|错误| W[丢弃 改用外部搜索]
-    E -->|模糊| A[两者结合]
-    C --> G[生成]
+    R[Retrieval results] --> E[Lightweight evaluator<br/>assigns scores]
+    E -->|Correct| C[Refine: remove irrelevant parts,<br/>retain the core evidence]
+    E -->|Incorrect| W[Discard and use<br/>external search instead]
+    E -->|Ambiguous| A[Combine both approaches]
+    C --> G[Generate]
     W --> G
     A --> G
 ```
 
-**它的价值在于承认了一个现实：检索是会失败的，系统需要有失败后的补救路径。** 这比「检索到什么就用什么」进了一大步。
+**Its value lies in acknowledging a practical fact: retrieval can fail, and the system needs a recovery path.** That is a substantial improvement over simply using whatever retrieval returns.
 
-工程上可以借用“质量判断 + 补救”的控制流，但不能声称提示词或 Rerank 阈值复现了原论文、或保证获得大部分收益。拒答规则需校准；私有知识检索失败时，外部网页通常无法补全，还可能带来泄密和来源风险，必须受数据与工具授权约束。
+In engineering, it is reasonable to borrow the “quality assessment plus recovery” control flow. However, neither a prompt nor a reranking threshold reproduces the original paper or guarantees most of its gains. Abstention rules need calibration. When retrieval over private knowledge fails, external web pages usually cannot fill the gap and may introduce data-disclosure and source risks. External search must remain subject to data and tool authorization.
 
-## 15.4 RAPTOR：把知识组织成树
+## 15.4 RAPTOR: Organizing Knowledge into a Tree
 
-**要解决的问题**：只从平铺片段中取少量 Top-K，可能覆盖不了整篇报告的主要结论。RAPTOR 提前构建多层摘要，让检索既能取细节，也能取较高层的概括；这不是说普通 RAG 配合全文读取或分组汇总就不能回答综合题。
+**The problem it addresses**: Retrieving a small top-K set from a flat collection of passages may fail to cover the main conclusions of an entire report. RAPTOR builds multiple levels of summaries in advance, so retrieval can select both details and higher-level overviews. This does not mean that ordinary RAG, combined with full-document reading or grouped summarization, cannot answer synthesis questions.
 
-RAPTOR 的流程如下：
+RAPTOR works as follows:
 
-1. 把所有 chunk 向量化后**聚类**；
-2. 对每个簇用 LLM 生成**摘要**；
-3. 把摘要也向量化，**再聚类、再摘要**，递归向上，形成一棵树；
-4. 原论文比较了 tree traversal 与 collapsed tree 两种检索方式，后者把多层节点放在一起检索；不能把“每次遍历所有层”视为唯一实现。
+1. Embed all chunks and **cluster** them.
+2. Use an LLM to generate a **summary** for each cluster.
+3. Embed the summaries, then **cluster and summarize again**, recursively building upward into a tree.
+4. The original paper compares two retrieval strategies: tree traversal and collapsed tree. The latter retrieves from nodes across multiple levels together; “traverse every level on every query” is not the only implementation.
 
 ```mermaid
 flowchart TB
-    ROOT[顶层摘要<br/>全局视角] --> M1[中层摘要 1]
-    ROOT --> M2[中层摘要 2]
-    M1 --> L1[原始 chunk]
-    M1 --> L2[原始 chunk]
-    M2 --> L3[原始 chunk]
-    M2 --> L4[原始 chunk]
+    ROOT[Top-level summary<br/>Global perspective] --> M1[Mid-level summary 1]
+    ROOT --> M2[Mid-level summary 2]
+    M1 --> L1[Original chunk]
+    M1 --> L2[Original chunk]
+    M2 --> L3[Original chunk]
+    M2 --> L4[Original chunk]
     M2 -.-> L2
 ```
 
-图中虚线表示一个片段也可能参与另一个簇的摘要。原论文采用软聚类，节点可属于多个簇；“树”是分层组织的直观称呼，不能据此假定每个片段只有唯一父节点。去重和来源回链需处理这种重叠。
+The dashed edge indicates that a passage may also contribute to another cluster’s summary. The original paper uses soft clustering, allowing a node to belong to multiple clusters. “Tree” is an intuitive description of the hierarchy, not a guarantee that each passage has exactly one parent. Deduplication and links back to sources must account for this overlap.
 
-**效果**：在需要多段落综合的长文档问答任务上，公开评测显示有显著提升。
+**Results**: Published evaluations show substantial improvements on long-document question-answering tasks that require synthesis across multiple passages.
 
-**代价与适用边界**：
+**Costs and limits**:
 
-- **索引阶段需要大量 LLM 调用**（每个簇一次摘要，逐层递归）；
-- **语料更新时树需要局部甚至整体重建**；
-- 摘要可能省略细节或传播错误，必须保留到叶子原文的来源映射；判断是否值得建树应看 Token 量、跨文档证据需求和缓存成本，没有“两百页”通用阈值。
+- **Indexing requires many LLM calls**: one summary per cluster, recursively across levels.
+- **Corpus updates may require part or even all of the tree to be rebuilt.**
+- Summaries can omit details or propagate errors, so mappings back to the original leaf-level text must be retained. Whether building a tree is worthwhile depends on token volume, the need for cross-document evidence, and caching costs. There is no universal “200-page” threshold.
 
-## 15.5 各范式对应的痛点
+## 15.5 The Problems Each Paradigm Addresses
 
-其中 **Adaptive-RAG** 训练一个较小的语言模型分类器，根据问题复杂度在不检索、单轮检索与迭代检索之间选择。训练标签来自候选流程的实际表现等信号；规则路由可以借鉴这种分工，但不是原论文分类器的复现。
+**Adaptive-RAG** trains a smaller language-model classifier to choose among no retrieval, single-round retrieval, and iterative retrieval based on question complexity. Its training labels come from signals such as the actual performance of candidate workflows. Rule-based routing can borrow this division of work, but it does not reproduce the paper’s classifier.
 
-| 范式 | 针对的问题与新增负担 |
+| Paradigm | Target problem and added burden |
 |---|---|
-| Self-RAG | 学习何时检索和如何评价证据；需要反思标记训练与推理控制 |
-| Corrective RAG | 为低质量检索提供补救；需要评估器校准、知识精炼与受控外部搜索 |
-| RAPTOR | 扩大综合题的证据层次；付出聚类摘要、来源维护与更新成本 |
-| Adaptive-RAG | 避免简单题过度计算、复杂题检索不足；付出分类训练和错路由代价 |
-| GraphRAG | 用关系和社区报告支持实体或全局问题；需构图、证据校验与派生更新 |
-| Agentic RAG | 按中间结果自主多轮检索；需控制预算、停止条件与工具权限 |
+| Self-RAG | Learns when to retrieve and how to assess evidence; requires reflection-token training and inference-time control |
+| Corrective RAG | Provides recovery from low-quality retrieval; requires evaluator calibration, knowledge refinement, and controlled external search |
+| RAPTOR | Expands the levels of evidence available for synthesis questions; adds clustering, summarization, source-maintenance, and update costs |
+| Adaptive-RAG | Avoids excess computation for simple questions and insufficient retrieval for complex ones; adds classifier training and the cost of misrouting |
+| GraphRAG | Uses relationships and community reports to support entity-specific or global questions; requires graph construction, evidence checks, and updates to derived artifacts |
+| Agentic RAG | Autonomously performs multiple retrieval rounds based on intermediate results; requires budgets, stopping conditions, and tool-permission controls |
 
-## 15.6 Agentic RAG：把检索变成 Agent 的工具
+## 15.6 Agentic RAG: Making Retrieval an Agent Tool
 
-这里讨论一种控制方式，不把年份或关注度作为采用依据。
+This section describes a way to control execution. Neither its age nor its popularity is a reason to adopt it.
 
-Agentic RAG 的关键转变是：
+The key shift in Agentic RAG is:
 
-> **从「固定流程中的一个步骤」，变成「Agent 可以自主决定何时调用、调用几次、怎么用结果的一个工具」。**
+> **Retrieval changes from “a step in a fixed workflow” to “a tool whose timing, number of calls, and use of results the agent can decide.”**
 
 ```mermaid
 flowchart TB
-    Q[用户问题] --> AG[Agent 推理]
-    AG --> D{需要更多信息?}
-    D -->|是| T[调用检索工具]
-    T --> OB[观察结果]
+    Q[User question] --> AG[Agent reasoning]
+    AG --> D{Need more information?}
+    D -->|Yes| T[Call retrieval tool]
+    T --> OB[Observe results]
     OB --> AG
-    D -->|否| ANS[生成答案]
+    D -->|No| ANS[Generate answer]
 ```
 
-它带来的能力包括：
+This enables the following capabilities:
 
-| 能力 | 说明 |
+| Capability | Explanation |
 |---|---|
-| **多轮检索** | 第一轮结果不够，基于已知信息发起新一轮检索 |
-| **多跳推理** | 先查出 A 的 CEO 是谁，再查这个人的信息 |
-| **自主分解** | 复杂问题自己拆成子问题 |
-| **多源调度** | 在向量库、SQL、网页搜索、API 之间自主选择 |
-| **自我纠错** | 发现检索结果不对，换个查询方式重试 |
+| **Multi-round retrieval** | If the first round is insufficient, launch another round based on what is already known |
+| **Multi-hop reasoning** | First find out who company A’s CEO is, then retrieve information about that person |
+| **Autonomous decomposition** | Break a complex question into subquestions |
+| **Multi-source selection** | Choose among vector stores, SQL, web search, and APIs |
+| **Self-correction** | Notice that retrieval results are wrong and retry with a different query |
 
-相应的代价也很明确：
+The corresponding costs are equally clear:
 
-- **延迟不可预测**：可能一轮结束，也可能十轮；
-- **成本不可预测**：每轮都是完整的 LLM 调用；
-- **可能陷入循环**：反复检索却不收敛，**必须设最大轮次上限**；
-- **调试困难**：执行路径每次都不同。
+- **Unpredictable latency**: a task may finish in one round or take ten.
+- **Unpredictable cost**: each round involves a full LLM call.
+- **Possible loops**: repeated retrieval may never converge, so **a hard limit on the number of rounds is essential**.
+- **Difficult debugging**: the execution path can differ from run to run.
 
-工程上通常会设置硬性的最大迭代次数、总 Token 预算和超时时间。这与 Agent 系统的通用要求一致（参见 Agent 部分的相关章节）。
+Engineering implementations usually set hard limits on iterations, total tokens, and elapsed time. These match the general requirements for agent systems; see the relevant chapters in the Agent section.
 
-每轮工具调用还要由执行层检查身份、资源与可发送数据；检索片段不能替用户授予新的权限，也不能指使 Agent 把内部查询转发到未批准的外部搜索。
+For every tool call, the execution layer must also check identity, the resource being accessed, and which data may be sent. Retrieved passages cannot grant new permissions on the user’s behalf or instruct an agent to forward internal queries to unapproved external search services.
 
-停止条件还应包括“新一轮未增加有效证据”和“目标证据已覆盖”。记录每轮查询、证据、重复命中与停止原因，并与固定两轮查询分解基线比较任务成功率、平均轮次、P95 和每个成功任务的成本；否则更多轮次可能只是更贵地重复错误。
+Stopping conditions should also include “the latest round added no useful evidence” and “the required evidence is covered.” Record each round’s query, evidence, duplicate hits, and reason for stopping. Compare task success rate, average rounds, P95 latency, and cost per successful task against a fixed two-round query-decomposition baseline. Otherwise, more rounds may simply repeat the same mistakes at greater cost.
 
-## 15.7 什么时候该上高级范式
+## 15.7 When to Adopt an Advanced Paradigm
 
-多数情况下，不需要一开始就引入这些高级范式。
+In most cases, there is no need to start with these advanced paradigms.
 
-第十四章已经说过——**先把基础五层做对，通常比盲目叠加高级范式更有效**。高级范式应该在满足以下条件时才考虑：
+As Chapter 14 explained, **getting the five foundational layers right is usually more effective than blindly stacking advanced paradigms**. Consider an advanced paradigm only when the following conditions hold:
 
 ```mermaid
 flowchart TB
-    S{基础五层<br/>都做扎实了吗?} -->|没有| BASE[回去做基础<br/>第十四章]
-    S -->|做了| E{有评测集能<br/>量化收益吗?}
-    E -->|没有| EVAL[先建评测集]
-    E -->|有| N{失败案例属于<br/>基础方案的结构性缺陷吗?}
-    N -->|不是| TUNE[继续调基础参数]
-    N -->|是| ADV[评估对应的高级范式]
+    S{Are all five foundational<br/>layers in good shape?} -->|No| BASE[Return to the foundations<br/>Chapter 14]
+    S -->|Yes| E{Can an evaluation set<br/>quantify the gain?}
+    E -->|No| EVAL[Build an evaluation set first]
+    E -->|Yes| N{Do failures reveal a structural<br/>limitation of the basic approach?}
+    N -->|No| TUNE[Continue tuning<br/>the basic approach]
+    N -->|Yes| ADV[Evaluate the relevant<br/>advanced paradigm]
 ```
 
-**「结构性缺陷」的判断标准**：这个问题**不是调参能解决的**。例如：
+**The test for a “structural limitation”** is that **parameter tuning cannot solve the problem**. For example:
 
-- 多跳证据在单轮候选中覆盖不足 → 比较查询分解、多轮检索与图扩展；
-- 全局主题需要更广覆盖 → 比较全量分组汇总、长上下文、RAPTOR 或 GraphRAG；
-- 检索失败率高且无法降低 → 考虑加入补救路径。
+- Single-round candidates do not adequately cover multi-hop evidence → compare query decomposition, multi-round retrieval, and graph expansion.
+- Global themes require broader coverage → compare exhaustive grouped summarization, long context, RAPTOR, and GraphRAG.
+- Retrieval failure rates remain high and cannot be reduced → consider adding a recovery path.
 
-如果失败来自解析损坏、切分遗漏或词项匹配不足，应先修对应环节；不能仅因没有 BM25 就判定系统不合格，也不应靠复杂控制流掩盖已知数据缺陷。
+If failures come from corrupted parsing, omissions during chunking, or inadequate term matching, fix the corresponding stage first. The absence of BM25 alone does not make a system inadequate, and complex control flow should not conceal known data defects.
 
-## 15.8 常见错误
+## 15.8 Common Mistakes
 
-### 15.8.1 罗列范式名字不讲解决什么痛点
+### 15.8.1 Listing Paradigm Names Without Explaining the Problems They Solve
 
-如果只列出范式名而不说明它们分别在解决什么问题，通常很难支撑选型判断。
+A list of names, without an explanation of the problem each method addresses, rarely provides enough basis for choosing an approach.
 
-### 15.8.2 混淆 Corrective RAG 和 CRAG Benchmark
+### 15.8.2 Confusing Corrective RAG with the CRAG Benchmark
 
-一个是方法，一个是评测基准，名字撞车但毫不相干。
+One is a method and the other is an evaluation benchmark. They share an acronym, not an identity.
 
-### 15.8.3 说 Self-RAG 只是加个提示词
+### 15.8.3 Describing Self-RAG as Just an Extra Prompt
 
-原论文是通过训练让模型输出反思标记。工程上的提示词近似实现应该说明是简化版。
+The original paper trains the model to emit reflection tokens. An engineering approximation based on prompting should be identified as a simplified version.
 
-### 15.8.4 忽略 RAPTOR 的索引成本和更新代价
+### 15.8.4 Ignoring RAPTOR’s Indexing and Update Costs
 
-大量 LLM 调用 + 更新需重建树，在动态语料上代价很大。
+Many LLM calls, plus tree reconstruction when the corpus changes, can make it expensive for dynamic corpora.
 
-### 15.8.5 Agentic RAG 不设迭代上限
+### 15.8.5 Running Agentic RAG Without an Iteration Limit
 
-会陷入循环，成本和延迟不可控。
+It can get stuck in loops, leaving cost and latency uncontrolled.
 
-### 15.8.6 基础没做好就上高级范式
+### 15.8.6 Adopting Advanced Paradigms Before Fixing the Foundations
 
-这是最常见的错误。基础缺陷不会被高级范式弥补，只会被掩盖并放大成本。
+This is the most common mistake. Advanced paradigms do not repair foundational defects; they hide them and amplify costs.
 
-### 15.8.7 不区分学术方案和生产方案
+### 15.8.7 Failing to Distinguish Research Methods from Production Implementations
 
-论文原型、官方库实现与业务验证是三种不同证据。说明实际采用哪一版实现、哪些机制被简化，而不是笼统宣布“已普及”或“仍是学术方案”。
+A paper prototype, an official library implementation, and validation in a business setting are three different kinds of evidence. Explain which implementation version was actually used and which mechanisms were simplified, rather than broadly declaring a method “widely adopted” or “still only academic.”
 
-## 15.9 本章总结
+## 15.9 Chapter Summary
 
-1. **三类组织方式**：Naive 建基本链路，Advanced 优化前后环节，Modular 强调组合；它们不是严格的版本或升级顺序；
-2. **Self-RAG** 用反思标记让模型自判是否检索、内容是否相关、生成是否有依据；原论文靠训练实现；
-3. **Corrective RAG** 给检索结果分档处理并提供失败补救路径；**注意与 CRAG Benchmark 区分**；工程上可用 Rerank 阈值简化实现；
-4. **RAPTOR** 递归聚类摘要成树，需比较不同检索方式，并核算摘要失真、更新与来源回链成本；
-5. **Agentic RAG** 把检索变成 Agent 的工具，支持多轮、多跳、多源和自我纠错；**必须设迭代上限和预算**；
-6. **上高级范式的前提**：基础五层已做扎实 + 有评测集 + 失败原因是**结构性缺陷**而非调参问题；
-7. **区分论文机制、具体实现和业务验证**，不要以方法名字或年份替代采用依据。
+1. **Three ways to organize RAG**: Naive establishes the basic pipeline, Advanced improves stages before and after retrieval, and Modular emphasizes composition. These are not strict versions or a mandatory upgrade sequence.
+2. **Self-RAG** uses reflection tokens to judge whether retrieval is needed, content is relevant, and generation is supported. The original paper achieves this through training.
+3. **Corrective RAG** assigns retrieval results to categories and provides recovery paths. **Distinguish it from the CRAG Benchmark.** Reranking thresholds can serve as an engineering simplification.
+4. **RAPTOR** recursively clusters and summarizes into a tree. Compare its retrieval strategies and account for summary distortion, updates, and links back to sources.
+5. **Agentic RAG** makes retrieval an agent tool, enabling multiple rounds, multiple hops, multiple sources, and self-correction. **Iteration limits and budgets are essential.**
+6. **Prerequisites for advanced paradigms**: five sound foundational layers, an evaluation set, and failures caused by **structural limitations** rather than tuning problems.
+7. **Distinguish paper mechanisms, specific implementations, and business validation.** A method’s name or year is not a substitute for evidence supporting its adoption.
 
-
-## 参考资料
+## References
 
 - [Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection](https://arxiv.org/abs/2310.11511)
 - [Corrective Retrieval Augmented Generation](https://arxiv.org/abs/2401.15884)
@@ -222,3 +221,5 @@ flowchart TB
 - [Agentic Retrieval-Augmented Generation: A Survey on Agentic RAG](https://arxiv.org/abs/2501.09136)
 - [Active Retrieval Augmented Generation](https://arxiv.org/abs/2305.06983)
 - [Retrieval-Augmented Generation for Large Language Models: A Survey](https://arxiv.org/abs/2312.10997)
+
+Source checks for this translation covered the original papers’ reflection tokens, corrective branches, RAPTOR soft clustering and retrieval strategies, Adaptive-RAG routing, and the survey’s three organizational categories. The Agentic RAG survey and Active Retrieval Augmented Generation were checked at the abstract level only; their experiments were not reproduced.

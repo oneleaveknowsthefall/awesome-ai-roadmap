@@ -1,30 +1,30 @@
 ---
-description: 区分模型规划训练与系统规划，讨论动作语义、计划验证、搜索、滚动重规划及外部求解器的适用条件。
+description: Distinguish training models to plan from system-level planning, and examine action semantics, plan validation, search, rolling replanning, and when to use external solvers.
 ---
 
-# 第十一章：如何赋予 LLM 与 Agent 规划能力
+# Chapter 11: Giving LLMs and Agents the Ability to Plan
 
-## 11.1 规划不等于 CoT
+## 11.1 Planning Is Not the Same as CoT
 
-让模型“先想好步骤再执行”，就有规划能力了吗？还不够。CoT 帮助模型沿一条路径展开中间推理；规划还要把步骤与环境中的动作连接起来，判断什么可以执行、执行后会怎样，以及失败后怎么办。
+Does asking a model to “think through the steps before executing” give it planning ability? Not by itself. Chain of thought (CoT) helps a model develop intermediate reasoning along one path. Planning also connects those steps to actions in an environment: what can be executed, what will happen afterward, and what to do if something fails.
 
-例如发布服务，“测试、审批、部署”是一个初步计划。如果审批通过后代码又被修改，原审批不能直接授权部署新代码。可靠的规划系统必须发现版本变化，让受影响的测试和审批重新执行，而不是照着旧列表继续。
+Consider releasing a service. “Test, approve, deploy” is an initial plan. If the code changes after approval, the original approval cannot simply authorize deployment of the new code. A reliable planning system must detect the version change and rerun the affected tests and approval process, rather than continue down the old list.
 
-因此，规划需要明确：
+Planning therefore needs to make the following explicit:
 
-- 目标；
-- 当前状态；
-- 可用动作；
-- 依赖关系；
-- 资源和权限；
-- 动作可能产生的结果；
-- 风险和回退；
-- 完成条件。
+- The goal;
+- The current state;
+- Available actions;
+- Dependencies;
+- Resources and permissions;
+- Possible action outcomes;
+- Risks and fallback options;
+- Completion conditions.
 
 ```mermaid
 flowchart TB
-    R[Reasoning] --> Q[回答：为什么、是什么、能否推出]
-    P[Planning] --> A[回答：为了目标，接下来做什么]
+    R[Reasoning] --> Q[Answer why, what, and what follows]
+    P[Planning] --> A[Answer what to do next to reach the goal]
 
     Q --> COT[CoT / ToT / GoT]
     A --> PLAN[Plan / DAG / Policy]
@@ -33,129 +33,129 @@ flowchart TB
     OBS --> PLAN
 ```
 
-推理方法可以帮助生成计划，但不能单独构成可靠规划系统。
+Reasoning methods can help generate plans, but do not constitute a reliable planning system on their own.
 
-## 11.2 Reasoning 与 Planning 的区别
+## 11.2 Reasoning versus Planning
 
-| 维度 | Reasoning | Planning |
+| Dimension | Reasoning | Planning |
 |---|---|---|
-| 核心目标 | 推导结论 | 选择行动序列 |
-| 输入 | 问题、事实、规则 | 目标、状态、动作、约束 |
-| 输出 | 答案或判断 | 可执行计划或策略 |
-| 是否改变环境 | 通常不直接改变 | 计划由执行器作用于环境 |
-| 是否需要反馈 | 不一定 | 通常需要 |
-| 是否需要重规划 | 较少 | 环境变化时需要 |
-| 成功标准 | 推理正确 | 目标在约束内完成 |
+| Primary goal | Derive a conclusion | Select a sequence of actions |
+| Inputs | Questions, facts, rules | Goals, state, actions, constraints |
+| Outputs | Answers or judgments | Executable plans or policies |
+| Does it change the environment? | Usually not directly | An executor applies the plan to the environment |
+| Does it need feedback? | Not necessarily | Usually |
+| Does it need replanning? | Less often | When the environment changes |
+| Success criterion | Correct reasoning | Achieving the goal within the constraints |
 
-例如：
+For example:
 
-- “为什么 API 调用失败？”是 Reasoning；
-- “接下来按什么步骤修复 API？”是 Planning；
-- “执行修复并根据测试结果调整”是 Agent Control Loop。
+- “Why did the API call fail?” is reasoning;
+- “What steps should we take next to fix the API?” is planning;
+- “Execute the fix and adjust based on test results” is an agent control loop.
 
-## 11.3 为什么需要显式规划
+## 11.3 Why Make Plans Explicit?
 
-LLM 可以直接生成答案或动作，但复杂任务容易出现：
+An LLM can generate answers or actions directly, but complex tasks are prone to:
 
-- 跳过关键步骤；
-- 忽略依赖；
-- 工具调用顺序错误；
-- 缺少成功标准；
-- 过早结束；
-- 在局部问题上反复循环；
-- 无法估算成本和风险。
+- Skipping essential steps;
+- Ignoring dependencies;
+- Calling tools in the wrong order;
+- Lacking success criteria;
+- Stopping too early;
+- Repeatedly circling around a local problem;
+- Failing to estimate cost and risk.
 
-显式规划能把这些问题前置暴露出来：
+Explicit planning can expose these problems before execution:
 
-- 将目标转化为可执行步骤；
-- 暴露依赖和并行机会；
-- 在执行前检查权限与风险；
-- 为每一步定义验收条件；
-- 支持局部重试和故障恢复；
-- 根据真实 Observation 动态调整。
+- Turn goals into executable steps;
+- Reveal dependencies and opportunities for parallel work;
+- Check permissions and risks before execution;
+- Define acceptance criteria for each step;
+- Support local retries and failure recovery;
+- Adjust dynamically based on actual observations.
 
-> **规划机制要产出可执行、可验证、可更新的控制结构；把思路展开只是其中一种手段。**
+> **A planning mechanism should produce a control structure that can be executed, verified, and updated. Expanding the reasoning is only one way to support that structure.**
 
-## 11.4 规划能力来自两个层次
+## 11.4 Planning Ability Comes from Two Levels
 
 ### 11.4.1 Model-level Planning
 
-模型层能力包括：
+Model-level capabilities include:
 
-- 理解目标；
-- 分解问题；
-- 预测动作结果；
-- 比较候选方案；
-- 生成步骤；
-- 识别依赖；
-- 根据反馈修订。
+- Understanding goals;
+- Decomposing problems;
+- Predicting action outcomes;
+- Comparing candidate approaches;
+- Generating steps;
+- Identifying dependencies;
+- Revising based on feedback.
 
-增强这些能力的方法分属训练与推理两个阶段：
+Methods for strengthening these capabilities belong to either training or inference:
 
-- 预训练和后训练；
-- 高质量规划示例（放入上下文不更新参数，用于训练则更新参数）；
-- Instruction Tuning；
-- Tool-use Training；
-- Reinforcement Learning；
-- 以可验证结果作为奖励的 RL（训练时更新参数）；
-- 推理时搜索和验证（通常保持参数不变，改变候选、状态和选择）。
+- Pretraining and post-training;
+- High-quality planning examples, which do not update parameters when placed in context but do when used for training;
+- Instruction tuning;
+- Tool-use training;
+- Reinforcement learning;
+- RL with rewards based on verifiable outcomes, which updates parameters during training;
+- Inference-time search and verification, which usually leave parameters unchanged while changing candidates, state, and selection.
 
-数学或代码奖励上的进步不自动迁移为长程工具规划能力。动作前提、权限、环境变化和失败恢复需要单独评估，不能用一个推理基准分数替代。
+Improvements on math or code rewards do not automatically transfer to long-horizon tool planning. Action preconditions, permissions, environmental changes, and failure recovery need separate evaluation; a single reasoning benchmark score cannot stand in for them.
 
 ### 11.4.2 System-level Planning
 
-系统层负责将模型输出变成可靠计划：
+The system layer turns model outputs into reliable plans through:
 
-- 计划 Schema；
-- Planner；
-- Plan Validator；
-- Scheduler；
-- Executor；
-- State Store；
-- Verifier；
-- Replanner；
-- Budget 与 Guardrails。
+- A plan schema;
+- A planner;
+- A plan validator;
+- A scheduler;
+- An executor;
+- A state store;
+- A verifier;
+- A replanner;
+- Budgets and guardrails.
 
 ```mermaid
 flowchart TB
     G[Goal + Constraints] --> P[LLM Planner]
     P --> S[Structured Plan]
     S --> V[Plan Validator]
-    V -->|不通过| P
-    V -->|通过| SCH[Scheduler]
+    V -->|Fail| P
+    V -->|Pass| SCH[Scheduler]
     SCH --> E[Executor]
     E --> O[Observation]
-    O --> CHECK{验收与计划状态}
-    CHECK -->|步骤通过且仍有任务| SCH
-    CHECK -->|计划失效| RP[Replanner]
-    CHECK -->|目标完成| DONE[完成]
-    CHECK -->|预算耗尽或需审批| STOP[停止或转人工]
+    O --> CHECK{Acceptance and plan status}
+    CHECK -->|Step passes and tasks remain| SCH
+    CHECK -->|Plan invalidated| RP[Replanner]
+    CHECK -->|Goal complete| DONE[Finish]
+    CHECK -->|Budget exhausted or approval needed| STOP[Stop or hand off to a human]
     RP --> S
 ```
 
-一个强模型如果缺少 Runtime 和验证，仍可能生成不可执行计划；一个中等模型配合良好 Schema、Tools 和 Verifier，反而可能更可靠。
+A strong model can still produce an unexecutable plan without a runtime and verification. A less capable model paired with a well-designed schema, tools, and verifier may be more reliable.
 
-## 11.5 规划问题的基本元素
+## 11.5 The Basic Elements of a Planning Problem
 
-可以将一个规划问题抽象为：
+A planning problem can be represented by:
 
-- `G`：目标；
-- `S₀`：初始状态；
-- `A`：可用动作集合；
-- `F`：状态转移模型，描述动作在什么条件下产生哪些结果；
-- `C`：约束；
-- `B`：预算；
-- `T`：终止条件。
+- `G`: the goal;
+- `S₀`: the initial state;
+- `A`: the set of available actions;
+- `F`: a state-transition model describing the conditions under which actions produce particular outcomes;
+- `C`: constraints;
+- `B`: the budget;
+- `T`: termination conditions.
 
-一个动作应声明：
+An action should declare:
 
-- 前置条件；
-- 输入；
-- 预期效果；
-- 副作用；
-- 费用和时间；
-- 风险等级；
-- 失败方式。
+- Preconditions;
+- Inputs;
+- Expected effects;
+- Side effects;
+- Cost and duration;
+- Risk level;
+- Failure modes.
 
 ```json
 {
@@ -176,97 +176,97 @@ flowchart TB
 }
 ```
 
-如果 Agent 不知道动作前置条件和效果，就很难真正进行可靠规划。
+An agent that does not know an action's preconditions and effects will struggle to plan reliably.
 
-经典确定性规划通常假设状态可观测、动作效果已知；网页、机器人或业务 API 往往不满足这些条件。此时应维护已知事实与不确定假设，必要时先执行信息收集动作，或生成依观察分支的策略，而不是把固定行动列表当作必然可达的路径。JSON 中的 `human_approval_received` 只是字段，Runtime 必须核验真实审批及其绑定的对象、版本和有效期。
+Classical deterministic planning typically assumes observable state and known action effects. Web pages, robots, and business APIs often do not satisfy those assumptions. In such cases, maintain known facts separately from uncertain assumptions. When necessary, first gather information or generate a policy that branches on observations, rather than treating a fixed action list as a guaranteed path to the goal. The JSON field `human_approval_received` is only a field: the runtime must verify the actual approval, including the object and version it covers and its expiration.
 
-## 11.6 CoT：单路径推理，不是完整规划器
+## 11.6 CoT: Single-path Reasoning, Not a Complete Planner
 
-> CoT 的机制、适用任务与解释性局限已在[第五章](05-agent-reasoning-methods.md)详述；这里仅说明它为何不能替代有状态、可验证的规划器。
+> [Chapter 5](05-agent-reasoning-methods.md) explains CoT's mechanism, suitable tasks, and interpretability limitations in detail. Here, the focus is why it cannot replace a stateful, verifiable planner.
 
-CoT（Chain of Thought）让模型沿一条中间推理链得到结论：
+CoT (chain of thought) leads a model toward a conclusion through a chain of intermediate reasoning:
 
 ```mermaid
 flowchart LR
-    Q[问题] --> S1[步骤 1]
-    S1 --> S2[步骤 2]
-    S2 --> S3[步骤 N]
-    S3 --> A[答案或初步计划]
+    Q[Question] --> S1[Step 1]
+    S1 --> S2[Step 2]
+    S2 --> S3[Step N]
+    S3 --> A[Answer or initial plan]
 ```
 
-它可以帮助模型：
+It can help the model:
 
-- 提取约束；
-- 分解简单步骤；
-- 减少直接跳到答案；
-- 生成初步行动列表。
+- Extract constraints;
+- Decompose simple steps;
+- Avoid jumping straight to an answer;
+- Generate an initial list of actions.
 
-单独使用 CoT 提示不提供以下系统机制：
+CoT prompting alone does not provide the following system mechanisms:
 
-- 多路径探索；
-- 回溯；
-- 真实环境反馈；
-- 状态持久化；
-- 计划验证；
-- 动态重规划；
-- 权限和资源调度。
+- Exploration of multiple paths;
+- Backtracking;
+- Feedback from the real environment;
+- Persistent state;
+- Plan validation;
+- Dynamic replanning;
+- Permission management and resource scheduling.
 
-### 11.6.1 工程边界
+### 11.6.1 Engineering Boundaries
 
-CoT 文本可以出现“重新考虑”或初步验证，但这不等于控制器真的保存分支、回滚环境或执行了验证器。规划系统应输出可验证的步骤、依赖、成功标准、工具和风险，而不要求公开隐藏 Thought。其成本与可审计轨迹的记录原则分别见[第五章](05-agent-reasoning-methods.md)和[第十四章](../05-production/14-agent-evaluation.md)。
+CoT text may include “reconsidering” or preliminary checks, but that does not mean a controller has actually saved branches, rolled back the environment, or run a verifier. A planning system should output verifiable steps, dependencies, success criteria, tools, and risks without requiring disclosure of hidden reasoning. See [Chapter 5](05-agent-reasoning-methods.md) for costs and [Chapter 14](../05-production/14-agent-evaluation.md) for principles of recording auditable traces.
 
-## 11.7 Task Decomposition：从目标生成子任务
+## 11.7 Task Decomposition: From a Goal to Subtasks
 
-规划的第一步通常是将目标分解为可执行任务。
+The first step in planning is usually to break a goal into executable tasks.
 
 ```mermaid
 flowchart TB
-    G[复杂目标] --> M1[里程碑 1]
-    G --> M2[里程碑 2]
-    G --> M3[里程碑 3]
-    M1 --> T11[子任务 1.1]
-    M1 --> T12[子任务 1.2]
+    G[Complex goal] --> M1[Milestone 1]
+    G --> M2[Milestone 2]
+    G --> M3[Milestone 3]
+    M1 --> T11[Subtask 1.1]
+    M1 --> T12[Subtask 1.2]
 ```
 
-高质量子任务应具有：
+A well-defined subtask should have:
 
-- 明确目标；
-- 独立输入输出；
-- 依赖；
-- 执行器；
-- 验收条件；
-- 风险和预算；
-- 可重试性。
+- A clear goal;
+- Its own inputs and outputs;
+- Dependencies;
+- An executor;
+- Acceptance criteria;
+- Risks and a budget;
+- A defined ability to retry.
 
-分解只是产生计划结构，不代表计划正确。还需要验证依赖、可执行性和完整性。
+Decomposition only produces the structure of a plan; it does not make the plan correct. Dependencies, executability, and completeness still need validation.
 
-## 11.8 Plan-and-Solve：先形成解题计划
+## 11.8 Plan-and-Solve: Form a Problem-solving Plan First
 
-Plan-and-Solve 先生成问题求解计划，再沿计划完成推理。
+Plan-and-Solve first generates a plan for solving a problem, then reasons through that plan.
 
 ```text
 Plan:
-1. 提取目标和约束
-2. 识别所需事实
-3. 计算中间结果
-4. 检查答案是否满足约束
+1. Extract the goal and constraints
+2. Identify the facts needed
+3. Calculate intermediate results
+4. Check whether the answer satisfies the constraints
 ```
 
-它比简单 CoT 更明确地区分：
+Compared with basic CoT, it distinguishes more explicitly between:
 
-- Planning；
-- Solving。
+- Planning;
+- Solving.
 
-但它主要仍工作在模型推理层，不一定包含外部 Tool、状态和重规划。
+However, it still operates mainly at the model reasoning level and does not necessarily include external tools, state, or replanning.
 
-## 11.9 ToT：搜索多个候选方向
+## 11.9 ToT: Search Multiple Candidate Directions
 
-ToT（Tree of Thoughts）把中间推理状态组织成树，在每个节点：
+ToT (Tree of Thoughts) organizes intermediate reasoning states into a tree. At each node, it:
 
-1. 生成多个候选；
-2. 评价候选；
-3. 选择部分候选继续；
-4. 必要时回溯。
+1. Generates multiple candidates;
+2. Evaluates them;
+3. Selects a subset to continue;
+4. Backtracks when necessary.
 
 ```mermaid
 flowchart TB
@@ -285,62 +285,62 @@ flowchart TB
     B2 --> E
 ```
 
-ToT 给系统提供的是一套探索、选择和回溯候选路径的框架：
+ToT provides a framework for exploring, selecting, and backtracking through candidate paths:
 
-> **允许系统探索多个方向，并在评价函数有效时进行选择和回溯。**
+> **The system can explore multiple directions, then select and backtrack when its evaluation function is effective.**
 
-如果候选质量差或 Evaluator 判断错误，ToT 仍可能选择错误路径。
+If candidates are poor or the evaluator judges them incorrectly, ToT can still select the wrong path.
 
-原论文的节点是任务相关的部分解，评价与 BFS／DFS 由搜索程序组织；不是模型输出一个“树状思路”就完成了搜索。它展示的是 24 点、创意写作和填字等任务上的结果，不保证任意业务计划正确。涉及真实行动时，分支还需要可复制或可重置的环境；不能对支付等不可逆动作做试探式回溯。
+In the original paper, nodes are task-specific partial solutions, and a search program organizes evaluation and BFS or DFS. A model has not performed search merely by producing a “tree of ideas.” The paper reports results on tasks such as Game of 24, creative writing, and crosswords; it does not guarantee correct plans for arbitrary business tasks. When branches involve real actions, the environment must also be clonable or resettable. Irreversible actions such as payments cannot be tried speculatively and then backtracked.
 
-## 11.10 ToT 的搜索成本
+## 11.10 The Cost of ToT Search
 
-ToT 成本取决于：
+ToT's cost depends on:
 
-- 每个节点的分支数 `b`；
-- 搜索深度 `d`；
-- 保留的 Beam Width `k`；
-- 每个节点生成候选的模型调用数；
-- Evaluator 调用数；
-- 是否批处理；
-- 剪枝和提前终止。
+- The branching factor `b` at each node;
+- Search depth `d`;
+- The retained beam width `k`;
+- The number of model calls used to generate candidates at each node;
+- The number of evaluator calls;
+- Whether calls are batched;
+- Pruning and early termination.
 
-完整树节点数为：
+The number of nodes in a complete tree is:
 
 $$
 N=\sum_{i=0}^{d}b^i
 $$
 
-当分支数大于 1 时，节点数可能随深度快速增长。
+When the branching factor exceeds 1, the number of nodes can grow rapidly with depth.
 
-若使用 Beam Search，每层最多保留 `k` 个状态，每个状态扩展 `b` 个候选，深度为 `d`，候选扩展数的量级为：
+With beam search, at most `k` states are retained at each level, each state expands into `b` candidates, and the depth is `d`. The order of the number of candidate expansions is:
 
 $$
 N_{expand}=O(kbd)
 $$
 
-这不是模型调用数或 Token 成本公式：一次调用可能批量生成多个候选，而每个候选可能触发额外评价；路径增长还会增加输入长度。只有固定分支数、深度、剪枝、上下文复用和模型调用策略后，才能与 CoT 比较成本。
+This is not a formula for model-call count or token cost. One call may generate several candidates in a batch, while each candidate may trigger additional evaluations. Longer paths also increase input length. A cost comparison with CoT requires fixing the branching factor, depth, pruning, context reuse, and model-call strategy first.
 
-### 11.10.1 控制 ToT 成本
+### 11.10.1 Controlling ToT Costs
 
-- 限制搜索深度；
-- 限制 Beam Width；
-- 批量生成候选；
-- 使用小模型初筛；
-- 使用规则或程序验证；
-- 低分节点提前剪枝；
-- 通过任务验收或达到预算上限后停止；
-- 只对有可用评价信号且收益可测的问题启用；高风险首先需要审批与硬约束。
+- Limit search depth;
+- Limit beam width;
+- Generate candidates in batches;
+- Use a smaller model for initial screening;
+- Verify with rules or programs;
+- Prune low-scoring nodes early;
+- Stop when the task passes acceptance checks or reaches its budget limit;
+- Enable search only where useful evaluation signals exist and benefits can be measured; high-risk tasks need approval and hard constraints first.
 
-## 11.11 GoT：合并和复用中间结果
+## 11.11 GoT: Merge and Reuse Intermediate Results
 
-GoT（Graph of Thoughts）允许多个推理路径：
+GoT (Graph of Thoughts) allows multiple reasoning paths to:
 
-- 分叉；
-- 合并；
-- 复用；
-- 迭代修订；
-- 建立依赖。
+- Branch;
+- Merge;
+- Reuse results;
+- Undergo iterative revision;
+- Establish dependencies.
 
 ```mermaid
 flowchart LR
@@ -349,41 +349,41 @@ flowchart LR
     C[Evidence C] --> M
     M --> R[Refine]
     R --> V[Verify]
-    V -->|需要修订| R
-    V -->|通过| O[Output]
+    V -->|Revision needed| R
+    V -->|Pass| O[Output]
 ```
 
-它针对树结构的局限：
+It addresses limitations of tree structures:
 
-- 树中不同分支难以共享中间结果；
-- 相同子问题可能被重复计算；
-- 多个候选结论无法自然合并。
+- Different branches have difficulty sharing intermediate results;
+- The same subproblem may be computed repeatedly;
+- Multiple candidate conclusions cannot be merged naturally.
 
-### 11.11.1 GoT 的生产成熟度
+### 11.11.1 GoT's Production Maturity
 
-需要区分两个概念：
+Two concepts need to be distinguished:
 
-#### Graph of Thoughts 研究范式
+#### The Graph of Thoughts Research Paradigm
 
-将“Thought”作为图节点，由模型生成、聚合和转换。原论文已有代码实现，但不能仅凭使用了图状编排就把系统归类为该论文的 GoT。
+“Thoughts” are graph nodes generated, aggregated, and transformed by a model. The original paper has a code implementation, but graph-shaped orchestration alone does not make a system an implementation of that paper's GoT.
 
 #### Graph-based Agent Orchestration
 
-使用 DAG、状态图、任务图或 Workflow 表示计划，已经广泛用于生产系统。
+DAGs, state graphs, task graphs, and workflows are already widely used to represent plans in production systems.
 
-两者思想相似，但工程系统通常操作的是：
+The ideas are similar, but engineering systems typically operate on:
 
-- Task；
-- State；
-- Artifact；
-- Dependency；
-- Transition。
+- Tasks;
+- State;
+- Artifacts;
+- Dependencies;
+- Transitions.
 
-而不是仅靠自由文本 Thought。文本部分解也可以通过程序验证，结构化 Task 也可能语义错误；区别在节点含义和验证机制，不是“文本不可靠、图必然可靠”。
+They do not rely solely on free-form thought text. A textual partial solution can also be checked by a program, and a structured task can still be semantically wrong. The distinction lies in what the nodes mean and how they are verified—not in a claim that “text is unreliable, whereas graphs are inherently reliable.”
 
-## 11.12 用 Task Graph 表示执行计划
+## 11.12 Representing Execution Plans with Task Graphs
 
-生产系统更适合把图节点定义为可执行 Task：
+For production systems, it is more useful to define graph nodes as executable tasks:
 
 ```mermaid
 flowchart LR
@@ -395,21 +395,21 @@ flowchart LR
     F --> V[Verify Sources]
 ```
 
-每个节点应包含：
+Each node should include:
 
-- 输入；
-- 输出；
-- 依赖；
-- Executor；
-- Success Criteria；
-- Retry Policy；
-- Artifact。
+- Inputs;
+- Outputs;
+- Dependencies;
+- An executor;
+- Success criteria;
+- A retry policy;
+- An artifact.
 
-这种图可以被 Scheduler、Verifier 和 Runtime 直接使用。
+A scheduler, verifier, and runtime can use this graph directly.
 
 ## 11.13 Planner-Executor-Replanner
 
-一种可采用的系统架构是：
+One possible system architecture is:
 
 ```mermaid
 flowchart TB
@@ -417,87 +417,87 @@ flowchart TB
     P --> PLAN[Structured Plan]
     PLAN --> E[Executor]
     E --> O[Observation]
-    O --> V{计划仍有效?}
-    V -->|是| E
-    V -->|否| RP[Replanner]
+    O --> V{Is the plan still valid?}
+    V -->|Yes| E
+    V -->|No| RP[Replanner]
     RP --> PLAN
-    V -->|目标完成| DONE[Finish]
+    V -->|Goal complete| DONE[Finish]
 ```
 
 ### 11.13.1 Planner
 
-负责：
+Its responsibilities are to:
 
-- 理解目标；
-- 生成里程碑；
-- 拆分任务；
-- 建立依赖；
-- 指定验收条件；
-- 估算风险和资源。
+- Understand the goal;
+- Generate milestones;
+- Break work into tasks;
+- Establish dependencies;
+- Specify acceptance criteria;
+- Estimate risks and resources.
 
 ### 11.13.2 Executor
 
-负责：
+Its responsibilities are to:
 
-- 执行当前步骤；
-- 调用 Tool；
-- 返回真实 Observation；
-- 保存 Artifact；
-- 报告结构化错误。
+- Execute the current step;
+- Invoke tools;
+- Return actual observations;
+- Save artifacts;
+- Report structured errors.
 
 ### 11.13.3 Replanner
 
-负责判断：
+It determines:
 
-- 结果是否符合预期；
-- 哪个假设已经失效；
-- 是否需要新增、删除或重排步骤；
-- 是否可以提前结束；
-- 是否需要人工介入。
+- Whether results match expectations;
+- Which assumptions no longer hold;
+- Whether steps need to be added, removed, or reordered;
+- Whether the task can finish early;
+- Whether human intervention is needed.
 
-## 11.14 动态重规划
+## 11.14 Dynamic Replanning
 
-原始计划为 `Pₜ`，执行获得新观察 `oₜ₊₁` 后，Replanner 更新计划：
+Given an original plan `Pₜ` and a new observation `oₜ₊₁` obtained through execution, the replanner updates the plan:
 
 $$
 P_{t+1}=R(P_t,o_{t+1},s_t,g)
 $$
 
-这里 `sₜ` 是执行前保存的状态，`g` 是目标，`R` 是结合新观察更新计划的过程；Runtime 还应据实更新状态，不能只改计划文本。
+Here, `sₜ` is the state saved before execution, `g` is the goal, and `R` is the process that incorporates the new observation into the plan. The runtime must also update its state record to reflect what actually happened, rather than merely changing the plan text.
 
-需要触发重规划的常见事件：
+Common events that should trigger replanning include:
 
-- Tool 返回意外结果；
-- 前置假设错误；
-- 新约束出现；
-- 某个任务失败；
-- 预算变化；
-- 用户修改目标；
-- 外部环境变化；
-- Verifier 判断计划无法达到目标。
+- A tool returning an unexpected result;
+- A prerequisite assumption proving false;
+- A new constraint appearing;
+- A task failing;
+- A budget change;
+- The user changing the goal;
+- The external environment changing;
+- A verifier determining that the plan cannot achieve the goal.
 
-### 11.14.1 不要每一步都完整重规划
+### 11.14.1 Do Not Replan Everything after Every Step
 
-每一步都重写全计划会：
+Rewriting the entire plan after every step can:
 
-- 增加成本；
-- 造成计划漂移；
-- 丢失已验证结构；
-- 失去全局结构，只剩成本更高的逐步决策。
+- Increase cost;
+- Cause plan drift;
+- Discard validated structure;
+- Lose the global structure, leaving only more expensive step-by-step decisions.
 
-更好的方式是：
+A better approach is to:
 
-- 只更新受影响子图；
-- 保留已完成节点；
-- 对稳定里程碑加锁；
-- 记录 Plan Diff；
-- 重大假设变化才整体重规划。
+- Update only the affected subgraph;
+- Retain completed nodes;
+- Lock stable milestones;
+- Record the plan diff;
+- Replan globally only when major assumptions change.
 
-“保留”指保留历史记录，不等于永远复用旧结果。输入、授权或目标变化时，应标记受影响 Artifact 失效；新旧计划要有版本号，并处理运行中任务取消及迟到返回，避免旧执行结果覆盖新计划状态。
+“Retain” means preserving the historical record, not reusing old results forever. When inputs, authorization, or goals change, mark affected artifacts as invalid. Old and new plans need version identifiers, and the system must handle cancellation of running tasks and late results so that old execution results cannot overwrite the new plan's state.
 
 ## 11.15 Hierarchical Planning
 
-分层规划先确定高层里程碑，再按需展开当前阶段：
+Hierarchical planning establishes high-level milestones first, then expands the current phase as needed:
 
 ```mermaid
 flowchart TB
@@ -515,17 +515,17 @@ flowchart TB
     M3 --> T32[Review]
 ```
 
-优势：
+Advantages:
 
-- 保留全局方向；
-- 避免一次生成过长计划；
-- 降低远期计划失效；
-- 支持阶段预算；
-- 适合长任务。
+- Preserves the overall direction;
+- Avoids generating an excessively long plan at once;
+- Reduces the risk of distant plans becoming obsolete;
+- Supports phase-specific budgets;
+- Suits long-running tasks.
 
 ## 11.16 Rolling Horizon Planning
 
-滚动规划只详细规划近期步骤：
+Rolling horizon planning plans only the near-term steps in detail:
 
 ```mermaid
 flowchart LR
@@ -536,20 +536,20 @@ flowchart LR
     U --> P
 ```
 
-适合：
+It is suitable when:
 
-- 环境变化快；
-- 远期信息不可靠；
-- 工具结果决定后续路径；
-- 任务可能随时被用户调整。
+- The environment changes quickly;
+- Information about the distant future is unreliable;
+- Tool results determine the subsequent path;
+- The user may adjust the task at any time.
 
-它可以与分层规划组合：保留全局里程碑，只展开近期动作。与 ReAct 的区别不在于“有没有思考未来”，而在于控制器显式维护多步规划窗口，并在执行后更新它。
+It can be combined with hierarchical planning: retain the global milestones and expand only near-term actions. Its distinction from ReAct is not whether the agent “thinks about the future,” but whether the controller explicitly maintains a multistep planning horizon and updates it after execution.
 
-滚动规划也可能短视。例如只顾尽快部署，可能省掉当前窗口之外的兼容性检查。即使远期步骤暂不展开，也必须保留“旧客户端仍可用”这类全局约束和最终验收条件。
+Rolling planning can also be shortsighted. A focus on deploying as quickly as possible might omit compatibility checks that fall outside the current horizon. Even when distant steps have not yet been expanded, global constraints such as “old clients must remain usable” and final acceptance criteria must remain in force.
 
-## 11.17 ReAct 在规划中的作用
+## 11.17 ReAct's Role in Planning
 
-ReAct 可以在推理中制定和更新计划，但本身不要求提供全局 DAG、调度器或形式化验证。它也可以用来执行显式计划中的局部开放任务：
+ReAct can formulate and update plans within its reasoning, but does not inherently require a global DAG, scheduler, or formal verification. It can also execute local, open-ended tasks within an explicit plan:
 
 ```mermaid
 flowchart TB
@@ -558,92 +558,92 @@ flowchart TB
     O --> D[Decide]
     D --> A[Act]
     A --> O
-    D -->|局部完成| NEXT[Next Plan Step]
+    D -->|Local task complete| NEXT[Next Plan Step]
 ```
 
-推荐组合：
+A recommended combination is:
 
-- Planner 负责全局结构；
-- ReAct 负责局部 Tool 选择；
-- Replanner 处理计划失效；
-- Verifier 检查步骤结果。
+- The planner manages the global structure;
+- ReAct selects tools locally;
+- The replanner handles invalidated plans;
+- The verifier checks step results.
 
-## 11.18 Reflection 与规划质量
+## 11.18 Reflection and Plan Quality
 
-Reflection 可以在规划前后加入质量检查。
+Reflection can add quality checks before and after planning.
 
 ### 11.18.1 Plan Critique
 
-检查：
+Check:
 
-- 是否遗漏步骤；
-- 依赖是否正确；
-- 是否可执行；
-- 是否存在权限问题；
-- 是否定义成功条件；
-- 是否存在更低成本路径。
+- Whether any steps are missing;
+- Whether dependencies are correct;
+- Whether the plan can be executed;
+- Whether there are permission issues;
+- Whether success conditions are defined;
+- Whether a lower-cost path exists.
 
 ### 11.18.2 Execution Reflection
 
-根据执行结果检查：
+Use execution results to check:
 
-- 哪个步骤失败；
-- 原因是计划错误还是执行错误；
-- 是否需要改变策略；
-- 哪些经验可以用于后续规划。
+- Which step failed;
+- Whether the cause was a planning error or an execution error;
+- Whether the strategy needs to change;
+- Which lessons can inform later planning.
 
 ```mermaid
 flowchart LR
     P[Plan] --> C[Critic]
     C --> V{Plan Valid?}
-    V -->|否| R[Revise]
+    V -->|No| R[Revise]
     R --> P
-    V -->|是| E[Execute]
+    V -->|Yes| E[Execute]
     E --> F[Feedback]
     F --> C
 ```
 
-Reflection 应优先使用真实工具反馈、规则、测试和人工审核，而不是只让同一个模型自我评价。
+Reflection should prioritize actual tool feedback, rules, tests, and human review, rather than relying only on the same model to evaluate itself.
 
 ## 11.19 Verifier-guided Planning
 
-执行前，应从下面五个维度检查计划。“通过”是允许尝试执行，不是目标必然可达。静态校验覆盖可提前判断的条件；实时权限、资源版本及动作前置条件还要在执行前再次检查，不能把计划生成时的许可长期复用。
+Before execution, check a plan along the following five dimensions. “Pass” means an execution attempt is permitted, not that reaching the goal is guaranteed. Static validation covers conditions that can be checked in advance. Current permissions, resource versions, and action preconditions must be checked again immediately before execution; permission granted when the plan was generated cannot be reused indefinitely.
 
 ### 11.19.1 Schema Validation
 
-- 字段完整；
-- 类型正确；
-- 引用的 Task 存在；
-- 输出格式合法。
+- All required fields are present;
+- Types are correct;
+- Referenced tasks exist;
+- The output format is valid.
 
 ### 11.19.2 Dependency Validation
 
-- 对任务依赖 DAG 检查无环；若使用允许循环的状态机，则检查循环的预算与退出条件；
-- 所需输入有来源；
-- 前置条件可满足；
-- 并行任务没有写冲突。
+- Check that a task-dependency DAG is acyclic; for a state machine that allows cycles, check the cycle budgets and exit conditions;
+- Required inputs have sources;
+- Preconditions can be satisfied;
+- Parallel tasks have no write conflicts.
 
 ### 11.19.3 Capability Validation
 
-- 指定 Tool 存在；
-- Agent 拥有所需 Skill；
-- 权限足够；
-- 参数可以生成。
+- The specified tools exist;
+- The agent has the required skills;
+- Permissions are sufficient;
+- Parameters can be produced.
 
 ### 11.19.4 Risk Validation
 
-- 高风险操作是否有审批；
-- 是否使用最小权限；
-- 是否定义回滚或补偿；
-- 是否触及敏感数据。
+- Do high-risk operations have approval?
+- Is least privilege being used?
+- Is rollback or compensation defined?
+- Does the plan involve sensitive data?
 
 ### 11.19.5 Budget Validation
 
-- Token；
-- 时间；
-- 费用；
-- 最大步骤；
-- 并发限制。
+- Tokens;
+- Time;
+- Cost;
+- Maximum steps;
+- Concurrency limits.
 
 ```mermaid
 flowchart LR
@@ -655,42 +655,42 @@ flowchart LR
     B --> EXEC[Executable Plan]
 ```
 
-## 11.20 使用外部规划器
+## 11.20 Using External Planners
 
-并非所有规划都应交给 LLM。
+Not all planning should be delegated to an LLM.
 
 ### 11.20.1 Deterministic Workflow
 
-流程已知时直接使用代码、DAG 或状态机。
+When the process is known, implement it directly in code, a DAG, or a state machine.
 
 ### 11.20.2 Constraint Solver
 
-适合：
+Suitable for:
 
-- 排班；
-- 资源分配；
-- 路径约束；
-- 组合优化；
-- 满足严格规则的问题。
+- Shift scheduling;
+- Resource allocation;
+- Path constraints;
+- Combinatorial optimization;
+- Problems governed by strict rules.
 
 ### 11.20.3 Classical Planner
 
-当动作具有清晰前置条件和效果时，可以使用经典规划算法。
+Classical planning algorithms can be used when actions have clearly defined preconditions and effects.
 
 ### 11.20.4 LLM + Solver
 
-LLM 负责：
+The LLM is responsible for:
 
-- 理解自然语言目标；
-- 提取约束；
-- 生成 Solver 输入；
-- 解释结果。
+- Understanding the natural-language goal;
+- Extracting constraints;
+- Generating solver input;
+- Explaining the results.
 
-Solver 在给定形式化模型内负责：
+Within the given formal model, the solver is responsible for:
 
-- 精确搜索；
-- 约束满足；
-- 在算法、目标函数和预算支持时给出最优性或不可行性证明。
+- Exact search;
+- Constraint satisfaction;
+- Providing a proof of optimality or infeasibility when the algorithm, objective function, and budget support it.
 
 ```mermaid
 sequenceDiagram
@@ -699,29 +699,29 @@ sequenceDiagram
     participant S as Solver
     participant R as Runtime
 
-    U->>M: 自然语言目标
-    M-->>R: 结构化目标与约束
-    R->>S: 求解
-    S-->>R: 可行计划
-    R->>M: 计划与约束结果
-    M-->>U: 解释或执行计划
+    U->>M: Natural-language goal
+    M-->>R: Structured goal and constraints
+    R->>S: Solve
+    S-->>R: Feasible plan
+    R->>M: Plan and constraint results
+    M-->>U: Explanation or plan for execution
 ```
 
-> **这类问题更适合让语言模型负责建模和解释，把搜索或求解交给确定性算法。**
+> **For these problems, language models are better used for modeling and explanation, while deterministic algorithms handle search or solving.**
 
-要分开检查“求解器求对了模型”和“模型正确表达了用户需求”。遗漏预算、误译单位或错误动作效果时，求解器仍可能给出形式上有效、现实中不可用的计划。以 [OR-Tools CP-SAT](https://developers.google.com/optimization/cp/cp_solver) 为例，`FEASIBLE` 不等于 `OPTIMAL`，超时后的 `UNKNOWN` 也不等于已证明无解。
+Check separately whether “the solver solved the model correctly” and whether “the model correctly represents the user's requirements.” If a budget is omitted, units are mistranslated, or action effects are wrong, a solver may still return a formally valid plan that is unusable in practice. For example, in [OR-Tools CP-SAT](https://developers.google.com/optimization/cp/cp_solver), `FEASIBLE` is not the same as `OPTIMAL`, and `UNKNOWN` after a timeout does not mean infeasibility has been proved.
 
-[LLM-Modulo](https://arxiv.org/abs/2402.01817)提出更紧密的候选生成—外部验证循环：LLM 不只做格式转换，也可以提出计划或补充模型，Verifier 返回具体违反的约束供修订。该论文对 LLM 规划能力的强判断是其研究立场，不宜当作对所有后续模型的永久结论；可采用的是让生成与独立检查互相反馈的机制。
+[LLM-Modulo](https://arxiv.org/abs/2402.01817) proposes a more tightly coupled loop of candidate generation and external verification. The LLM does more than convert formats: it can also propose plans or augment the model, while verifiers return specific constraint violations to guide revision. The paper's strong claims about LLM planning abilities reflect its research position, not a permanent conclusion about every subsequent model. The transferable mechanism is the feedback between generation and independent checking.
 
-## 11.21 计划的表示方式
+## 11.21 Ways to Represent a Plan
 
 ### 11.21.1 Natural Language List
 
-简单直观，但难以验证和调度。
+Simple and intuitive, but difficult to validate and schedule.
 
 ### 11.21.2 Structured JSON
 
-适合任务管理和 API 集成：
+Suitable for task management and API integration. The example's `goal` means “release a new version”:
 
 ```json
 {
@@ -750,56 +750,56 @@ sequenceDiagram
 }
 ```
 
-示例只展示依赖结构，不是可直接执行的部署配置。测试、审批和部署必须绑定同一不可变发布产物；部署前还需复核授权、幂等键和回滚策略，不能用模型生成的审批字符串代替审批记录。
+This example illustrates dependency structure only; it is not a deployment configuration ready for execution. Testing, approval, and deployment must bind to the same immutable release artifact. Authorization, idempotency keys, and rollback strategy must be checked again before deployment. A model-generated approval string cannot replace an approval record.
 
 ### 11.21.3 DAG
 
-适合依赖和并行调度。
+Suitable for dependencies and parallel scheduling.
 
 ### 11.21.4 State Machine
 
-适合状态有限、转移规则明确的业务流程。
+Suitable for business processes with a finite set of states and explicit transition rules.
 
 ### 11.21.5 Policy
 
-不生成固定步骤，而是根据状态选择下一动作，适合动态环境。
+Rather than generating fixed steps, a policy chooses the next action based on state, making it suitable for dynamic environments.
 
-## 11.22 计划粒度
+## 11.22 Plan Granularity
 
-计划过粗：
+If a plan is too coarse:
 
-- 无法执行；
-- 无法验证；
-- 失败影响范围大。
+- It cannot be executed;
+- It cannot be verified;
+- Failures affect too much of the task.
 
-计划过细：
+If a plan is too fine-grained:
 
-- 调度成本高；
-- 模型调用过多；
-- 状态碎片化；
-- 容易丢失全局目标。
+- Scheduling overhead is high;
+- There are too many model calls;
+- State becomes fragmented;
+- The global goal is easily lost.
 
-合理任务单元应：
+A useful task unit should:
 
-- 独立执行；
-- 独立验证；
-- 独立重试；
-- 输入输出明确；
-- 副作用有边界；
-- 产生有意义 Artifact。
+- Be independently executable;
+- Be independently verifiable;
+- Be independently retryable;
+- Have explicit inputs and outputs;
+- Have bounded side effects;
+- Produce a meaningful artifact.
 
 ## 11.23 Planning Memory
 
-规划需要记住：
+Planning needs to retain:
 
-- 当前目标；
-- 已完成步骤；
-- 计划版本；
-- 关键假设；
-- Observation；
-- 失败和重试；
-- 未解决问题；
-- 预算。
+- The current goal;
+- Completed steps;
+- The plan version;
+- Key assumptions;
+- Observations;
+- Failures and retries;
+- Unresolved issues;
+- The budget.
 
 ```mermaid
 flowchart TB
@@ -810,39 +810,41 @@ flowchart TB
     STATE --> RP[Replanner]
 ```
 
-计划若只留在单次 Prompt 中，执行过程中就很难追踪版本、恢复状态或安全重启。更稳妥的做法是把它存入结构化 State Store，并支持 Checkpoint。
+If a plan lives only in a single prompt, it is difficult to track versions, restore runtime state, or restart safely during execution. A more robust approach is to store it in a structured state store with checkpoint support.
 
 ## 11.24 World Model
 
-规划需要估计动作会如何改变环境。这个预测模型称为 World Model。
+Planning requires estimating how actions will change the environment. This predictive model is called a world model.
 
-LLM 可以隐式预测：
+An LLM can implicitly predict:
 
-- 调用 Tool 后可能得到什么；
-- 某个动作是否满足前置条件；
-- 下一步会产生什么副作用。
+- What a tool call might return;
+- Whether an action's preconditions are satisfied;
+- What side effects the next step might produce.
 
-但在高风险场景里，仅靠语言模型预测还不够，通常还要结合：
+In high-risk settings, however, language-model predictions alone are insufficient. They usually need to be combined with:
 
-- API Schema；
-- 模拟器；
-- 测试环境；
-- 数字孪生；
-- 规则引擎；
-- 真实只读查询。
+- API schemas;
+- Simulators;
+- Test environments;
+- Digital twins;
+- Rule engines;
+- Actual read-only queries.
 
-World Model 的误差会随预测深度累积，尤其是在陌生状态或工具分布变化后。API Schema 描述参数形状，不是完整的环境转移模型；模拟器、只读查询和真实执行反馈也各有覆盖范围。
+World-model errors accumulate with prediction depth, especially in unfamiliar states or after shifts in the distribution of tools encountered. An API schema describes parameter structure, not a complete environment-transition model. Simulators, read-only queries, and feedback from real execution also have different coverage limits.
 
-[SayCan](https://arxiv.org/abs/2204.01691)提供了一个具体例子：用语言模型估计技能对目标的适合程度，用技能价值函数估计在当前环境中能否成功，再组合选择。它依赖已有技能库及相应可行性估计，不能由“语言模型能描述动作”推断机器人就具备该动作能力。
+[SayCan](https://arxiv.org/abs/2204.01691) provides a concrete example. A language model estimates how well a skill fits the goal, while a skill value function estimates whether it can succeed in the current environment; these estimates are combined to select a skill. This depends on an existing skill library and corresponding feasibility estimates. A language model's ability to describe an action does not imply that a robot can perform it.
 
-## 11.25 规划中的不确定性
+## 11.25 Uncertainty in Planning
 
-计划应区分：
+A plan should distinguish:
 
-- 已知事实；
-- 假设；
-- 不确定信息；
-- 必须通过 Tool 验证的条件。
+- Known facts;
+- Assumptions;
+- Uncertain information;
+- Conditions that must be verified through tools.
+
+In this example, the assumption is “Competitor A still offers a free version”:
 
 ```json
 {
@@ -853,279 +855,279 @@ World Model 的误差会随预测深度累积，尤其是在陌生状态或工�
 }
 ```
 
-优先验证影响后续大量步骤且验证成本可接受的假设。模型自报 `0.6` 一类数字未经校准时，不应解释为实际成功概率；应记录来源、时间和未确定原因。
+Prioritize assumptions that affect many later steps and are reasonably affordable to verify. An uncalibrated, model-reported number such as `0.6` should not be interpreted as an actual probability of success. Record the source, timestamp, and reason for uncertainty instead.
 
-## 11.26 风险感知规划
+## 11.26 Risk-aware Planning
 
-不同动作需要不同控制：
+Different actions need different controls:
 
-| 风险 | 示例 | 规划策略 |
+| Risk | Example | Planning strategy |
 |---|---|---|
-| 低 | 搜索公开网页 | 可自动执行 |
-| 中 | 修改本地代码 | 保留 Diff 和回滚 |
-| 高 | 发邮件、发布内容 | 执行前确认 |
-| 极高 | 转账、删库、改权限 | 强认证、审批和最小权限 |
+| Low | Searching public web pages | May execute automatically |
+| Medium | Editing local code | Retain a diff and rollback path |
+| High | Sending email or publishing content | Confirm before execution |
+| Very high | Transferring money, deleting databases, changing permissions | Strong authentication, approval, and least privilege |
 
-规划器应优先选择：
+The planner should favor:
 
-- 可逆动作；
-- 只读探测；
-- 最小副作用；
-- 可验证中间步骤；
-- 明确回滚路径。
+- Reversible actions;
+- Read-only probes;
+- Minimal side effects;
+- Verifiable intermediate steps;
+- Explicit rollback paths.
 
-## 11.27 规划预算
+## 11.27 Planning Budgets
 
-把本节的预算写成五个上限：
+Represent this section's budget as five upper bounds:
 
 $$
 B=(N,D,K,T_{max},C_{max})
 $$
 
-其中：
+Where:
 
-- `N`：候选计划数量；
-- `D`：搜索深度；
-- `K`：重规划次数；
-- `T_max`：最大时间；
-- `C_max`：最大费用。
+- `N`: the number of candidate plans;
+- `D`: search depth;
+- `K`: the number of replanning attempts;
+- `T_max`: maximum time;
+- `C_max`: maximum cost.
 
-预算策略可以是：
+Possible budget policies include:
 
-- 简单任务只生成一个计划；
-- 中等任务生成计划并做一次 Critique；
-- 高风险任务先落实权限、审批和验证，可比较多个候选，但不能用更多搜索替代准入控制；
-- 预算耗尽时返回部分计划和未解决风险。
+- Generate only one plan for simple tasks;
+- Generate a plan and run one critique for moderately complex tasks;
+- For high-risk tasks, establish permissions, approval, and verification first. Multiple candidates may be compared, but more search cannot replace authorization gates;
+- When the budget is exhausted, return the partial plan and unresolved risks.
 
 ## 11.28 Adaptive Planning
 
-Adaptive Planner 根据任务难度和风险选择规划强度：
+An adaptive planner chooses planning effort based on task difficulty and risk:
 
 ```mermaid
 flowchart TB
     G[Goal] --> A[Assess Complexity / Risk]
-    A -->|简单| C[CoT / Checklist]
-    A -->|路径明确| W[Workflow]
-    A -->|复杂但可分解| P[Plan-and-Execute]
-    A -->|候选较多| T[ToT / Search]
-    A -->|严格约束| S[External Solver]
-    A -->|动态环境| R[Rolling Replanning]
+    A -->|Simple| C[CoT / Checklist]
+    A -->|Known path| W[Workflow]
+    A -->|Complex but decomposable| P[Plan-and-Execute]
+    A -->|Many candidates| T[ToT / Search]
+    A -->|Strict constraints| S[External Solver]
+    A -->|Dynamic environment| R[Rolling Replanning]
 ```
 
-对所有任务一律启用昂贵搜索，通常得不偿失。
+Applying expensive search indiscriminately to every task is usually not worthwhile.
 
-## 11.29 规划能力的适配与训练
+## 11.29 Adapting and Training Planning Capabilities
 
 ### 11.29.1 In-context Examples
 
-提供高质量计划示例，包括依赖、成功标准和失败处理。这是推理时条件化，不是训练，不改变模型参数。
+Provide high-quality example plans, including dependencies, success criteria, and failure handling. This is conditioning at inference time, not training; it does not change model parameters.
 
 ### 11.29.2 Supervised Fine-tuning
 
-使用目标到计划、状态到下一动作的轨迹训练模型。
+Train the model on goal-to-plan and state-to-next-action trajectories.
 
 ### 11.29.3 Tool-use Training
 
-训练模型理解 Tool Schema、参数和 Observation。
+Train the model to understand tool schemas, parameters, and observations.
 
 ### 11.29.4 Reinforcement Learning
 
-根据任务成功、成本、风险和步骤效率优化策略。
+Optimize the policy for task success, cost, risk, and step efficiency.
 
 ### 11.29.5 Verifiable Rewards
 
-使用测试、模拟器、规则和环境结果提供可验证反馈。这是奖励来源，不是独立训练算法；只有经过优化器更新参数才属于参数学习。如果只是据此重试或筛选计划，则是推理时控制。
+Use tests, simulators, rules, and environmental outcomes to provide verifiable feedback. This is a source of rewards, not a separate training algorithm. It becomes parameter learning only when an optimizer updates the parameters. Using that feedback only to retry or select plans is inference-time control.
 
 ### 11.29.6 Curriculum
 
-从短计划逐步训练到长任务和动态环境。
+Progressively train from short plans to long tasks and dynamic environments.
 
-训练可以增强模型能力，但系统仍需要 Runtime、State、Verifier 和 Guardrails。
+Training can strengthen model capabilities, but the system still needs a runtime, state, a verifier, and guardrails.
 
-应区分离线轨迹训练、在线 RL 与当前任务的上下文适应。训练或评测时还需防止奖励泄漏、无效测试和“完成目标但违反约束”的奖励投机；数学可验证奖励上的提升，不等于对业务工具长轨迹的提升。
+Distinguish offline trajectory training, online RL, and in-context adaptation within the current task. Training and evaluation must also guard against reward leakage, invalid tests, and reward hacking that “achieves the goal while violating constraints.” Improvements from verifiable math rewards do not imply improvements on long trajectories involving business tools.
 
-## 11.30 规划质量如何评估
+## 11.30 How to Evaluate Planning Quality
 
-| 指标 | 含义 |
+| Metric | Meaning |
 |---|---|
-| Goal Completion | 最终是否完成目标 |
-| Plan Validity | 计划结构是否合法 |
-| Executability | 步骤是否可以实际执行 |
-| Completeness | 是否覆盖必要步骤 |
-| Dependency Accuracy | 依赖是否正确 |
-| Replan Rate | 计划失效频率 |
-| Step Efficiency | 是否存在冗余步骤 |
-| Recovery | 失败后是否能局部恢复 |
-| Cost | 规划和执行成本 |
-| Safety | 是否遵守权限和风险约束 |
+| Goal Completion | Whether the goal is ultimately achieved |
+| Plan Validity | Whether the plan's structure is valid |
+| Executability | Whether the steps can actually be executed |
+| Completeness | Whether all necessary steps are covered |
+| Dependency Accuracy | Whether dependencies are correct |
+| Replan Rate | How often plans become invalid |
+| Step Efficiency | Whether redundant steps exist |
+| Recovery | Whether local recovery is possible after failure |
+| Cost | Planning and execution costs |
+| Safety | Whether permission and risk constraints are respected |
 
-还需要与基线比较：
+Compare against baselines as well:
 
-- 单次 LLM；
-- ReAct；
-- 固定 Workflow；
-- Plan-and-Execute；
-- Search-based Planner。
+- A single LLM call;
+- ReAct;
+- A fixed workflow;
+- Plan-and-Execute;
+- A search-based planner.
 
-对照应固定模型版本、工具权限、任务输入和成功标准，同时报告预算、延迟、样本量及不确定性。增加搜索后的提升可能来自更多尝试而非计划结构；可以再比较等预算的 ReAct 重试或多候选基线。
+Controlled comparisons should hold the model version, tool permissions, task inputs, and success criteria constant, while reporting budgets, latency, sample size, and uncertainty. Gains after adding search may come from more attempts rather than the plan structure itself. An additional comparison can use ReAct retries or a multiple-candidate baseline under the same budget.
 
-增加规划复杂度应有可测收益：提高成功率、降低总体成本，或满足原方案无法满足的安全与可审计要求。更多节点、更多搜索本身不是收益。
+Greater planning complexity should deliver measurable benefits: higher success rates, lower total costs, or safety and auditability requirements that the original approach could not satisfy. More nodes and more search are not benefits by themselves.
 
-## 11.31 常见失败模式
+## 11.31 Common Failure Modes
 
-### 11.31.1 计划看起来完整但不可执行
+### 11.31.1 The Plan Looks Complete but Cannot Be Executed
 
-原因：
+Causes include:
 
-- Tool 不存在；
-- 参数无法获得；
-- 权限不足；
-- 步骤输出没有被后续消费。
+- A tool does not exist;
+- Parameters cannot be obtained;
+- Permissions are insufficient;
+- A step's output is not consumed downstream.
 
-### 11.31.2 计划遗漏隐含依赖
+### 11.31.2 The Plan Omits Implicit Dependencies
 
-例如部署前忘记测试或审批。
+For example, forgetting tests or approval before deployment.
 
-### 11.31.3 Planner 产生过多微任务
+### 11.31.3 The Planner Produces Too Many Microtasks
 
-调度和通信成本超过收益。
+Scheduling and communication costs exceed the benefits.
 
-### 11.31.4 初始假设错误
+### 11.31.4 Initial Assumptions Are Wrong
 
-后续所有步骤建立在错误方向上。
+Every subsequent step proceeds in the wrong direction.
 
-### 11.31.5 频繁完整重规划
+### 11.31.5 Frequent Full Replanning
 
-产生 Plan Drift 和成本膨胀。
+This causes plan drift and escalating costs.
 
-### 11.31.6 Planner 与 Executor 语义不一致
+### 11.31.6 The Planner and Executor Interpret the Plan Differently
 
-Executor 不理解步骤目标或输出格式。
+The executor does not understand a step's goal or output format.
 
-### 11.31.7 自我评价取代真实验证
+### 11.31.7 Self-evaluation Replaces Actual Verification
 
-计划逻辑看似合理，但无法通过环境测试。
+The plan appears logically plausible but fails environmental tests.
 
-### 11.31.8 没有停止条件
+### 11.31.8 There Are No Stopping Conditions
 
-不断拆分、搜索和重规划。
+Decomposition, search, and replanning continue indefinitely.
 
-## 11.32 推荐的生产架构
+## 11.32 A Recommended Production Architecture
 
 ```mermaid
 flowchart TB
     INPUT[User Goal] --> NORMALIZE[Goal / Constraint Parser]
     NORMALIZE --> ROUTER[Planning Strategy Router]
 
-    ROUTER -->|固定流程| WF[Workflow]
-    ROUTER -->|动态任务| PLANNER[LLM Planner]
-    ROUTER -->|严格约束| SOLVER[External Solver]
+    ROUTER -->|Fixed process| WF[Workflow]
+    ROUTER -->|Dynamic task| PLANNER[LLM Planner]
+    ROUTER -->|Strict constraints| SOLVER[External Solver]
 
     PLANNER --> PLAN[Structured Plan / DAG]
     SOLVER --> PLAN
     WF --> PLAN
 
     PLAN --> VALIDATE[Schema + Dependency + Risk Validation]
-    VALIDATE -->|不通过| PLANNER
-    VALIDATE -->|通过| SCHED[Scheduler]
+    VALIDATE -->|Fail| PLANNER
+    VALIDATE -->|Pass| SCHED[Scheduler]
 
-    SCHED --> GATE{执行前权限与审批有效?}
-    GATE -->|是| EXEC[Executor / ReAct]
-    GATE -->|否| HUMAN[Human Approval / 拒绝]
-    HUMAN -->|获批后重新校验| GATE
+    SCHED --> GATE{Permissions and approval valid before execution?}
+    GATE -->|Yes| EXEC[Executor / ReAct]
+    GATE -->|No| HUMAN[Human Approval / Denial]
+    HUMAN -->|Revalidate after approval| GATE
     EXEC --> OBS[Observation + Artifact]
     OBS --> VERIFY[Verifier]
 
-    VERIFY -->|步骤通过| SCHED
-    VERIFY -->|局部失败重试| GATE
-    VERIFY -->|计划失效| REPLAN[Replanner]
+    VERIFY -->|Step passes| SCHED
+    VERIFY -->|Retry local failure| GATE
+    VERIFY -->|Plan invalidated| REPLAN[Replanner]
     REPLAN --> PLAN
-    VERIFY -->|需人工判断| HUMAN
-    VERIFY -->|目标完成| DONE[Final Result]
+    VERIFY -->|Human judgment needed| HUMAN
+    VERIFY -->|Goal complete| DONE[Final Result]
 
     PLAN --> STATE[Planning State Store]
     OBS --> STATE
     STATE --> REPLAN
 ```
 
-图中的 Scheduler 只派发依赖已验收的任务，Verifier 区分步骤通过与目标完成。校验失败、重试和重规划共用硬性预算；不可修复的失败、审批拒绝或预算耗尽都应有停止出口，不能沿图中的回路无限运行。
+The scheduler dispatches only tasks whose dependencies have passed acceptance checks. The verifier distinguishes a passing step from a completed goal. Validation failures, retries, and replanning share a hard budget. Unrecoverable failures, denied approval, and exhausted budgets must all have stopping paths; the system must not follow the diagram's cycles indefinitely.
 
-## 11.33 实现步骤
+## 11.33 Implementation Steps
 
-### 11.33.1 定义目标与成功标准
+### 11.33.1 Define the Goal and Success Criteria
 
-不要只传入模糊目标。
+Do not provide only a vague goal.
 
-### 11.33.2 建立 Action Catalog
+### 11.33.2 Build an Action Catalog
 
-为每个动作定义前置条件、效果、风险和成本。
+Define preconditions, effects, risks, and costs for every action.
 
-### 11.33.3 定义 Plan Schema
+### 11.33.3 Define a Plan Schema
 
-让计划可以被程序验证和调度。
+Make plans programmatically validatable and schedulable.
 
-### 11.33.4 添加 Plan Validator
+### 11.33.4 Add a Plan Validator
 
-检查依赖、能力、权限和预算。
+Check dependencies, capabilities, permissions, and budgets.
 
-### 11.33.5 执行并保存 Observation
+### 11.33.5 Execute and Save Observations
 
-用真实 Tool Result、用户确认或其他可追溯事件更新状态；将模型预测单独标成假设，不要把“预计已部署”写成“已经部署”。
+Update recorded state using actual tool results, user confirmations, or other traceable events. Mark model predictions separately as assumptions; do not record “expected to have deployed” as “deployed.”
 
-### 11.33.6 添加 Replanner
+### 11.33.6 Add a Replanner
 
-定义明确的触发条件和最大重规划次数。
+Define explicit triggers and a maximum number of replanning attempts.
 
-### 11.33.7 添加 Verifier
+### 11.33.7 Add a Verifier
 
-优先使用测试、规则、模拟器和真实环境。
+Prioritize tests, rules, simulators, and the real environment.
 
-### 11.33.8 加入 Guardrails
+### 11.33.8 Add Guardrails
 
-限制步骤、时间、费用、权限和副作用。
+Limit steps, time, cost, permissions, and side effects.
 
-### 11.33.9 建立评估集
+### 11.33.9 Build an Evaluation Set
 
-测量成功率、成本、延迟和恢复能力。
+Measure success rate, cost, latency, and recovery capability.
 
-## 11.34 选型表
+## 11.34 Choosing an Approach
 
-| 场景 | 推荐方案 |
+| Scenario | Recommended approach |
 |---|---|
-| 简单线性问题 | Direct / CoT |
-| 需要先分解再求解 | Plan-and-Solve |
-| 候选方向较多且可评价 | ToT |
-| 中间结果需要合并复用 | Task Graph / DAG |
-| 长任务且环境变化 | Rolling Replanning |
-| 路径固定 | Workflow |
-| 严格约束优化 | External Solver |
-| 全局计划 + 局部探索 | Planner + ReAct |
-| 高质量要求 | Planner + Verifier + Reflection |
+| Simple linear problem | Direct / CoT |
+| Decomposition needed before solving | Plan-and-Solve |
+| Many candidate directions that can be evaluated | ToT |
+| Intermediate results need merging and reuse | Task Graph / DAG |
+| Long task in a changing environment | Rolling Replanning |
+| Fixed path | Workflow |
+| Optimization under strict constraints | External Solver |
+| Global plan with local exploration | Planner + ReAct |
+| Demanding quality requirements | Planner + Verifier + Reflection |
 
-## 11.35 本章总结
+## 11.35 Chapter Summary
 
-判断 LLM 有没有规划能力，不能只看它会不会“按步骤思考”，还要看计划能否执行、验证和更新。
+To judge whether an LLM can plan, do not look only at whether it can “think step by step.” Ask whether its plans can be executed, verified, and updated.
 
-### 11.35.1 模型层
+### 11.35.1 Model Level
 
-- CoT 提供单路径中间推理；
-- Task Decomposition 生成子问题；
-- ToT 搜索多个候选方向；
-- GoT 允许合并和复用中间结果；
-- 训练和 Verifiable Reward 可以增强规划能力。
+- CoT provides single-path intermediate reasoning;
+- Task decomposition generates subproblems;
+- ToT searches multiple candidate directions;
+- GoT allows intermediate results to be merged and reused;
+- Training and verifiable rewards can strengthen planning capabilities.
 
-### 11.35.2 系统层
+### 11.35.2 System Level
 
-- 用 Plan Schema 表达可执行任务；
-- 用 Validator 检查依赖、能力和风险；
-- 用 Scheduler 与 Executor 执行；
-- 用 Observation 更新真实状态；
-- 用 Replanner 动态修改计划；
-- 用 Verifier 和 Guardrails 检查质量与安全条件，保留未覆盖风险和人工处理出口。
+- Express executable tasks with a plan schema;
+- Use a validator to check dependencies, capabilities, and risks;
+- Execute through a scheduler and executor;
+- Update the state record from actual observations;
+- Modify plans dynamically through a replanner;
+- Use verifiers and guardrails to check quality and safety conditions, while retaining explicit records of uncovered risks and paths for human handling.
 
-> **落到工程实现，规划应表现为受预算约束的行动结构，能够执行、验证、更新。**
+> **In an engineering implementation, planning should take the form of a budget-constrained action structure that can be executed, verified, and updated.**
 
-## 参考资料
+## References
 
 - [Chain-of-Thought Prompting Elicits Reasoning in Large Language Models](https://arxiv.org/abs/2201.11903)
 - [Tree of Thoughts: Deliberate Problem Solving with Large Language Models](https://arxiv.org/abs/2305.10601)

@@ -1,50 +1,52 @@
-# AI 知识图谱
+# Awesome AI Roadmap
 
-这是一份面向 AI 工程面试准备的中文知识图谱，覆盖模型原理、应用开发和生产治理。每个主题既解释概念，也讨论选型条件、失败场景和工程取舍，方便从基础问答深入到系统设计。文档按“主题 → 子模块 → 章节”组织，通过 MkDocs Material 发布为可搜索的 Wiki。
+**English** | [简体中文](README.zh.md)
 
-从头阅读可进入[中文书稿目录](docs/book/README.md)，依次阅读前言、九篇正文和书末附页。网站与电子书共用章节源文件，在线阅读照旧。
+An English-first, bilingual handbook for AI engineering interviews, covering model foundations, application development, and production operations. Each topic explains mechanisms, design choices, failure cases, and practical trade-offs so you can move from foundational questions to system design. The searchable MkDocs site organizes the material as topics, modules, and chapters.
 
-日常修改中文正文只需提交**一个 PR**：PR 会检查网站并预览 EPUB，合并后分别更新网站与 EPUB 下载工件。不必为两种格式各改一份稿，也不提交生成的 `.epub`；流程不会自动上传 KDP。
+For a continuous reading path, start with the [book contents](docs/book/README.md): front matter, nine parts, and closing matter. Every chapter has an English source and a complete Simplified Chinese companion. Each language uses the same source text for its website and EPUB editions.
 
-**下载 EPUB：** 打开 [Build EPUB 工作流](https://github.com/zongyangbigpolo/awesome-ai-roadmap/actions/workflows/epub.yml)，选择成功的运行，在 Artifacts 中下载 `ai-engineering-interview-zh-CN-epub`，解压即可得到 `.epub` 和校验记录。工件保留 90 天；过期后维护者可点 **Run workflow** 重建。依赖安装后，本地一条命令 `python3 scripts/build_epub.py` 也能导出，详见[维护说明](book/README.md#epub-导出与下载)。当前输出真实的简体中文 EPUB，供离线阅读、审稿；**格式有效不等于具备 KDP 上架资格**。
+Start changes in English and review the corresponding Chinese update in **the same PR**. CI checks coverage and synchronization; it does not secretly translate the book or refresh stale records. After merge, separate workflows publish the site and produce downloadable EPUBs. Do not maintain separate prose for web and EPUB or commit generated `.epub` files. Nothing is uploaded to KDP automatically.
 
-**在线 Wiki：** <https://zongyangbigpolo.github.io/awesome-ai-roadmap/>
+**Download an EPUB:** open [Build EPUB](https://github.com/zongyangbigpolo/awesome-ai-roadmap/actions/workflows/epub.yml), select a successful run, and download the English or Chinese artifact from **Artifacts**. The names are `ai-engineering-interview-en-epub` and `ai-engineering-interview-zh-CN-epub`. Unzip it to obtain the book and its build reports. Artifacts are retained for up to 90 days; a maintainer can use **Run workflow** to rebuild an expired download. With the export dependencies installed, run `python3 scripts/build_epub.py --language en` or use `--language zh-CN`. See the [maintenance guide](book/README.md). A valid EPUB is not, by itself, evidence of KDP eligibility or visual acceptance.
 
-**作者：** [Polo Li](https://github.com/zongyangbigpolo) · **许可：** [CC BY 4.0](LICENSE)
+**Read online:** [English](https://zongyangbigpolo.github.io/awesome-ai-roadmap/) | [简体中文](https://zongyangbigpolo.github.io/awesome-ai-roadmap/zh/)
 
-> **书稿审校：2026-09-15。** 技术版本、实验条件和资料核验时间见各章正文；审校日期不表示所有接口都重新更新到了该日版本。
+**Author:** [Polo Li](https://github.com/zongyangbigpolo) | **License:** [CC BY 4.0](LICENSE)
 
-## 总体策略图
+> **Chinese technical review: 2026-09-15. English-first migration: 2026-09-20.** Technical versions, experiment conditions, and source-check dates belong to the individual chapters. Editorial dates do not mean every interface has been updated to its latest version.
 
-九个主题按“模型能力 → 协议接口 → 应用架构 → 框架实现 → 生产治理 → 现场交付”组织，共 143 章。
+## How the topics fit together
+
+The handbook has nine topics and 143 logical chapters, each available in both languages. The progression is from model capabilities and interfaces to application architectures, frameworks, production governance, and field delivery.
 
 ```mermaid
 flowchart TB
-    subgraph L1["第一层 · 模型与多模态能力"]
-        LLM["LLM · 23 章<br/>Transformer / 训练 / 推理 / 部署"]
-        MM["多模态 AI · 10 章<br/>视觉 / 语音 / 图像与视频生成"]
+    subgraph L1["Layer 1: Models and multimodal capabilities"]
+        LLM["LLM: 23 chapters<br/>Transformers / training / inference / serving"]
+        MM["Multimodal AI: 10 chapters<br/>Vision / speech / image and video generation"]
     end
 
-    subgraph L2["第二层 · 协议与接口"]
-        TOOLS["Tools · 15 章<br/>Function Calling / MCP / Skill / A2A / 安全"]
+    subgraph L2["Layer 2: Protocols and interfaces"]
+        TOOLS["Tools: 15 chapters<br/>Function calling / MCP / skills / A2A / security"]
     end
 
-    subgraph L3["第三层 · 应用架构"]
-        AGENT["Agent · 25 章<br/>Harness / 规划 / 记忆 / 编码 / 后训练"]
-        RAG["RAG · 22 章<br/>索引 / 检索 / 多模态 / 结构化查询"]
+    subgraph L3["Layer 3: Application architectures"]
+        AGENT["Agents: 25 chapters<br/>Harnesses / planning / memory / coding / post-training"]
+        RAG["RAG: 22 chapters<br/>Indexing / retrieval / multimodal / structured queries"]
     end
 
-    subgraph L4["第四层 · 框架实现"]
-        FW["框架与编排 · 23 章<br/>LangChain / LlamaIndex / DSPy / Semantic Kernel"]
+    subgraph L4["Layer 4: Framework implementations"]
+        FW["Frameworks and orchestration: 23 chapters<br/>LangChain / LlamaIndex / DSPy / Semantic Kernel"]
     end
 
-    subgraph L5["第五层 · 生产与治理"]
-        ENG["AI Engineering · 13 章<br/>评测 / 可观测性 / 发布 / SLO / 成本"]
-        SAFE["AI 安全与治理 · 10 章<br/>威胁 / 隔离 / 红队 / 审计"]
+    subgraph L5["Layer 5: Production and governance"]
+        ENG["AI Engineering: 13 chapters<br/>Evaluation / observability / releases / SLOs / cost"]
+        SAFE["AI safety and governance: 10 chapters<br/>Threats / isolation / red teaming / audit"]
     end
 
-    subgraph L6["第六层 · 现场交付"]
-        FDE["FDE · 2 章<br/>发现 / 验收 / 集成 / 交付 / 复用"]
+    subgraph L6["Layer 6: Field delivery"]
+        FDE["FDE: 2 chapters<br/>Discovery / acceptance / integration / delivery / reuse"]
     end
 
     LLM --> MM
@@ -59,36 +61,36 @@ flowchart TB
     ENG --> SAFE
     ENG --> FDE
     SAFE --> FDE
-    FDE -.现场反馈.-> FW
-    AGENT -.风险输入.-> SAFE
-    RAG -.风险输入.-> SAFE
-    RAG -.知识增强.-> AGENT
+    FDE -.field feedback.-> FW
+    AGENT -.risk inputs.-> SAFE
+    RAG -.risk inputs.-> SAFE
+    RAG -.knowledge augmentation.-> AGENT
 ```
 
-这是知识组织与阅读顺序，不是请求调用链，也不是必须逐层采用的技术栈。评测、安全和客户验收应从需求设计阶段参与，而不是等模型或应用做完后再补。
+This is a way to organize knowledge and reading, not a request flow or a stack that every project must adopt. Evaluation, safety, and customer acceptance belong in requirements and design, not as additions after the model or application is finished.
 
-## 主题目录
+## Topics
 
-| 层次 | 主题 | 目录 | 状态 |
+| Layer | Topic | Directory | Coverage |
 |---|---|---|---|
-| 底层原理 | LLM 相关知识点 | [`docs/llm/`](docs/llm/README.md) | 23 章 |
-| 模型能力 | 多模态 AI | [`docs/multimodal/`](docs/multimodal/README.md) | 10 章 |
-| 协议接口 | Tools 相关知识点 | [`docs/tools/`](docs/tools/README.md) | 15 章 |
-| 应用架构 | Agent 相关知识点 | [`docs/agent/`](docs/agent/README.md) | 25 章 |
-| 应用架构 | RAG 相关知识点 | [`docs/rag/`](docs/rag/README.md) | 22 章 |
-| 框架实现 | AI 框架与编排 | [`docs/frameworks/`](docs/frameworks/README.md) | 23 章 |
-| 生产工程 | AI Engineering / LLMOps | [`docs/engineering/`](docs/engineering/README.md) | 13 章 |
-| 安全治理 | AI 安全与治理 | [`docs/safety/`](docs/safety/README.md) | 10 章 |
-| 现场交付 | FDE | [`docs/fde/`](docs/fde/README.md) | 2 章 |
+| Foundations | LLM | [`docs/llm/`](docs/llm/README.md) | 23 chapters |
+| Model capabilities | Multimodal AI | [`docs/multimodal/`](docs/multimodal/README.md) | 10 chapters |
+| Protocols and interfaces | Tools | [`docs/tools/`](docs/tools/README.md) | 15 chapters |
+| Application architectures | Agents | [`docs/agent/`](docs/agent/README.md) | 25 chapters |
+| Application architectures | RAG | [`docs/rag/`](docs/rag/README.md) | 22 chapters |
+| Framework implementations | Frameworks and orchestration | [`docs/frameworks/`](docs/frameworks/README.md) | 23 chapters |
+| Production engineering | AI Engineering / LLMOps | [`docs/engineering/`](docs/engineering/README.md) | 13 chapters |
+| Safety and governance | AI safety and governance | [`docs/safety/`](docs/safety/README.md) | 10 chapters |
+| Field delivery | FDE | [`docs/fde/`](docs/fde/README.md) | 2 chapters |
 
-完整目录、跨主题归属约定与推荐阅读路径见 [`docs/README.md`](docs/README.md)。每个主题 README 维护子模块入口与模块关系，每个子模块 README 维护具体章节顺序。
+The [documentation index](docs/README.md) provides the full topic map, ownership of shared concepts, and suggested reading paths. Topic indexes introduce their modules and relationships; module indexes list the chapters.
 
-## 如何用于面试准备
+## Using the handbook for interview preparation
 
-先按目标岗位选择主题，不必从头背完 143 章。复习一个概念时，合上文档解释它如何工作，再换一个约束试着推演：数据变大、延迟变紧、权限变化或工具失败后，原来的方案还成立吗？讲不清的部分再回到对应章节和原始资料。
+Choose topics for the role you are preparing for; there is no need to memorize 143 chapters. After reviewing a concept, close the page and explain how it works. Then change a constraint: more data, a tighter latency target, different permissions, or a failed tool. Does the design still hold? Return to the chapter and its original sources for anything you cannot explain.
 
-系统设计题需要把几个主题连起来：例如企业知识助手不止涉及 RAG，还涉及工具权限、离线评测、发布回滚和客户验收。项目题则应结合自己实际做过的工作；文中的假设案例只用于练习设计和追问。
+System design questions connect topics. An internal knowledge assistant, for example, involves not only RAG but also tool permissions, offline evaluation, release and rollback, and customer acceptance. Discuss projects you actually worked on; the hypothetical cases here are for practicing design and follow-up questions.
 
-## 文档质量
+## Contributing and quality
 
-仓库提供 `scripts/check_docs.py` 与 `scripts/check_mermaid.mjs`，用于检查章节编号、标题、代码与数学围栏、禁用 LaTeX 宏、内部链接、导航计数和 Mermaid 语法。写作与贡献约定见 [`CONTRIBUTING.md`](CONTRIBUTING.md)，来源选择、引用和纠错方式见[编辑规范](docs/editorial-policy.md)。
+Repository checks cover paired-language coverage and synchronization, chapter numbering, headings, code and math fences, unsupported LaTeX macros, links, navigation counts, and Mermaid syntax. See [CONTRIBUTING.md](CONTRIBUTING.md) for the editing workflow and the [editorial policy](docs/editorial-policy.md) for sources, citations, and corrections.

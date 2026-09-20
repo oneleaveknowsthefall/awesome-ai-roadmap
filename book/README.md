@@ -1,152 +1,181 @@
-# 中文书稿维护与出版
+# Maintaining and publishing the bilingual book
 
-这里面向作者和维护者，不是读者正文。读者入口是 [`docs/book/README.md`](../docs/book/README.md)。同一份**中文简体 Markdown 母稿**现在同时支持网站与可重排 EPUB3；导出不改写正文、不自动生成英文或转换繁体。EPUB 可供离线阅读和审稿，但不代表当前简体稿具备 KDP 上架资格。
+[简体中文](README.zh.md)
 
-## 一份正文，两种阅读方式
+This guide is for authors and maintainers, not part of the reader manuscript. Readers can start at the [book contents](../docs/book/README.md) and use the website's language switcher for the corresponding Chinese page. English is the primary manuscript; Chinese is a complete companion, not a summary. Each language uses the **same Markdown sources for its website and reflowable EPUB3**, with no separate EPUB prose.
 
-知识章继续以 `docs/<topic>/.../NN-chapter.md` 为唯一源文件。网站沿模块组织，电子书依据 [`zh-CN/manifest.json`](zh-CN/manifest.json) 的显式顺序编排，不复制第二套正文。
+The book covers all 143 knowledge chapters. **Release validation requires two complete EPUBs built from synchronized, complete sources.** Small bilingual test books can verify the export pipeline but cannot establish that the full English book has been built or reviewed.
 
-当前共 143 章，九篇依次为：LLM 23 章、多模态 10 章、工具与协议 15 章、RAG 22 章、Agent 25 章、框架与编排 23 章、生产工程 13 章、安全与治理 10 章、FDE 2 章。篇内按原文件章号递增，每篇重新从第 1 章开始。书稿标题显示“第一篇 第1章”等完整位置，小节号和正文中原有的“第十四章”不做全局替换。
+## One source per language, two reading formats
 
-manifest 只保存篇标题、章节稳定 ID 和路径；知识章标题从源 H1 读取。`front_matter` 与 `back_matter` 指向 `docs/book/` 的扉页、前言、读法、致谢、作者与许可页。目录和站点入口由脚本生成，不手工维护另一份 143 章标题清单。
+English sources use `docs/<topic>/<NN-module>/NN-chapter.md`; complete Chinese companions use sibling `NN-chapter.zh.md` files. The convention also applies to indexes and front/back matter. English occupies the website root, Chinese `/zh/`; switching languages should retain the logical page. Internal source links stay within their language, apart from shared assets and external references. Export does not translate, rewrite the prose, or convert Simplified to Traditional Chinese.
 
-## 组装与日常维护
+[`en/manifest.json`](en/manifest.json) and [`zh-CN/manifest.json`](zh-CN/manifest.json) share 143 stable knowledge-chapter IDs, nine parts, and their reading order. Titles are **AI Engineering Interviews: From Model Foundations to Field Delivery** and **AI 工程面试：从模型原理到现场交付**. Part titles, source paths, and metadata are localized. Websites retain module navigation; books follow the explicit manifest order.
 
-只需要 Python 3.10 或更新版本的标准库。从仓库根目录运行：
+The nine parts contain: LLMs 23 chapters, multimodal AI 10, tools and protocols 15, RAG 22, agents 25, frameworks and orchestration 23, production engineering 13, safety and governance 10, and FDE 2. Original chapter numbers ascend within each part, restarting at 1. English source headings use `# Chapter N: Title`; both languages keep the same numbered section hierarchy. Assembled headings show the full position, such as “Part 1, Chapter 1”; export does not globally renumber sections or references such as “Chapter 14.”
+
+Manifests store part titles and stable chapter IDs/paths; knowledge-chapter titles come from source H1 headings. `front_matter` and `back_matter` select each language's title page, preface, reading guide, acknowledgments, author, and license pages under `docs/book/`. Scripts generate the reader indexes; do not maintain a second handwritten list of 143 titles.
+
+## Daily editing and assembly
+
+Start edits in English and update the Chinese companion **in the same PR**. If an English-only wording change leaves the Chinese meaning intact, explicitly review that decision. Preserve the original Chinese material's explanations, assumptions, examples, and technical depth; check claims against cited primary sources. Keep API identifiers, numerical examples, formulas, and version qualifications intact; translate explanatory comments and diagram labels without changing executable behavior.
+
+Maintenance order: update the real English and Chinese sources, including Chinese links to `.zh.md` companions; regenerate both reader indexes; record the pairs actually reviewed; then run strict checks and build both editions. Assembly uses only the Python 3.10+ standard library. From the repository root:
 
 ```bash
-# 不生成文件；检查 manifest、章号、覆盖、源文件、链接、锚点与资产
-python3 scripts/build_book.py --check
+# After editing both sources, regenerate and commit both reader indexes.
+# Standalone index maintenance does not require current synchronization records.
+python3 scripts/build_book.py --language en --write-index
+python3 scripts/build_book.py --language zh-CN --write-index
 
-# 源标题或 manifest 改动后，重建并提交读者目录
-python3 scripts/build_book.py --write-index
+# Record genuinely reviewed pairs here, using --record / --record-all as explained below.
+# Then run the read-only synchronization check; ROOT is the repository root.
+python3 scripts/check_translations.py --root .
 
-# CI 同时检查目录是否过期
-python3 scripts/build_book.py --check --check-index
+# Validate both editions without generating manuscripts.
+python3 scripts/build_book.py --language en --check
+python3 scripts/build_book.py --language zh-CN --check
 
-# 组装默认母稿及可追踪的构建记录
+# CI also rejects stale reader indexes.
+python3 scripts/build_book.py --language en --check --check-index
+python3 scripts/build_book.py --language zh-CN --check --check-index
+
+# Assemble manuscripts and traceable build records; the default language is English.
 python3 scripts/build_book.py
-
-# 也可指定仓库外的输出文件；资产随它放在相邻 assets/ 下
-python3 scripts/build_book.py --output /tmp/ai-engineering-book/manuscript.md
+python3 scripts/build_book.py --language zh-CN
 
 python3 -m unittest discover -s scripts/tests -p 'test_build_book.py'
 ```
 
-默认输出为 `book/zh-CN/generated/manuscript.md`，同目录生成 `manuscript.build.json`，必要时复制本地资产到 `assets/`。该目录由本地 `.gitignore` 忽略，不提交生成正文。输出路径不能覆盖仓库内的源文件；仓库内的输出只能位于上述生成目录。`--manifest` 接受仓库相对路径，`--check` 不与 `--output` 同用；单独执行 `--write-index` 只更新读者目录，不写母稿。
+Standalone `build_book.py --language LANG --write-index`, without `--check` or `--output`, maintains source indexes: it validates manifests and sources but does not require current synchronization records. Every `--check`, normal manuscript assembly, EPUB export, and `--write-index` combined with `--output` must first pass `scripts/check_translations.py --root ROOT`. Missing companions, stale synchronization records, or an absent checker **fail these strict commands**; there is no fallback, relabeling, or publishing skip flag.
 
-manifest 校验检查全部 `docs/**/NN-*.md` 知识章恰好出现一次；新增主题或新增章节不会被静默漏掉。漏章、重复路径/ID、非法 JSON 字段、错误篇内顺序、错误 H1 章号、越界路径、缺少资产或片段锚点都会失败。不要为了让构建通过而跳过坏文件。
+The synchronization checker's default mode is read-only. After generating both indexes and completing actual editorial review, run it with `--record PATH.md ... --note "Describe the review actually performed"` for the selected pairs. During migration, `--record-all --note "Describe the review actually performed"` requires review of the entire covered set. Replace the example note with the review actually performed; never refresh hashes just to silence an error. Isolated `Book` parser fixtures may test parsing without the synchronization gate; release commands may not bypass it. No automatic or paid translation service, API key, browser translation, or whole-book translation at build time is introduced.
 
-新增、移动或删除章节时，同时更新 manifest、各级网站索引和 MkDocs 导航，再重建书稿目录。标题审校完成后也要重建目录。正式发布前仍需运行仓库既有的 `python3 scripts/check_docs.py`、`npm run check:mermaid` 和 `.venv/bin/mkdocs build --strict`；组装器不能替代逐章技术审校。
+Both CLIs accept `--language en|zh-CN`, defaulting to `en`. The advanced alternative `--manifest book/zh-CN/manifest.json` selects a repository-relative manifest and infers its language from metadata; it is **mutually exclusive** with `--language`. Language, source-path suffixes, H1 conventions, and the title-page H1 must agree. Both canonical manifests and their paired source files are required, even when building one edition. Discovery checks each language's knowledge chapters exactly once, not 286 files as a single edition. Missing chapters, duplicate IDs/paths, invalid JSON fields, incorrect order or H1 numbers, escaping paths, missing assets, and broken fragments fail validation. Do not skip bad files to make a build pass.
 
-## 转换边界
+Outputs are `book/en/generated/manuscript.md` and `book/zh-CN/generated/manuscript.md`, with `manuscript.build.json` and, when needed, an adjacent `assets/` directory. Successful checks identify the language and report `chapters=143 parts=9` for that edition. Generated directories are ignored; do not commit assembled prose. `--output FILE` can select an external destination, with assets alongside it; inside the repository, output must stay in the selected language's generated directory and never overwrite sources or the other edition. `--check` cannot accompany `--output`. Standalone `--write-index` writes only `docs/book/README.md` or `docs/book/README.zh.md`, not a manuscript.
 
-| 输入 | 母稿中的处理 |
+When adding, moving, or removing a chapter, update both manifests, paired sources, all relevant website indexes, and MkDocs navigation, then regenerate both book indexes. Regenerate after title review too. Before publishing, also run `python3 scripts/check_docs.py`, `npm run check:mermaid`, and `.venv/bin/mkdocs build --strict`. Assembly is not a substitute for chapter-by-chapter technical review.
+
+## Conversion boundaries
+
+| Input | Treatment in the assembled manuscript |
 |---|---|
-| YAML 页元数据 | 只剥离文件开头成对的 `---` 元数据块，不把描述插入正文 |
-| 书内章节、前后附页链接 | 改为同一文件内的稳定锚点；原有标题片段会先校验，再映射到书稿锚点 |
-| 网站总目录、主题目录链接 | 分别映射到书稿目录与对应篇；不拼接网站索引正文 |
-| 模块目录或其他未收录 Markdown 页面 | 校验目标后转成 `source_url` 下的完整线上链接，保留所指模块的含义；**需要联网**，不冒充某一章 |
-| 本地图片和其他非 Markdown 附件 | 校验存在且未越出仓库，复制到输出旁的 `assets/`；保留仓库相对层级，避免重名覆盖 |
-| 外部资料链接、远程图片 | 保留原 URL，不下载；远程图片还不是离线出版资产 |
-| 参考式链接 | 统一重写定义目标，并给引用标签加章节命名空间，避免整书重名串链 |
-| 代码围栏、行内代码、数学、缩进代码 | 保留原文，不把其中的示例链接、注释或标题当作正文改写 |
-| 编辑用 HTML 注释 | 不进入读者稿；代码示例里的注释仍保留 |
-| 已知格式的重复作者页尾、返回网站目录行 | 只移除这些明确模式；不删除技术限定、来源说明或第三方具体出处 |
+| YAML page metadata | Strip only the initial paired `---` block; do not insert descriptions into the prose |
+| Links to included chapters and front/back matter | Rewrite to stable anchors in one manuscript; validate original heading fragments before mapping |
+| Website-wide and topic indexes | Map to the book contents or corresponding part; do not concatenate website index prose |
+| Module indexes and other excluded Markdown pages | Validate, then form full online links under `source_url`, preserving the intended module; **requires a network connection**, not a substitute chapter |
+| Local images and other non-Markdown attachments | Check existence and repository containment, then copy to adjacent `assets/`, preserving repository-relative hierarchy to avoid collisions |
+| External references and remote images | Preserve URLs without downloading; remote images are not yet offline publication assets |
+| Reference-style links | Rewrite definition targets and namespace labels by chapter to prevent cross-chapter collisions |
+| Fenced/inline/indented code and math | Preserve source; do not rewrite example links, comments, or headings inside them as prose |
+| Editorial HTML comments | Omit from the reader manuscript; preserve comments inside code examples |
+| Recognized repeated author footers and website-return lines | Remove only known patterns, not technical qualifications, source notes, or specific third-party attribution |
 
-这是为本仓库维护的 Markdown 子集组装器，不是通用 CommonMark/EPUB 引擎。支持普通行内链接（含括号 URL、尖括号目标和同一行的可选标题）、常规参考式链接、带引号的 HTML `href`/`src`。脚注、源 HTML 自定义锚点、`srcset` 等尚未实现的结构会明确报错；需要时应先增加显式转换和回归用例。新增块级语法或多行链接时也应扩展测试，不能只看命令是否退出成功。
+This assembler handles the repository's Markdown subset, not all of CommonMark or EPUB. It supports ordinary inline links, including parenthesized URLs, angle-bracket destinations and optional same-line titles, standard reference links, and quoted HTML `href`/`src`. Unsupported footnotes, custom source HTML anchors, and `srcset` fail explicitly. Add conversions and regression cases before using them; new block syntax or multiline links also need tests, not merely a successful exit code.
 
-篇锚点形如 `part-agent`，章锚点形如 `agent-24`，编号小节形如 `agent-24-s24-2`。不编号的标题使用章内顺序 ID，例如 `agent-24-extra-01`。普通中文标题片段由脚本映射到这些锚点。更改标题不会改动章 ID 或编号小节 ID；调整小节编号、不编号标题的顺序时，需要重新核对交叉引用。
+Part anchors look like `part-agent`, chapters like `agent-24`, and numbered sections like `agent-24-s24-2`. Unnumbered headings use chapter-local sequential IDs, such as `agent-24-extra-01`. Localized heading fragments map to these anchors. Renaming a title does not change chapter or numbered-section IDs; renumbering sections or reordering unnumbered headings requires a cross-reference review.
 
-本轮审校已从章节源文件移除通用署名页尾；组装器保留对旧格式的兼容处理，仓库许可继续有效。遇到未识别的本章作者声明时，脚本报错而不是猜测删除范围。第三方具体署名、论文与规范出处应留在对应论证旁，通用许可声明集中在 `docs/book/colophon.md`。
+The earlier review removed generic author footers from chapter sources; compatibility handling for older formats does not change the repository license. Unrecognized chapter-author declarations cause an error rather than a guessed deletion. Keep specific third-party credits, papers, and specifications beside their arguments; general attribution and licensing belong in `docs/book/colophon.md` and `docs/book/colophon.zh.md`.
 
-## 中文冻结与后续英文
+## Edition records and terminology
 
-`schema_version` 表示 manifest 格式，`edition` 是内部稿件版本标识，不代表已出版的版次或 ISBN。冻结中文稿时记录 Git 提交、manifest 与源文件哈希、审校记录，以及构建记录中的 `manuscript_sha256`。同样的输入应得到同样的母稿字节；变更稿件时更新内部版本并保留上一版构建记录。
+`schema_version` identifies the manifest format. `edition` is an internal manuscript revision, not a published edition or ISBN. Freeze each edition with its Git commit, manifest/source hashes, review records, and `manuscript_sha256`. Identical inputs should yield identical manuscript bytes; update internal revision metadata when changing the manuscript and retain earlier build records.
 
-章 ID 是跨语言身份，不随译名、文件移动或展示顺序重新生成。将来的英文 manifest 应复用同一章 ID，明确对应的中文冻结提交与译稿版本，而不是复制现在的中文生成稿继续独立维护。当前脚本仅支持 `zh-CN`；英文组装需届时增加语言标签、路径和编号展示规则，不能只把语言字段改掉便当作已支持。
+Chapter IDs identify the same material across languages, regardless of translated titles, moves, or display order. Record the Chinese source revision used for migration and the paired revisions actually reviewed; do not fork a generated Chinese manuscript into an independently maintained English book. Previous Chinese review records are not evidence that the English translation was reviewed.
 
-翻译启动前，再建立以稳定概念 ID 为键的术语表，至少记录中文写法、英文首选词、保留缩写、语义备注和首次出现的章 ID。像“记忆”“上下文”“状态”“检索”“工具执行”这些容易混用的词，要先确定语境，再统一译法。保留产品名、API 标识符和必要版本限定；不通过统一译名掩盖原本不同的概念。本阶段不生成英文章节或假装已经做完术语审定。
+Use a glossary keyed by stable concept IDs, recording Chinese wording, preferred English terms, retained abbreviations, semantic notes, and the first chapter ID. Resolve context before unifying “memory,” “context,” “state,” “retrieval,” or “tool execution.” Preserve product names, API identifiers, and necessary version limits; a shared translation must not erase distinct concepts. A glossary or hash record alone does not establish completed terminology or translation review.
 
-## EPUB 导出与下载
+## EPUB export and downloads
 
-网站继续走 `.github/workflows/docs.yml`；电子书走独立的 [Build EPUB](https://github.com/zongyangbigpolo/awesome-ai-roadmap/actions/workflows/epub.yml)。PR、影响书稿的 main 更新和手动运行都会生成完整电子书。导出流程只有仓库读取权限，不发 Release、不部署网站、不上传 KDP；导出依赖或格式检查失败不会阻塞原有网站部署。
+The website retains `.github/workflows/docs.yml`; EPUB uses the independent [Build EPUB](https://github.com/zongyangbigpolo/awesome-ai-roadmap/actions/workflows/epub.yml) workflow. Its `en`/`zh-CN` matrix builds PR previews, relevant `main` updates, and manual runs. It has read-only repository permissions: no Release, website deployment, or KDP upload. Website deployment does not depend on EPUB export succeeding.
 
-日常改稿仍然只改原来的 Markdown、只提一个 PR；PR 阶段检查网站并生成 EPUB 预览，合并后两个工作流各自构建。无需另开“EPUB 内容 PR”，也不手工维护或提交 `.epub`。独立的是构建流程，不是正文来源。
+One content PR updates both language sources; website and EPUB checks consume those same files and run independently after merge. There is no separate “EPUB content PR” and no manually maintained or committed `.epub`. Successful full-book artifacts require complete, synchronized sources; sample books cannot replace full exports.
 
-在成功运行的 **Artifacts** 中下载 `ai-engineering-interview-zh-CN-epub`，解压得到 `ai-engineering-interview-zh-CN.epub`、`build.json`、母稿哈希记录、静态渲染记录和 EPUBCheck 报告。GitHub 下载工件通常需要登录。保留期为 90 天（仓库或组织策略可能进一步缩短）；过期后，有 Actions 操作权限的维护者可选 **Run workflow** 重建。无需把生成文件提交进 Git。
+Download `ai-engineering-interview-en-epub` or `ai-engineering-interview-zh-CN-epub` from a successful run's **Artifacts**. Each contains its corresponding `ai-engineering-interview-en.epub` or `ai-engineering-interview-zh-CN.epub`, `build.json`, manuscript hashes, static-render records, and EPUBCheck reports. Downloads generally require GitHub sign-in. Retention is 90 days, possibly shortened by repository/organization policy; an authorized maintainer can use **Run workflow** to rebuild expired artifacts.
 
-### 本地安装与一条命令导出
+### Local tools and export
 
-完整导出支持 macOS 的 arm64、x64，以及 Linux x64；需要 Python 3.10+、Node.js 22 和单独安装的 Java 17+。安装脚本不改全局 PATH、不替用户安装 Java，不接触主工作树。Windows 可使用 x64 Linux 环境运行。虽然固定的 Pandoc 归档另含 Linux arm64，当前 Puppeteer 配套 Chromium 不支持该平台，因此不能据此宣称完整导出支持 Linux arm64；请使用 x64 runner。
+Full export supports macOS arm64/x64 and Linux x64, with Python 3.10+, Node.js **22**, and separately installed Java 17+. The installer does not change global PATH, install Java, or modify another main checkout. Windows users can use an x64 Linux environment. Although the pinned Pandoc archives include Linux arm64, the bundled Puppeteer Chromium does not support that platform; use an x64 runner rather than claiming full Linux arm64 support.
 
 ```bash
-# 首次安装，或固定依赖版本发生变化时运行
+# First installation, or after pinned dependency versions change.
 python3 scripts/install_epub_tools.py
 npm ci --prefix book/epub
 
-# 日常导出：包含全书组装、静态渲染、打包、链接审计和 EPUBCheck
+# Assembly, static rendering, packaging, link audit, and EPUBCheck.
 python3 scripts/build_epub.py
-
-# 可选：独立输出目录；只能替换本工具已有的输出，不能覆盖源文件
-python3 scripts/build_epub.py --output /tmp/ai-engineering-epub
+python3 scripts/build_epub.py --language zh-CN
 ```
 
-默认文件在 `book/zh-CN/generated/epub/ai-engineering-interview-zh-CN.epub`。目录内还保留中间母稿、`rendered/` PNG 和构建记录，便于人工审稿。只有全部检查通过才替换上次成功输出；缺工具、资源丢失、未知公式、渲染错误或写入失败都会报错，不降级成缺图版本。
+Default files are `book/en/generated/epub/ai-engineering-interview-en.epub` and `book/zh-CN/generated/epub/ai-engineering-interview-zh-CN.epub`. Intermediate manuscripts, `rendered/` PNGs, and build records remain alongside them for review. `--output DIRECTORY` selects a dedicated destination, subject to source and language isolation; only this tool's existing output can be replaced. All checks must pass before replacing the last successful export. Missing tools/assets, unknown formulas, rendering errors, or write failures fail the build rather than produce a book with missing illustrations.
 
-Pandoc **3.6.4**、EPUBCheck **5.2.1** 下载到 `book/epub/.tools/`，按 [`epub/tools.json`](epub/tools.json) 固定的完整归档 SHA-256 校验后解包。校验值来自官方 GitHub Release 的 HTTPS 下载，不冒充上游签名。Node 依赖单独锁在 `book/epub/package-lock.json`：Mermaid **11.12.0**、MathJax **3.2.2**、Puppeteer **24.15.0**、Noto Sans SC **5.2.5**；Chromium 放在该目录的 `.cache/puppeteer/`，普通网站的 `npm ci` 不会安装它们。首次安装需要联网获取工具和字体，书稿转换不发送到任何远程渲染服务。
+Pandoc **3.6.4** and EPUBCheck **5.2.1** install into `book/epub/.tools/` after full-archive SHA-256 verification against [`epub/tools.json`](epub/tools.json). These hashes were obtained from official GitHub Release downloads over HTTPS; they are not upstream signatures. The isolated `book/epub/package-lock.json` pins Mermaid **11.12.0**, MathJax **3.2.2**, Puppeteer **24.15.0**, and Noto Sans SC **5.2.5**. Chromium uses `book/epub/.cache/puppeteer/`; ordinary website `npm ci` does not install these dependencies. Initial tool/font downloads need a network connection, but manuscript conversion never sends content to a remote rendering service.
 
-Linux 若缺 Chromium 系统库，按 [Puppeteer 的运行环境说明](https://pptr.dev/troubleshooting) 安装对应发行版依赖；不要用关闭沙箱掩盖缺库。本地默认启用浏览器沙箱，只有独立、可丢弃的 CI runner 显式设置 `EPUB_NO_SANDBOX=1`。
+For missing Linux Chromium libraries, follow the distribution-specific [Puppeteer troubleshooting guidance](https://pptr.dev/troubleshooting); disabling the sandbox is not a library fix. Local rendering enables the browser sandbox. Only an isolated, disposable CI runner should explicitly set `EPUB_NO_SANDBOX=1`.
 
-### 导出如何保留阅读内容
+### Preserving the reading experience
 
-导出复用 `scripts/build_book.py` 的 manifest 校验、次序、稳定 ID、链接与署名处理，然后由 Pandoc 解析 Markdown AST。代码围栏、行内代码和缩进代码不是公式；示例代码中的 Mermaid 不会被当成真正插图。独立的源分段计数与 AST 图/公式计数必须一致，遇到超出当前支持子集的结构要补充转换与回归测试，不能直接放宽计数。
+Export reuses `scripts/build_book.py` validation, ordering, stable IDs, links, and attribution handling, then parses Markdown into a Pandoc AST. Fenced, inline, and indented code are not formulas; Mermaid inside example code is not an illustration. Independent source-segment counts must agree with AST diagram/formula counts. Unsupported structures need explicit conversions and regression tests, not relaxed counting.
 
-每个知识章、篇页和前后附页分别生成 XHTML，线性 spine 顺序来自 manifest。保留原扉页，不使用 Pandoc 自动扉页；母稿的正文目录换成单一的 EPUB 原生导航目录。篇内原章号不变，稳定章/节 ID 移交给标题；打包后按真实 XHTML ID 与资源哈希修正跨文件链接，并逐条检查目标是否存在。参考资料仍可点击联网访问，**正文、图和公式本身不依赖网络**。
+Each knowledge chapter, part page, and front/back matter page becomes XHTML; the manifest determines the linear spine. Keep the source title page, not Pandoc's automatic one, and replace manuscript contents with a single native EPUB navigation tree. Original within-part chapter numbers remain; stable chapter/section IDs transfer to headings. After packaging, repair cross-file links using actual XHTML IDs and resource hashes, then verify every destination. External references remain clickable online, but **prose, diagrams, and formulas require no network access or scripts**.
 
-Mermaid 与 LaTeX 仅在导出时转成带替代文本的 PNG，网站源继续保留原语法。本地浏览器加载隔离安装的渲染器与中文字体，禁止访问外部地址；单个浏览器批量绘制并按内容、渲染器与 lockfile 缓存。图片使用两倍像素密度和白色背景，避免深色阅读模式下透明黑字消失；行内公式按 `em` 设首选宽度，受到单元格或段落宽度约束时等比缩放，不撑宽页面。点公式图片可进入独立的完整公式页并返回原位置，原始像素不减少。中文字体用于生成图片，不锁定电子书正文字体。
+Keep Mermaid and LaTeX in each language's source; render that language's labels locally to PNG with alternative text only during export. A single browser batches rendering with isolated renderers and fonts, blocks external addresses, and caches by language, content, renderer, and lockfile. Images use double pixel density and white backgrounds so black text does not disappear in dark reading modes. Inline formulas have preferred widths in `em`, shrink proportionally within cells/paragraphs, and do not widen the page. A formula links to its complete image on a separate page and back to the exact occurrence without discarding source pixels. The Chinese font supports rendered images; it does not lock the ebook's body font.
 
-源文件中的普通图片目前支持本地 PNG/JPEG/GIF。远程图片、带依赖的 SVG、Mermaid 内嵌图片/图标和交互链接需要先做显式的离线静态转换；当前导出会拒绝这些输入，不替作者联网抓取或静默删除。
+Ordinary source images currently support local PNG/JPEG/GIF. Remote images, dependency-bearing SVG, embedded Mermaid images/icons, and interactive links require explicit offline static conversion first; export rejects them rather than fetching or silently removing content.
 
-正文只保留概览与“查看大图与细节”链接；非线性的独立图页放完整原图与有重叠的局部图，局部按从左到右、从上到下阅读，不裁掉超出屏幕的内容。每次出现的图都有自己的详情页，返回链接精确回到正文中的此图，跨章复用的 PNG 仍只打包一份。图页不混入章目录或连续阅读 spine，局部图不重复堆在正文。超出渲染器明确尺寸/面积上限会失败，要求主动调整图，而不是悄悄丢图或缩成不可读缩略图。代码只通过 CSS 视觉换行，不向代码内容插入换行符；表格按窄屏折行，但宽表、大图和公式仍需在实际设备查看。
+The main text shows a diagram overview and a localized detail link. A separate, nonlinear page contains the full image and overlapping detail tiles ordered left-to-right, then top-to-bottom; content beyond a screen edge is not discarded. Every occurrence has its own detail page and precise backlink, while reused PNGs are packaged once. Detail pages do not enter the chapter contents or linear reading sequence; tiles do not clutter the main text. Explicit renderer dimension/area limits fail the build, requiring a diagram adjustment rather than silent omission or an unreadable thumbnail. CSS visually wraps code without inserting newlines into its content. Tables reflow for narrow screens, but wide tables, large diagrams, and formulas still need device review.
 
-EPUB 专用 CSS 位于 `book/epub/epub.css`，不会覆盖站点样式。本次不生成封面、不编造 ISBN 或出版社；书目作者沿用 Polo Li，许可仍集中在书末。生成文件使用真实的 `zh-CN`，将来英文导出要先有对应英文母稿与语言支持，不能只修改 metadata。
+All generated navigation, detail-page labels, and backlinks use the selected language, as do EPUB/XHTML language metadata. EPUB-only CSS lives in `book/epub/epub.css` and does not override website styles. Export creates no cover or invented ISBN/publisher; the bibliographic author remains Polo Li and licensing stays in closing matter. Changing metadata alone never makes a Chinese source an English edition.
 
-### 回归与验收边界
+### Regression tests and acceptance
+
+Regression coverage must distinguish source-index maintenance from publishing: standalone `--write-index` can regenerate indexes before synchronization is recorded, but stale/missing records or a missing checker must still fail `--check`, assembly, EPUB export, and `--write-index --output`. The maintenance path still rejects invalid manifests, source paths, and H1 headings; it is not a way to publish incomplete translations.
 
 ```bash
-# 网站也可运行：这些单元测试不需要导出工具或浏览器
+# Unit tests need neither export tools nor a browser.
 python3 -B -m unittest discover -s scripts/tests -p 'test_*.py'
 
-# EPUB 专用：实际启动浏览器，验证中文图、公式、缓存和错误路径
+# Real rendering and small English/Chinese integration books: no skipped tool checks.
 npm test --prefix book/epub
 python3 -B scripts/tests/epub_integration.py
 
-# 完整 143 章实际导出及格式校验，不是两页样例或跳过式测试
-python3 scripts/build_epub.py
-npm run test:layout --prefix book/epub
+# Final integration, after all translations pass synchronization: both full 143-chapter books.
+python3 scripts/build_epub.py --language en
+EPUB_LANGUAGE=en npm run test:layout --prefix book/epub
+python3 scripts/build_epub.py --language zh-CN
+EPUB_LANGUAGE=zh-CN npm run test:layout --prefix book/epub
 ```
 
-`build.json` 区分图/公式的**出现次数**、去重渲染数、局部图和实际打包资产数，并记录字节数、SHA-256、章数、篇数、spine、内部链接检查及工具版本。`manuscript.build.json` 记录每个源文件与资产哈希；`render.json` 可定位 PNG 及尺寸；`epubcheck.json` / `.txt` 保留官方校验结果。完整导出还检查 mimetype、OPF、语言、导航、所有内部片段、资源完整性、脚本与远程依赖。图/公式无错误、EPUBCheck 无错误和警告后才发布工件。
+Small integration books must use real Pandoc, browser rendering, and EPUBCheck in both languages; missing tools are failures, not skipped success. They do not replace the two full exports above, which require every translated source to be present. `EPUB_LANGUAGE` defaults to `en`; layout tests must inspect the requested edition, not a fallback.
 
-浏览器排版回归使用实际 EPUB 的代表页（包括量化章节的公式表格），检查 375px 宽度下 16/24/32px 字号、页面无横向溢出、公式纵横比、代码未裁剪及完整公式页的返回链接，生成带 EPUB 哈希和逐页测量值的 `layout.json`，CI 一并附上。这仍不等于人工排版验收；还要在电子书阅读器与 Kindle Previewer 查看中文字体、窄屏代码/表格、不同字号、横竖屏、深色模式以及全部图和公式。导出记录会明确保留“未进行 Kindle Previewer 人工验收”和“未声称 KDP 接收”。
+`build.json` distinguishes diagram/formula **occurrences**, deduplicated renders, detail tiles, and packaged assets, recording byte counts, SHA-256, chapters, parts, spine, internal-link checks, and tool versions. `manuscript.build.json` records source and asset hashes; `render.json` locates PNGs and dimensions; `epubcheck.json` / `.txt` preserve official validation results. Full export also checks mimetype, OPF, language, navigation, all internal fragments, resource integrity, scripts, and remote dependencies. Publish artifacts only after error-free diagram/formula processing and EPUBCheck with no errors or warnings.
 
-## 出版限制与人工决策
+Browser layout regression opens representative pages from the actual selected EPUB, including quantization formula tables, at 375px width and 16/24/32px font sizes. It checks horizontal overflow, formula aspect ratios, unclipped code, and formula-page backlinks, producing `layout.json` with the EPUB hash and per-page measurements for CI artifacts. This is not manual layout acceptance: inspect language-appropriate fonts, narrow-screen code/tables, font sizes, portrait/landscape, dark mode, and every diagram/formula in ebook readers and Kindle Previewer. Export records retain explicit statements that Kindle Previewer manual review was not performed and KDP acceptance is not claimed.
 
-以下是作者操作说明。EPUB 格式与语言支持核对日期为 **2026-09-18**；其他出版条款保留 **2026-09-15** 的核对记录。平台规则会变化，上架前须重新查阅原始页面。
+## Publication limits and author decisions
 
-**格式支持、预览验收与发行资格是三件事。** KDP 的 [Supported eBook Formats](https://kdp.amazon.com/en_US/help/topic/G200634390) 接受符合 Kindle Publishing Guidelines 的 EPUB，并建议上传前用 Kindle Previewer 检查。通过 EPUBCheck 只说明文件满足其检查的 EPUB 规范，不说明视觉排版已验收，更不说明 KDP 已接受该书或其语言。
+**Format support, preview acceptance, and distribution eligibility are separate.** KDP accepts EPUB conforming to its Kindle Publishing Guidelines and recommends Kindle Previewer before upload. Passing EPUBCheck establishes only the EPUB requirements it checks, not visual acceptance, KDP acceptance, or language eligibility.
 
-**语言资格尚未满足。** KDP 的 [Book Supported Languages](https://kdp.amazon.com/en_US/help/topic/G200673300) 只列出 `Chinese (Traditional) (eBook only)`，未列简体中文。官方说明不支持语言的电子书可能被移除。因此继续维护简体母稿，但不能把本稿称为当前可直接上架的 KDP 书，也不能虚报成其他语言绕过限制。后续英文出版是另一阶段；不要未经作者决定偷偷转为繁体。
+**Simplified Chinese remains a language restriction.** The recorded KDP list includes `Chinese (Traditional) (eBook only)`, not Simplified Chinese, and warns that unsupported-language ebooks may be removed. Keep the complete Simplified Chinese edition, but do not call it directly KDP-ready or mislabel it as Traditional Chinese or English. A genuine English manuscript addresses the source-language distinction; it does not bypass preview, rights, or platform review. Do not convert to Traditional Chinese without an author decision.
 
-**按真实生产方式申报 AI 内容。** KDP [Content Guidelines](https://kdp.amazon.com/en_US/help/topic/G200672390) 要求申报 AI 实际生成的文字、图片或翻译，即使随后经过大量人工修改仍属 `AI-generated`。仅用 AI 对人写内容做编辑、润色、检查等辅助，才属于对应的 `AI-assisted` 情形。逐项记录真实过程，在后台按当时要求申报，不能因为人工审校过就自动改报为纯人工。
+**Disclose AI content according to how it was produced.** KDP requires disclosure of AI-generated text, images, or translations, even after substantial human editing. Editing, polishing, or checking human-created work with AI can instead fall under the corresponding AI-assisted category. Record the actual process for each content type and follow the current submission requirements; human review does not automatically turn generated content into human-authored content.
 
-**普通 KDP 出版不等于 KDP Select。** [KDP Terms and Conditions](https://kdp.amazon.com/en_US/terms-and-conditions) 的 Optional Programs → KDP Select → Exclusivity 要求项目期间的数字独家分发。该条款页面标注更新于 2024-09-27。本项目已有 GitHub/Wiki 公开全文且已按 CC BY 4.0 授权，不应默认勾选 Select 或 Kindle Unlimited。作者需另行核对是否能够满足独家义务；删除版权声明或关闭仓库不会撤销已经授予的 CC 许可。
+**Ordinary KDP publication is not KDP Select.** The terms' Optional Programs → KDP Select → Exclusivity section requires digital exclusivity during enrollment. This book's full text has been public on GitHub/Wiki under CC BY 4.0; do not automatically enroll in Select or Kindle Unlimited. The author must separately determine whether exclusivity can be satisfied. Removing copyright notices or closing the repository does not revoke CC licenses already granted.
 
-**保留权利边界。** 作者可以商业出版自己的原创内容，但不能撤销已授予的 CC BY 4.0 许可。第三方论文、代码、截图、商标和引用各有其权利与许可，须根据最终实际用法复核；不能因原仓库开放就把全部引用视为可任意重印。集中许可页不代替第三方要求的具体署名、通知或授权。
+**Respect the limits of the available rights.** Authors may commercially publish their original work but cannot revoke existing CC BY 4.0 grants. Third-party papers, code, screenshots, trademarks, and quotations have their own rights and licenses; review their actual final use rather than assuming an open repository permits unrestricted reprinting. A centralized license page does not replace required third-party credits, notices, or permissions.
 
-## 到可发行电子书还差什么
+## What remains before distribution
 
-先完成全部章节审校并冻结一版。当前导出已经处理静态插图、公式、原生导航和可重排打包，但仍需人工确认图中文字、公式含义、替代文本、宽表与代码在目标设备上的阅读效果，并复核资产权利。
+Complete technical and translation review, synchronize both editions, and freeze a revision. Build and validate **both complete 143-chapter EPUBs**, not just fixtures. Static illustrations, formulas, native navigation, and reflowable packaging still need manual checks of diagram text, mathematical meaning, alternative text, wide tables, code, and asset rights.
 
-用 Kindle Previewer 检查不同屏幕、字号和横竖屏；公式与图表还要人工逐页看，不能仅凭结构校验成功。具备平台支持的真实语言稿、完成封面、书目资料、真实致谢和权利复核后，再根据实际出版语言及 AI 使用情况填写 KDP 后台。没有获得的 ISBN、出版社、出版年次或贡献者姓名，不应为凑齐页面而编造。
+Use Kindle Previewer across screen sizes, font sizes, and orientations; inspect every diagram and formula, not only structural reports. With a genuine supported-language manuscript, cover, bibliographic details, truthful acknowledgments, and rights review in place, fill out KDP using the actual publication language and AI production history. Do not invent ISBNs, publishers, publication years/editions, or contributor names to fill a page.
+
+### Publication references and checking dates
+
+These are retained policy checks, **not new research**: EPUB format/language support was checked on **2026-09-18**; other publication rules retain the **2026-09-15** record. Recheck the primary pages before release; platform rules change.
+
+- KDP [Supported eBook Formats](https://kdp.amazon.com/en_US/help/topic/G200634390).
+- KDP [Book Supported Languages](https://kdp.amazon.com/en_US/help/topic/G200673300).
+- KDP [Content Guidelines](https://kdp.amazon.com/en_US/help/topic/G200672390).
+- KDP [Terms and Conditions](https://kdp.amazon.com/en_US/terms-and-conditions), whose recorded page update was **2024-09-27**.

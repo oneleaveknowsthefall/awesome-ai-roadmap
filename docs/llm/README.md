@@ -1,54 +1,54 @@
 ---
-description: 从 Transformer、训练对齐到推理部署、Prompt、评测和多模态，系统梳理大语言模型的能力来源与工程边界。
+description: Explore how large language models work and where their engineering limits lie, from Transformers and training to inference, prompting, evaluation, and multimodal capabilities.
 ---
 
-# LLM 相关知识点
+# Large Language Models
 
-本主题是知识图谱的底层原理层，梳理模型架构、训练对齐、推理部署、Prompt 可靠性、评测选型与多模态能力。
+This topic provides the foundations for the knowledge map: model architecture, training and alignment, inference and deployment, prompt reliability, evaluation and model selection, and multimodal capabilities.
 
-用于面试准备时，每个结论都应能说明机制、适用条件和反例。模型版本、上下文长度、价格与吞吐不是长期常量；章节引用的历史论文用于解释方法，不是当前产品排行榜。涉及当前部署时，仍需固定模型版本、框架版本、硬件和工作负载。
+For interview preparation, be ready to explain the mechanism behind each claim, the conditions under which it holds, and a counterexample. Model versions, context lengths, prices, and throughput change over time. The historical papers cited in these chapters explain methods; they are not a ranking of current products. For an actual deployment, specify the model and framework versions, hardware, and workload.
 
-## 子模块
+## Modules
 
-1. [基础原理（第 1–5 章）](01-foundations/README.md)
-2. [训练与对齐（第 6–11 章）](02-training-alignment/README.md)
-3. [推理与部署（第 12–15、19–20 章）](03-inference-serving/README.md)
-4. [Prompt 与可靠性（第 16–18 章）](04-prompt-reliability/README.md)
-5. [评测与选型（第 21–22 章）](05-evaluation-selection/README.md)
-6. [多模态（第 23 章）](06-multimodal/README.md)
+1. [Foundations (Chapters 1–5)](01-foundations/README.md)
+2. [Training and Alignment (Chapters 6–11)](02-training-alignment/README.md)
+3. [Inference and Deployment (Chapters 12–15 and 19–20)](03-inference-serving/README.md)
+4. [Prompting and Reliability (Chapters 16–18)](04-prompt-reliability/README.md)
+5. [Evaluation and Model Selection (Chapters 21–22)](05-evaluation-selection/README.md)
+6. [Multimodal Models (Chapter 23)](06-multimodal/README.md)
 
-## 模块关系
+## How the Modules Connect
 
 ```mermaid
 flowchart TB
-    F[基础原理] --> T[训练与对齐]
-    F --> I[推理与部署]
-    T --> P[Prompt 与可靠性]
+    F[Foundations] --> T[Training and Alignment]
+    F --> I[Inference and Deployment]
+    T --> P[Prompting and Reliability]
     I --> P
-    T --> E[评测与选型]
+    T --> E[Evaluation and Model Selection]
     I --> E
-    F --> M[多模态]
+    F --> M[Multimodal Models]
     T --> M
     M --> E
 ```
 
-图中的箭头表示理解上的依赖，不是项目必须依次通过的阶段：先掌握基础原理，才能解释训练与推理的取舍；多模态表示也会改变评测方式。评测可以从最初的基线开始，贯穿后续改动，而不必等所有模块学完。
+The arrows show conceptual dependencies, not mandatory project stages. Understanding the foundations helps explain training and inference tradeoffs, while multimodal representations also change how a system should be evaluated. Evaluation can start with the first baseline and accompany every subsequent change; it need not wait until you have studied all the modules.
 
-## 阅读建议
+## Suggested Reading Paths
 
-- **应用开发**：基础原理 → Prompt 与可靠性 → 评测与选型；
-- **训练研究**：基础原理 → 训练与对齐 → 评测与选型；
-- **推理部署**：基础原理 → 推理与部署；
-- **多模态应用**：基础原理 → 多模态 → 评测与选型。
+- **Application development**: Foundations → Prompting and Reliability → Evaluation and Model Selection.
+- **Training research**: Foundations → Training and Alignment → Evaluation and Model Selection.
+- **Inference deployment**: Foundations → Inference and Deployment.
+- **Multimodal applications**: Foundations → Multimodal Models → Evaluation and Model Selection.
 
-## 常见问题
+## Frequently Asked Questions
 
-### 学习 LLM 是否必须先掌握深度学习数学？
+### Do I need to master deep learning mathematics before studying LLMs?
 
-理解矩阵运算、概率和梯度有帮助，但不必先学完全部数学才能开始。可以先掌握 Tokenizer、Attention、训练目标和推理过程，再结合公式补齐每个机制背后的计算。
+An understanding of matrix operations, probability, and gradients helps, but you do not need to finish all the mathematics before starting. Begin with tokenizers, attention, training objectives, and the inference process, then use the equations to understand the calculations behind each mechanism.
 
-### 微调、RAG 和 Prompt 工程应该先学哪个？
+### Should I learn fine-tuning, RAG, or prompt engineering first?
 
-Prompt 工程适合调整单次调用的指令和输出形式，RAG 适合补充外部知识，微调适合改变稳定的行为模式。大多数应用会先做好 Prompt 与评测，再判断问题属于知识缺失还是行为不匹配。
+Prompt engineering adjusts the instructions and output format for an individual call. RAG supplies external knowledge, while fine-tuning changes persistent patterns of behavior. Most applications should first establish good prompts and evaluation, then determine whether the remaining problem is missing knowledge or a mismatch in behavior.
 
-返回[文档主题索引](../README.md)。
+Back to the [documentation topic index](../README.md).

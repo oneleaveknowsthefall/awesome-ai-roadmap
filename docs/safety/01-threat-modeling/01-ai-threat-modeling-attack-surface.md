@@ -1,171 +1,171 @@
 ---
-description: 按资产、信任边界与攻击者能力建立 AI 威胁模型，区分 MITRE ATLAS、NIST AI RMF 和 OWASP 风险清单的用途。
+description: Build an AI threat model around assets, trust boundaries, and attacker capabilities, and distinguish the roles of MITRE ATLAS, NIST AI RMF, and OWASP risk lists.
 ---
 
-# 第一章：AI 系统威胁建模与攻击面全景
+# Chapter 1: AI System Threat Modeling and the Attack Surface
 
-## 1.1 为什么 AI 安全需要单独的威胁模型
+## 1.1 Why AI Security Needs Its Own Threat Model
 
-LLM 接口通常有 system、user、tool 等角色结构，但模型仍可能把低信任内容理解为应服从的指令，**角色标签不是确定性的安全边界**。这是提示注入的重要根因，却不能解释全部 AI 风险：数据投毒改变训练材料，反序列化风险来自加载器，越权来自身份与资源授权，各有独立机制。传统应用同样不能默认代码及供应链可信。
+LLM interfaces typically distinguish roles such as system, user, and tool. Yet a model may still interpret lower-trust content as instructions it should follow: **role labels are not a deterministic security boundary**. This is an important root cause of prompt injection, but it does not explain every AI risk. Data poisoning changes training material; deserialization risks arise from loaders; unauthorized access arises from failures in identity and resource authorization. Each has its own mechanism. Traditional applications cannot assume that code and supply chains are trustworthy, either.
 
 ```mermaid
 flowchart TB
-    T[传统应用安全] --> T1[代码与依赖审查<br/>数据流和权限边界分析]
-    A[AI 系统安全] --> A1[模型行为由权重和上下文共同决定<br/>无法穷举所有输入到输出的映射]
-    A --> A2[指令与数据同道传输<br/>见第2章]
-    A --> A3[系统包含训练、微调、检索、<br/>工具、多 Agent 协作等新阶段]
+    T[Traditional application security] --> T1[Review code and dependencies<br/>Analyze data flows and permission boundaries]
+    A[AI system security] --> A1[Weights and context jointly determine model behavior<br/>Input-output mappings cannot be exhaustively enumerated]
+    A --> A2[Instructions and data share a channel<br/>See Chapter 2]
+    A --> A3[Additional stages include training, fine-tuning, retrieval,<br/>tools, and multi-agent collaboration]
 ```
 
-因此，AI 系统的威胁建模需要在传统的资产、信任边界和攻击者画像之外，额外回答三个问题：**模型从哪里获得了它现在的行为？运行时哪些不可信内容会进入模型的决策链路？模型的输出能触发什么后果？** 后续章节只是把这三个问题拆到具体环节里展开。
+AI threat modeling therefore needs to go beyond the usual assets, trust boundaries, and attacker profiles to answer three more questions: **Where did the model's current behavior come from? Which untrusted content enters its decision process at runtime? What consequences can its output trigger?** The remaining chapters examine these questions at specific stages of the system.
 
-## 1.2 AI 系统的资产与信任边界
+## 1.2 Assets and Trust Boundaries in AI Systems
 
-把一个典型的生产级 LLM 应用拆成资产,才能谈威胁。
+To discuss threats meaningfully, first break a typical production LLM application down into its assets.
 
-| 资产类别 | 具体对象 | 面临的核心风险 |
+| Asset category | Specific assets | Main risks |
 |---|---|---|
-| 模型权重与配置 | 预训练/微调权重、System Prompt、护栏配置 | 窃取、篡改、后门植入（第4、5章） |
-| 训练、微调与检索数据 | 预训练语料、SFT/RLHF 数据、RAG 知识库 | 投毒、隐私泄漏（第4、6章）；RAG 入库本身不等于训练 |
-| 运行时上下文 | 用户输入、检索片段、工具返回值、多模态内容 | 提示注入、越狱（第2章） |
-| 工具与执行环境 | Function/MCP Server、代码解释器、浏览器、Computer Use | 越权调用、沙箱逃逸（第7、8章） |
-| 输出与下游系统 | 生成文本、工具调用参数、渲染界面 | 二次注入、密钥外泄（第3章） |
-| 身份与凭据 | 用户/Agent/Server 身份、OAuth 令牌、API Key | 冒充、confused deputy（第7章） |
-| 治理与审计数据 | 日志、模型卡、评测报告、内容出处 | 篡改、合规缺失（第9、10章） |
+| Model weights and configuration | Pretrained/fine-tuned weights, system prompts, guardrail configuration | Theft, tampering, backdoor insertion (Chapters 4 and 5) |
+| Training, fine-tuning, and retrieval data | Pretraining corpora, SFT/RLHF data, RAG knowledge bases | Poisoning and privacy leakage (Chapters 4 and 6); RAG ingestion is not itself training |
+| Runtime context | User input, retrieved passages, tool results, multimodal content | Prompt injection and jailbreaks (Chapter 2) |
+| Tools and execution environments | Functions/MCP servers, code interpreters, browsers, computer use | Unauthorized calls and sandbox escapes (Chapters 7 and 8) |
+| Outputs and downstream systems | Generated text, tool-call arguments, rendered interfaces | Secondary injection and secret exfiltration (Chapter 3) |
+| Identities and credentials | User/agent/server identities, OAuth tokens, API keys | Impersonation and confused deputy attacks (Chapter 7) |
+| Governance and audit data | Logs, model cards, evaluation reports, content provenance | Tampering and compliance gaps (Chapters 9 and 10) |
 
-信任边界不能只按「内网/外网」划分。要检查**哪些低信任内容进入了模型上下文，以及模型输出何时获得了触发动作的能力**。Host/调用方需要执行自己的策略，资源服务也必须独立授权；前者批准调用不等于后者已经确认用户可以操作该资源（详见[Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md) 15.1）。
+An internal-versus-external network distinction is not enough to define trust boundaries. Check **which lower-trust content enters the model's context, and when model output gains the ability to trigger actions**. The host or caller must enforce its own policy, and the resource service must independently authorize access. Approval of a call by the former does not mean that the latter has confirmed the user's permission to act on that resource (see [Tool Protocol Security](../../tools/02-mcp/15-tool-protocol-security.md), Section 15.1).
 
-## 1.3 三个主流威胁建模框架
+## 1.3 Three Major Threat Modeling Frameworks
 
-生产环境通常需要同时使用三类框架：一类给出攻击者视角的战术知识库，一类给出组织级风险治理流程，一类给出漏洞分类清单。三者互补而非互斥。
+Production systems usually need three complementary kinds of framework: an attacker-oriented knowledge base of tactics, an organization-level risk governance process, and a checklist of vulnerability categories. These serve different purposes rather than competing with one another.
 
-### 1.3.1 MITRE ATLAS：攻击者战术与技术知识库
+### 1.3.1 MITRE ATLAS: A Knowledge Base of Attacker Tactics and Techniques
 
-MITRE ATLAS（Adversarial Threat Landscape for Artificial-Intelligence Systems）以战术、技术和案例描述 AI 攻击，既包含现实事件，也包含研究或红队演示。引用时应注明案例性质与攻击前提；某技术被收录不代表已在所有生产系统中被利用。它适合帮助团队检查可能路径，而非替代本系统的可达性和影响分析。
+MITRE ATLAS (Adversarial Threat Landscape for Artificial-Intelligence Systems) describes AI attacks through tactics, techniques, and case studies. It includes both real-world incidents and research or red-team demonstrations. When citing a case, state its nature and the prerequisites for the attack. A technique's inclusion does not mean it has been exploited in every production system. ATLAS helps teams consider possible paths; it does not replace analysis of reachability and impact in their own system.
 
-### 1.3.2 NIST AI RMF：治理生命周期
+### 1.3.2 NIST AI RMF: Governance Across the Lifecycle
 
-NIST AI RMF 1.0 是自愿使用的风险管理框架，不是法律或产品安全认证。**Govern、Map、Measure、Manage** 分别涉及问责制度、场景风险识别、风险测量和处置，Govern 贯穿其他功能，并非一次性的线性流程。生成式 AI 可结合 2024 年发布的 NIST AI 600-1 Generative AI Profile。NIST 官网说明 RMF 正在修订，不应据此把尚未发布的后续版本当作既定标准。
+NIST AI RMF 1.0 is a voluntary risk management framework, not a law or a product security certification. **Govern, Map, Measure, and Manage** address accountability, contextual risk identification, risk measurement, and risk treatment, respectively. Govern spans the other functions; these are not a one-off, linear process. Generative AI teams can also use the NIST AI 600-1 Generative AI Profile, published in 2024. NIST's website states that the RMF is being revised. That does not make an unpublished successor an established standard.
 
-### 1.3.3 OWASP Top 10：漏洞分类与速查
+### 1.3.3 OWASP Top 10: Vulnerability Categories and a Quick Reference
 
-**OWASP Top 10 for LLM Applications 2025** 不限于单模型架构：LLM01 Prompt Injection、LLM02 Sensitive Information Disclosure、LLM03 Supply Chain、LLM04 Data and Model Poisoning、LLM05 Improper Output Handling、LLM06 Excessive Agency、LLM07 System Prompt Leakage、LLM08 Vector and Embedding Weaknesses、LLM09 Misinformation、LLM10 Unbounded Consumption。
+The **OWASP Top 10 for LLM Applications 2025** is not limited to single-model architectures: LLM01 Prompt Injection, LLM02 Sensitive Information Disclosure, LLM03 Supply Chain, LLM04 Data and Model Poisoning, LLM05 Improper Output Handling, LLM06 Excessive Agency, LLM07 System Prompt Leakage, LLM08 Vector and Embedding Weaknesses, LLM09 Misinformation, and LLM10 Unbounded Consumption.
 
-另有 **Top 10 for Agentic Applications 2026**，聚焦自主 Agent 的工具、身份、委托和级联风险。它与 Agentic AI Threats and Mitigations 指南不是同一份文档。Top 10 是风险清单，不是与 CWE 逐项等价的弱点分类，也不是认证标准。
+The separate **Top 10 for Agentic Applications 2026** focuses on tool, identity, delegation, and cascading risks in autonomous agents. It is not the same document as the Agentic AI Threats and Mitigations guide. A Top 10 is a risk list, not a weakness taxonomy with a one-to-one correspondence to CWE, nor a certification standard.
 
-三者分工不同：ATLAS 描述攻击者的战术与技术，RMF 管理组织风险，OWASP 提供应用实现层的漏洞检查项。
+The division of work is straightforward: ATLAS describes attacker tactics and techniques, the RMF manages organizational risk, and OWASP supplies vulnerability checks for application implementations.
 
 ```mermaid
 flowchart LR
-    ATLAS["MITRE ATLAS<br/>攻击者战术/技术"] -->|校准威胁优先级| MODEL[本组织威胁模型]
-    OWASP["OWASP LLM / Agentic Top 10<br/>漏洞分类"] -->|检查项| MODEL
-    RMF["NIST AI RMF<br/>Govern/Map/Measure/Manage"] -->|治理流程| MODEL
-    MODEL --> DECIDE[决定投入哪些防御<br/>见第2-10章]
+    ATLAS["MITRE ATLAS<br/>Attacker tactics/techniques"] -->|Inform threat priorities| MODEL[The organization's threat model]
+    OWASP["OWASP LLM / Agentic Top 10<br/>Vulnerability categories"] -->|Checks| MODEL
+    RMF["NIST AI RMF<br/>Govern/Map/Measure/Manage"] -->|Governance process| MODEL
+    MODEL --> DECIDE[Decide which defenses to fund<br/>See Chapters 2-10]
 ```
 
-## 1.4 攻击面总览：沿数据与模型生命周期铺开
+## 1.4 Mapping the Attack Surface Across the Data and Model Lifecycle
 
-按 AI 系统的生命周期阶段梳理攻击面，比按单点漏洞罗列更容易做到不遗漏。
+Organizing the attack surface by lifecycle stage makes omissions easier to spot than a list of isolated vulnerabilities does.
 
 ```mermaid
 flowchart TB
-    subgraph S1["数据与训练阶段"]
-        D1[预训练语料] --> PRE[预训练]
-        PRE --> BASE[基础权重]
-        BASE --> FT[微调/对齐]
-        D2[微调/偏好数据] --> FT
-        FT --> D3[模型权重]
+    subgraph S1["Data and training"]
+        D1[Pretraining corpus] --> PRE[Pretraining]
+        PRE --> BASE[Base weights]
+        BASE --> FT[Fine-tuning/alignment]
+        D2[Fine-tuning/preference data] --> FT
+        FT --> D3[Model weights]
     end
-    subgraph S2["分发与部署阶段"]
-        D3 --> P1[模型仓库/供应链]
-        P1 --> P2[推理服务]
+    subgraph S2["Distribution and deployment"]
+        D3 --> P1[Model repository/supply chain]
+        P1 --> P2[Inference service]
     end
-    subgraph S3["运行时阶段"]
-        P2 --> R1[Prompt/多模态输入]
-        R1 --> R2[RAG 检索]
-        R2 --> R3[工具/MCP/A2A 调用]
-        R3 --> R4[代码执行/浏览器/Computer Use]
+    subgraph S3["Runtime"]
+        P2 --> R1[Prompt/multimodal input]
+        R1 --> R2[RAG retrieval]
+        R2 --> R3[Tool/MCP/A2A calls]
+        R3 --> R4[Code execution/browser/computer use]
     end
-    subgraph S4["输出与治理阶段"]
-        R4 --> O1[生成输出]
-        O1 --> O2[下游系统/用户]
-        O2 --> G1[审计与合规]
+    subgraph S4["Output and governance"]
+        R4 --> O1[Generated output]
+        O1 --> O2[Downstream systems/users]
+        O2 --> G1[Audit and compliance]
     end
 ```
 
-图中按阶段列出需要检查的位置，不是一次请求必须经过的固定流程。RAG、工具与桌面执行都是可选能力；增加任何一项，都要补上相应的数据与权限边界。
+This diagram identifies places to inspect at each stage; it is not a fixed sequence that every request must follow. RAG, tools, and desktop execution are optional capabilities. Adding any of them requires corresponding controls over data and permissions.
 
-| 阶段 | 典型攻击 | 详解章节 |
+| Stage | Typical attacks | Further reading |
 |---|---|---|
-| 训练/微调数据 | 数据投毒、后门触发器 | 第4章 |
-| 模型分发 | 供应链篡改、反序列化 RCE | 第5章 |
-| 运行时输入 | 直接/间接 Prompt Injection、越狱 | 第2章、[Agent 安全](../../agent/05-production/15-agent-security.md) |
-| RAG 检索 | 语料投毒、间接注入 | [RAG 安全](../../rag/06-operations-security/20-rag-challenges-security.md)、第4章 |
-| 工具/协议调用 | 越权、confused deputy | 第7章、[Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md) |
-| 代码/浏览器/Computer Use | 沙箱逃逸、SSRF、剪贴板劫持 | 第8章 |
-| 输出 | 二次注入、密钥外泄、不安全渲染 | 第3章 |
-| 隐私 | 记忆化抽取、PII 泄漏 | 第6章 |
-| 全生命周期 | 评测缺失、治理缺位 | 第9、10章 |
+| Training/fine-tuning data | Data poisoning and backdoor triggers | Chapter 4 |
+| Model distribution | Supply chain tampering and deserialization RCE | Chapter 5 |
+| Runtime input | Direct/indirect prompt injection and jailbreaks | Chapter 2; [Agent Security](../../agent/05-production/15-agent-security.md) |
+| RAG retrieval | Corpus poisoning and indirect injection | [RAG Security](../../rag/06-operations-security/20-rag-challenges-security.md); Chapter 4 |
+| Tool/protocol calls | Unauthorized access and confused deputy attacks | Chapter 7; [Tool Protocol Security](../../tools/02-mcp/15-tool-protocol-security.md) |
+| Code/browser/computer use | Sandbox escapes, SSRF, and clipboard hijacking | Chapter 8 |
+| Output | Secondary injection, secret exfiltration, and unsafe rendering | Chapter 3 |
+| Privacy | Extraction of memorized data and PII leakage | Chapter 6 |
+| Entire lifecycle | Missing evaluation and governance | Chapters 9 and 10 |
 
-## 1.5 攻击者画像与能力分级
+## 1.5 Attacker Profiles and Capability Levels
 
-同一威胁在不同攻击者能力下风险等级完全不同，建模时应显式区分。
+The same threat can carry very different risk depending on the attacker's capabilities. Make those differences explicit in the model.
 
-| 能力等级 | 描述 | 举例 |
+| Capability level | Description | Examples |
 |---|---|---|
-| L0 匿名用户 | 仅能通过公开接口发送 Prompt | 直接注入、越狱；间接注入还需第三方内容投放路径 |
-| L1 认证用户 | 拥有合法账号和正常权限 | 滥用自身权限做越权探测、差分探测 |
-| L2 内容供应方 | 能让内容进入训练语料或知识库 | 数据投毒、后门触发器 |
-| L3 供应链角色 | 能发布模型/依赖/工具描述 | 供应链投毒、Tool poisoning |
-| L4 内部人员 | 拥有部署、日志或密钥访问权限 | 权限滥用、日志泄漏 |
-| L5 具备算力的研究级攻击者 | 可训练影子模型做迁移攻击 | 模型窃取、成员推断 |
+| L0: Anonymous user | Can only submit prompts through a public interface | Direct injection and jailbreaks; indirect injection additionally requires a route for placing third-party content |
+| L1: Authenticated user | Has a legitimate account with normal permissions | Abusing legitimate access to probe for unauthorized access or perform differential probing |
+| L2: Content supplier | Can get content into a training corpus or knowledge base | Data poisoning and backdoor triggers |
+| L3: Supply chain participant | Can publish models, dependencies, or tool descriptions | Supply chain poisoning and tool poisoning |
+| L4: Insider | Has access to deployments, logs, or secrets | Privilege abuse and log leakage |
+| L5: Research-level attacker with compute resources | Can train shadow models for transfer attacks | Model stealing and membership inference |
 
-L0–L5 是本章的讨论标签，不是行业标准或严格递增的权限等级；算力、内部权限和内容控制是不同维度。投入应根据资产价值、可达性、损害与现有控制排序，不能统一认定匿名用户风险最高。
+L0–L5 are discussion labels used in this chapter, not an industry standard or a strictly increasing privilege hierarchy. Compute resources, insider privileges, and content control are different dimensions. Prioritize investment by asset value, reachability, harm, and existing controls; do not assume that anonymous users always pose the greatest risk.
 
-例如只读客服助手与可退款 Agent 都会读取不可信文档，但后者多了资金动作、委托身份和重放风险。应写出「文档 → 模型 → 退款参数 → 授权服务」的数据流，验证授权服务能否独立检查用户、订单、金额和审批，再把攻击分类映射成具体控制。
+For example, both a read-only customer support assistant and an agent that can issue refunds read untrusted documents. The latter also introduces financial actions, delegated identity, and replay risks. Draw the data flow as “document → model → refund arguments → authorization service.” Check whether the authorization service independently verifies the user, order, amount, and approval, then map the attack categories to concrete controls.
 
-## 1.6 本主题的定位与交叉引用约定
+## 1.6 This Topic's Scope and Cross-References
 
-本仓库已经在 Agent、Tools、RAG 三个应用主题中，针对具体架构给出了防御细节：
+The Agent, Tools, and RAG topics in this repository already explain defenses for specific architectures:
 
-- [Agent 安全](../../agent/05-production/15-agent-security.md)：Prompt Injection 的架构级防御模式（Dual LLM、CaMeL 等）、致命三要素、权限最小化、执行隔离。
-- [Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md)：MCP/A2A 协议层的 OAuth、audience、token passthrough、SSRF 防护。
-- [RAG 落地难点与安全](../../rag/06-operations-security/20-rag-challenges-security.md)：语料投毒、检索侧间接注入、权限过滤、差分探测。
+- [Agent Security](../../agent/05-production/15-agent-security.md): architectural defenses against prompt injection, including Dual LLM and CaMeL; the lethal trifecta; least privilege; and execution isolation.
+- [Tool Protocol Security](../../tools/02-mcp/15-tool-protocol-security.md): OAuth, audience, token passthrough, and SSRF defenses at the MCP/A2A protocol layer.
+- [RAG Implementation Challenges and Security](../../rag/06-operations-security/20-rag-challenges-security.md): corpus poisoning, retrieval-side indirect injection, permission filtering, and differential probing.
 
-`docs/safety/` 不重复展开这些已经讲清楚的架构模式，而是承担三件事：
+Rather than repeating those architectural patterns, `docs/safety/` has three responsibilities:
 
-1. **提供跨层的威胁建模框架和标准映射**（本章），让读者知道任意一个具体攻击落在整体图景的什么位置；
-2. **补充这些主题尚未覆盖、但同样关键的环节**：越狱与系统提示泄漏的分类学（第2章）、输出侧处理（第3章）、训练/供应链投毒（第4、5章）、隐私与记忆泄漏（第6章）、跨系统身份治理与 Computer Use 沙箱（第7、8章）；
-3. **提供组织级的评测、红队与治理流程**（第9、10章），这是单个应用架构文档不会覆盖的层面。
+1. **Provide a cross-layer threat modeling framework and mappings to standards** in this chapter, so readers can place a specific attack within the larger picture.
+2. **Cover equally important areas not yet addressed by those topics**: the taxonomy of jailbreaks and system prompt leakage (Chapter 2), output handling (Chapter 3), training and supply chain poisoning (Chapters 4 and 5), privacy and memory leakage (Chapter 6), and cross-system identity governance and computer-use sandboxes (Chapters 7 and 8).
+3. **Explain organization-level evaluation, red teaming, and governance processes** (Chapters 9 and 10), which lie outside the scope of an individual application architecture.
 
-阅读顺序建议：先读本章建立框架，再按需查阅具体章节；已经读过 Agent/Tools/RAG 安全章节的读者可以直接跳到第2章之后。
+Read this chapter first to establish the framework, then consult the relevant chapters as needed. Readers who have already read the Agent, Tools, and RAG security chapters can move directly to Chapter 2 and the chapters that follow.
 
-## 1.7 常见错误
+## 1.7 Common Mistakes
 
-### 1.7.1 只用一个框架
+### 1.7.1 Using Only One Framework
 
-只套 OWASP Top 10 会漏掉治理流程；只用 NIST RMF 会缺少具体技术清单；只看 ATLAS 案例会忽略尚未被公开报道的新型风险。三者应配合使用。
+Using only the OWASP Top 10 leaves out governance processes; using only the NIST RMF leaves out a concrete technical checklist; relying only on ATLAS case studies overlooks emerging risks that have not yet been publicly reported. Use the three together.
 
-### 1.7.2 把威胁建模做成一次性文档
+### 1.7.2 Treating the Threat Model as a One-Time Document
 
-模型、Prompt、工具集和依赖库都在持续变化，威胁模型需要随每次架构变更或依赖升级重新评审，而不是上线前写一次就归档。
+Models, prompts, tool sets, and dependencies keep changing. Review the threat model with each architecture change or dependency upgrade, rather than writing it once before launch and archiving it.
 
-### 1.7.3 忽略攻击者能力分级
+### 1.7.3 Ignoring Differences in Attacker Capabilities
 
-不区分攻击者控制哪些数据、能否调用工具、是否拥有内部凭据，会导致资源错配；不能只凭「内网」或「匿名」标签判断风险。
+Failing to distinguish which data an attacker controls, whether they can invoke tools, and whether they hold internal credentials leads to misallocated resources. Labels such as “internal network” or “anonymous” are not sufficient to assess risk.
 
-### 1.7.4 认为威胁模型是安全团队的事
+### 1.7.4 Treating Threat Modeling as the Security Team's Job Alone
 
-模型行为、Prompt 结构、工具授权范围的决定权在产品和工程团队手里，威胁建模必须让这些团队参与，而不是安全团队闭门产出一份文档。
+Product and engineering teams decide model behavior, prompt structure, and the scope of tool authorization. They must participate in threat modeling; the security team cannot produce an effective model in isolation.
 
-## 1.8 本章总结
+## 1.8 Chapter Summary
 
-1. AI 系统的威胁建模需要额外回答「模型行为从哪来、运行时什么内容会进入决策链路、输出能触发什么」三个问题；
-2. **MITRE ATLAS** 给出攻击者战术技术知识库，**NIST AI RMF** 给出 Govern/Map/Measure/Manage 治理流程，**OWASP LLM/Agentic Top 10** 给出漏洞检查清单，三者互补；
-3. 攻击面应沿「训练/微调 → 分发 → 运行时输入/检索/工具调用/执行 → 输出 → 治理」的生命周期铺开，而不是零散罗列；
-4. 攻击者能力要按实际控制面描述，优先级结合可达性与损害，不按固定标签机械排序；
-5. `docs/safety/` 负责跨层框架、标准映射和第2-10章覆盖的补充环节，Agent/Tools/RAG 已有的架构级防御细节通过交叉引用复用，不重复展开。
+1. AI threat modeling must answer three additional questions: where model behavior comes from, what enters the decision process at runtime, and what the output can trigger.
+2. **MITRE ATLAS** supplies a knowledge base of attacker tactics and techniques; **NIST AI RMF** supplies Govern/Map/Measure/Manage risk governance functions; and the **OWASP LLM/Agentic Top 10** supplies vulnerability checklists. Their roles are complementary.
+3. Map the attack surface across “training/fine-tuning → distribution → runtime input/retrieval/tool calls/execution → output → governance,” rather than listing isolated vulnerabilities.
+4. Describe attacker capabilities in terms of actual control. Set priorities using reachability and harm, not a mechanical ranking of fixed labels.
+5. `docs/safety/` provides the cross-layer framework, mappings to standards, and the additional areas covered in Chapters 2–10. Cross-references reuse the architectural defenses already explained in Agent, Tools, and RAG rather than repeating them.
 
-## 参考资料
+## References
 
 - [MITRE ATLAS](https://atlas.mitre.org/)
 - [NIST AI Risk Management Framework (AI RMF 1.0)](https://www.nist.gov/itl/ai-risk-management-framework)
@@ -173,4 +173,4 @@ L0–L5 是本章的讨论标签，不是行业标准或严格递增的权限等
 - [OWASP Top 10 for Large Language Model Applications](https://genai.owasp.org/llm-top-10/)
 - [OWASP Agentic AI Threats and Mitigations](https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/)
 - [OWASP Top 10 for Agentic Applications 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/)
-- [NIST AI 100-2 E2025: Adversarial Machine Learning Taxonomy](https://www.nist.gov/publications/adversarial-machine-learning-taxonomy-and-terminology-attacks-and-mitigations)
+- [NIST AI 100-2 E2025: Adversarial Machine Learning Taxonomy](https://doi.org/10.6028/NIST.AI.100-2e2025)

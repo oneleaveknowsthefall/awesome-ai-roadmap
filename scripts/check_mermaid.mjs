@@ -16,16 +16,16 @@ const mermaid = (await import("mermaid")).default;
 mermaid.initialize({ startOnLoad: false });
 
 const files = [];
-const generatedBookDirectory = fileURLToPath(
-  new URL("../book/zh-CN/generated", import.meta.url),
-);
+const generatedBookDirectories = new Set(["en", "zh-CN"].map((language) => fileURLToPath(
+  new URL(`../book/${language}/generated`, import.meta.url),
+)));
 function walk(directory) {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     const candidate = path.join(directory, entry.name);
     if (
       entry.isDirectory() &&
       (["node_modules", ".git"].includes(entry.name) ||
-        path.resolve(candidate) === generatedBookDirectory)
+        generatedBookDirectories.has(path.resolve(candidate)))
     ) {
       continue;
     }

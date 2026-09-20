@@ -1,61 +1,61 @@
 ---
-description: 解释自回归预训练、监督微调与偏好优化的目标、数据和损失差异，澄清三阶段流程的适用边界与能力来源。
+description: Explain how autoregressive pretraining, supervised fine-tuning, and preference optimization differ in objectives, data, and losses, and where the three-stage framework stops being useful.
 ---
 
-# 第六章：大模型的三阶段训练流程
+# Chapter 6: The Three-Stage Training Framework for LLMs
 
-## 6.1 为什么训练常被分成三个阶段
+## 6.1 Why Training Is Often Divided into Three Stages
 
-“预训练 → SFT → 偏好优化”是理解聊天模型的常用框架，**不是每个模型必须依次执行一次的固定流水线**。SFT 本身也属于后训练（post-training），安全行为可以在多个阶段学习；实际系统常把监督学习、采样筛选与强化学习交替执行。
+“Pretraining → SFT → preference optimization” is a useful framework for understanding chat models, **not a fixed pipeline that every model must run exactly once in that order**. SFT is itself part of post-training, and safety behavior can be learned at several stages. Real systems often alternate supervised learning, sample generation and filtering, and reinforcement learning.
 
-| 阶段 | 主要数据 | 直接优化什么 |
+| Stage | Main data | Direct optimization target |
 |---|---|---|
-| 预训练 | 大规模文本、代码等序列 | 数据分布下的 token 预测损失 |
-| SFT（监督微调） | 指令、上下文与示范回答 | 给定上下文时复现示范回答 |
-| 偏好或奖励优化 | 比较标签、奖励模型或可验证反馈 | 偏好一致性或任务奖励，通常限制策略偏移 |
+| Pretraining | Large-scale sequences of text, code, and other content | Token prediction loss under the data distribution |
+| SFT (supervised fine-tuning) | Instructions, context, and demonstration answers | Reproducing the demonstration answer given the context |
+| Preference or reward optimization | Comparison labels, reward models, or verifiable feedback | Agreement with preferences or task rewards, usually with constraints on policy drift |
 
 ```mermaid
 flowchart LR
-    RAW["随机初始化"] -->|预训练| BASE["Base 模型"]
-    BASE -->|示范数据 SFT| SFT["指令模型"]
-    SFT -->|偏好或奖励优化| CHAT["后训练模型"]
-    CHAT -.->|生成与筛选数据<br/>可继续迭代| SFT
+    RAW["Random initialization"] -->|Pretraining| BASE["Base model"]
+    BASE -->|SFT on demonstrations| SFT["Instruction model"]
+    SFT -->|Preference or<br/>reward optimization| CHAT["Post-trained model"]
+    CHAT -.->|Generate and filter data<br/>Further iterations possible| SFT
 
     style BASE fill:#e8f0fe
     style SFT fill:#fff4e5
     style CHAT fill:#e6f4ea
 ```
 
-这几个名字不是严格的产品类型：`Instruct`、`Chat` 后缀不能反推出模型使用了 PPO 还是 DPO。要查对应版本的技术报告。
+These names are not strict product categories: an `Instruct` or `Chat` suffix does not tell you whether a model used PPO or DPO. Consult the technical report for that version.
 
-## 6.2 预训练用什么数据，学习什么目标？
+## 6.2 What Data and Objective Does Pretraining Use?
 
-本章的自回归基座从大规模文本、代码序列中学习下一个 token 的分布。数据决定它接触什么，预测目标决定梯度如何产生；二者一起影响后续可用能力。
+The autoregressive base model discussed here learns a distribution over the next token from large-scale text and code sequences. The data determines what it encounters; the prediction objective determines how gradients arise. Together, they shape the capabilities available downstream.
 
-### 6.2.1 数据量与数据处理
+### 6.2.1 Data Volume and Processing
 
-以下是原始论文公开的**训练 token 数**，不等于去重后语料的独立 token 数，也不是把整个数据集读了多少遍：
+The following figures are **training token counts** disclosed in the original papers. They are neither counts of unique tokens in a deduplicated corpus nor the number of passes over an entire dataset:
 
-| 模型及口径 | 训练 token 数 | 原始依据 |
+| Model and scope | Training tokens | Original source |
 |---|---|---|
-| GPT-3 | 3000 亿 | 论文 §2.1、§2.2；不同来源按不同权重采样 |
-| Llama 2 | 2 万亿 | 论文 §2.1 |
-| Llama 3 报告中的 405B 模型 | 15.6 万亿 | 2024 年技术报告 §3；不要混同所有后续版本 |
+| GPT-3 | 300 billion | Paper §§2.1–2.2; sources are sampled with different weights |
+| Llama 2 | 2 trillion | Paper §2.1 |
+| The 405B model in the Llama 3 report | 15.6 trillion | 2024 technical report §3; do not conflate this with every later version |
 
-数据来源可能包括网页、书籍、论文、代码及许可数据，并不意味着“所有公开文本都可以任意抓取和训练”。需要核对来源授权、个人信息、重复内容、质量和语言分布。
+Sources may include web pages, books, papers, code, and licensed data. This does not mean that all publicly accessible text may be scraped and used for training without restriction. Source permissions, personal information, duplication, quality, and language distribution all need review.
 
-数据处理直接影响模型学什么：
+Data processing directly affects what the model learns:
 
-- **去重**减少重复网页的权重和记忆风险；精确去重不能代替近似去重。
-- **质量过滤与混合采样**在高质量内容和语言、领域覆盖之间取舍；过滤器也会引入偏差。
-- **基准污染检查**排查训练数据是否包含测试题及答案，避免把记忆当泛化。
-- **数据版本与配比记录**使训练和评估结果可追溯。
+- **Deduplication** reduces the weight of repeated pages and the risk of memorization. Exact deduplication does not replace near-duplicate detection.
+- **Quality filtering and mixture sampling** trade off high-quality content against language and domain coverage. Filters can introduce biases of their own.
+- **Benchmark contamination checks** look for test questions and answers in training data, so memorization is not mistaken for generalization.
+- **Data version and mixture records** make training and evaluation results traceable.
 
-清洗确实消耗工程、人力和计算资源，但没有可泛化的依据说它“一定比预训练更贵”。
+Cleaning consumes engineering effort, human labor, and compute, but there is no general basis for claiming that it must cost more than pretraining.
 
-### 6.2.2 训练目标：预测下一个 token
+### 6.2.2 The Training Objective: Predicting the Next Token
 
-这里讨论自回归语言模型。对长度为 `T` 的序列，常用平均负对数似然：
+For the autoregressive language model considered here, a common objective for a sequence of length `T` is the mean negative log-likelihood:
 
 $$
 \mathcal{L}_{\mathrm{pre}} =
@@ -63,42 +63,42 @@ $$
 \log \pi_\theta(x_t \mid x_1,\ldots,x_{t-1})
 $$
 
-训练时使用真实前缀（teacher forcing），通过 causal mask 防止位置 `t` 看到未来 token；一个前向传播可以并行计算多个位置的损失。推理时则要把模型自己生成的 token 接回上下文。
+Training uses the ground-truth prefix, or *teacher forcing*. A causal mask prevents position `t` from seeing future tokens, while one forward pass can compute the losses at multiple positions in parallel. At inference time, the model instead feeds its own generated tokens back into the context.
 
-为了降低预测损失，模型可能学习语法、事实关联、代码结构和某些推理规律，但**低损失不保证事实正确、因果理解或推理可靠**。模型也可能靠表面统计规律、记忆或数据泄漏得分。
+Reducing prediction loss may lead the model to learn grammar, factual associations, code structure, and some reasoning patterns. However, **low loss does not guarantee factuality, causal understanding, or reliable reasoning**. Surface statistics, memorization, or data leakage can also improve scores.
 
-### 6.2.3 计算开销怎么估
+### 6.2.3 Estimating Compute
 
-对常规稠密 Transformer、忽略部分注意力和其他开销时，可用：
+For a conventional dense Transformer, ignoring some attention costs and other overhead, a rough estimate is:
 
 $$
 C \approx 6ND
 $$
 
-其中 `N` 是参数量，`D` 是实际处理的训练 token 数，`C` 的单位是 FLOPs。系数约 6 来自前向与反向计算的粗略核算，不是所有架构、序列长度下都成立的常数。
+Here, `N` is the parameter count, `D` is the number of training tokens actually processed, and `C` is measured in FLOPs. The coefficient of approximately 6 comes from rough forward- and backward-pass accounting; it is not a constant valid for every architecture and sequence length.
 
-以 GPT-3 175B 与 300B token 代入，可得约 `3.15 × 10²³ FLOPs`。这只是量级估算，**不是 GPU 年数或美元成本**。墙钟时间还需要有效吞吐、并行效率、通信、故障与重算信息；不能直接把峰值算力当持续训练吞吐。
+Substituting GPT-3's 175B parameters and 300B tokens gives approximately `3.15 × 10²³ FLOPs`. This is an order-of-magnitude estimate, **not a number of GPU-years or a dollar cost**. Wall-clock time also depends on effective throughput, parallel efficiency, communication, failures, and recomputation. Peak hardware compute cannot simply be treated as sustained training throughput.
 
-### 6.2.4 Base 模型能不能回答问题
+### 6.2.4 Can a Base Model Answer Questions?
 
-能。GPT-3 就评估了无梯度更新的 zero-shot / few-shot 任务表现。问题不在于 Base 模型“完全不会回答”，而在于它的目标是续写训练分布中的文本，未必稳定服从当前用户指令、遵守角色边界或在正确位置结束。
+Yes. GPT-3 evaluated zero-shot and few-shot task performance without gradient updates. The issue is not that a base model cannot answer questions at all. Its objective is to continue text from the training distribution, so it may not reliably follow the current user's instructions, respect role boundaries, or stop at the right point.
 
-例如，问题后面既可能接答案，也可能接另一道题。具体输出取决于上下文、预训练分布和解码设置，不能用一段发散示例证明模型没有问答能力。
+For example, a question might be followed by an answer—or by another question. The output depends on context, the pretraining distribution, and decoding settings. One example of an unfocused continuation cannot establish that a model has no question-answering ability.
 
-## 6.3 SFT 与预训练的损失相似，为什么行为会改变？
+## 6.3 If SFT Uses a Similar Loss, Why Does Behavior Change?
 
-SFT 仍可使用自回归交叉熵，但把训练样本集中到指令与示范回答，并选择哪些位置计入损失。模型因此更倾向于在给定指令后生成示范中的行为，而不是任意延续原始文本。
+SFT can still use autoregressive cross-entropy, but concentrates training examples on instructions and demonstration answers while selecting which positions contribute to the loss. This makes the model more likely to produce the demonstrated behavior after an instruction, rather than continue arbitrary raw text.
 
-### 6.3.1 从示范中学习条件分布
+### 6.3.1 Learning a Conditional Distribution from Demonstrations
 
-SFT 数据可以是单轮 `(指令, 回答)`，也可以是包含 system、user、assistant、工具消息的多轮序列：
+SFT data may contain single-turn `(instruction, answer)` pairs or multiturn sequences with system, user, assistant, and tool messages. This Chinese example asks why the sky is usually blue; the demonstration explains that atmospheric molecules scatter shorter wavelengths of visible light more strongly:
 
 ```text
 user: 请解释为什么天空通常呈蓝色。
 assistant: 大气分子对较短波长的可见光散射更强……
 ```
 
-对输入 `x` 与示范回答 `y`，常见的 completion-only 损失为：
+For input `x` and demonstration answer `y`, a common completion-only loss is:
 
 $$
 \mathcal{L}_{\mathrm{SFT}} =
@@ -106,92 +106,92 @@ $$
 \log \pi_\theta(y_t \mid x,y_1,\ldots,y_{t-1})
 $$
 
-仍是自回归交叉熵；改变的是训练分布与 loss mask。Prompt token 通常不作为预测目标，**但仍参与前向计算、作为回答的上下文**。不同实现也可能对全序列或所有 assistant 轮次计损失，应检查实际配置。
+This is still autoregressive cross-entropy; the training distribution and loss mask have changed. Prompt tokens are usually not prediction targets, **but still participate in the forward pass as context for the answer**. Other implementations may compute loss over the full sequence or every assistant turn. Check the actual configuration.
 
-### 6.3.2 数据质量不是一个固定条数
+### 6.3.2 Data Quality Is Not a Fixed Example Count
 
-Llama 2 论文 §3.1.1 报告收集 **27,540 条 SFT 标注**；模型卡中的“超过一百万条人工标注”指更广的微调数据，不能写成一百万条 SFT 示范。
+Llama 2 §3.1.1 reports collecting **27,540 SFT annotations**. The model card's “over one million human annotations” refers to a broader set of fine-tuning data, not one million SFT demonstrations.
 
-LIMA 在 65B LLaMA 上使用 **1,000 条精心筛选的示范**，在其评测条件下获得较强的指令跟随表现。这说明好的预训练基座可能用较少数据适配输出行为，**不证明任意任务都只需千条，也不证明小数据总胜过大数据**。
+LIMA used **1,000 carefully curated demonstrations** with a 65B LLaMA model and achieved strong instruction-following performance under its evaluation conditions. This suggests that a well-pretrained base may need relatively little data to adapt its output behavior. It **does not establish that a thousand examples suffice for every task, or that small datasets always beat large ones**.
 
-判断数据是否足够，应看验证集学习曲线、任务覆盖、难例和标注一致性，而不是背一个数量门槛。
+Judge data sufficiency through validation learning curves, task coverage, difficult examples, and annotation consistency—not a memorized count threshold.
 
-### 6.3.3 为什么 loss 下降，产品表现却可能退步
+### 6.3.3 Why Can Product Performance Decline While Loss Falls?
 
-- 模型可能更会复现训练集措辞，却没有改善任务成功率。
-- 大量同质长回答可能带来长度偏好；错误推理示范会被直接模仿。
-- 不一致的 chat template、结束符或工具调用格式，会造成训练与部署分布不一致。
-- 单一领域过采样可能损伤其他能力；训练集与验证集相似文本泄漏则会掩盖问题。
+- The model may get better at reproducing training-set phrasing without improving task success.
+- Large volumes of similar long answers can induce a length preference; incorrect reasoning demonstrations can be copied directly.
+- Inconsistent chat templates, end markers, or tool-call formats can create a mismatch between training and deployment distributions.
+- Oversampling one domain can damage other capabilities, while near-duplicate leakage between training and validation data can conceal the problem.
 
-因此应同时评估任务指标、格式合法率、事实性、安全拒绝与正常请求误拒绝，而不是只看训练 loss。
+Evaluate task metrics, output-format validity, factuality, appropriate safety refusals, and false refusals of legitimate requests alongside training loss.
 
-## 6.4 有了示范，为什么还需要偏好与奖励信号？
+## 6.4 Why Add Preference and Reward Signals When We Already Have Demonstrations?
 
-示范告诉模型“可以怎样回答”，比较或奖励则能区分它自己生成的候选中哪些更好。是否需要这一阶段，要看剩余错误能否被反馈识别，而不是默认训练阶段越多越好。
+Demonstrations show the model one way to answer. Comparisons and rewards can distinguish better candidates among the answers it generates itself. Whether this stage is needed depends on whether feedback can identify the remaining errors—not on an assumption that more training stages are always better.
 
-### 6.4.1 SFT 与偏好优化的边界
+### 6.4.1 The Boundary Between SFT and Preference Optimization
 
-SFT 可以直接学习高质量回答、拒绝行为和推理过程，并非“只学格式”。但只给一份示范，不会显式说明同一问题下两个候选回答为什么一个更好。
+SFT can directly teach high-quality answers, refusal behavior, and reasoning processes; it is not limited to learning formats. A single demonstration, however, does not explicitly compare why one of two candidate answers to the same question is preferable.
 
-偏好优化补充的是比较或奖励信号。人类偏好也不等于客观正确：标注员可能偏好更长、更自信的错误回答，必须区分帮助性、事实性、安全性等评估维度。
+Preference optimization adds comparison or reward signals. Human preference is not the same as objective correctness: annotators may prefer a longer, more confident answer that is wrong. Helpfulness, factuality, and safety therefore need distinct evaluation criteria.
 
-### 6.4.2 经典 PPO-RLHF 流程
+### 6.4.2 The Classic PPO-RLHF Workflow
 
-RLHF 早于 InstructGPT；2017 年《Deep Reinforcement Learning from Human Preferences》已研究从人类比较学习奖励。InstructGPT 是把这一思路用于指令语言模型的重要案例。
+RLHF predates InstructGPT. *Deep Reinforcement Learning from Human Preferences* studied learning rewards from human comparisons in 2017. InstructGPT is an important application of that idea to instruction-following language models.
 
 ```mermaid
 flowchart TB
-    S1["同一问题的回答比较"] --> S2["训练奖励模型 RM"]
-    S2 --> S3["策略在线生成回答<br/>奖励打分与 PPO 更新"]
-    REF["冻结参考策略"] -.->|KL 正则| S3
+    S1["Compare answers<br/>to the same question"] --> S2["Train a reward model, RM"]
+    S2 --> S3["Policy generates answers online<br/>Reward scoring and PPO updates"]
+    REF["Frozen reference policy"] -.->|KL regularization| S3
 
     style S3 fill:#e6f4ea
 ```
 
-典型实现涉及策略、参考、奖励与价值估计四种角色，不是四个模型都一起训练：策略和价值估计通常更新，参考和已训练奖励模型通常冻结。共享主干、模型大小和分阶段调度会改变实际显存。
+A typical implementation has four roles: policy, reference, reward, and value estimation. This does not mean four models train together. The policy and value estimator usually update; the reference and previously trained reward model usually remain frozen. Shared backbones, model sizes, and scheduling across stages change actual GPU memory requirements.
 
-主要风险是奖励模型分布外失真、优化不稳定和 reward hacking。KL 正则限制相对参考策略的偏移，能降低过度优化风险，**不能保证不钻奖励漏洞**。
+Major risks include out-of-distribution reward-model errors, optimization instability, and reward hacking. KL regularization limits drift from the reference policy and can reduce overoptimization, but **does not guarantee that the policy cannot exploit reward flaws**.
 
-### 6.4.3 DPO 简化了哪一部分
+### 6.4.3 What Does DPO Simplify?
 
-DPO 在 KL 正则化奖励最大化与 Bradley–Terry 偏好模型等假设下，用策略相对参考策略的对数概率比重参数化奖励，直接训练 `(问题, chosen, rejected)` 偏好对。
+Under assumptions including KL-regularized reward maximization and a Bradley–Terry preference model, DPO reparameterizes rewards using the policy's log probability ratio relative to a reference policy. It trains directly on `(question, chosen, rejected)` preference pairs.
 
-标准离线 DPO 不需要单独训练奖励模型，也不需要训练循环中的在线生成和价值网络。它优化的是**偏好对的相对 log-ratio 间隔**，不保证每个 chosen 的绝对概率都上升。
+Standard offline DPO does not require a separately trained reward model, online generation within the training loop, or a value network. It optimizes the **relative log-ratio margin between the preferred and rejected answers**, not a guarantee that every chosen answer increases in absolute probability.
 
-这个推导不意味着有限数据下 DPO 与 PPO 的训练轨迹、泛化或最终效果相同。详见 [第十一章](11-dpo-vs-ppo.md)。
+The derivation does not imply that DPO and PPO have identical training trajectories, generalization, or final performance with finite data. See [Chapter 11](11-dpo-vs-ppo.md).
 
-## 6.5 三阶段不是能力的硬分区
+## 6.5 The Three Stages Do Not Partition Capabilities
 
-| 情况 | 应怎样理解 |
+| Situation | How to interpret it |
 |---|---|
-| 只有预训练 | 可以提示或 few-shot 使用，但指令稳定性与行为控制需要评测 |
-| 预训练 + SFT | 可以形成有用的模型；是否增加偏好优化取决于剩余错误和收益 |
-| 从现有基座开始 SFT / RL | 是复用了前人的预训练，不是跳过了知识积累 |
-| 不经 SFT 直接 RL | 有公开实验，例如基于 DeepSeek-V3-Base 的 R1-Zero；并非从随机参数训练 |
+| Pretraining alone | Prompting or few-shot use is possible, but instruction reliability and behavioral control need evaluation |
+| Pretraining + SFT | Can produce a useful model; preference optimization depends on remaining errors and expected gains |
+| Starting SFT / RL from an existing base | Reuses someone else's pretraining rather than skipping knowledge acquisition |
+| RL without preceding SFT | Public experiments exist, such as R1-Zero based on DeepSeek-V3-Base; this is not training from random parameters |
 
-“预训练定死天花板，后训练只能整理格式”过于绝对。后训练能学习新知识、工具使用和任务策略，也可能造成遗忘；其收益受基座能力、训练信号、探索和计算预算约束。公开结果通常难以把“新学会”与“更可靠地调用已有能力”完全分开。
+“Pretraining fixes the ceiling; post-training only tidies up the format” is too absolute. Post-training can teach new knowledge, tool use, and task strategies, and can also cause forgetting. Its gains depend on base-model capabilities, training signals, exploration, and compute budgets. Public results often cannot fully separate learning something new from using an existing capability more reliably.
 
-R1-Zero 与完整 R1 也不是同一路径：后者使用冷启动 SFT、推理 RL、筛选数据后的 SFT 和后续 RL。不要把实验消融当成最终产品流程。
+R1-Zero and full R1 also follow different paths. The latter uses cold-start SFT, reasoning-oriented RL, SFT on filtered data, and subsequent RL. Do not mistake an ablation experiment for the final product's workflow.
 
-## 6.6 进一步追问
+## 6.6 Further Questions
 
-1. **为什么 SFT 后还会幻觉？** 交叉熵奖励复现示范，不自带事实校验；示范、检索上下文和模型知识都可能出错。
-2. **偏好优化能代替数据质量吗？** 不能。错误或有偏的奖励会被更强的优化放大。
-3. **训练成本如何比较？** 区分预训练 FLOPs、标注、采样、奖励评估和多轮迭代成本；不能只比较反向传播步数。
-4. **怎样验证某阶段有用？** 保持基座、测试集、解码预算一致，做 SFT / 偏好优化前后的消融，并检测通用能力回归。
+1. **Why do hallucinations remain after SFT?** Cross-entropy rewards reproducing demonstrations; it contains no built-in fact checker. Demonstrations, retrieved context, and model knowledge can all be wrong.
+2. **Can preference optimization replace data quality?** No. Stronger optimization can amplify incorrect or biased rewards.
+3. **How should training costs be compared?** Separate pretraining FLOPs, annotation, sampling, reward evaluation, and repeated iterations; counting backward-pass steps alone is insufficient.
+4. **How do you establish that a stage helps?** Hold the base model, test set, and decoding budget constant, run before-and-after ablations for SFT and preference optimization, and check for regressions in general capabilities.
 
-## 6.7 本章总结
+## 6.7 Chapter Summary
 
-三阶段框架区分的是数据与优化信号，不是把知识、格式、价值观切成互不相交的盒子。解释训练流程时，至少说清楚：**从哪个 checkpoint 开始、哪些 token 计损失、反馈来自哪里、哪些参数更新、如何验证收益与退化**。
+The three-stage framework distinguishes data and optimization signals; it does not put knowledge, format, and values into disjoint boxes. When explaining a training workflow, identify at least **the starting checkpoint, the tokens included in the loss, the feedback source, the parameters being updated, and how gains and regressions are measured**.
 
-## 参考资料
+## References
 
-- [GPT-3，§2 与 few-shot 评估](https://arxiv.org/html/2005.14165v4)
-- [Llama 2，§2.1、§3.1.1 与模型卡](https://arxiv.org/html/2307.09288v2)
-- [The Llama 3 Herd of Models，§3、§4](https://arxiv.org/html/2407.21783v3)
-- [Chinchilla：训练计算量近似](https://arxiv.org/html/2203.15556v1)
+- [GPT-3, §2 and few-shot evaluations](https://arxiv.org/html/2005.14165v4)
+- [Llama 2, §§2.1 and 3.1.1, and the model card](https://arxiv.org/html/2307.09288v2)
+- [The Llama 3 Herd of Models, §§3–4](https://arxiv.org/html/2407.21783v3)
+- [Chinchilla: the training-compute approximation](https://arxiv.org/html/2203.15556v1)
 - [InstructGPT](https://arxiv.org/abs/2203.02155)
 - [LIMA](https://arxiv.org/abs/2305.11206)
 - [Deep Reinforcement Learning from Human Preferences](https://arxiv.org/abs/1706.03741)
-- [DPO：奖励重参数化与偏好损失](https://arxiv.org/html/2305.18290v3)
-- [DeepSeek-R1，2025 年初版训练流程](https://arxiv.org/html/2501.12948v1)
+- [DPO: reward reparameterization and preference loss](https://arxiv.org/html/2305.18290v3)
+- [DeepSeek-R1: the training workflow in the initial 2025 report](https://arxiv.org/html/2501.12948v1)

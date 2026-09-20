@@ -1,74 +1,76 @@
 ---
-description: 区分传统 NLP、BERT 与生成式语言模型的训练目标和任务接口，解释上下文学习、规模收益及其评测边界。
+description: Distinguish the training objectives and task interfaces of traditional NLP, BERT, and generative language models, and examine in-context learning, gains from scale, and evaluation limits.
 ---
 
-# 第一章：大语言模型与传统 NLP 的本质区别
+# Chapter 1: How Large Language Models Differ from Traditional NLP
 
-## 1.1 LLM 与传统 NLP 的区别，究竟在比较什么？
+## 1.1 What are we actually comparing when we contrast LLMs with traditional NLP?
 
-LLM 没有公认的参数量分界线，广义上也不只指 Decoder-only。本主题主要讨论以 GPT、Llama 等为代表的**生成式、自回归语言模型**；不能据此把所有语言模型都归入同一种架构。
+There is no universally accepted parameter-count threshold for an LLM, and the broader term is not restricted to decoder-only models. This topic focuses on **generative, autoregressive language models**, such as GPT and Llama. That focus does not imply that all language models share one architecture.
 
-传统 NLP 既有规则与统计流水线，也有端到端神经网络、预训练表示和生成模型。更准确的变化是：**从较多任务专用接口，转向用同一个预训练模型和文本接口复用多种能力**，而不是「以前只能分类，现在才能生成」。
+Traditional NLP includes rule-based and statistical pipelines, but also end-to-end neural networks, pretrained representations, and generative models. The more accurate description of the shift is **from predominantly task-specific interfaces toward reusing a single pretrained model and text interface for many capabilities**, not “models used to classify, and only now can they generate.”
+
+The diagram illustrates one customer-support example.
 
 ```mermaid
 flowchart LR
-    subgraph PIPE["一种传统客服流水线"]
-        A["文本"] --> B["分词与实体识别"]
-        B --> C["意图分类"]
-        C --> D["检索或业务规则"]
+    subgraph PIPE["Traditional support"]
+        A["Text"] --> B["Tokenization and entity recognition"]
+        B --> C["Intent classification"]
+        C --> D["Retrieval or business rules"]
     end
-    subgraph GEN["生成式应用"]
-        E["指令 + 输入 + 可选证据"] --> F["语言模型"]
-        F --> G["文本或结构化输出"]
-        G --> H["校验与业务执行"]
+    subgraph GEN["Generative application"]
+        E["Instructions + input + optional evidence"] --> F["Language model"]
+        F --> G["Text or structured output"]
+        G --> H["Validation and business execution"]
     end
 ```
 
-流水线可能累积误差，但不是前一步错了后面必然全错；联合训练、字级模型和纠错规则都可以缓解。生成式系统减少了一部分任务头与标注工作，却新增了输出不确定性、成本、权限和事实校验问题。
+Errors can accumulate in a pipeline, but one upstream mistake does not necessarily invalidate every downstream step. Joint training, character-level models, and correction rules can mitigate this. Generative systems reduce some task-specific heads and labeling work, but introduce challenges around uncertain outputs, cost, authorization, and fact checking.
 
-## 1.2 BERT 带来了什么，没带来什么
+## 1.2 What BERT introduced—and what it did not
 
-BERT（2018）的关键是双向 Transformer 表示与大规模自监督预训练，不是首次提出「预训练 + 微调」。
+BERT's key contribution in 2018 was the combination of bidirectional Transformer representations and large-scale self-supervised pretraining. It did not introduce “pretraining followed by fine-tuning” for the first time.
 
-原始英文 BERT 使用 BooksCorpus（约 8 亿词）和英文维基百科（约 25 亿词）。两个目标是：
+The original English BERT used BooksCorpus, with approximately 800 million words, and English Wikipedia, with approximately 2.5 billion words. Its two objectives were:
 
-| 目标 | 原始论文中的做法 | 容易混淆的地方 |
+| Objective | Approach in the original paper | Common confusion |
 |---|---|---|
-| MLM | 抽取约 15% 的 WordPiece token 作为预测目标；其中 80% 换成 `[MASK]`，10% 换成随机 token，10% 保持不变 | 不是把全部 15% 都遮住，也不是每次只预测一个词 |
-| NSP | 构造真实相邻片段与随机片段，预测后者是否接续前者 | 是特定预训练任务，不代表模型获得了可靠的篇章逻辑判断能力 |
+| MLM | Select approximately 15% of WordPiece tokens as prediction targets; replace 80% of those with `[MASK]`, 10% with random tokens, and leave 10% unchanged | Not all of the selected 15% are masked, and training does not predict just one word at a time |
+| NSP | Construct pairs of genuinely consecutive segments and pairs with a random second segment; predict whether the second follows the first | This is a specific pretraining task, not evidence of reliable judgment about discourse logic |
 
-分类、序列标注和抽取式问答可以接不同的输出头。实践中常分别微调，但也可以共享编码器、做多任务训练，或直接使用冻结表示；**不是每个任务都必须保留一份完整模型**。
+Classification, sequence labeling, and extractive question answering can use different output heads. In practice, they are often fine-tuned separately, but they can also share an encoder, use multitask training, or directly use frozen representations. **Each task does not necessarily require its own complete copy of the model.**
 
-BERT 的标准训练目标不是从左到右连续生成，因此通常不直接用于开放式聊天。但称它「只会判别」也过于简单：MLM 头本身预测词汇分布，掩码填空和基于提示的分类都能利用这个输出。
+BERT's standard training objective is not continuous left-to-right generation, so it is generally not used directly for open-ended chat. Calling it “purely discriminative” is also too simplistic: the MLM head itself predicts a vocabulary distribution, which can support masked-token completion and prompt-based classification.
 
-比较训练目标时，原始 BERT 优化的是 MLM 和 NSP，自回归语言模型优化的是根据前文预测下一个 token；上下文表示是两者通过训练学到的表征，不是与这些预测任务并列的独立训练目标。
+When comparing training objectives, the original BERT optimizes MLM and NSP, whereas an autoregressive language model predicts the next token from the preceding text. Contextual representations are representations that both models learn through training, not a separate objective alongside those prediction tasks.
 
-自回归模型通过连续预测下一个 token 生成文本，便于把不同任务组织为条件文本生成，但统一接口并不保证各项任务的效果。
+Autoregressive models generate text by repeatedly predicting the next token. This makes it convenient to express different tasks as conditional text generation, but a common interface does not guarantee good results on every task.
 
-## 1.3 自回归目标为什么能统一接口
+## 1.3 Why the autoregressive objective supports a common interface
 
-设文本经 Tokenizer 转成 `x_1, …, x_T`，训练时最小化负对数似然：
+Suppose a tokenizer converts text into `x_1, …, x_T`. Training minimizes the negative log-likelihood:
 
 $$
 \mathcal{L}(\theta) = -\sum_{t=1}^{T}\log P_\theta(x_t \mid x_1,\ldots,x_{t-1})
 $$
 
-token 不等于汉字或单词。训练通常用真实前缀预测下一个 token，借助因果掩码并行计算各位置的损失；生成时才逐步把采样结果加入前缀。这一区别决定了训练吞吐与在线生成延迟不能直接类比。
+A token is not necessarily a Chinese character or a word. During training, the model normally predicts the next token from the ground-truth prefix, using a causal mask to compute losses at all positions in parallel. During generation, it instead appends sampled outputs to the prefix step by step. This distinction is why training throughput cannot be directly equated with production generation latency.
 
-| 任务 | 如何转成文本条件生成 | 仍需解决的问题 |
+| Task | Formulation as conditional text generation | Problems that remain |
 |---|---|---|
-| 分类 | 输入标签定义、文本，输出标签 | 标签合法性、类别不平衡、置信度校准 |
-| 翻译 | 给出语言要求和原文 | 专名、术语、一致性 |
-| 问答 | 给出问题及可选检索证据 | 来源是否支持结论、是否应拒答 |
-| 代码生成 | 给出需求、接口和约束 | 编译、测试、安全与执行权限 |
+| Classification | Supply label definitions and text; output a label | Valid labels, class imbalance, confidence calibration |
+| Translation | Specify the target language and source text | Proper names, terminology, consistency |
+| Question answering | Supply a question and optional retrieved evidence | Whether sources support the conclusion and whether the model should abstain |
+| Code generation | Supply requirements, interfaces, and constraints | Compilation, testing, security, and execution permissions |
 
-统一的是调用接口，不是质量保证。基础模型可能只会模仿文本格式；指令微调与偏好优化通常用于提高指令遵循和交互可用性。
+What becomes uniform is the calling interface, not the quality guarantee. A base model may merely imitate a text format. Instruction fine-tuning and preference optimization are commonly used to improve instruction following and usability in interactions.
 
-自监督目标不要求逐条人工答案，**不等于互联网文本都可直接用于训练**。数据仍要处理授权、隐私、去重、污染、质量和语言分布。降低预测损失可以促进语言和任务能力，也可能靠记忆、共现或捷径完成局部预测；不能从「预测准确」推出模型一定掌握了正确推理过程。
+A self-supervised objective does not require a human-written answer for every example, but **that does not mean any text on the internet is ready for training**. Data preparation must still address licensing, privacy, deduplication, contamination, quality, and language distribution. Reducing prediction loss can improve language and task capabilities, but local predictions may also succeed through memorization, co-occurrence, or shortcuts. Accurate predictions do not prove that the model has learned a correct reasoning process.
 
-## 1.4 In-Context Learning：变的是上下文，不是权重
+## 1.4 In-context learning changes the context, not the weights
 
-给模型一些输入输出示例，可以在不更新参数的情况下引导它延续映射：
+Providing input–output examples can guide a model to continue a mapping without updating its parameters. In this Chinese customer-service example, A means a refund request and B means a shipping-status inquiry. The messages ask when money will be refunded, where a parcel is, and how to return a damaged item:
 
 ```text
 标签定义：A = 请求退款，B = 查询物流
@@ -77,66 +79,66 @@ token 不等于汉字或单词。训练通常用真实前缀预测下一个 toke
 “收到的商品坏了，想退掉。” →
 ```
 
-GPT-3 论文系统研究了 zero-shot、one-shot 和 few-shot 设置，但上下文任务适应的观察早于 GPT-3，不能说小模型完全没有这类能力。
+The GPT-3 paper systematically studied zero-shot, one-shot, and few-shot settings. However, observations of task adaptation through context predate GPT-3; it is not correct to say that smaller models have no such capability.
 
-回答「上下文学习和微调有什么区别」时，需要落到系统行为：
+To explain the difference between in-context learning and fine-tuning, describe their effects on system behavior:
 
-- 上下文学习不改权重，但示例占用每次请求的 token、prefill 计算与 KV Cache；示例顺序和格式也可能影响结果。
-- 微调改参数或适配器，训练成本在前，部署时不一定需要同样的示例前缀，但可能引入过拟合和能力回归。
-- 上下文学习可能是在识别已学过的任务，也可能在推断新映射；仅凭一个熟悉的翻译例子，无法区分两者。
+- In-context learning leaves weights unchanged, but the examples consume tokens, prefill computation, and KV cache on every request. Their order and format can also affect results.
+- Fine-tuning changes parameters or adapters. It incurs an upfront training cost and may remove the need for the same example prefix at deployment, but can introduce overfitting and capability regressions.
+- In-context learning may involve recognizing a previously learned task or inferring a new mapping. A single familiar translation example cannot distinguish these possibilities.
 
-## 1.5 规模收益与「涌现」应怎样表述
+## 1.5 How to describe gains from scale and “emergence”
 
-经典模型的数据规模可用于理解历史变化，但计量口径不同：
+The training-data volumes of well-known models illustrate historical changes, but their units and reporting scopes differ:
 
-| 模型与资料范围 | 训练数据量 |
+| Model and source scope | Training-data volume |
 |---|---|
-| 原始英文 BERT | 约 33 亿词 |
-| GPT-3（2020） | 训练采样总量约 3000 亿 token |
-| Llama 3（2024 技术报告） | 约 15 万亿量级的预训练 token，具体变体以报告为准 |
+| Original English BERT | Approximately 3.3 billion words |
+| GPT-3 (2020) | Approximately 300 billion tokens sampled during training |
+| Llama 3 (2024 technical report) | On the order of 15 trillion pretraining tokens; consult the report for the specific variant |
 
-词与 token 不能直接相除得到准确增长倍数，闭源模型未披露的参数量、数据量也不能由外界传闻补齐。
+Dividing word counts by token counts does not give an accurate growth factor. Nor should rumors fill gaps in undisclosed parameter counts or training-data volumes for closed models.
 
-Scaling Law 拟合的是特定实验条件下损失随参数、数据、算力变化的经验关系，**不是某项能力必然出现的定理**。Chinchilla 的 70B 参数、1.4T token 是固定训练预算研究中的代表配置，不能把约 20 token/参数当成任意模型的最佳配方；考虑长期推理成本时，训练更多 token 的较小模型可能更合算。
+Scaling laws fit empirical relationships between loss, parameter count, data, and compute under particular experimental conditions. **They are not theorems guaranteeing that a capability will appear.** Chinchilla's 70B parameters and 1.4T tokens are a representative configuration from a study of fixed training budgets, not evidence that approximately 20 tokens per parameter is optimal for every model. When long-term inference cost matters, a smaller model trained on more tokens may be more economical.
 
-「涌现」通常描述：在所观测的规模范围内，小模型表现接近随机，较大模型在某些指标上明显提升。要区分真实能力变化与指标效应：
+“Emergence” usually describes an observation within a studied range of scales: smaller models perform near chance, while larger models improve markedly on particular metrics. Actual changes in capability must be distinguished from effects of the scoring rule:
 
 ```mermaid
 flowchart LR
-    A["每个子步骤的成功概率逐渐提高"] --> B["整题全对才计分"]
-    B --> C["观测到较陡的准确率曲线"]
-    A --> D["部分得分或连续指标"]
-    D --> E["可能呈现更平滑的曲线"]
+    A["Success probability improves gradually for each substep"] --> B["Credit only for a completely correct answer"]
+    B --> C["A steeper observed accuracy curve"]
+    A --> D["Partial credit or continuous metrics"]
+    D --> E["The curve may appear smoother"]
 ```
 
-没有脱离数据集、提示和计分方式的通用参数量临界点。不同训练数据、后训练和测试时计算也会改变曲线。跨代小模型在某些任务上超过早期大模型，不等于在所有任务上更强，也不能把差异全部归因于参数与数据比例。
+There is no universal parameter-count threshold independent of the dataset, prompt, and scoring method. Training data, post-training, and test-time compute can also change the curves. A newer small model outperforming an older large model on some tasks does not mean it is better on every task, nor can the difference be attributed entirely to the ratio of parameters to training data.
 
-## 1.6 面试中的实际选型：统一模型还是专用模型
+## 1.6 A practical interview choice: a general-purpose model or a specialized one?
 
-假设目标是将客服消息分成十个固定类别，先给出错误成本、吞吐、延迟、隐私和可用标注量，再选择方案：
+Suppose the task is to classify customer-service messages into ten fixed categories. First establish the cost of errors, throughput, latency, privacy requirements, and available labeled data, then choose an approach:
 
-| 方案 | 适合的条件 | 主要代价 |
+| Approach | Suitable conditions | Main costs |
 |---|---|---|
-| 规则或小型分类器 | 标签稳定、边界明确、低延迟要求高 | 规则维护或标注；泛化到新表达需要评测 |
-| 编码器微调 | 有代表性数据，输出空间固定 | 训练和版本维护；新标签可能需要重训 |
-| 通用 LLM 提示 | 标签描述常变、样本少、任务不只分类 | token 成本、延迟、格式与错误风险 |
-| LLM 生成标注 + 小模型 | 高吞吐，能人工复核关键标签 | 教师错误会传递，需独立真实测试集 |
+| Rules or a small classifier | Stable labels, clear boundaries, strict low-latency requirements | Rule maintenance or labeling; generalization to new phrasing needs evaluation |
+| Fine-tuned encoder | Representative data and a fixed output space | Training and version maintenance; new labels may require retraining |
+| Prompting a general-purpose LLM | Frequently changing label descriptions, few examples, or tasks beyond classification | Token cost, latency, formatting failures, and error risk |
+| LLM-generated labels plus a small model | High throughput, with human review available for important labels | Teacher errors propagate; an independent real-world test set is needed |
 
-RAG 补充可更新、可追溯的外部证据，微调调整模型行为或领域适配，Prompt 明确一次调用的条件；三者可以组合，但都不能替代评测。
+RAG supplies external evidence that can be updated and traced to its source. Fine-tuning adjusts model behavior or adapts it to a domain. A prompt specifies the conditions for an individual call. These approaches can be combined, but none replaces evaluation.
 
-若被追问「为什么不全部换成 LLM」，应说明统一接口只减少部分研发成本。高并发单任务可能仍由小模型更经济地完成，复杂应用也经常需要多个模型、检索器和业务规则，而非一套模型覆盖全公司。
+If asked “Why not replace everything with an LLM?”, explain that a common interface removes only part of the development cost. A small model may still handle a high-concurrency, single-task workload more economically. Complex applications also often need multiple models, retrievers, and business rules rather than one model serving the entire company.
 
-## 1.7 本章要记住的边界
+## 1.7 The distinctions to retain from this chapter
 
-LLM 的主要工程变化是预训练能力通过通用接口复用，不是传统方法失效，也不是规模自动带来可靠推理。回答时把**架构、训练目标、后训练、提示接口和业务评测**分开，才能解释同一个模型为什么能尝试很多任务，却未必适合某个具体生产需求。
+The main engineering shift brought by LLMs is the reuse of pretrained capabilities through a general-purpose interface—not the obsolescence of traditional methods or the automatic arrival of reliable reasoning at scale. Keep **architecture, training objectives, post-training, prompting interfaces, and business evaluation** separate. This explains why the same model can attempt many tasks yet still be unsuitable for a particular production requirement.
 
-## 参考资料
+## References
 
 - [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805)
-- [Language Models are Few-Shot Learners（GPT-3）](https://arxiv.org/abs/2005.14165)
-- [Language Models are Unsupervised Multitask Learners（GPT-2）](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
+- [Language Models are Few-Shot Learners (GPT-3)](https://arxiv.org/abs/2005.14165)
+- [Language Models are Unsupervised Multitask Learners (GPT-2)](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf)
 - [Emergent Abilities of Large Language Models](https://arxiv.org/abs/2206.07682)
 - [Are Emergent Abilities of Large Language Models a Mirage?](https://arxiv.org/abs/2304.15004)
 - [Scaling Laws for Neural Language Models](https://arxiv.org/abs/2001.08361)
-- [Training Compute-Optimal Large Language Models（Chinchilla）](https://arxiv.org/abs/2203.15556)
+- [Training Compute-Optimal Large Language Models (Chinchilla)](https://arxiv.org/abs/2203.15556)
 - [The Llama 3 Herd of Models](https://arxiv.org/abs/2407.21783)

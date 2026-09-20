@@ -1,41 +1,41 @@
 ---
-description: 用可手算的订单快照讲解 Text-to-SQL，从未发货口径、SQLite 关联聚合，到可信权限、资源限制和独立结果验收。
+description: Explain Text-to-SQL with an order snapshot small enough to calculate by hand, covering unshipped-order definitions, SQLite joins and aggregation, trusted authorization, resource limits, and independent result validation.
 ---
 
-# 第二十二章：Text-to-SQL：从业务问题到可验证查询
+# Chapter 22: Text-to-SQL: From Business Questions to Verifiable Queries
 
-## 22.1 订单统计不是多找几段文档
+## 22.1 Order statistics require more than a few retrieved passages
 
-客服问“上周还有多少订单没完成”，如果系统只检索到几张订单，再让模型加总，遗漏的订单根本不会进入计算。问题不是模型算术差，而是输入没有覆盖统计范围。
+When a support representative asks, “How many orders from last week are still incomplete?”, retrieving a few orders and asking the model to add them up leaves every missed order out of the calculation. The problem is not poor model arithmetic: the input does not cover the population being counted.
 
-[第三章](../02-ingestion-indexing/03-document-parsing.md) §3.4 已经区分了定位表格与全表聚合；[第十六章](../04-advanced/16-graphrag.md) §16.6 也提出，已有可靠关系表时可以直接查询，不必先抽成知识图谱。Text-to-SQL 接上这条路径：**模型把问题翻译成 SQL，数据库计算，应用交付结果。**
+[Chapter 3](../02-ingestion-indexing/03-document-parsing.md), §3.4, distinguishes locating a table from aggregating all its rows. [Chapter 16](../04-advanced/16-graphrag.md), §16.6, also explains that reliable relational tables can be queried directly without first extracting a knowledge graph. Text-to-SQL follows that route: **the model translates the question into SQL, the database performs the computation, and the application delivers the result.**
 
-李博杰《深入理解 AI Agent》第五章的[“生成 SQL 查询”](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md)让模型生成查询，由应用执行和展示结果，而不是要求模型逐行搬运数据。配套 ERP 示例用 SQLite 员工、工资两表，单次模型调用生成查询，再与独立 Python 参考答案比较。
+The [“Generating SQL Queries” discussion](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md) in Chapter 5 of Bojie Li's *AI Agents in Depth* has the model generate a query and the application execute it and present the result, rather than asking the model to carry data row by row. Its companion ERP example uses two SQLite tables, for employees and salaries, generates a query in a single model call, and compares the result with an independent Python reference answer.
 
-本章沿用这种分工，换成订单统计案例，不要求增加多轮 Agent。已有固定报表时，先让模型选择报表并填写经过校验的参数；只有用户确实需要新的组合查询，才开放 SQL 结构生成。
+This chapter keeps that division of responsibility but uses an order-aggregation case. It does not require a multi-turn agent. If an existing report meets the need, let the model select the report and supply validated parameters first. Allow it to generate SQL structure only when users genuinely need new combinations of queries.
 
-## 22.2 先请业务同事把“未完成”说清楚
+## 22.2 Ask the business team what “incomplete” means
 
-> 下面用一个虚构的备件订单案例计算待发货数量。金额以人民币分表示，不含税费、运费与折扣。
+> The following fictional spare-parts order case calculates quantities awaiting shipment. Amounts are in renminbi fen, the hundredths of a yuan, excluding taxes, shipping fees, and discounts.
 
-运营小周请客服小林导出“9 月 1 日到 7 日未完成订单”。小林发现，已发货但未签收也可能叫“未完成”；财务还可能把它理解为“未结清”。工程师没有先写提示词，而是让他们确认这次要解决的是仓库待发货统计。
+Zhou in operations asks Lin in customer support to export “incomplete orders from September 1 through 7.” Lin notices that “incomplete” could include orders that have shipped but have not been received; finance might instead interpret it as “not fully paid.” Rather than starting with a prompt, the engineer asks them to confirm that this request concerns goods still awaiting shipment from the warehouse.
 
-| 要确认的事 | 本次约定 |
+| What needs clarification | Agreed definition for this request |
 |---|---|
-| 未完成什么 | 未取消，且至少一条明细仍有未发数量；已发未签收不算欠发 |
-| 数量和金额是什么 | 订单数按订单去重；件数是剩余未发件数；金额是剩余件数乘该行单价，不是整单合同额 |
-| 哪段时间 | 筛选上海时间 2026-09-01 至 09-07 下单的订单，含首尾两天 |
-| “截至”何时 | 采用上海时间 09-08 09:00 截止、只包含此前事件的固定快照 |
-| 谁的订单 | 登录身份所属租户 T1，当前获准查看客户 C1、C2；本次请求不进一步缩小客户范围 |
-| 怎么展示 | 按客户汇总，仅显示有欠发的客户，按客户编号升序 |
+| What is incomplete? | The order is not cancelled, and at least one line still has an unshipped quantity. Shipped but not yet received goods do not count as unshipped. |
+| What do quantity and amount mean? | Count distinct orders. Quantity means units still unshipped. Amount means those units multiplied by the line's unit price, not the full order contract value. |
+| Which time window? | Orders placed from 2026-09-01 through 09-07 in Shanghai time, including both dates. |
+| As of when? | Use a fixed snapshot with a cutoff of 09-08 at 09:00 Shanghai time, containing only events before that cutoff. |
+| Whose orders? | Tenant T1 from the signed-in identity, with current authorization for customers C1 and C2. This request does not narrow that customer scope further. |
+| How should results appear? | Aggregate by customer, show only customers with unshipped quantities, and sort by customer ID in ascending order. |
 
-这里有两个时间条件：**下单窗口决定哪些订单入选，快照截止点决定这些订单当时发了多少。**只在今天的订单表加一个下单日期条件，不能还原上周的发货状态。
+There are two time conditions: **the order-placement window determines which orders qualify; the snapshot cutoff determines how much had shipped by that point.** Adding an order-date predicate to today's order table cannot reconstruct last week's shipment state.
 
-[FDE 订单异常助手](../../fde/01-foundations/01-forward-deployed-engineering.md) §1.11.2 同样把“已发出”“客户已收到”“采购预计到仓库”分开。Text-to-SQL 不能把这些差别压成一个模糊的 `status != 'completed'`。
+The [FDE order-exception assistant](../../fde/01-foundations/01-forward-deployed-engineering.md), §1.11.2, similarly distinguishes “shipped,” “received by the customer,” and “expected arrival at the warehouse from procurement.” Text-to-SQL must not collapse these distinctions into a vague `status != 'completed'`.
 
-## 22.3 固定两张表，先看清一行代表什么
+## 22.3 Fix the two tables and establish what one row represents
 
-本章只使用 **SQLite 方言**。下列 DDL 是维护人员建立教学快照的步骤，不属于允许模型执行的查询。`orders` 每个租户内一单一行；`order_lines` 一单可有多行，发货量是截至快照的累计值。
+This chapter uses **the SQLite dialect only**. The following DDL is for maintainers to create the teaching snapshot; it is not among the queries a model is allowed to execute. In `orders`, each tenant has one row per order. An order can have multiple rows in `order_lines`, whose shipped quantities are cumulative as of the snapshot.
 
 ```sql
 PRAGMA foreign_keys = ON;
@@ -63,11 +63,11 @@ CREATE TABLE order_lines (
 );
 ```
 
-快照名为 `orders-20260908-shanghai-v1`，逻辑截止点是 `2026-09-08T01:00:00Z`。所有非空时间统一为固定宽度 UTC 文本 `YYYY-MM-DDTHH:MM:SSZ`，并在入库时校验；这里的文本比较才等价于时间比较。不要混入本地时间、不同偏移量或不一致的精度。
+The snapshot is named `orders-20260908-shanghai-v1`, with a logical cutoff of `2026-09-08T01:00:00Z`. Every non-null timestamp uses fixed-width UTC text in the format `YYYY-MM-DDTHH:MM:SSZ`, validated at ingestion. These constraints make text comparison equivalent to time comparison here. Do not mix in local times, different offsets, or inconsistent precision.
 
-`orders` 共 8 行。为便于窄屏阅读，按同一个联合键分两张展示表；`T1/O101` 表示 `tenant_id=T1`、`order_id=O101`，不是数据库里新增的字段。
+`orders` contains 8 rows. For narrow screens, they are displayed in two tables sharing the same composite key. `T1/O101` means `tenant_id=T1` and `order_id=O101`; it is not an additional database field.
 
-| 租户/订单 | 客户 | 状态 | 整单金额（分） |
+| Tenant/order | Customer | Status | Full order amount (fen) |
 |---|---|---|---|
 | T1/O101 | C1 | open | 10000 |
 | T1/O102 | C1 | open | 4000 |
@@ -78,7 +78,7 @@ CREATE TABLE order_lines (
 | T1/O107 | C3 | open | 8000 |
 | T2/O101 | C1 | open | 50000 |
 
-| 租户/订单 | 下单时间 `created_at` | 承诺时间 `promised_at` |
+| Tenant/order | Order time `created_at` | Promised time `promised_at` |
 |---|---|---|
 | T1/O101 | 2026-08-31T16:00:00Z | NULL |
 | T1/O102 | 2026-09-03T02:00:00Z | 2026-09-10T04:00:00Z |
@@ -89,9 +89,9 @@ CREATE TABLE order_lines (
 | T1/O107 | 2026-09-07T02:00:00Z | NULL |
 | T2/O101 | 2026-09-02T02:00:00Z | NULL |
 
-`order_lines` 共 9 行，键依次为租户、订单和 `line_id`。后三列分别对应 `ordered_qty`、`shipped_qty`、`unit_price_cents`：
+`order_lines` contains 9 rows, keyed by tenant, order, and `line_id`. The last three columns correspond to `ordered_qty`, `shipped_qty`, and `unit_price_cents`:
 
-| 租户/订单/行 | 订购件数 | 已发件数 | 单价（分） |
+| Tenant/order/line | Units ordered | Units shipped | Unit price (fen) |
 |---|---|---|---|
 | T1/O101/1 | 10 | 4 | 500 |
 | T1/O101/2 | 5 | 5 | 1000 |
@@ -103,47 +103,47 @@ CREATE TABLE order_lines (
 | T1/O107/1 | 1 | 0 | 8000 |
 | T2/O101/1 | 100 | 0 | 500 |
 
-O105 在快照中已经存在，但恰好落在下单窗口的右端点，不进入本次统计。所有记录的状态和发货量均按快照截止前事件确定。实际回放历史时，应使用对应历史快照或事件重建，不能拿当前累计值冒充历史值。
+O105 already exists in the snapshot but falls exactly on the right endpoint of the order-placement window, so it is excluded. Every record's status and shipped quantity reflect events before the snapshot cutoff. To replay history in a real system, use the corresponding historical snapshot or reconstruct it from events; do not present current cumulative values as historical ones.
 
-`promised_at = NULL` 表示没有已确认的承诺日期，不是“今天交付”。`shipped_qty = 0` 才是已确认尚未发货；若源系统发货量缺失，应报告数据不完整，不能用 `COALESCE(shipped_qty, 0)` 把未知改成零。
+`promised_at = NULL` means no promised date has been confirmed, not “delivery today.” `shipped_qty = 0` means it is confirmed that nothing has shipped. If the source system lacks a shipped quantity, report incomplete data rather than turning an unknown into zero with `COALESCE(shipped_qty, 0)`.
 
-这份快照假设每单至少一条明细、头表金额与行金额一致，取消只发生在整单，不处理退货或超发。主外键和 `CHECK` 不会自动验证所有跨行规则，发布快照前仍需核对；支持部分取消时，要增加取消数量及其生效时间，不能直接套用下面的减法。
+This snapshot assumes every order has at least one line, the header amount agrees with the line amounts, cancellations apply to entire orders, and returns and over-shipments are out of scope. Primary keys, foreign keys, and `CHECK` constraints do not automatically validate every cross-row rule; these still need checking before the snapshot is released. Supporting partial cancellations requires a cancelled quantity and its effective time, rather than simply reusing the subtraction below.
 
-还要核验存储类型：普通 SQLite 表的 `INTEGER` 是类型亲和性，不会仅凭列声明拒绝所有小数。这里假设维护程序已经验证件数、分金额与 ID 类型；需要数据库强制整数类型时，可增加 `typeof` 检查，或在 SQLite 3.37.0 及以上采用 `STRICT` 表。单行乘积与汇总值也应落在整数安全范围内，不能等溢出后再把浮点近似结果称为“精确到分”。
+Storage types also need validation. In an ordinary SQLite table, `INTEGER` specifies type affinity; the column declaration alone does not reject every fractional value. Here, the maintenance program is assumed to have validated the types of quantities, amounts in fen, and IDs. To enforce integer storage in the database, add `typeof` checks or use `STRICT` tables in SQLite 3.37.0 or later. Both per-line products and aggregate amounts must remain within the safe integer range. A floating-point approximation after overflow must not be described as “exact to the fen.”
 
-## 22.4 模型交的是查询草案，不是通行证
+## 22.4 The model submits a query proposal, not an authorization
 
-给模型的上下文应包含相关表与字段、联合主外键、一行的粒度、单位、状态含义、时间约定和返回列，而不是整个数据库的数据字典。表多时可检索 schema，但要补齐必要关联路径；检索漏表不能被解释成“数据库没有这项数据”。
+The model's context should contain the relevant tables and columns, composite primary and foreign keys, row granularity, units, status definitions, time conventions, and expected output columns—not the entire database's data dictionary. With many tables, schema retrieval can help, but it must include the necessary join paths. Missing a table during retrieval does not mean “the database has no such data.”
 
-模型输出含命名占位符的 SQL。可信服务端负责把已确认的日期转为 UTC，并根据当前登录身份绑定权限值：
+The model outputs SQL containing named placeholders. The trusted server converts confirmed dates to UTC and binds authorization values derived from the current signed-in identity:
 
-| 绑定名 | 本次值 | 值从哪里来 |
+| Binding | Value for this request | Source of the value |
 |---|---|---|
-| `tenant_id` | `T1` | 服务端会话 |
-| `customer_a`、`customer_b` | `C1`、`C2` | 服务端授权结果；示例固定为两个客户 |
-| `start_utc` | `2026-08-31T16:00:00Z` | 已确认的上海日期窗口 |
-| `end_utc` | `2026-09-07T16:00:00Z` | 同一窗口的排他上界 |
+| `tenant_id` | `T1` | Server-side session |
+| `customer_a`, `customer_b` | `C1`, `C2` | Server-side authorization result; this example has exactly two customers |
+| `start_utc` | `2026-08-31T16:00:00Z` | Confirmed date window in Shanghai time |
+| `end_utc` | `2026-09-07T16:00:00Z` | Exclusive upper bound of the same window |
 
-“9 月 1 日至 7 日”转成 `[开始, 结束)`，避免拼一个会漏掉小数秒的 `23:59:59`。这里由服务端处理上海时区，SQL 不依赖 SQLite `now` 或机器的本地时区；换到有夏令时的地区，也应按当地日历计算两端，不能一律加固定小时数。
+Convert “September 1 through 7” into `[start, end)` rather than constructing a `23:59:59` endpoint that could miss fractional seconds. The server handles the Shanghai time zone; the SQL does not depend on SQLite's `now` or the machine's local time zone. In a region with daylight saving time, calculate both endpoints using the local calendar rather than always adding a fixed number of hours.
 
-权限客户较多时，用受控关系或服务端构造的绑定参数集合，不拼接模型返回的客户列表。用户可以申请缩小范围，但不能通过一句“查所有租户”扩大服务端授予的范围。
+For a larger authorized customer set, use a controlled relation or a collection of bound parameters constructed by the server, not a concatenated customer list returned by the model. A user may request a narrower scope, but saying “query all tenants” cannot expand the scope granted by the server.
 
 ```mermaid
 flowchart TD
-    A[业务问题与口径] --> B[模型生成 SQL 草案]
-    B --> C[可信服务校验与绑定]
-    I[登录身份与授权范围] --> C
-    C --> D[受限数据库执行]
-    D --> E[应用直接展示数据与范围]
-    F[独立参考答案] --> G[离线验收]
+    A["Business question<br/>and definitions"] --> B["Model proposes SQL"]
+    B --> C["Trusted service<br/>validates and binds"]
+    I["Signed-in identity<br/>and authorized scope"] --> C
+    C --> D["Restricted database<br/>execution"]
+    D --> E["Application displays<br/>data and scope directly"]
+    F["Independent<br/>reference answer"] --> G["Offline acceptance<br/>evaluation"]
     D --> G
 ```
 
-[Tools 第三章](../../tools/01-function-calling/03-tool-schema-design.md) §3.2.3 提醒过：“只支持 SELECT”的描述不能代替只读凭据、对象权限和查询限制。上游 [`agent.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/agent.py#L31-L87)也在提示词里限定 SELECT，但 [`demo.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py#L119-L165)直接调用 `cur.execute(sql)`；不能把这种执行方式当作已落实数据库只读权限。
+[Tools Chapter 3](../../tools/01-function-calling/03-tool-schema-design.md), §3.2.3, warns that a description saying “SELECT only” cannot replace read-only credentials, object permissions, and query limits. The upstream [`agent.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/agent.py#L31-L87) also restricts the prompt to SELECT, but [`demo.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py#L119-L165) directly calls `cur.execute(sql)`. That execution pattern must not be mistaken for enforced database read-only access.
 
-## 22.5 一条完整查询，先按订单汇总
+## 22.5 A complete query aggregates by order first
 
-下面是确认业务口径后的查询草案。它先把明细折回“一单一行”，再统计客户。过滤条件用于说明查询语义，**即使条件遗漏，也必须由执行层阻止越权**，不能靠模型总能写对它们。
+The following query proposal reflects the agreed business definitions. It first reduces the lines to one row per order, then aggregates by customer. Its filters illustrate the query semantics. **The execution layer must prevent unauthorized access even if a filter is missing**; it cannot depend on the model always writing every predicate correctly.
 
 ```sql
 WITH per_order AS (
@@ -175,73 +175,73 @@ GROUP BY customer_id
 ORDER BY customer_id;
 ```
 
-O101 第一行剩 6 件、3000 分，第二行全部发完；O102 剩 4 件、4000 分。因此 C1 有 2 单、10 件、7000 分。C2 只有 O106 的 2 件、4000 分；取消单、全发单和右端点订单不计入。C3 不在授权客户集合，T2 的同号订单也不参与关联。
+The first line of O101 has 6 units worth 3000 fen remaining; its second line is fully shipped. O102 has 4 units worth 4000 fen remaining. C1 therefore has 2 orders, 10 units, and 7000 fen outstanding. For C2, only O106 contributes: 2 units and 4000 fen. Cancelled orders, fully shipped orders, and the order on the right endpoint are excluded. C3 is outside the authorized customer set, and T2's order with the same order ID does not join into T1's calculation.
 
-确切结果如下，应用显示金额时可将分转换为元，不改动底层整数：
+The exact result is below. The application may convert fen to yuan for display without changing the underlying integers:
 
-| 客户 | 欠发订单数 | 未发件数 | 未发金额（分） |
+| Customer | Orders awaiting shipment | Unshipped units | Unshipped amount (fen) |
 |---|---|---|---|
 | C1 | 2 | 10 | 7000 |
 | C2 | 1 | 2 | 4000 |
 
-小林第一次看草案时发现，直接关联后 `COUNT(*)` 会把 O101 算成两单；`SUM(o.total_amount_cents)` 也会把它的 10000 分算两遍。`SUM(DISTINCT 金额)` 不是通用补救办法：若汇总 O102 与 O106 的合同额，两单恰好都是 4000 分，去重金额会把 8000 分变成 4000 分。应该先确认粒度，而不是看数字偏大就加 `DISTINCT`。
+On first reviewing the draft, Lin notices that `COUNT(*)` immediately after the join would count O101 as two orders. `SUM(o.total_amount_cents)` would also count its 10000 fen twice. `SUM(DISTINCT amount)` is not a general remedy: O102 and O106 each have a contract value of 4000 fen, so deduplicating their amounts would turn 8000 fen into 4000 fen. Establish the row granularity first rather than adding `DISTINCT` whenever a number looks too large.
 
-本次只显示有欠发的客户，所以无欠发客户没有结果行。若要列出所有授权客户，包括欠发为零的客户，应从授权客户集合出发左连接聚合结果，再按业务定义补零。[SQLite 的 `SUM`](https://www.sqlite.org/lang_aggfunc.html) 在没有非空输入时返回 `NULL`；空结果、未知数据和零不能混成一种含义。
+This request displays only customers with unshipped quantities, so customers with none have no result row. To list every authorized customer, including those with zero outstanding shipments, start from the authorized customer set, left-join the aggregates, and fill in zeros according to the business definition. [SQLite's `SUM`](https://www.sqlite.org/lang_aggfunc.html) returns `NULL` when there are no non-null inputs. An empty result, unknown data, and zero must not be treated as the same thing.
 
-## 22.6 放行之前，执行服务还要拦住什么
+## 22.6 What must the execution service restrict before running a query?
 
-只读不等于可以随便读，SELECT 也不天然没有副作用。SQLite 可注册应用自定义函数；函数若能写文件或访问网络，出现在 SELECT 中仍可能产生副作用，参见[官方函数安全说明](https://www.sqlite.org/appfunc.html#security_implications)。
+Read-only access does not mean unrestricted reading, and SELECT is not inherently free of side effects. SQLite supports application-defined functions. If one can write files or access the network, invoking it in SELECT may still have side effects; see the [official function security guidance](https://www.sqlite.org/appfunc.html#security_implications).
 
-| 层次 | 应落实的限制 | 不能误以为 |
+| Layer | Restrictions to enforce | Mistaken assumption to avoid |
 |---|---|---|
-| 身份与数据范围 | 可信服务端注入身份，每次校验租户、客户、列权限；缓存同样按权限隔离 | 绑定了 `tenant_id` 就能阻止模型删掉整个 WHERE |
-| 数据库访问 | 服务型数据库用只读角色、受限视图或行级策略，并禁止绕过它们访问基表 | SQL 解析器可以替代数据库授权 |
-| SQL 结构 | 用匹配 SQLite 方言的解析器检查整棵语法树，仅允许单条已批准的 SELECT/CTE，限定对象、列、函数与子查询 | 正则搜到 SELECT 就安全，或只检查最外层即可 |
-| 危险能力 | 拒绝 DDL、DML、多语句、ATTACH、非批准 PRAGMA、扩展加载及未批准函数；连接不注册有外部副作用的函数 | 参数化会保护任意生成的 SQL 结构 |
-| 执行资源 | 准备与执行都有总截止时间，限制 SQL 长度、表达式复杂度、内存、并发及结果大小 | 最后加 LIMIT 就不会扫描或排序大量数据 |
+| Identity and data scope | The trusted server supplies identity and checks tenant, customer, and column permissions on every request; caches are isolated by authorization scope too. | Binding `tenant_id` prevents the model from omitting the entire WHERE clause. |
+| Database access | In a database server, use read-only roles, restricted views, or row-level policies, and prevent direct access to base tables that bypasses them. | A SQL parser can replace database authorization. |
+| SQL structure | Use a parser for the SQLite dialect to inspect the entire syntax tree; allow only one approved SELECT/CTE statement and restrict objects, columns, functions, and subqueries. | Finding SELECT with a regular expression is sufficient, or checking only the outermost query is enough. |
+| Dangerous capabilities | Reject DDL, DML, multiple statements, ATTACH, unapproved PRAGMAs, extension loading, and unapproved functions; do not register functions with external side effects on the connection. | Parameterization protects arbitrary generated SQL structure. |
+| Execution resources | Apply an overall deadline covering preparation and execution; limit SQL length, expression complexity, memory, concurrency, and result size. | Appending LIMIT prevents large scans or sorts. |
 
-参数化只隔离**绑定值**与 SQL 语法；表名、排序表达式和整个查询结构仍需验证。不要把未经校验的查询塞进 `executescript`，也不要失败后改用高权限连接重试。
+Parameterization separates **bound values** from SQL syntax. Table names, sort expressions, and the overall query structure still require validation. Do not pass an unvalidated query to `executescript`, or retry a failed query through a more privileged connection.
 
-SQLite 没有服务型数据库那样的内置用户角色和行级授权。本案例若用于开放查询，可以由可信服务先生成只含本次授权客户及必要列的一致快照，在隔离进程中用 [`mode=ro`](https://www.sqlite.org/uri.html) 打开，配合文件权限、禁止附加库、函数限制和 [authorizer](https://www.sqlite.org/c3ref/set_authorizer.html) 拒绝未批准操作。authorizer 检查操作与对象，不会自动按租户逐行过滤；只读打开共享多租户文件也不构成租户隔离。
+SQLite does not have the built-in user roles and row-level authorization of a database server. If this case is extended to open-ended queries, a trusted service can first create a consistent snapshot containing only the authorized customers and necessary columns for the request. An isolated process can open it with [`mode=ro`](https://www.sqlite.org/uri.html), combined with file permissions, a ban on attaching databases, function restrictions, and an [authorizer](https://www.sqlite.org/c3ref/set_authorizer.html) that rejects unapproved operations. The authorizer checks operations and objects; it does not automatically filter rows by tenant. Opening a shared multitenant file read-only is not tenant isolation either.
 
-教学数据保留越权记录，是为了验收筛选和关联错误，不代表应把全租户库交给模型查询进程。授权快照有复制成本和新鲜度代价；数据量大、要求实时或权限频繁变化时，优先采用成熟数据访问服务或固定模板，不要临时拼一个“通用 SQL 沙箱”。
+The teaching data retains out-of-scope records so that filtering and join mistakes can be caught. That does not mean the model's query process should receive a database containing every tenant. Authorized snapshots incur copying costs and freshness tradeoffs. For large datasets, real-time requirements, or frequently changing permissions, prefer an established data-access service or fixed templates rather than improvising a “general-purpose SQL sandbox.”
 
-执行前可用 [`EXPLAIN QUERY PLAN`](https://www.sqlite.org/eqp.html) 看联合键是否被使用、是否出现大表扫描或临时排序；对真实数据规模再评估索引，如按租户、客户和下单时间组织索引。小表扫描未必有问题，执行计划也不是运行时间或费用的保证，且其文本格式不是稳定接口。
+Before execution, [`EXPLAIN QUERY PLAN`](https://www.sqlite.org/eqp.html) can show whether composite keys are used and whether large-table scans or temporary sorts appear. Evaluate indexes at realistic data volumes—for example, an index organized by tenant, customer, and order time. Scanning a small table is not necessarily a problem. A query plan is not a runtime or cost guarantee, and its textual format is not a stable interface.
 
-执行期间使用进度回调或中断机制落实截止时间，另设结果行数、字节数与并发预算；SQLite 没有云仓库式扫描费用上限，不能把本地演示耗时换算成生产费用承诺。[SQLite 安全指南](https://www.sqlite.org/security.html)给出了限制与中断接口。超时要返回“未完成”，截断要标明“不完整”，不能把部分结果称为完整统计。
+During execution, enforce deadlines through progress callbacks or interruption, with separate budgets for result rows, bytes, and concurrency. SQLite does not offer a cloud-warehouse-style scan-cost cap; a local demonstration's runtime cannot be turned into a production cost promise. The [SQLite security guide](https://www.sqlite.org/security.html) describes limiting and interruption interfaces. Report a timeout as “not completed” and truncated output as “incomplete”; never call partial results a complete aggregate.
 
-## 22.7 验收结果，不验收 SQL 长得像不像
+## 22.7 Validate results, not the appearance of the SQL
 
-工程师用 Python 标准库 `sqlite3` 把上面的两表数据与查询执行一遍，再让另一段不使用 SQL 的计算按订单遍历明细、排除取消与范围外订单、累加剩余量和金额，得到同样的 `C1: (2, 10, 7000)`、`C2: (1, 2, 4000)`。参考逻辑根据业务约定编写，不让同一次模型生成同时充当出题人和裁判。
+The engineer runs the two tables and query above using Python's standard-library `sqlite3`. A separate computation, without SQL, walks the lines of each order, excludes cancelled and out-of-scope orders, and adds the remaining quantities and amounts. Both produce `C1: (2, 10, 7000)` and `C2: (1, 2, 4000)`. The reference logic is written from the business agreement; the same model generation must not serve as both question setter and judge.
 
-这样的校验验证的是固定快照上的查询结果，不是某个模型的生成准确率，也没有证明权限隔离已经实现。上游 [`demo.py` 的比较流程](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py#L40-L165)也区分数据库执行和 Python 参考答案，但具体容差、排序规则要按本业务重新规定。
+This validates the query result on a fixed snapshot, not any model's SQL-generation accuracy, and it does not establish that authorization isolation has been implemented. The upstream [`demo.py` comparison flow](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py#L40-L165) also separates database execution from Python reference answers, but tolerances and ordering rules must be defined for this business case.
 
-| 验收项 | 本例怎么比较 |
+| Acceptance criterion | How this example compares results |
 |---|---|
-| 等价查询 | CTE、子查询或其他等价写法都可接受，不比较 SQL 字符串 |
-| 行与重复 | 未声明顺序时按多重集比较，不能用集合悄悄去掉重复行；只有确认唯一性后才可按行集合比较 |
-| 排序 | 本题要求客户编号升序，因此还要比较行顺序；排名题要约定并列规则 |
-| 数值 | 件数和人民币分用整数精确比较，并限制范围避免溢出；浮点指标单独约定绝对或相对容差 |
-| 空与错误 | 合法空结果是成功且零行；超时、权限拒绝、语法错误、源数据缺失分别记录，不能都返回空表 |
-| 时间一致性 | SQL 与参考计算读取同一快照，不能各自读取不断变化的业务库 |
+| Equivalent queries | CTEs, subqueries, and other equivalent formulations are acceptable; do not compare SQL strings. |
+| Rows and duplicates | When order is unspecified, compare multisets. Do not silently remove duplicate rows by using sets; set comparison is appropriate only after uniqueness is established. |
+| Ordering | This question requires ascending customer IDs, so compare row order as well. Ranking tasks need an explicit tie policy. |
+| Numbers | Compare unit counts and renminbi fen as exact integers, with range limits to prevent overflow. Define separate absolute or relative tolerances for floating-point metrics. |
+| Empty results and errors | A legitimate empty result is success with zero rows. Record timeouts, authorization denials, syntax errors, and missing source data separately rather than returning an empty table for all of them. |
+| Temporal consistency | SQL and the reference computation read the same snapshot, not separate reads from a continually changing business database. |
 
-一份小数据可能让错误 SQL 碰巧答对。回归时应加入“相同订单号跨租户”“同租户不同权限客户”“两单金额相同”“多明细订单”“部分发货”“取消但仍有剩余量”“恰好在日期两端”的数据；还应单独测空结果和缺失字段。权限测试要故意删除范围条件、请求基表或禁止函数，确认执行服务拒绝或只能返回授权数据，而不只是模型遵守了提示。
+A small dataset can let incorrect SQL produce the right answer by coincidence. Regression cases should include order IDs shared across tenants, customers with different permissions within one tenant, two orders with equal amounts, multiline orders, partial shipments, cancelled orders with remaining quantities, and orders exactly at both date boundaries. Test empty results and missing fields separately. Authorization tests should deliberately omit scope predicates or request base tables or prohibited functions, confirming that the execution service rejects the request or can return only authorized data—not merely that the model follows its prompt.
 
-报告指标时分开看：**执行成功率**是查询能否在规则和预算内完成；**执行正确率**是结果是否匹配参考答案；**业务正确率**还要确认问题口径、授权范围、时间版本和最终说明都正确。一次合法查询可能精准地算错问题，前两项再高也不能替代业务验收。提示词改动、schema 升级和模型替换都要重跑同一任务集，并保留各类失败。
+Report separate metrics. **Execution success rate** measures whether queries finish within the rules and resource budgets. **Execution accuracy** measures whether results match reference answers. **Business correctness** additionally requires the right question definition, authorized scope, temporal version, and final explanation. A valid query can compute the wrong question precisely; high scores on the first two metrics cannot replace business acceptance. Rerun the same task set after prompt changes, schema upgrades, or model replacements, retaining every failure category.
 
-## 22.8 最终交付的是数据，加上它能说明什么
+## 22.8 Deliver the data—and explain what it establishes
 
-小周看到的界面不必先经过模型复述：应用直接展示结果表，并注明下单窗口、上海时区、快照截止点、授权客户范围、金额单位和是否完整；保留查询标识，方便回查 SQL、绑定参数和 schema 版本。日志仍按数据权限保存，避免把客户信息泄露到调试系统。
+Zhou's interface does not need a model to restate the results first. The application can display the result table directly, together with the order-placement window, Shanghai time zone, snapshot cutoff, authorized customer scope, amount unit, and completeness status. Retain a query identifier so the SQL, bound parameters, and schema version can be traced later. Logs still follow data-access permissions so customer information does not leak into debugging systems.
 
-本次表格说明“这些订单截至该快照尚有多少未发”，不说明“客户尚未收到多少”，更不能推出“明天能全部交付”。如果还要解释拆单政策，再检索适用文档；如果要生成自然语言总结，只把必要结果与证据交给模型，并重新核对数字、单位和承诺日期。模型可以不看结果行，这不是功能缺失，而是减少抄写错误和数据暴露的一种选择。
+This table establishes “how much of these orders remained unshipped as of this snapshot.” It does not establish “how much customers have not received,” still less “everything can be delivered tomorrow.” If the user also needs an explanation of split-shipment policy, retrieve the applicable documents. If a natural-language summary is needed, send only the necessary results and evidence to the model and recheck numbers, units, and promised dates. Keeping result rows away from the model is not a missing feature; it is a deliberate way to reduce transcription errors and data exposure.
 
-面试中解释这套设计，关键不是背出一条复杂 SQL，而是说清楚：谁确定口径，哪个键决定关联，权限在哪里强制生效，以及用什么独立证据确认答案。固定报表能解决的问题，不应为了展示 Agent 而开放任意查询。
+When explaining this design in an interview, the point is not to recite complex SQL. Explain who defines the business meaning, which keys govern joins, where authorization is enforced, and what independent evidence confirms the answer. Do not expose arbitrary queries merely to demonstrate an agent when a fixed report solves the problem.
 
-## 参考资料
+## References
 
-- 李博杰，《深入理解 AI Agent》[第五章：代码作为交互接口与生成 SQL 查询](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md)。本章借鉴查询生成与执行的分工，业务、数据、SQL 与图为重新设计。
-- 同一固定提交的 ERP 示例：[README](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/README.md)、[agent.py](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/agent.py)、[demo.py](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py)。书中实验描述使用 PostgreSQL，配套运行示例使用 SQLite；这里核读源码，不运行上游程序，不引用其通过率为本章实验结论或客户收益。
-- SQLite 官方：[聚合函数](https://www.sqlite.org/lang_aggfunc.html)、[URI 只读模式](https://www.sqlite.org/uri.html)、[授权回调](https://www.sqlite.org/c3ref/set_authorizer.html)、[不可信 SQL 的安全措施](https://www.sqlite.org/security.html)、[应用函数安全](https://www.sqlite.org/appfunc.html#security_implications)、[执行计划](https://www.sqlite.org/eqp.html)。
-- SQLite 官方：[类型亲和性](https://www.sqlite.org/datatype3.html)、[STRICT 表及版本要求](https://www.sqlite.org/stricttables.html)。
+- Bojie Li, *AI Agents in Depth*, [Chapter 5: Code as an Interaction Interface and Generating SQL Queries](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md). This chapter adopts the separation of query generation from execution; the business case, data, SQL, and diagram were designed separately.
+- ERP example at the same pinned commit: [README](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/README.md), [agent.py](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/agent.py), and [demo.py](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py). The book's experiment description uses PostgreSQL, while the runnable companion uses SQLite. The review here inspects source code without running the upstream program; its reported pass rates are not presented as this chapter's experimental results or customer benefits.
+- Official SQLite documentation: [aggregate functions](https://www.sqlite.org/lang_aggfunc.html), [read-only URI mode](https://www.sqlite.org/uri.html), [authorization callbacks](https://www.sqlite.org/c3ref/set_authorizer.html), [defenses for untrusted SQL](https://www.sqlite.org/security.html), [application-defined function security](https://www.sqlite.org/appfunc.html#security_implications), and [query plans](https://www.sqlite.org/eqp.html).
+- Official SQLite documentation: [type affinity](https://www.sqlite.org/datatype3.html) and [STRICT tables and version requirements](https://www.sqlite.org/stricttables.html).
 
-资料查阅于 2026-09-14，2026-09-15 复核固定提交与 SQLite 类型、聚合及执行限制。
+Sources were consulted on 2026-09-14; the pinned commit and SQLite typing, aggregation, and execution limits were rechecked on 2026-09-15. The English migration rechecked these cited sources on 2026-09-20.

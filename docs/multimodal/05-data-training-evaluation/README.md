@@ -1,25 +1,25 @@
 ---
-description: 多模态数据与上线验证索引，涵盖过滤偏差、事实对齐、基准泄漏、内容溯源和媒体编码及语言缓存的复用条件。
+description: Connect multimodal data and deployment validation, covering filtering bias, factual alignment, benchmark leakage, content provenance, and reuse conditions for media features and language caches.
 ---
 
-# 多模态 · 训练数据、评测与服务
+# Multimodal · Training Data, Evaluation, and Serving
 
-覆盖多模态模型训练数据的收集与对齐工程，以及投产前需要专门验证的评测污染、图像/生成内容特有的安全风险与推理服务架构问题。
+This module covers collecting and aligning multimodal training data, along with issues requiring dedicated validation before production: benchmark contamination, image- and generated-content-specific safety risks, and inference-serving architecture.
 
-## 章节
+## Chapters
 
-1. [第九章：多模态训练数据与对齐](09-multimodal-data-alignment.md)
-2. [第十章：多模态评测、安全与推理服务](10-evaluation-safety-serving.md)
+1. [Chapter 9: Multimodal Training Data and Alignment](09-multimodal-data-alignment.md)
+2. [Chapter 10: Multimodal Evaluation, Safety, and Inference Serving](10-evaluation-safety-serving.md)
 
-## 模块内关系
+## Connections within the module
 
 ```mermaid
 flowchart LR
-    D[多模态训练数据与对齐] --> E[多模态评测、安全与推理服务]
+    D[Multimodal Training Data<br/>and Alignment] --> E[Multimodal Evaluation,<br/>Safety, and Inference Serving]
 ```
 
-第九章讨论数据如何提供或遗漏训练信号，第十章讨论能力、风险与服务成本如何验证。它们不是训练完成后才补做的收尾：数据划分、去污染、权限和资源预算需要在数据采集与系统设计时确定。
+Chapter 9 examines how data supplies or omits training signals; Chapter 10 asks how to verify capabilities, risks, and serving costs. These are not finishing touches added after training: splits, decontamination, permissions, and resource budgets must be determined during data collection and system design.
 
-关键区分包括：相似度不等于配对正确率，发布日期不等于无污染，内容凭证不等于事实真实，媒体特征缓存不等于任意上下文 KV 复用。通用框架见 [LLM · 多模态模型](../../llm/06-multimodal/23-multimodal-models.md)。
+Important distinctions include: similarity is not pair correctness, a release date does not establish freedom from contamination, content credentials do not establish factual truth, and media-feature caching does not permit arbitrary-context KV reuse. For the general framework, see [LLM · Multimodal Models](../../llm/06-multimodal/23-multimodal-models.md).
 
-返回 [多模态相关知识点](../README.md)。
+Return to [Multimodal Topics](../README.md).

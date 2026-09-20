@@ -1,51 +1,51 @@
 ---
-description: 推导因果注意力的 KV 复用条件、prefill 与 decode 复杂度及 GQA 缓存容量，解释跨请求前缀缓存的命中、计费和淘汰边界。
+description: Derive causal attention's KV reuse conditions, prefill and decode complexity, and GQA cache capacity, then examine cross-request prefix matching, billing, and eviction.
 ---
 
-# 第十四章：KV Cache 与 Prompt Caching
+# Chapter 14: KV Cache and Prompt Caching
 
-## 14.1 KV Cache、Prompt Caching 与答案缓存有什么区别？
+## 14.1 How do KV caching, prompt caching, and answer caching differ?
 
-KV Cache 在生成步骤之间复用历史状态，Prompt Caching 将前缀复用扩展到不同请求，答案缓存则直接返回已有答案。三者省掉的计算不同，失效条件也不同。
+A KV cache reuses historical state across generation steps. Prompt caching extends prefix reuse across requests. An answer cache returns an existing answer directly. They avoid different computations and have different invalidation conditions.
 
-| 概念 | 复用范围 | 缓存什么 |
+| Concept | Scope of reuse | Cached content |
 |---|---|---|
-| KV Cache | 一次自回归生成的不同步骤之间 | 各层已处理位置的 key/value 状态 |
-| Prefix / Prompt Caching | 不同请求共享相同前缀时 | 可复用前缀的模型中间状态，常见实现为 KV |
-| 答案缓存 | 请求命中应用缓存时 | 已生成的完整答案 |
+| KV cache | Steps within one autoregressive generation | Per-layer key/value states for processed positions |
+| Prefix / prompt caching | Requests that share an identical prefix | Reusable intermediate model state for the prefix, commonly KV state |
+| Answer caching | Requests that hit an application cache | A complete, previously generated answer |
 
-Prompt Caching 不等于答案缓存：新请求仍要处理未命中的后缀并生成输出。厂商 API 暴露的是缓存协议和计费，不能据此断言其内部存储布局与某个开源框架完全一样。
+Prompt caching is not answer caching: a new request still processes its unmatched suffix and generates output. A vendor API exposes a caching contract and billing rules, not proof that its internal storage layout exactly matches an open-source framework.
 
-## 14.2 为什么因果模型能够复用历史状态
+## 14.2 Why causal models can reuse historical state
 
-不使用 KV Cache 的朴素实现会反复把完整前缀送入模型：
+A naive implementation without a KV cache repeatedly feeds the full prefix into the model:
 
 ```text
-输入 prompt             → 预测 t1
-输入 prompt + t1        → 预测 t2
-输入 prompt + t1 + t2   → 预测 t3
+Input prompt             → predict t1
+Input prompt + t1        → predict t2
+Input prompt + t1 + t2   → predict t3
 ```
 
-对**标准因果 Transformer**，某一历史位置不能看未来 token。因此，模型权重、位置编码、掩码及先前输入不变时，这个位置在各层的隐藏状态不因追加后缀而改变，其 K/V 也可复用。
+In a **standard causal Transformer**, a historical position cannot attend to future tokens. If the model weights, positional encoding, masks, and preceding inputs stay unchanged, appending a suffix does not change that position's hidden state at any layer. Its K/V can therefore be reused.
 
-这依赖因果性和固定计算语义，不只是「embedding 不变」。深层的 K/V 来自各层隐藏状态，而非全都直接来自最初的 token embedding。若前缀被编辑、位置或 RoPE 配置改变、模型/LoRA 权重改变，则相关缓存可能失效；有特殊动态位置规则的模型也需单独检查。
+This depends on causality and fixed computation semantics, not merely on unchanged embeddings. Deeper-layer K/V comes from each layer's hidden states, not directly from the initial token embeddings at every layer. Editing the prefix, changing positions or RoPE settings, or changing model/LoRA weights can invalidate relevant cache entries. Models with special dynamic positional rules need separate examination.
 
-## 14.3 单次生成：prefill 与 decode
+## 14.3 A single generation: prefill and decode
 
-### 14.3.1 一次计算里发生什么
+### 14.3.1 What happens in one computation
 
 $$
 \mathrm{Attention}(Q,K,V)=
 \mathrm{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
 $$
 
-公式省略了掩码：prefill 的每个查询只能读取自身及更早的位置，并且要排除 padding；单 token decode 则通常已经只向该查询提供可见的历史与当前 K/V。不能因为用了缓存就省掉所有场景下的掩码检查。
+The formula omits masking. During prefill, each query can read only its own and earlier positions, excluding padding. Single-token decode usually supplies only the historical and current K/V visible to that query. Using a cache does not remove the need to check masking in every scenario.
 
-- **Prefill**：并行处理整个 prompt，逐层建立 K/V，用最后位置的 logits 采样第一个输出 token。
-- **Decode**：把上一步采得的 token 送入各层；计算它自己的 Q/K/V，将新 K/V 追加到缓存，Q 读取历史和**当前位置自身**的 K/V，再产生下一 token 的 logits。
-- **为什么不长期缓存 Q？** 旧 Q 通常不会被未来位置的 attention 读取；不是 Q 不能缓存，而是标准自回归解码无需复用它。
+- **Prefill**: process the entire prompt in parallel, build K/V layer by layer, and sample the first output token from the final position's logits.
+- **Decode**: pass the token sampled in the previous step through each layer, compute its own Q/K/V, and append its K/V to the cache. Its Q reads both historical K/V and **the current position's own K/V**, producing logits for the next token.
+- **Why not retain Q long-term?** Future positions' attention normally does not read old Q. Q could be cached, but standard autoregressive decoding has no need to reuse it.
 
-下面是抽象接口的伪代码，`model` 内部包含所有层、因果 attention 和输出头：
+The following pseudocode uses an abstract interface. `model` includes all layers, causal attention, and the output head:
 
 ```python
 logits, cache = model.prefill(prompt_tokens)
@@ -57,82 +57,82 @@ for step in range(max_new_tokens):
     logits, cache = model.decode(token, cache)
 ```
 
-缓存按层维护；真实框架通常采用预分配或分页写入，不应每步 `concat` 复制全部历史 KV。采样针对词表 logits，不是直接对 attention 输出向量采样。
+Caches are maintained per layer. Real frameworks usually write into preallocated or paged storage rather than using `concat` to copy the entire KV history at every step. Sampling operates on vocabulary logits, not directly on the attention output vector.
 
-### 14.3.2 复杂度必须说明统计口径
+### 14.3.2 Complexity requires an explicit accounting scope
 
-令 prompt 长度为 P，生成长度为 G，固定层数、头数和维度，只统计**全注意力的 QK 与 AV 工作量**：
+Let prompt length be P and generated length be G. Fix the number of layers, heads, and dimensions, and count only **the QK and AV work of full attention**:
 
-| 实现 | prompt 之后的工作 | 总 attention 工作量 |
+| Implementation | Work after the prompt | Total attention work |
 |---|---|---|
-| 每步重算完整前缀 | 长度约为 P+i 的全序列 attention | 随各步的 `(P+i)²` 求和 |
-| 使用 KV Cache | 每个新 query 读取约 P+i 个位置 | `O(P² + PG + G²)`，含首次 prefill |
+| Recompute the entire prefix at each step | Full-sequence attention over approximately P+i positions | Sum of `(P+i)²` across steps |
+| Use a KV cache | Each new query reads approximately P+i positions | `O(P² + PG + G²)`, including the initial prefill |
 
-如果忽略固定短 prompt，只考察 G 增长，前者为 `O(G³)`，后者为 `O(G²)`。**这不是模型全部 FLOPs，也不是具体 GPU 执行次数**；投影、FFN、输出头和通信仍有自己的成本。不能把「1000 token」直接换算成「十亿次单 token 运算」。
+Ignoring a fixed, short prompt and considering growth in G alone, the former is `O(G³)` and the latter `O(G²)`. **These are neither total model FLOPs nor counts of GPU executions**. Projections, FFNs, the output head, and communication have their own costs. “1000 tokens” cannot be converted directly into “a billion single-token operations.”
 
-KV Cache 避免重算历史隐藏状态，却没有消除新 Q 对长历史的读取。所以长上下文 decode 仍会受 KV 带宽限制。
+A KV cache avoids recomputing historical hidden states, but the new Q still reads the long history. Long-context decode can therefore remain limited by KV bandwidth.
 
-## 14.4 KV Cache 显存：先数 KV 头
+## 14.4 KV cache memory: count KV heads first
 
-对普通全注意力、各层 KV 头数相同且无跨请求共享的缓存，若 K/V 的头维相同：
+For a conventional full-attention cache with the same number of KV heads in every layer, no cross-request sharing, and equal K/V head dimensions:
 
 $$
 M_{\mathrm{KV}}=2LBND_{\mathrm{head}}H_{\mathrm{KV}}s
 $$
 
-其中 L 为层数，B 为并发序列数，N 为每条序列当前缓存长度，H_KV 为 KV 头数，D_head 为头维，s 为每个元素的字节数。变长 batch 应把 BN 换成各序列长度之和；分片、复制、尾块、量化元数据和预留池需要另外核算。
+Here L is the number of layers, B the number of concurrent sequences, N the current cached length per sequence, H_KV the number of KV heads, D_head the head dimension, and s the bytes per element. For variable-length batches, replace BN with the sum of sequence lengths. Account separately for sharding, replication, partially filled final blocks, quantization metadata, and reserved pools.
 
-### 14.4.1 相同层数，不同头数，差多少
+### 14.4.1 Same layer count, different head counts: how much memory changes
 
-取一个**容量估算示例**，不代表任意 7B 模型都支持该上下文：L=32、D_head=128、B=1、N=32,768，FP16/BF16 的 s=2。
+Consider a **capacity-estimation example**, not a claim that every 7B model supports this context: L=32, D_head=128, B=1, N=32,768, with s=2 for FP16/BF16.
 
-| KV 设计 | H_KV | 理想 KV 大小 |
+| KV design | H_KV | Ideal KV size |
 |---|---:|---:|
-| MHA | 32 | 16 GiB，约 17.18 GB |
+| MHA | 32 | 16 GiB, approximately 17.18 GB |
 | GQA | 8 | 4 GiB |
 | MQA | 1 | 0.5 GiB |
 
-1 GiB 为 2³⁰ 字节，1 GB 为 10⁹ 字节。若另有 7B 个 FP16 权重，裸权重约 14 GB；还要加入激活、workspace 和框架开销。不能只说「7B 的 32K KV 就是 17GB」，也不能只靠权重大小决定可容纳并发。
+1 GiB is 2³⁰ bytes; 1 GB is 10⁹ bytes. Another 7B FP16 weights require approximately 14 GB of raw weight storage, before activations, workspace, and framework overhead. “A 7B model's 32K KV cache is 17GB” is not a universal statement, and weight size alone cannot determine supported concurrency.
 
-MLA 可能缓存压缩 latent 与位置相关分量，滑动窗口层只保留窗口内状态；这些不能直接套用上述常规 KV 公式。详见[第三章](../01-foundations/03-attention-variants.md)。
+MLA may cache compressed latent states and position-related components, while sliding-window layers retain only in-window state. The conventional KV formula above does not directly apply to them. See [Chapter 3](../01-foundations/03-attention-variants.md).
 
-## 14.5 跨请求：共享的必须是完整计算前缀
+## 14.5 Cross-request sharing requires a complete computation prefix
 
-假设许多请求都以同一份长系统提示开头。第一次 prefill 产生状态后保留它，后续请求可直接从最长匹配前缀之后继续。
+Suppose many requests start with the same long system prompt. Retain the state produced by the first prefill; later requests can continue directly after their longest matching prefix.
 
 ```mermaid
 flowchart TB
-    R1["首次请求"] --> C1["计算并保留可缓存前缀"]
-    C1 --> POOL[("KV 块池与前缀索引")]
-    R2["后续请求"] --> M{"最长可复用前缀存在？"}
+    R1["First request"] --> C1["Compute and retain<br/>a cacheable prefix"]
+    C1 --> POOL[("KV block pool and prefix index")]
+    R2["Later request"] --> M{"Longest reusable<br/>prefix available?"}
     POOL --> M
-    M -->|是| HIT["引用已有块<br/>计算未命中的后缀"]
-    M -->|否| MISS["执行 prefill<br/>按策略写入缓存"]
-    HIT --> D["生成新回答"]
+    M -->|Yes| HIT["Reference existing blocks<br/>Compute the unmatched suffix"]
+    M -->|No| MISS["Run prefill<br/>Cache according to policy"]
+    HIT --> D["Generate a new answer"]
     MISS --> D
 ```
 
-常见的命中条件包括：
+Common hit conditions include:
 
-- token 前缀一致，且模型、适配器、位置/掩码语义兼容；
-- chat template、工具定义、图片等有效输入一致，而非仅用户可见文字相同；
-- 缓存还在、长度达到可缓存粒度，并且请求路由到可访问该缓存的实例；
-- 租户或信任域允许共享。
+- Identical token prefixes and compatible model, adapter, position, and mask semantics.
+- Identical effective inputs, including chat templates, tool definitions, and images—not merely identical user-visible text.
+- A live cache entry, sufficient length for the caching granularity, and routing to an instance that can access it.
+- Permission to share within the tenant or trust domain.
 
-修改中间一个 token 会使**其后**的缓存不再匹配，但修改之前的完整块仍可能命中。重复的文本出现在不同上下文之后，也不能只凭该文本相同复用，因为其隐藏状态不同。
+Changing a token in the middle invalidates matching **after that point**, but complete blocks before the change may still hit. Identical text following different contexts is not enough for reuse because its hidden states differ.
 
-## 14.6 API 行为：显式和自动不是厂商的永久标签
+## 14.6 API behavior: explicit and automatic are not permanent vendor labels
 
-同一厂商也可能同时提供显式边界和自动缓存。产品规则会变化，应把模型、接口和计费版本一起记录，以下仅说明参考资料所列接口的行为。
+A vendor can offer both explicit cache boundaries and automatic caching. Product rules change, so record the model, interface, and billing version together. The following describes only the interfaces listed in the references.
 
-### 14.6.1 Claude：内容块断点，也有自动断点
+### 14.6.1 Claude: content-block breakpoints and automatic breakpoints
 
-官方 cookbook 同时演示：
+The official cookbook demonstrates both:
 
-- 在内容块上设置 `cache_control`，明确缓存边界。
-- 在请求顶层设置 `cache_control`，由服务自动给最后一个可缓存块添加断点。
+- Setting `cache_control` on a content block to mark an explicit cache boundary.
+- Setting `cache_control` at the request's top level so the service automatically places a breakpoint on the last cacheable block.
 
-显式边界适合「固定文档 + 不同问题」。以下结构需替换成真实模型 ID 和足够长的文档；短占位文字不保证达到模型的最小缓存长度。
+An explicit boundary suits a fixed document with different questions. Replace the model ID and document below with a real model and a sufficiently long document; a short placeholder does not guarantee the model's minimum cache length is met. The Chinese sample strings are retained: the document placeholder means “[replace with the actual fixed document and instructions],” and the question asks for a summary of how responsibilities are divided in the document.
 
 ```python
 import anthropic
@@ -154,92 +154,92 @@ print(response.usage.cache_creation_input_tokens)
 print(response.usage.cache_read_input_tokens)
 ```
 
-再次请求只有满足长度、前缀、路由和存活等条件才会命中。SDK 的 `ephemeral` TTL 支持 `5m`（默认）与 `1h`，不能把所有 Claude 缓存都说成只有五分钟。
+A later request hits only if length, prefix, routing, lifetime, and other conditions hold. The SDK's `ephemeral` TTL supports `5m` by default and `1h`; not every Claude cache lasts only five minutes.
 
-### 14.6.2 OpenAI：按模型核对缓存模式
+### 14.6.2 OpenAI: check the model's caching mode
 
-官方文档说明支持模型默认启用 prompt caching，但最小可缓存长度、隐式/显式断点、写入计费和保留时间按模型区分。因此不再使用「只要超过约 1024 token，所有模型都自动免费写缓存」这样的统一规则。
+The official documentation states that prompt caching is enabled by default for supported models, but minimum cacheable length, implicit/explicit breakpoints, cache-write billing, and retention vary by model. A blanket rule such as “all models automatically write caches for free above roughly 1024 tokens” is therefore inappropriate.
 
-从响应 usage 中检查缓存命中的 token 数，例如 Chat Completions 的 `prompt_tokens_details.cached_tokens`；其他端点字段可能不同。区分请求命中率与 token 命中率：一次请求只命中很短的前缀，不等于省掉大部分 prefill。
+Inspect cached-token counts in response usage, such as `prompt_tokens_details.cached_tokens` for Chat Completions; other endpoints may use different fields. Distinguish request hit rate from token hit rate: a request that hits a very short prefix has not necessarily avoided most of its prefill work.
 
-### 14.6.3 计费应该算回本条件
+### 14.6.3 Calculate the billing break-even point
 
-只看同一个可复用前缀，设普通输入成本为 C，写入倍率为 w，读取倍率为 r，写一次后命中 h 次：
+For one reusable prefix, let ordinary input cost be C, the write multiplier w, the read multiplier r, and the number of hits after one write h:
 
 $$
 C_{\mathrm{cache}}=C(w+hr),\qquad
 C_{\mathrm{plain}}=C(1+h)
 $$
 
-缓存划算的条件是 h(1−r) 大于 w−1。**不是固定要命中两次以上。** 例如 w=1.25、r=0.1 时，一次写入加一次读取为 1.35C，已低于两次普通输入的 2C。这是条件化算例，不是全行业报价。
+Caching saves money when h(1−r) exceeds w−1. **It does not always require more than two hits.** For example, with w=1.25 and r=0.1, one write plus one read costs 1.35C, already less than 2C for two ordinary inputs. This is a conditional calculation, not an industry-wide price quote.
 
-还要计算失效后的重写、未缓存后缀及输出费用。缓存主要减少重复 prefill；decode 仍需逐 token 运行，首 token 也仍可能受到排队与路由影响。
+Also include rewrites after invalidation, uncached suffixes, and output charges. Caching primarily reduces repeated prefill; decode still runs token by token, and queuing or routing may still delay the first token.
 
-## 14.7 组织 Prompt 时如何利用缓存
+## 14.7 Organizing prompts for cache reuse
 
-适合复用的内容包括稳定的工具定义、系统规则、同一长文档和固定示例。把可共用的稳定内容放在前面，动态用户问题放在后面：
+Reusable content includes stable tool definitions, system rules, a shared long document, and fixed examples. Put stable, shareable content first and dynamic user questions afterward:
 
 ```text
-[稳定且有权限共享的说明、文档、示例]
-← 合适的缓存边界
+[Stable instructions, documents, and examples authorized for sharing]
+← Appropriate cache boundary
 
-[本次时间、用户条件、问题]
+[Current time, user-specific conditions, question]
 ```
 
-这不是要求为了命中率把敏感用户资料塞进公共系统提示。权限隔离优先，缓存不能替代访问控制。
+This is not a reason to move sensitive user information into a public system prompt just to improve hit rate. Authorization boundaries come first; caching cannot replace access control.
 
-多轮对话可复用未改变的历史，但摘要压缩、消息重排、工具 schema 更新都会改变前缀。对滚动历史，先评估实际稳定长度，不要直接假设 Agent 的命中率必然高。
+Multi-turn conversations can reuse unchanged history, but summarization, message reordering, and tool schema updates change the prefix. For rolling histories, evaluate the actual stable prefix length instead of assuming agent workloads always have high hit rates.
 
-## 14.8 工程陷阱：缓存不是越多越好
+## 14.8 Engineering pitfalls: more caching is not always better
 
-| 情况 | 影响与处理 |
+| Situation | Effect and response |
 |---|---|
-| 冷缓存或请求分散在不同实例 | 命中率低；压测要同时覆盖冷启动、热缓存和多副本路由 |
-| 热点前缀过多 | 占用 KV 池，挤压活动请求；监控淘汰、重算与排队 |
-| 低频前缀反复过期 | 写入附加费可能超过读取节省；按到达间隔和 TTL 计算 |
-| 多租户共享缓存 | 需要隔离信任域，避免越权复用及命中时间侧信道 |
-| 只缓存 KV、不缓存最后位置 logits | 全前缀命中时仍可能重算最后少量 token，以产生首个输出分布 |
+| Cold cache or requests spread across instances | Low hit rate; test cold starts, warm caches, and multi-replica routing |
+| Too many popular prefixes | Occupy the KV pool and displace active requests; monitor eviction, recomputation, and queuing |
+| Infrequent prefixes repeatedly expire | Write premiums may exceed read savings; calculate using arrival intervals and TTL |
+| Multi-tenant cache sharing | Isolate trust domains to prevent unauthorized reuse and cache-hit timing side channels |
+| KV cached without final-position logits | Even a full-prefix hit may require recomputing a few final tokens to produce the first output distribution |
 
-vLLM 的前缀索引将前一块哈希、本块 token 和额外键结合；额外键可包含 LoRA ID、多模态输入哈希与缓存 salt。只对本块文字做哈希是不够的。
+vLLM's prefix index combines the previous block's hash, the current block's tokens, and extra keys. Extra keys can include LoRA IDs, multimodal input hashes, and cache salts. Hashing only the current block's text is insufficient.
 
-## 14.9 缓存优化的不同层次
+## 14.9 Different layers of cache optimization
 
-### 14.9.1 KV 量化：减少每个元素的位宽
+### 14.9.1 KV quantization: reducing bits per element
 
-FP16 到 8-bit 或 4-bit 时，理想数据载荷分别为原来的二分之一、四分之一；scale、零点、未量化残留和对齐会增加实际容量。还要验证 attention kernel 能否直接消费该格式，避免转换开销抵消收益。
+Moving from FP16 to 8-bit or 4-bit ideally reduces the data payload to one-half or one-quarter. Scales, zero points, unquantized residuals, and alignment increase actual storage. Check whether the attention kernel can directly consume the format; conversion overhead can erase the benefit.
 
-不能笼统说「KV 一定比权重更怕量化」。K 的误差会改变 attention 分数，V 的误差改变加权聚合，两者分布与误差传播不同。KIVI 的关键设计是 **K 按通道、V 按 token 的非对称分组量化**，并保留高精度残留窗口。其结果不能直接推成所有模型的低位宽质量保证。
+It is not generally true that KV state is always more sensitive to quantization than weights. K errors change attention scores; V errors change the weighted aggregation, and their distributions and error propagation differ. KIVI's key design is **asymmetric grouping: per-channel for K and per-token for V**, with a high-precision residual window. Its results do not guarantee low-bit quality for every model.
 
-### 14.9.2 PagedAttention：减少分配浪费
+### 14.9.2 PagedAttention: reducing allocation waste
 
-它把逻辑连续的 KV 序列映射到不必物理连续的固定大小块，通过 block table 访问。块大小是配置与后端约束，不是永远 16 token。
+PagedAttention maps logically contiguous KV sequences to fixed-size blocks that need not be physically contiguous, using a block table for access. Block size is a configuration and backend constraint, not always 16 tokens.
 
-分页减少外部碎片和过度预留；尾块仍有内部浪费。共享块通过引用计数管理，分支写入时可采用写时复制。**分页本身不压缩一个 token 的 KV 字节数**。
+Paging reduces external fragmentation and over-reservation; the final block can still waste space internally. Reference counts manage shared blocks, and branches can use copy-on-write. **Paging itself does not reduce the number of KV bytes per token**.
 
-### 14.9.3 APC 与 Offloading：复用和放置
+### 14.9.3 APC and offloading: reuse and placement
 
-APC 负责发现可复用的前缀；offloading 把状态放到 CPU 或其他存储层，减少 GPU 驻留量但增加传输。它们和分页、GQA、量化各解决不同问题，可以组合，也可能因后端支持或带宽形成限制。
+APC discovers reusable prefixes. Offloading places state in CPU memory or another storage tier, reducing GPU residency at the cost of transfers. They solve different problems from paging, GQA, and quantization. These techniques can be combined, but backend support and bandwidth can constrain the combination.
 
-## 14.10 推导与排查练习
+## 14.10 Derivation and troubleshooting exercises
 
-- 缓存长度翻倍、并发不变，标准全注意力 KV 容量怎样变化？线性翻倍，但 prefill attention 工作量不是线性。
-- 将 query 头保持 32、KV 头从 32 改为 8，理论缓存缩小多少？四倍；质量与结构改动不能只靠服务端开关实现。
-- 命中大量前缀，为什么总响应仍慢？检查输出长度、decode、排队、缓存读取和跨机传输。
-- 同一段文档为什么不命中？比较完整 token 前缀、模板、工具、多模态输入、适配器、实例路由和缓存存活状态。
+- If cached length doubles at fixed concurrency, how does conventional full-attention KV capacity change? It doubles linearly, but prefill attention work is not linear.
+- Keeping 32 query heads while reducing KV heads from 32 to 8 shrinks the theoretical cache by how much? Fourfold; the architecture and quality implications cannot be addressed by a serving-side switch alone.
+- Why can total response time remain high despite a large prefix hit? Check output length, decode, queuing, cache reads, and cross-machine transfers.
+- Why does the same document miss the cache? Compare full token prefixes, templates, tools, multimodal inputs, adapters, instance routing, and cache lifetime.
 
-## 14.11 本章总结
+## 14.11 Chapter summary
 
-KV Cache 的依据是因果前缀状态不变；收益是避免历史重算，代价是容量与带宽。Prompt Caching 把可复用状态延伸到请求之间，其收益受匹配粒度、缓存生命周期、流量与计费约束。容量估算必须数 KV 头，服务评估必须分开 prefill、decode 和排队。
+KV caching relies on unchanged causal-prefix state. It avoids historical recomputation but costs capacity and bandwidth. Prompt caching extends state reuse across requests, with benefits constrained by matching granularity, cache lifetime, traffic, and billing. Capacity estimates must count KV heads; serving evaluations must separate prefill, decode, and queuing.
 
-## 参考资料
+## References
 
-- [PagedAttention 原论文](https://arxiv.org/abs/2309.06180)
-- [MQA 原论文](https://arxiv.org/abs/1911.02150)
-- [GQA 原论文](https://arxiv.org/abs/2305.13245)
-- [Anthropic 官方 Prompt Caching cookbook](https://github.com/anthropics/anthropic-cookbook/blob/main/misc/prompt_caching.ipynb)
-- [Anthropic 官方 SDK：缓存 TTL 类型](https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/cache_control_ephemeral_param.py)
-- [OpenAI：Prompt Caching](https://developers.openai.com/api/docs/guides/prompt-caching)
-- [KIVI 原论文](https://arxiv.org/html/2402.02750v2)
-- [vLLM：Automatic Prefix Caching 设计](https://docs.vllm.ai/en/stable/design/prefix_caching/)
+- [PagedAttention paper](https://arxiv.org/abs/2309.06180)
+- [MQA paper](https://arxiv.org/abs/1911.02150)
+- [GQA paper](https://arxiv.org/abs/2305.13245)
+- [Anthropic official prompt caching cookbook](https://github.com/anthropics/anthropic-cookbook/blob/main/misc/prompt_caching.ipynb)
+- [Anthropic official SDK: cache TTL type](https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/cache_control_ephemeral_param.py)
+- [OpenAI: Prompt Caching](https://developers.openai.com/api/docs/guides/prompt-caching)
+- [KIVI paper](https://arxiv.org/html/2402.02750v2)
+- [vLLM: Automatic Prefix Caching design](https://docs.vllm.ai/en/stable/design/prefix_caching/)
 
-接口资料核对范围：2026-09-08 的官方文档与 SDK；OpenAI 缓存指南另于 2026-09-15 复核。示例没有发起计费请求，不代表一次真实缓存命中结果。
+Interface review scope in the source manuscript: official documentation and SDK as of 2026-09-08, with the OpenAI caching guide checked again on 2026-09-15. The example did not make a billable request and does not report a real cache hit.

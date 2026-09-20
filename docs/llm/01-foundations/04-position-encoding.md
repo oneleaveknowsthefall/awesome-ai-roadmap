@@ -1,41 +1,41 @@
 ---
-description: 推导 sin/cos、RoPE 和 ALiBi 的位置表达，解释插值与外推的差异，以及长上下文训练、缓存位置和有效能力的限制。
+description: Derive sinusoidal, RoPE, and ALiBi position representations, distinguish interpolation from extrapolation, and examine long-context training, cache positions, and effective capability.
 ---
 
-# 第四章：位置编码
+# Chapter 4: Positional Encoding
 
-## 4.1 为什么要给模型位置信息
+## 4.1 Why give the model positional information?
 
-没有位置特征、且所有位置都可见的 Self-Attention 具有**置换等变性**。若 `P` 表示重排输入位置：
+Self-attention without positional features, where every position can attend to every other position, is **permutation-equivariant**. If `P` permutes the input positions:
 
 $$
 \mathrm{Attention}(PX)=P\mathrm{Attention}(X)
 $$
 
-它不是「重排后输出完全一样」，而是输出随输入同样重排。对于相同 token，模型不能仅靠这种对称的交互，区分「我打你」与「你打我」的语序关系。
+This does not mean “the output stays exactly the same after reordering.” The output is reordered in the same way as the input. Given the same tokens, these symmetric interactions alone cannot distinguish word-order relationships such as “我打你” (“I hit you”) versus “你打我” (“you hit me”).
 
-这个结论有前提：因果掩码、局部窗口等已经打破完全对称性，可以引入顺序信息。因此「不加位置编码就绝不可能建模顺序」过强，但主流 decoder 通常仍显式编码位置或距离。
+This conclusion has prerequisites. Causal masks, local windows, and similar mechanisms already break full symmetry and can introduce ordering information. Thus, “a model can never represent order without positional encoding” is too strong. Mainstream decoders nevertheless usually encode positions or distances explicitly.
 
-直接把序号 `1, 2, 3, …` 加到每一维不是数学上不允许，而是尺度和表达方式不合适：它只沿一个方向改变输入，数值还随长度增大。位置编码的设计要考虑可区分性、尺度、相对关系和长度泛化，而不是假定 embedding 一定落在 `[-1,1]`。
+Adding the position index `1, 2, 3, …` directly to every dimension is not mathematically forbidden; it is an unsuitable choice of scale and representation. It changes the input along only one direction, and its magnitude grows with sequence length. Positional encoding should account for distinguishability, scale, relative relationships, and length generalization—not assume that embeddings must lie within `[-1,1]`.
 
-## 4.2 sin/cos 绝对位置编码
+## 4.2 Sinusoidal absolute positional encoding
 
-原始 Transformer 将位置向量加到 token embedding。令 `d` 为偶数维度，`i = 0, …, d/2−1`：
+The original Transformer adds a position vector to each token embedding. For an even dimension `d`, with `i = 0, …, d/2−1`:
 
 $$
 PE_{(pos,2i)}=\sin\left(\frac{pos}{10000^{2i/d}}\right),\qquad
 PE_{(pos,2i+1)}=\cos\left(\frac{pos}{10000^{2i/d}}\right)
 $$
 
-低下标维度变化较快，高下标维度变化较慢；多个频率联合描述位置，且每维数值有界。
+Lower-indexed dimensions vary faster and higher-indexed dimensions vary more slowly. Multiple frequencies jointly represent position, while each dimension remains bounded.
 
-### 4.2.1 为什么加法可行
+### 4.2.1 Why addition works
 
-加法保持隐藏维度不变，省去拼接后的额外投影。模型可以学习利用混合后的内容与位置，但不保证能无损分离两者。可学习的绝对位置 embedding 则是另一种方案，需要为位置表之外的输入规定扩展方式。
+Addition keeps the hidden dimension unchanged and avoids an extra projection after concatenation. The model can learn to use the combined content and position information, but there is no guarantee that it can separate them without loss. Learned absolute position embeddings are another option; they require an explicit extension strategy for inputs beyond the position table.
 
-### 4.2.2 sin/cos 也有相对位置结构
+### 4.2.2 Sinusoids also have relative-position structure
 
-不能说绝对编码「完全没有相对位置归纳偏置」。对任意固定偏移 `k`，由三角恒等式可知：
+It is incorrect to say that absolute encoding has “no relative-position inductive bias at all.” For any fixed offset `k`, trigonometric identities give:
 
 $$
 \begin{pmatrix}
@@ -52,15 +52,15 @@ $$
 \end{pmatrix}
 $$
 
-也就是说，固定偏移可以用与 `m` 无关的线性变换表达。这是原始论文选择该形式的动机之一。
+In other words, a fixed offset can be expressed as a linear transformation independent of `m`. This was one motivation for the original paper's choice.
 
-不过加到输入后，经过可学习投影得到的 attention 不自动只依赖相对距离。公式能算到任意位置，也不证明训练外长度的任务效果可靠；应把「可计算」与「泛化有效」分开。
+However, after the encoding is added to the input and passed through learned projections, attention does not automatically depend only on relative distance. Being able to evaluate the formula at any position also does not prove that task performance is reliable beyond the training length. Separate “computable” from “generalizes effectively.”
 
-## 4.3 RoPE：在 Q/K 的点积中编码相对位置
+## 4.3 RoPE: encoding relative position in Q/K dot products
 
-RoFormer（2021）提出 Rotary Position Embedding。常见做法是把 Q/K 的偶数维两两配对，分别旋转；不是把位置信息加到输入，也不是对所有维度使用同一个角度。
+RoFormer (2021) introduced Rotary Position Embedding. A common implementation divides the even-dimensional Q/K vectors into pairs and rotates each pair. It does not add positional information to the input, nor does it use the same angle for every dimension.
 
-对一个二维子空间：
+For a two-dimensional subspace:
 
 $$
 R(m\theta)=
@@ -70,11 +70,11 @@ R(m\theta)=
 \end{pmatrix}
 $$
 
-不同维度对使用不同频率，常见基础形式为 `θ_i = b^(−2i/d)`；`b` 是 RoPE base，实际模型可能改变 base、旋转维度或频率缩放。
+Different dimension pairs use different frequencies. A common base form is `θ_i = b^(−2i/d)`, where `b` is the RoPE base. Actual models may change the base, the number of rotated dimensions, or frequency scaling.
 
-### 4.3.1 相对位置性质怎样推出来
+### 4.3.1 Deriving the relative-position property
 
-利用旋转矩阵正交性及角度相加：
+Using the orthogonality of rotation matrices and angle addition:
 
 $$
 \langle R_mq,R_nk\rangle
@@ -82,88 +82,88 @@ $$
 =q^TR_{n-m}k
 $$
 
-在固定内容向量 `q,k` 时，**显式位置项**只通过 `n−m` 进入点积。分数仍依赖内容；深层 q/k 已经携带上下文，不能据此断言整个模型输出只由距离决定。
+For fixed content vectors `q,k`, the **explicit positional term** enters the dot product only through `n−m`. The score still depends on content. In deeper layers, q/k already contain contextual information, so this property does not imply that the entire model's output depends only on distance.
 
 ```mermaid
 flowchart LR
-    Q["内容 q"] --> RQ["按位置 m 旋转"]
-    K["内容 k"] --> RK["按位置 n 旋转"]
-    RQ --> DOT["点积"]
+    Q["Content q"] --> RQ["Rotate by position m"]
+    K["Content k"] --> RK["Rotate by position n"]
+    RQ --> DOT["Dot product"]
     RK --> DOT
-    DOT --> REL["内容匹配 + 相对位置 n-m"]
+    DOT --> REL["Content matching + relative position n-m"]
 ```
 
-### 4.3.2 为什么通常不旋转 V
+### 4.3.2 Why V is usually not rotated
 
-Q/K 决定「读取哪里」，V 提供「读取什么」。标准 RoPE 的核心是在匹配分数中注入位置，通常无需旋转 V。旋转保留 Q/K 模长，且能与 MHA、GQA 和支持该形式的融合 kernel 配合。
+Q/K determine “where to read,” while V supplies “what to read.” Standard RoPE injects position into matching scores, so rotating V is usually unnecessary. Rotation preserves Q/K vector norms and can work with MHA, GQA, and fused kernels that support this form.
 
-缓存时必须保持位置一致。若缓存的是已旋转 K，新 Q 要使用真实续接位置；若重置位置、改变 base 或缩放规则，旧缓存未必还能复用。MLA 的投影吸收还需要单独处理位置部分，不能一概称为「所有优化无缝兼容」。
+Positions must remain consistent when caching. If the cache stores already-rotated K, a new Q must use its actual continuation position. Resetting positions or changing the base or scaling rule may invalidate the old cache. MLA's projection absorption also requires separate treatment of the positional component. These optimizations are not all “seamlessly compatible” by default.
 
-## 4.4 RoPE 不自带可靠的长上下文外推
+## 4.4 RoPE does not inherently guarantee reliable long-context extrapolation
 
-RoPE 与 sin/cos 都能在训练长度之外计算角度，**连续旋转不是可靠外推的充分条件**。新相对距离、频率组合与注意力分布可能偏离训练范围。Position Interpolation 论文正是为直接扩展 RoPE 可能出现的注意力异常提出改进。
+Both RoPE and sinusoidal encoding can compute angles beyond the training length. **Continuous rotation is not sufficient for reliable extrapolation.** New relative distances, frequency combinations, and attention distributions may fall outside the training regime. The Position Interpolation paper specifically addresses attention abnormalities that can arise from directly extending RoPE.
 
-假设训练窗口为 `L`，目标窗口为 `L'`，线性位置插值使用：
+If the training window is `L` and the target window is `L'`, linear position interpolation uses:
 
 $$
 m'=m\frac{L}{L'}
 $$
 
-将目标范围压回原位置范围，代价是原本相邻 token 的角度差也缩小。若把窗口从 4096 扩至 16384，缩放因子为 `1/4`；模型需要适应新的局部距离分辨率，不能把它理解成免费增加记忆。
+This maps the target range back into the original positional range, but also reduces the angular difference between adjacent tokens. Extending a window from 4096 to 16384 gives a scale factor of `1/4`. The model must adapt to the new local-distance resolution; this is not free additional memory.
 
-| 方法 | 改什么 | 主要取舍 |
+| Method | What changes | Main tradeoff |
 |---|---|---|
-| Position Interpolation | 所有旋转频率等效按同一比例缩放位置 | 避免直接外推，但压缩局部距离；原论文结合继续训练 |
-| NTK-aware scaling | 调整 base，使不同频率的变化幅度不同 | 是一类缩放设计，不是完整 Transformer 保持 NTK 的保证 |
-| YaRN | 按频率分段混合插值/外推，并调整注意力尺度 | 需匹配具体模型配置与扩展训练方案 |
+| Position Interpolation | Equivalently scale positions by the same factor for every rotation frequency | Avoids direct extrapolation but compresses local distances; the original paper combines it with continued training |
+| NTK-aware scaling | Adjust the base so different frequencies change by different amounts | A family of scaling designs, not a guarantee that the complete Transformer preserves its NTK |
+| YaRN | Blend interpolation and extrapolation in frequency bands, and adjust the attention scale | Must match the specific model configuration and context-extension training scheme |
 
-还要区分静态与动态缩放：若请求增长时动态修改频率，已有缓存是否需重算或变换，取决于实现；不能只修改一个配置值而不检查缓存一致性。
+Static and dynamic scaling must also be distinguished. If frequencies change dynamically as a request grows, whether the existing cache needs recomputation or transformation depends on the implementation. Changing one configuration value is not enough without checking cache consistency.
 
-## 4.5 ALiBi：把距离偏置加到 logits
+## 4.5 ALiBi: adding a distance bias to logits
 
-ALiBi 的预印本发表于 2021 年，后发表于 ICLR 2022。它不改 Q/K/V，而是在每个头的注意力 logits 上加距离偏置。在因果可见位置 `j = 1, …, i` 上：
+The ALiBi preprint appeared in 2021 and was subsequently published at ICLR 2022. It leaves Q/K/V unchanged and adds a distance bias to each head's attention logits. For causally visible positions `j = 1, …, i`:
 
 $$
 s_{ij}^{(h)}=\frac{q_i\cdot k_j}{\sqrt{d_k}}-a_h(i-j)
 $$
 
-`a_h` 是每个头固定的正斜率；未来位置仍须使用因果掩码。公式中的距离惩罚与内容匹配相加，不是硬窗口，也不是远处 token 必然没有注意力。
+Here, `a_h` is a fixed positive slope for each head. Future positions still require a causal mask. The distance penalty is added to the content-matching score; it is not a hard window and does not force distant tokens to receive no attention.
 
-不同头的斜率引入不同程度的近邻偏好。其优点是无需位置 embedding 表，计算容易延伸到新长度；其局部偏置也可能不利于某些远距离任务。原论文在特定语言建模实验中报告了外推收益，**不能直接推出它在所有任务上表达力弱于 RoPE**。
+Different head slopes introduce different strengths of preference for nearby positions. ALiBi needs no position-embedding table, and its computation extends easily to new lengths. Its local bias may also hurt some long-range tasks. The original paper reports extrapolation benefits in specific language-modeling experiments. **That does not establish that ALiBi is less expressive than RoPE on every task.**
 
-BLOOM 与 MPT 是采用 ALiBi 的公开例子，不应说成「只有 BLOOM 某些不知名版本用过」。架构采用率也不是质量证明。
+BLOOM and MPT are public examples that use ALiBi. It should not be dismissed as something “used only in a few obscure BLOOM versions.” Adoption alone is not proof of quality either.
 
-## 4.6 比较方法时，先固定问题
+## 4.6 Define the problem before comparing methods
 
-| 方案 | 注入位置 | 相对关系如何进入 | 长度边界 |
+| Scheme | Where position enters | How relative relationships enter | Length limits |
 |---|---|---|---|
-| sin/cos | 输入 embedding | 固定偏移可线性表示，但混合后分数未必只依赖距离 | 公式可延伸，质量需验证 |
-| RoPE | Q/K 的二维旋转 | 固定 q/k 下点积的位置项依赖相对距离 | 原生窗口外可能退化，扩展需配置与评测 |
-| ALiBi | attention logits | 每头固定线性距离偏置 | 有外推实验支持，不保证任意长度与任务 |
+| Sinusoids | Input embeddings | Fixed offsets can be expressed linearly, but scores after mixing need not depend only on distance | The formula extends; quality requires validation |
+| RoPE | Two-dimensional rotations of Q/K | With fixed q/k, the positional term in the dot product depends on relative distance | Quality may degrade beyond the native window; extension requires configuration and evaluation |
+| ALiBi | Attention logits | A fixed linear distance bias per head | Supported by extrapolation experiments, not guaranteed at arbitrary lengths or on every task |
 
-没有脱离模型、训练预算和任务的「表达力最强」排行榜。修改已训练模型的位置方案还会改变它学过的分布，不能根据一张优缺点表就直接互换。
+There is no ranking of “most expressive” independent of the model, training budget, and task. Changing a trained model's positional scheme changes a distribution it has learned. A pros-and-cons table is not enough to justify swapping schemes directly.
 
-## 4.7 长窗口应该怎样验收
+## 4.7 How should a long context window be validated?
 
-声明支持 128K，至少要区分：接口接受 128K、显存能够容纳 128K，以及能否在这段范围里有效检索和推理。
+A claim of 128K support must distinguish at least three things: the interface accepts 128K, memory can hold 128K, and the model can effectively retrieve information and reason within that range.
 
-若被追问「针刺测试通过是否说明长文能力足够」，答案是否定的。单个显著字符串检索不覆盖多证据聚合、事件顺序、矛盾识别和引用定位。应同时检查：
+If asked whether passing a needle-in-a-haystack test establishes adequate long-document capability, the answer is no. Retrieving one conspicuous string does not cover combining multiple pieces of evidence, ordering events, detecting contradictions, or locating citations. Also check:
 
-- 相同证据位于开头、中间、结尾时，结论是否稳定；
-- 干扰文本增加后，多跳任务与跨段关联是否退化；
-- 扩窗后短上下文能力是否回归，以及 prefill 延迟和显存增长；
-- 截断、滑窗、前缀缓存和多轮续接是否使用一致的位置编号。
+- Whether conclusions remain stable when the same evidence appears at the beginning, middle, or end.
+- Whether multi-hop tasks and cross-passage relationships degrade as distracting text increases.
+- Whether short-context capabilities regress after extension, and how prefill latency and memory use grow.
+- Whether truncation, sliding windows, prefix caching, and multi-turn continuation use consistent position numbering.
 
-位置编码只是长上下文方案的一部分，训练数据、注意力模式、缓存预算与评测都需要配套。相关开销见[第三章](03-attention-variants.md)，缓存管理见[第十四章](../03-inference-serving/14-kv-cache.md)。
+Positional encoding is only one part of a long-context solution. Training data, attention patterns, cache budgets, and evaluation must also support it. For the costs, see [Chapter 3](03-attention-variants.md); for cache management, see [Chapter 14](../03-inference-serving/14-kv-cache.md).
 
-## 参考资料
+## References
 
 - [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
 - [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864)
 - [ALiBi: Train Short, Test Long](https://arxiv.org/abs/2108.12409)
 - [Position Interpolation](https://arxiv.org/abs/2306.15595)
 - [YaRN: Efficient Context Window Extension of Large Language Models](https://arxiv.org/abs/2309.00071)
-- [Hugging Face Transformers：RoPE 参数与变体](https://huggingface.co/docs/transformers/main/en/internal/rope_utils)
-- [BLOOM 模型卡](https://huggingface.co/bigscience/bloom)
-- [MosaicML：MPT-7B 发布说明与 ALiBi 配置](https://www.databricks.com/blog/mpt-7b)
+- [Hugging Face Transformers: RoPE parameters and variants](https://huggingface.co/docs/transformers/main/en/internal/rope_utils)
+- [BLOOM model card](https://huggingface.co/bigscience/bloom)
+- [MosaicML: MPT-7B release announcement and ALiBi configuration](https://www.databricks.com/blog/mpt-7b)
 - [Lost in the Middle: How Language Models Use Long Contexts](https://arxiv.org/abs/2307.03172)

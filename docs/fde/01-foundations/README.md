@@ -1,23 +1,23 @@
 ---
-description: "FDE 基础章阅读入口，涵盖产品协作、需求访谈、验收、系统集成和上线维护，并以订单异常助手串起项目的设计过程。"
+description: "A guide to FDE foundations: product collaboration, discovery interviews, acceptance, integration, and production maintenance, connected through the design of an order-exception assistant."
 ---
 
-# FDE · 基础与交付方法
+# FDE · Foundations and Delivery Methods
 
-本模块用一章讨论 Forward Deployed Engineering 的工作方式，从接到客户需求，一直讲到上线后谁来维护。
+This module uses one chapter to follow Forward Deployed Engineering from a customer's initial request through responsibility for maintenance after launch.
 
-## 章节目录
+## Chapters
 
-1. [第一章：Forward Deployed Engineering：从业务问题到可复用生产系统](01-forward-deployed-engineering.md)
+1. [Chapter 1: Forward Deployed Engineering: From Business Problems to Reusable Production Systems](01-forward-deployed-engineering.md)
 
-## 面试准备怎么读
+## Reading for Interview Preparation
 
-产品岗位的读者可以先看第一章 1.2.1 节“产品与设计协作”中的 AI 产品经理短文：怎样核实调研资料、做需求取舍，以及把 PRD 和项目变更交接清楚。
+Readers in product roles can start with the AI product manager discussion in Chapter 1, Section 1.2.1, "Working with Product and Design": how to verify research, choose requirements, and hand over PRDs and project changes clearly.
 
-先读 1.3—1.7 节，想一想接到客户的一句话后，还需要问清哪些事情。再看 1.10 节的公开实践，重点看工程师怎样发现问题、请业务专家参与，以及把交付经验带回产品。
+Read Sections 1.3–1.7 first and consider what still needs clarification after a customer's one-sentence request. Then examine the public practices in Section 1.10, focusing on how engineers discover problems, involve business experts, and bring delivery lessons back into the product.
 
-1.11 节把这些方法放进一个订单异常助手案例里，沿着访谈、第一版错误、验收、小范围上线和成本测算往下讲。最后用 1.12 节的问题，试着解释自己会怎样处理同样的情况。
+Section 1.11 puts these methods into an order-exception assistant, following the interview, first-version mistake, acceptance, limited rollout, and cost estimate. Finally, use the questions in Section 1.12 to explain how you would handle the same situations.
 
-继续看[第二章：FDE 项目踩坑与交付经验](../02-field-practice/02-delivery-lessons.md)，可以把需求变更、PoC 结论、项目记忆和交接几个问题再往下展开。
+Continue with [Chapter 2: FDE Delivery Pitfalls and Lessons](../02-field-practice/02-delivery-lessons.md) for a closer look at requirement changes, PoC findings, project memory, and handoff.
 
-返回 [FDE 主题](../README.md)。
+Back to the [FDE topic](../README.md).

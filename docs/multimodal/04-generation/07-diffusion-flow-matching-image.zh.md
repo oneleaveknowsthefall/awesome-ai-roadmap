@@ -1,0 +1,142 @@
+---
+description: 推导扩散噪声预测与条件 Flow Matching 的训练目标，说明 DDIM、CFG、隐空间压缩和图像生成评测的适用条件。
+---
+
+# 第七章：扩散模型、Flow Matching 与图像生成
+
+> 本章聚焦图像生成模型背后的**生成式建模范式**（Diffusion、Flow Matching）及其在文本到图像任务中的具体应用；视频生成在时序一致性上引入的额外问题见 [第八章](08-video-generation.zh.md)。这里讨论的是"如何从噪声生成数据"，与 [第一章](../01-foundations/01-multimodal-fusion-architecture.zh.md)讨论的"如何把多模态输入接入语言模型做理解"是不同方向的问题。
+
+## 7.1 生成式建模的核心问题
+
+图像生成学习可采样的数据分布；文本到图像还要学习给定条件 $c$ 的分布 $p(x\mid c)$。本章讨论扩散与 Flow Matching：前者可从离散加噪链出发，后者以连续速度场为基础，两者又能在特定连续时间参数化下联系起来。它们不是图像生成的全部方法，自回归、GAN 等路线也存在。
+
+## 7.2 扩散模型：加噪与去噪
+
+DDPM（Denoising Diffusion Probabilistic Models）定义了一个固定的**前向加噪过程**：从真实数据 $x_0$ 出发，经过 $T$ 步逐渐加入高斯噪声，最终得到近似纯噪声的 $x_T$：
+
+$$
+q(x_t\mid x_{t-1})=\mathcal{N}\left(x_t;\sqrt{1-\beta_t}x_{t-1},\ \beta_t I\right)
+$$
+
+其中 $\beta_t$ 是噪声调度系数。令 $\bar\alpha_t=\prod_{s=1}^{t}(1-\beta_s)$，可以直接采样任意时刻的带噪样本，无需训练时逐步跑完整条链：
+
+$$
+x_t=\sqrt{\bar\alpha_t}x_0+\sqrt{1-\bar\alpha_t}\epsilon,\qquad
+\epsilon\sim\mathcal{N}(0,I)
+$$
+
+简化噪声预测损失让网络预测这里的**累计噪声** $\epsilon$，不是某一步刚加入的独立噪声：
+
+$$
+\mathcal{L}=\mathbb{E}_{x_0,\epsilon,t}\left[\lVert \epsilon-\epsilon_\theta(x_t,t)\rVert^2\right]
+$$
+
+推理时结合网络预测与采样器更新状态，逐步从噪声产生样本。这里的 **score** 指对数概率密度对样本的梯度，不是评价图片质量的分数。在上述高斯加噪条件下，噪声预测与**带噪边缘分布**的 score 存在比例关系：
+
+$$
+s_\theta(x_t,t)=-\frac{\epsilon_\theta(x_t,t)}{\sqrt{1-\bar\alpha_t}}
+$$
+
+这不是直接估计干净数据分布在所有时刻的梯度。噪声预测、数据预测和速度参数化可以换算，但不同时间步权重和噪声日程会改变实际优化问题，不能概括为任意训练目标都完全等价。
+
+## 7.3 Latent Diffusion：把扩散过程搬到隐空间
+
+Latent Diffusion 先训练压缩自编码器，在较低空间分辨率的 latent 上学习去噪，再解码回图像。原论文讨论 KL 正则和向量量化等自编码器方案，Stable Diffusion 1/2 使用 KL 正则自编码器，不能把所有 LDM 都限定为同一种 VAE。文本条件通过去噪网络中选定的交叉注意力模块注入，不是字面上的每一层。压缩减少空间计算，但文字、小纹理和精确几何可能在自编码阶段就丢失；增加采样步数不能恢复 tokenizer 无法表示的细节。
+
+## 7.4 采样加速与可控性
+
+原始 DDPM 的采样沿多步反向链运行，成本主要取决于网络调用次数。采样加速和条件引导是两个不同问题：
+
+- **DDIM 采样**：构造与 DDPM 共享训练目标的非马尔可夫过程；随机性参数设为零时得到确定性采样，也可选非零随机性。它可使用更稀疏的时间网格，但减少步数是质量—成本取舍，不保证同等质量。其连续极限与 ODE 有联系，不能把有限步 DDIM 简化为精确求解 ODE；
+- **无分类器引导（Classifier-Free Guidance）**：训练时随机丢弃条件（文本）信息，让模型同时学会有条件和无条件生成，推理时按权重外推两者的预测差异，增强生成结果与文本条件的一致性，代价是引导强度过高会牺牲多样性和真实感，需要按任务调节引导系数。
+
+例如噪声预测形式的 CFG 可写为：
+
+$$
+\hat\epsilon=\epsilon_\theta(x_t,t,\varnothing)+
+w\left[\epsilon_\theta(x_t,t,c)-\epsilon_\theta(x_t,t,\varnothing)\right]
+$$
+
+这里 $w=1$ 是普通条件预测；其他资料可能采用相差 1 的系数定义，不能直接照搬数值。标准 CFG 每步需要条件、无条件两份预测，虽然可合并批处理，却不是免费的采样加速。负面提示替换无条件分支或模型做过引导蒸馏时，含义又不同。
+
+## 7.5 Flow Matching 学什么，为什么训练时不必求解整条轨迹？
+
+Flow Matching 通过采样路径上的位置与对应速度来训练速度场，不必在每次训练更新中模拟完整轨迹；推理时才沿学到的场积分。它可以选择扩散式概率路径，也可以选择其他路径，并不要求先定义离散的“加噪—去噪”马尔可夫链。连续常微分方程为：
+
+$$
+\frac{dx_t}{dt}=v_\theta(x_t,t)
+$$
+
+以噪声 $z$ 和数据 $x$ 的线性条件路径为例，这一节用 $t=0$ 表示噪声、 $t=1$ 表示数据，时间方向与前面的 DDPM 记号相反：
+
+$$
+x_t=(1-t)z+tx,\qquad
+\mathcal{L}_{\mathrm{CFM}}=
+\mathbb{E}_{z,x,t}\left[\lVert v_\theta(x_t,t)-(x-z)\rVert^2\right]
+$$
+
+最简单的设置是独立采样标准高斯噪声 `z` 与训练数据 `x`，并在 `[0,1]` 均匀采样 `t`；改变端点配对或时间采样会改变训练条件。训练时直接采样 $(z,x,t)$ 并回归条件速度，无需数值积分完整 ODE；推理时才用求解器积分。关键追问是：**条件样本对的路径是直线，学到的边缘速度场轨迹却不一定是直线**。模型在同一位置学习多个条件速度的平均，有限容量与数值离散化又会引入误差，所以线性插值并不保证一步或少步生成。Rectified Flow 的 reflow 与蒸馏正是进一步改善轨迹和采样效率的手段。
+
+Stable Diffusion 3 的公开论文结合 rectified flow、时间步采样重加权与 MMDiT：文本和图像有各自权重，通过联合注意力交换信息。Flow Matching 是训练目标，Transformer 是网络骨干，两者不是必须绑定。
+
+Diffusion 与 Flow Matching 并非互斥的两套体系——在特定路径假设下，两者的训练目标可以相互推导，实践中的差异更多体现在噪声调度、路径设计和工程实现的选择上，而非根本不同的生成原理。
+
+## 7.6 主流系统的架构定位
+
+| 系统 | 骨干架构 | 关键设计 |
+|---|---|---|
+| Stable Diffusion（1/2 版本） | U-Net + 隐空间扩散 | 已发布权重；使用需核对对应许可证 |
+| Stable Diffusion 3 | MMDiT + Rectified Flow | 图文双向交互及时间步采样设计 |
+| DALL·E 3（2023 技术报告） | 隐空间生成；附录另披露将 latent 还原为像素的扩散解码器 | 重点研究合成与原始描述混合；部分架构披露不等于完整训练实现公开 |
+| Imagen | 像素空间级联扩散（基础分辨率 + 超分辨率级联） | 依赖大规模纯文本预训练语言模型作为文本编码器 |
+
+表格用于定位已公开的设计，不是截至某日的产品排行榜。没有披露的内部结构应保留未知；也不应由几个代表模型推断所有图像生成方法都属于扩散或流匹配。
+
+## 7.7 评测：自动指标与人工评估缺一不可
+
+| 维度 | 指标 | 局限 |
+|---|---|---|
+| 图像质量/多样性 | FID（Fréchet Inception Distance） | 比较 Inception 特征均值与协方差的高斯近似距离，不直接测每张图的文本遵循 |
+| 文本-图像一致性 | CLIPScore | 依赖 CLIP 的图文对齐能力，可能与人类对"是否遵循提示词"的判断不完全一致 |
+| 整体偏好 | 人工两两比较（Human Preference） | 更贴近实际使用体验，但成本高、结果受评审人群影响 |
+
+FID 和 CLIPScore 分数改善不等于人类偏好改善，两者在评测中经常出现不一致的排名，生产系统的模型选型应结合人工评估，不能只依赖单一自动指标。
+
+对“两个蓝杯子在红盘子左侧”一类提示，应分别检查数量、属性绑定、相对位置与文字渲染；全局 CLIP 相似度可能掩盖局部条件错误。比较采样器时固定模型、提示集、随机种子策略、分辨率、引导定义和网络调用次数，同时报告时延与显存，避免把计算预算不同误当成方法优劣。
+
+## 7.8 常见错误
+
+### 7.8.1 把"步数越多越好"当成普适规则
+
+采样步数的收益取决于模型是否针对少步训练或蒸馏、求解器阶数、时间网格和引导强度。增加步数可能改善离散误差，但不能消除数据偏差或自编码器损失；应在目标模型上测质量—时延曲线，不能从 DDIM 或 Flow Matching 名称直接推断需要几步。
+
+### 7.8.2 无分类器引导系数"一律调高"
+
+提高引导系数在一定区间内可能改善文本遵循，但不是单调保证。过高可能导致饱和、失真和多样性下降，应按具体模型、参数化及提示类型调节。
+
+### 7.8.3 用 FID 分数直接排名不同分辨率或数据集下训练的模型
+
+FID 对图像分辨率、参考数据集选择和特征提取网络版本敏感，跨论文、跨设置直接比较分数具有误导性，必须在相同评测协议下复现比较。
+
+## 7.9 本章总结
+
+1. 扩散与 Flow Matching 都可实现从噪声采样数据，其联系需要明确路径、参数化和时间步权重；
+2. Latent Diffusion 把扩散搬到自编码器压缩后的隐空间，降低计算量的同时引入重建质量边界；
+3. DDIM 与无分类器引导分别解决采样步数和文本一致性问题，是提升生成效率与可控性的核心技术；
+4. Flow Matching 可无需模拟轨迹进行训练；条件路径笔直不保证生成轨迹笔直，少步质量仍需验证；
+5. FID、CLIPScore 等自动指标各有局限，生产系统的模型选型应结合人工偏好评估。
+
+## 参考资料
+
+- [Denoising Diffusion Probabilistic Models (DDPM)](https://arxiv.org/abs/2006.11239)
+- [Denoising Diffusion Implicit Models (DDIM)](https://arxiv.org/abs/2010.02502)
+- [Score-Based Generative Modeling through Stochastic Differential Equations](https://arxiv.org/abs/2011.13456)
+- [High-Resolution Image Synthesis with Latent Diffusion Models (Stable Diffusion)](https://arxiv.org/abs/2112.10752)
+- [Classifier-Free Diffusion Guidance](https://arxiv.org/abs/2207.12598)
+- [Flow Matching for Generative Modeling](https://arxiv.org/abs/2210.02747)
+- [Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified Flow](https://arxiv.org/abs/2209.03003)
+- [Scaling Rectified Flow Transformers for High-Resolution Image Synthesis (Stable Diffusion 3)](https://arxiv.org/abs/2403.03206)
+- [Photorealistic Text-to-Image Diffusion Models with Deep Language Understanding (Imagen)](https://arxiv.org/abs/2205.11487)
+- [OpenAI DALL·E 3: Improving Image Generation with Better Captions](https://cdn.openai.com/papers/dall-e-3.pdf)
+- [GANs Trained by a Two Time-Scale Update Rule Converge to a Local Nash Equilibrium (FID)](https://arxiv.org/abs/1706.08500)
+- [CLIPScore: A Reference-free Evaluation Metric for Image Captioning](https://arxiv.org/abs/2104.08718)

@@ -1,244 +1,244 @@
 ---
-description: 区分证据忠实度与事实正确性，说明 RAG 的拒答、主张与引用对齐、冲突处理以及生成后校验。
+description: Distinguish faithfulness to evidence from factuality, and examine abstention, claim–citation alignment, conflict handling, and post-generation validation in RAG.
 ---
 
-# 第十七章：生成、Grounding 与幻觉规避
+# Chapter 17: Generation, Grounding, and Hallucination Mitigation
 
-## 17.1 幻觉不是单一检索问题
+## 17.1 Hallucination Is Not Just a Retrieval Problem
 
-> **幻觉是多因素失效，不是单一检索问题。**
+> **Hallucination is a multifactor failure, not simply a retrieval problem.**
 
-检索缺失、过期或冲突证据、上下文截断与处理错误、模型超出证据生成，以及缓存或工具返回的错误复用，都可能造成不实输出。检索质量是重要且常见的上游因素：材料缺失或错误时，生成层技巧无法把答案变成事实；但**检索充分时模型仍可能误读、过度概括或错误引用。** 因此要把数据治理、检索、grounding、引用校验、拒答和事后评估联合起来。
+Missing retrieval results, outdated or conflicting evidence, context truncation and processing errors, generation beyond the evidence, and incorrect reuse of caches or tool results can all produce false output. Retrieval quality is an important and common upstream factor: when material is missing or wrong, generation-layer techniques cannot make the answer factual. But **even with sufficient retrieval, the model can still misread, overgeneralize, or cite incorrectly.** Data governance, retrieval, grounding, citation validation, abstention, and post-hoc evaluation must therefore work together.
 
-## 17.2 幻觉的主要来源
-
-```mermaid
-flowchart TB
-    H[RAG 中的不实输出] --> H1[证据不可用或不可靠]
-    H --> H2[证据到答案的推理失真]
-    H --> H3[系统处理与复用失效]
-
-    H1 --> C1[知识库缺失、过期或错误]
-    H1 --> C2[有但未召回]
-    H1 --> C3[召回后被截断或权限过滤]
-
-    H2 --> C4[脑补材料没有的细节]
-    H2 --> C5[误读、错误归因或过度概括]
-    H2 --> C6[参数化知识覆盖材料]
-    H2 --> C7[冲突材料被擅自消解]
-    H3 --> C8[缓存、版本或引用校验失效]
-```
-
-这些来源对应的治理手段不同，但可以组合使用；只优化单一环节，通常会遗漏其他失效模式。
-
-| 来源 | 主要治法 |
-|---|---|
-| 证据缺失、陈旧或未召回 | **数据治理 + 检索优化 + 拒答机制** |
-| 误读、超出证据或错误归因 | **Grounding 约束 + 引用校验 + 事后校验** |
-| 缓存、版本与上下文处理失效 | **版本绑定、失效策略与回归评测** |
-
-### 17.2.1 参数化知识覆盖
-
-模型自己的训练知识和检索到的材料**冲突**时，它可能会**相信自己而不是材料**。
-
-典型场景：企业内部规定与通用常识不同（比如公司规定的报销上限与行业惯例不同）。模型可能输出"常见的"数字而不是材料里的数字。
-
-**这类幻觉最危险**，因为答案看起来完全合理，且与材料的差异很隐蔽。
-
-可在 Prompt 中声明经授权、符合查询时刻的业务材料优先于参数常识，但这只是行为约束，不是可靠性保证。材料中的指令仍是不可信数据；来源或版本互相矛盾时，要显式报告冲突或按已定义规则裁决。
-
-## 17.3 第一道防线：拒答
-
-这是成本最低、也最常被漏掉的控制点之一。
+## 17.2 Main Sources of Hallucination
 
 ```mermaid
 flowchart TB
-    R[检索结果] --> C1{有结果吗?}
-    C1 -->|无| REJ[拒答]
-    C1 -->|有| C2{校准后置信度足够?}
-    C2 -->|否| REJ[拒答、澄清或降级]
-    C2 -->|是| GEN[进入生成]
-    GEN --> C3{模型说材料不足?}
-    C3 -->|是| REJ2[输出无法回答 + 建议]
-    C3 -->|否| C4{关键主张与引用<br/>通过发布校验?}
-    C4 -->|是| OUT[输出答案 + 引用]
-    C4 -->|否| REJ2
+    H[False output in RAG] --> H1[Unavailable or<br/>unreliable evidence]
+    H --> H2[Distorted reasoning<br/>from evidence to answer]
+    H --> H3[System processing<br/>and reuse failures]
+
+    H1 --> C1[Missing, outdated, or incorrect<br/>knowledge-base content]
+    H1 --> C2[Evidence exists<br/>but was not retrieved]
+    H1 --> C3[Retrieved evidence is truncated<br/>or filtered by permissions]
+
+    H2 --> C4[Inventing details<br/>absent from the material]
+    H2 --> C5[Misreading, misattribution,<br/>or overgeneralization]
+    H2 --> C6[Parametric knowledge<br/>overrides the material]
+    H2 --> C7[Conflicting material<br/>is resolved without justification]
+    H3 --> C8[Cache, version, or<br/>citation-validation failures]
 ```
 
-目标是在证据不足时不进入常规生成链路，并阻止未经校验的关键结论发布。无权材料不是可补给模型的“遗漏证据”；检索故障、无授权依据与正常无命中要在内部区分，外部响应还需避免泄漏受限材料是否存在。
+Different causes call for different controls, but those controls can be combined. Optimizing only one stage usually leaves other failure modes unaddressed.
 
-如果检索结果为空，或经业务评测集校准的置信度不足，就直接返回「未找到足够依据的信息」、请求澄清或走受控降级，**不进入常规生成环节**（[第十三章 13.4.3](../03-retrieval/13-hybrid-retrieval-rerank.md)）。
-
-这里需要按业务代价校准：拒答规则更保守时，错误接受可能下降，但拒答会增加；规则更宽松时，覆盖率提高，但无依据回答风险上升。
-
-不同业务对拒答代价的容忍度不同：
-
-| 场景 | 倾向 |
+| Source | Main controls |
 |---|---|
-| 医疗、法律、财务 | **宁可拒答**，错误代价极高 |
-| 内部知识助手 | 平衡 |
-| 创意辅助、头脑风暴 | 可以宽松 |
+| Missing, stale, or unretrieved evidence | **Data governance + retrieval optimization + abstention** |
+| Misreading, going beyond evidence, or misattribution | **Grounding constraints + citation validation + post-hoc checks** |
+| Cache, version, or context-processing failures | **Version binding, invalidation policies, and regression evaluation** |
 
-因此，拒答策略需要和业务风险一起设计。
+### 17.2.1 Parametric Knowledge Overriding Evidence
 
-## 17.4 第二道防线：Prompt 约束
+When knowledge learned during training **conflicts** with retrieved material, the model may **trust itself rather than the material**.
 
-常用的 Prompt 约束包括五条：
+A typical case is an internal company rule that differs from common practice—for example, a reimbursement limit that differs from the industry norm. The model may output the “usual” number rather than the number in the material.
 
-**（1）限定信息来源**
+**This is a particularly dangerous kind of hallucination** because the answer looks entirely plausible and the discrepancy is subtle.
 
-明确要求只依据给定材料回答，不使用材料之外的知识。
+The prompt can state that authorized business material valid at the time of the query takes precedence over general parametric knowledge. This is a behavioral constraint, not a reliability guarantee. Instructions inside the material remain untrusted data. Conflicts between sources or versions must be reported explicitly or resolved according to predefined rules.
 
-**（2）声明材料优先级**
+## 17.3 First Line of Defense: Abstention
 
-经授权、来源适当且在查询时有效的业务材料优先于参数常识；材料内嵌的操作指令不能提升为系统指令。
+This is one of the cheapest—and most frequently omitted—control points.
 
-**（3）提供不知道的出口**
+```mermaid
+flowchart TB
+    R[Retrieval results] --> C1{Any results?}
+    C1 -->|No| REJ[Abstain]
+    C1 -->|Yes| C2{Sufficient confidence<br/>after calibration?}
+    C2 -->|No| REJ[Abstain, clarify,<br/>or degrade gracefully]
+    C2 -->|Yes| GEN[Proceed to generation]
+    GEN --> C3{Does the model report<br/>insufficient evidence?}
+    C3 -->|Yes| REJ2[Explain inability to answer<br/>and suggest next steps]
+    C3 -->|No| C4{Do key claims and citations<br/>pass release checks?}
+    C4 -->|Yes| OUT[Return answer and citations]
+    C4 -->|No| REJ2
+```
 
-需要明确告诉模型：材料不足时可以直接回答不知道，并把这种行为定义为预期输出。
+The goal is to keep insufficient evidence out of the normal generation path and prevent unvalidated key claims from being released. Unauthorized material is not “missing evidence” that may be supplied to the model. Internally, distinguish retrieval failures, the absence of authorized evidence, and ordinary no-match results. Externally, responses must also avoid disclosing whether restricted material exists.
 
-> **如果没有这条出口，模型更容易继续补全答案，而不是停在证据边界。**
+When retrieval returns nothing, or confidence is insufficient after calibration on a business evaluation set, directly return “No sufficiently supported information was found,” ask for clarification, or use controlled graceful degradation. **Do not enter the normal generation stage**; see [Chapter 13, Section 13.4.3](../03-retrieval/13-hybrid-retrieval-rerank.md).
 
-**（4）要求标注来源**
+Calibrate this decision against business costs. A more conservative abstention policy may reduce false acceptance but increase abstention. A more permissive policy increases coverage but also the risk of unsupported answers.
 
-每个结论后标注依据的材料编号。
+Different applications tolerate the cost of abstention differently:
 
-**（5）处理材料冲突**
+| Scenario | Preference |
+|---|---|
+| Medical, legal, and financial applications | **Prefer abstention** because mistakes are extremely costly |
+| Internal knowledge assistants | Balance the two |
+| Creative assistance and brainstorming | A more permissive policy may be appropriate |
 
-材料之间矛盾时，**说明存在冲突并列出各方说法**，而不是擅自选一个。
+Abstention policies therefore need to be designed around business risk.
 
-知识库里经常同时存在新旧版本或不同部门口径，这条约束会直接影响输出是否可审计。
+## 17.4 Second Line of Defense: Prompt Constraints
 
-### 17.4.1 上下文的组织方式也影响幻觉
+Five prompt constraints are commonly useful:
 
-- **给每个片段编号**，才能做引用；
-- **标注来源、章节、日期**，让模型知道时效和权威性；
-- **比较上下文顺序**，首尾放置、相关性排序或按原文顺序都应在当前模型上验证（第二章 2.4.2）；
-- **控制总量**，无关材料会主动损害质量（第二章 2.6）；
-- **按查询时刻和适用范围选择版本**，对比题保留并标清新旧版本；未能裁决的冲突不应静默删除（第十三章 13.6）。
+**(1) Limit the information sources**
 
-## 17.5 第三道防线：引用与可验证性
+Explicitly require answers to use only the supplied material, not outside knowledge.
 
-引用的作用是把答案变成可核查对象，而不是增加表面可信感。
+**(2) Define the priority of the material**
 
-这里有个常见问题：
+Authorized business material from appropriate sources, valid at the time of the query, takes precedence over general parametric knowledge. Operational instructions embedded in that material must not be promoted to system instructions.
 
-> **模型会编造引用编号。** 它可能标注 `[3]`，而实际内容来自 `[1]`，甚至压根不在任何材料里。
+**(3) Allow “I don't know”**
 
-因此引用至少要做两级校验：
+Tell the model explicitly that it may say it does not know when the material is insufficient, and define this as an expected output.
 
-| 级别 | 做法 | 成本 |
+> **Without this option, the model is more likely to continue completing an answer rather than stop at the evidence boundary.**
+
+**(4) Require source citations**
+
+Attach the supporting material's identifier to each conclusion.
+
+**(5) Handle conflicting material**
+
+When sources contradict one another, **state the conflict and present each account** rather than arbitrarily choosing one.
+
+Knowledge bases often contain both old and new versions or differing departmental definitions. This constraint directly affects whether the output can be audited.
+
+### 17.4.1 Context Organization Also Affects Hallucination
+
+- **Assign each passage an identifier** so it can be cited.
+- **Label its source, section, and date** so the model has information about freshness and authority.
+- **Compare context orderings.** Placing evidence at the beginning or end, sorting by relevance, and preserving source order should all be tested on the current model; see Chapter 2, Section 2.4.2.
+- **Control the total volume.** Irrelevant material can actively harm quality; see Chapter 2, Section 2.6.
+- **Select versions by query time and scope of applicability.** For comparison questions, retain and clearly label old and new versions. Unresolved conflicts must not be silently removed; see Chapter 13, Section 13.6.
+
+## 17.5 Third Line of Defense: Citations and Verifiability
+
+Citations should make an answer verifiable, not merely make it look trustworthy.
+
+A common problem is that:
+
+> **Models invent citation identifiers.** A model may cite `[3]` when the content actually comes from `[1]`, or when no supplied material contains it at all.
+
+At least two levels of citation validation are therefore needed:
+
+| Level | Method | Cost |
 |---|---|---|
-| 基础 | 检查引用编号是否真实存在于材料列表中 | 几乎为零 |
-| 进阶 | 检查实际被引片段是否支持相邻主张，包括实体、数值、否定、时间和适用条件 | 按主张与引用数量增长，可批量模型校验并抽样人工复核 |
+| Basic | Check that the citation identifier actually exists in the supplied material list | Almost zero |
+| Advanced | Check whether the passage actually cited supports the adjacent claim, including entities, values, negation, time, and applicability conditions | Grows with the number of claims and citations; model checks can be batched and supplemented with sampled human review |
 
-未校验的引用会放大误判风险，因为用户可能据此相信一条并不存在的依据。
+Unchecked citations amplify the risk of mistaken trust: users may believe an answer has support that does not exist.
 
-### 17.5.1 有编号、有支持、支持完整，是三回事
+### 17.5.1 An Identifier, Some Support, and Complete Support Are Different Things
 
-假设答案说“上海员工每晚报销上限为 800 元，自 7 月起生效”，引用却只写“北京员工每晚 800 元”。编号存在、金额相同都不能判定引用正确：地点和生效时间并未得到支持。应拆开可核查主张，绑定 `doc_id/version_id`、页或段落 span，按引用范围验证，而不是拿整个知识库替一个错引找补。
+Suppose the answer says “上海员工每晚报销上限为 800 元，自 7 月起生效” (“Shanghai employees have a nightly reimbursement limit of 800 yuan, effective from July”), but the citation says only “北京员工每晚 800 元” (“Beijing employees: 800 yuan per night”). Neither the existence of the identifier nor the matching amount makes the citation correct: the location and effective date are unsupported. Split the answer into verifiable claims, bind each to a `doc_id/version_id` and a page or paragraph span, and validate against the cited scope. Do not search the entire knowledge base to rescue an incorrect citation.
 
-- **引用正确性**：所引证据是否支持对应主张；多引用时检查联合支持，也识别不必要或无关的附带引用。
-- **引用完整性**：应有依据的关键主张是否都获得充分支持；不能靠只回答一句容易引用的话拿高分，还要看任务覆盖。
-- **引用来源质量**：原文是否权威、当时有效、对当前用户可访问。可打开的网页也可能错误，生成摘要不是原始事实。
+- **Citation correctness:** Does the cited evidence support the corresponding claim? With multiple citations, check joint support and identify unnecessary or irrelevant additional citations.
+- **Citation completeness:** Are all key claims that require evidence adequately supported? A system must not earn a high score merely by answering with one easily cited sentence; task coverage matters too.
+- **Citation source quality:** Is the original source authoritative, valid at the relevant time, and accessible to the current user? A reachable web page can still be wrong, and a generated summary is not an original fact.
 
-对“资料中没有规定”这类否定主张尤其谨慎：Top-K 未命中只支持“本次未找到”，通常不足以证明整个知识库不存在该规定。
+Be especially careful with negative claims such as “The documents contain no such rule.” A Top-K miss supports “We did not find it in this search,” but usually does not establish that the rule is absent from the entire knowledge base.
 
-## 17.6 第四道防线：事后校验
+## 17.6 Fourth Line of Defense: Post-Generation Validation
 
-生成完之后，用一次额外的调用检查答案的每个陈述是否被材料支撑。
+After generation, make an additional call to check whether each statement in the answer is supported by the material.
 
-**成本**：一次额外的 LLM 调用，延迟增加。
+**Cost:** An additional LLM call and increased latency.
 
-**适合**：高风险场景，或者作为**离线的质量抽查**而非在线的每次校验。
+**Suitable for:** High-risk scenarios, or **offline quality sampling** rather than validation of every production response.
 
-低风险场景可以在线检查定位与授权、离线抽样核验蕴含。高风险场景则可先核验再发布或交人工复核。LLM 校验器也会漏报和误报，应保留无法判定状态，不把第二次模型调用当作事实认证。
+Low-risk applications can check source locations and authorization online, then sample for entailment offline. High-risk applications can validate before release or route answers to human review. LLM validators also produce false negatives and false positives. Keep an “undetermined” state rather than treating a second model call as certification of truth.
 
-## 17.7 四种防线怎样配合
+## 17.7 How the Four Defenses Work Together
 
-| 防线 | 控制点与代价 |
+| Defense | Control point and cost |
 |---|---|
-| 拒答 | 生成前判断证据是否充分，生成后允许说明无法确认；规则校准和误拒代价不能忽略 |
-| Prompt 约束 | 说明来源、适用版本、引用与冲突规则；实现较轻，但不是确定性保证 |
-| 引用校验 | 编号和版本可程序核验，主张支持关系需要更细判断；编号有效不代表事实有效 |
-| 生成后忠实度校验 | 检查主张能否由实际证据推出；模型调用、人工复核和发布等待随风险增加 |
+| Abstention | Assess evidence sufficiency before generation and allow uncertainty to be stated afterward; account for policy calibration and false-abstention costs |
+| Prompt constraints | Specify sources, applicable versions, citations, and conflict-handling rules; lightweight to implement, but not a deterministic guarantee |
+| Citation validation | Identifiers and versions can be checked programmatically; claim support requires finer judgment. A valid identifier does not make a fact valid |
+| Post-generation faithfulness checks | Check whether claims follow from the actual evidence; model calls, human review, and release delays increase with risk |
 
-这四道防线建立在可靠数据和检索之上，不是“先优化检索，最后才考虑拒答”的上线顺序。基础授权、拒答和引用约束从第一版就应存在；深度校验覆盖哪些主张、能否离线抽查，由业务风险决定。
+These four defenses build on reliable data and retrieval. They are not a launch sequence of “optimize retrieval first, consider abstention last.” Basic authorization, abstention, and citation constraints should exist from the first version. Business risk determines which claims need deeper validation and whether offline sampling is sufficient.
 
-## 17.8 Grounding 与事实正确性的边界
+## 17.8 The Boundary Between Grounding and Factuality
 
-**「有依据」不等于「正确」。**
+**“Supported by evidence” does not mean “correct.”**
 
-- 材料本身就是错的（知识库里存了过期或错误的文档）→ **答案忠实于材料，但事实上是错的**；
-- 材料本身可靠、版本适用且支持主张 → 才有条件支持答案正确；还需检查推理、计算和问题覆盖。
+- If the material itself is wrong—for example, the knowledge base contains an outdated or erroneous document—**the answer may be faithful to the material but factually wrong**.
+- Only when the material is reliable, the version applies, and the evidence supports the claim is there a basis for a correct answer. Reasoning, calculations, and coverage of the question still need checking.
 
-生成层手段旨在提高忠实度，**并不保证忠实度，更不保证事实正确**。事实正确性还依赖来源质量、适用范围、推理和计算校验。
+Generation-layer measures aim to improve faithfulness. **They guarantee neither faithfulness nor, still less, factuality.** Factuality also depends on source quality, applicability, and checks on reasoning and computation.
 
-第十八章里的 Faithfulness 指标衡量的是前者，而不是后者；评估时需要单独区分这两个目标。
+The Faithfulness metric in Chapter 18 measures the former, not the latter. Evaluation must distinguish these two goals.
 
-**推论**：知识库的内容治理（按查询时刻选择有效版本、隔离错误资料、定期审核）**是幻觉治理的一部分**。历史文档可能仍是历史问题的正确依据，不能把“过期”直接等同于应该删除。
+**The implication:** Knowledge-base governance—selecting versions valid at the query time, isolating erroneous material, and reviewing content regularly—**is part of hallucination mitigation**. A historical document may still be the right evidence for a historical question. “Outdated” does not automatically mean “should be deleted.”
 
-## 17.9 常见错误
+## 17.9 Common Mistakes
 
-### 17.9.1 只讲 Prompt 技巧不讲检索
+### 17.9.1 Discussing Prompt Tricks but Not Retrieval
 
-只改提示词不能补回原件缺失或检索遗漏的证据；也不能反过来把所有幻觉都归因于检索，应检查实际失效位置。
+Changing prompts cannot restore evidence missing from the original material or overlooked by retrieval. Conversely, not all hallucinations should be attributed to retrieval; inspect where the actual failure occurred.
 
-### 17.9.2 不区分证据、生成与系统处理失效
+### 17.9.2 Conflating Evidence, Generation, and System-Processing Failures
 
-应按实际失效位置选择治理手段；误读、错引和缓存错用不能都归咎于漏召回。
+Choose controls according to the actual failure point. Misreading, misattribution, and incorrect cache reuse cannot all be blamed on missed retrieval.
 
-### 17.9.3 忽略拒答机制
+### 17.9.3 Omitting Abstention
 
-拒答能降低无证据硬答风险，但还需要澄清、补充检索与校准；它不是消除所有幻觉的根治办法。
+Abstention reduces the risk of answering without evidence, but clarification, additional retrieval, and calibration are still needed. It is not a cure for every hallucination.
 
-### 17.9.4 不提拒答率与幻觉率的权衡
+### 17.9.4 Ignoring the Tradeoff Between Abstention and Hallucination Rates
 
-说明没有在真实场景校准拒答策略。
+This suggests the abstention policy has not been calibrated against real scenarios.
 
-### 17.9.5 Prompt 里不给"不知道"的出口
+### 17.9.5 Leaving “I Don't Know” Out of the Prompt
 
-模型会倾向于硬答。给它合法退路是关键设计。
+The model will tend to answer anyway. Giving it a legitimate way to stop is an important design choice.
 
-### 17.9.6 相信模型标注的引用
+### 17.9.6 Trusting Model-Generated Citations
 
-模型会编引用编号，必须校验。
+Models invent citation identifiers. Validation is mandatory.
 
-### 17.9.7 不处理材料冲突
+### 17.9.7 Failing to Handle Conflicting Material
 
-新旧版本共存很常见，不约束会导致模型擅自选一个。
+Old and new versions commonly coexist. Without constraints, the model may arbitrarily select one.
 
-### 17.9.8 混淆"忠实于材料"和"事实正确"
+### 17.9.8 Confusing Faithfulness to Material with Factual Correctness
 
-生成层不能保证前者；后者还需独立核实来源、适用条件和推理。
+The generation layer cannot guarantee the former. The latter additionally requires independent checks of sources, applicability conditions, and reasoning.
 
-### 17.9.9 承诺 RAG 能消除幻觉
+### 17.9.9 Promising That RAG Eliminates Hallucinations
 
-只能降低。检索失败、材料错误、模型超发挥三条路径都还在。
+It can only reduce them. Retrieval failure, incorrect material, and generation beyond the evidence all remain possible.
 
-## 17.10 本章总结
+## 17.10 Chapter Summary
 
-1. **幻觉是多因素失效**：知识库质量、检索、上下文处理、生成与缓存/版本复用都要治理；
-2. **证据缺失与证据到答案失真**需要不同但可组合的防线；检索重要，却不能独自解决幻觉；
-3. **参数化知识覆盖材料**是最隐蔽的一类，需在 Prompt 中显式声明材料优先；
-4. **第一道防线是拒答**：检索为空或校准后的置信度不足就不进入常规生成，可请求澄清或走受控降级；
-5. **拒答率与错误接受率存在权衡**，应按业务风险在评测集上校准规则，而非固定裸分；
-6. **Prompt 约束五要素**：限定来源、材料优先、**给"不知道"的出口**、要求标注来源、处理冲突；
-7. **引用必须校验**——模型会编引用编号，未校验的引用比没有引用更危险；
-8. **校验深度与发布时间按风险确定**：高风险主张需先校验再发布，离线抽样不能收回已展示的错误；
-9. **「有依据」不等于「正确」**：忠实度与事实正确性都需验证，不能由 Prompt 或校验器直接保证。
+1. **Hallucination is a multifactor failure.** Knowledge-base quality, retrieval, context processing, generation, and cache/version reuse all need controls.
+2. **Missing evidence and distortion between evidence and answer** call for different, complementary defenses. Retrieval matters, but cannot solve hallucination alone.
+3. **Parametric knowledge overriding supplied material** is one of the most subtle failures. Explicitly state the material's priority in the prompt.
+4. **The first line of defense is abstention.** Empty retrieval or insufficient calibrated confidence should bypass normal generation; ask for clarification or degrade gracefully instead.
+5. **Abstention and false acceptance involve a tradeoff.** Calibrate rules on an evaluation set according to business risk rather than fixing an uncalibrated raw-score threshold.
+6. **Five prompt constraints:** limit sources, prioritize the supplied material, **allow “I don't know,”** require citations, and handle conflicts.
+7. **Citations must be validated.** Models invent citation identifiers; unchecked citations can be more dangerous than no citations.
+8. **Validation depth and release timing depend on risk.** High-risk claims need validation before release; offline sampling cannot retract an error already shown.
+9. **“Supported” does not mean “correct.”** Both faithfulness and factuality require validation; neither follows directly from a prompt or validator.
 
 
-## 跨主题详解
+## Related Topics
 
-- Agent 读取不可信检索内容并调用工具时的风险与隔离方式，见[Agent 安全](../../agent/05-production/15-agent-security.md)。
-- 引用完整性、时效性和鲁棒性如何评测，见[RAG 评估](18-rag-evaluation.md)。
+- For risks and isolation measures when agents read untrusted retrieved content and call tools, see [Agent Security](../../agent/05-production/15-agent-security.md).
+- For evaluating citation completeness, freshness, and robustness, see [RAG Evaluation](18-rag-evaluation.md).
 
-## 参考资料
+## References
 
 - [Astute RAG: Overcoming Imperfect Retrieval Augmentation and Knowledge Conflicts for Large Language Models](https://arxiv.org/abs/2410.07176)
 - [Making Retrieval-Augmented Language Models Robust to Irrelevant Context](https://arxiv.org/abs/2310.01558)
 - [RAGAS: Automated Evaluation of Retrieval Augmented Generation](https://arxiv.org/abs/2309.15217)
-- [ALCE：Enabling Large Language Models to Generate Text with Citations](https://arxiv.org/abs/2305.14627)
+- [ALCE: Enabling Large Language Models to Generate Text with Citations](https://arxiv.org/abs/2305.14627)
 - [Corrective Retrieval Augmented Generation](https://arxiv.org/abs/2401.15884)
 - [Searching for Best Practices in Retrieval-Augmented Generation](https://arxiv.org/abs/2407.01219)

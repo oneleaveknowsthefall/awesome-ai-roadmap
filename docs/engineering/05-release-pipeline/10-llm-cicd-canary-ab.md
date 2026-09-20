@@ -1,25 +1,25 @@
 ---
-description: 将离线评测加入现有 CI，隔离影子流量的副作用，设计有统计口径和完整回滚边界的灰度与 A/B 实验。
+description: Add offline evaluation to existing CI, isolate shadow-traffic side effects, and design staged rollouts and A/B tests with explicit measurement definitions and rollback scope.
 ---
 
-# 第十章：LLM CI/CD 与灰度、Canary、A/B 发布
+# Chapter 10: LLM CI/CD, Staged Rollouts, Canary Releases, and A/B Tests
 
-## 10.1 LLM CI/CD 流水线长什么样
+## 10.1 What does an LLM CI/CD pipeline look like?
 
-LLM CI/CD 在单元测试、集成测试、授权和契约测试之外，**新增**[离线评测门禁](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)，不是替换这些测试。质量退化可能不触发异常，因此发布还需观察业务质量信号，不能只看进程存活。
+LLM CI/CD **adds** an [offline evaluation gate](../04-evaluation-observability/07-offline-eval-eval-driven-development.md) to unit, integration, authorization, and contract tests; it does not replace them. A quality regression may not raise an exception, so a release must also be assessed through business-quality signals, not merely whether the process is alive.
 
 ```mermaid
 flowchart LR
-    A["提交 Prompt/模型/路由变更"] --> B["自动化离线评测<br/>(黄金测试集 + 切片门禁)"]
-    B -->|不通过| A
-    B -->|通过| C["按风险选择<br/>隔离的影子测试或受控试点"]
-    C --> D["小流量灰度 5%-10%"]
-    D --> E{"线上指标是否达标?"}
-    E -->|是| F{"已完成全量阶段观察?"}
-    E -->|否| G["自动回滚"]
-    F -->|否| NEXT["进入下一档<br/>25% → 50% → 100%"]
+    A["Submit a prompt / model / routing change"] --> B["Automated offline evaluation<br/>(golden dataset + slice gates)"]
+    B -->|Fail| A
+    B -->|Pass| C["Choose according to risk:<br/>isolated shadow test or controlled pilot"]
+    C --> D["Small-traffic rollout: 5%-10%"]
+    D --> E{"Do production metrics meet requirements?"}
+    E -->|Yes| F{"Observation at full traffic complete?"}
+    E -->|No| G["Automatic rollback"]
+    F -->|No| NEXT["Advance to the next stage<br/>25% → 50% → 100%"]
     NEXT --> E
-    F -->|是| H["全量发布"]
+    F -->|Yes| H["Complete the full rollout"]
     G --> A
 
     style B fill:#fff3cd
@@ -27,21 +27,21 @@ flowchart LR
     style G fill:#fce8e6
 ```
 
-## 10.2 Shadow 测试:让新版本"看见"流量但不影响用户
+## 10.2 Shadow testing: expose the new version to traffic without serving its answers
 
-在真正切流量之前,可以让新版本(新 Prompt/新模型)接收生产流量的复制,**产出结果但不返回给用户**,只用于离线对比:
+Before switching live traffic, a new version—a new prompt or model—can receive a copy of production traffic and **produce results without returning them to users**, solely for offline comparison:
 
 ```python
 def handle_request(request):
-    response = production_pipeline(request)   # 真实返回给用户
+    response = production_pipeline(request)   # Actually returned to the user.
     if shadow_enabled():
-        async_run(shadow_pipeline, request)    # 异步执行,结果只记录不返回
+        async_run(shadow_pipeline, request)    # Run asynchronously; log, but do not serve, results.
     return response
 ```
 
-Shadow 不把候选回答发给用户，但并非零风险：重复调用会增加费用、争用配额，也可能把数据送往新的处理方。上例的 `shadow_pipeline` 必须使用只读副本、录制回放或模拟工具，**禁止真实写操作与重复通知**，并隔离队列、限流和日志。它能比较相同输入下的结果，却不能直接测量候选回答引发的后续用户行为。
+Shadow testing does not send candidate answers to users, but it is not risk-free. Duplicate calls increase costs, compete for quota, and may send data to a new processor. The `shadow_pipeline` above must use read-only replicas, record-and-replay, or simulated tools, **with no real writes or duplicate notifications**, and must isolate its queues, rate limiting, and logs. It can compare outputs for the same input, but cannot directly measure the subsequent user behavior that a candidate answer would produce.
 
-## 10.3 灰度发布:按比例放量,而不是一步切换
+## 10.3 Staged rollouts: increase traffic gradually rather than switching all at once
 
 ```yaml
 rollout_plan:
@@ -61,37 +61,37 @@ rollout_plan:
     guard_metrics: *guards
 ```
 
-数值和时长仅为示例，不是推荐阈值。每一阶段都设置**护栏指标(guard metrics)**,这些指标来自[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md)的可观测性聚合数据。任意护栏指标越界,自动暂停放量或回滚到上一阶段,而不是等人工发现问题。
+These values and durations are examples, not recommended thresholds. Each stage has **guard metrics** derived from the aggregated observability data in [Chapter 8](../04-evaluation-observability/08-online-observability-tracing.md). If any guard metric breaches its threshold, automatically pause the rollout or revert to the previous stage rather than waiting for someone to notice.
 
-## 10.4 A/B 测试:回答"哪个版本更好",而不只是"新版本有没有崩"
+## 10.4 A/B tests: which version is better, not just whether the new one crashes
 
-灰度发布关注的是"新版本是否安全",A/B 测试关注的是"两个版本哪个业务效果更好",两者可以结合但目的不同:
+A staged rollout asks whether the new version is safe to release. An A/B test asks which of two versions delivers better business outcomes. They can be combined, but their objectives differ:
 
-| | 灰度发布 | A/B 测试 |
+| | Staged rollout | A/B test |
 |---|---|---|
-| 核心问题 | 新版本会不会引发事故 | 新旧版本哪个业务指标更好 |
-| 流量分配 | 按门禁逐档增加，异常时暂停或回退 | 通常在预定窗口内保持稳定随机分组，不要求必须 50/50 |
-| 判断依据 | 错误率、延迟、契约违反率等护栏指标 | 用户满意度、任务完成率等业务指标 |
-| 观察周期 | 由风险、样本量和业务周期决定 | 由检测效应、功效和业务周期决定，不以“首次显著”为结束条件 |
+| Core question | Will the new version cause an incident? | Which version improves business metrics? |
+| Traffic allocation | Increase in gated stages, pausing or reverting on problems | Usually stable randomized groups over a predefined window; a 50/50 split is not required |
+| Decision criteria | Guard metrics such as error rate, latency, and contract violation rate | Business metrics such as user satisfaction and task completion rate |
+| Observation period | Determined by risk, sample size, and business cycles | Determined by the effect to detect, statistical power, and business cycles; does not end at the first significant result |
 
-### 10.4.1 A/B 测试对样本量和统计显著性有明确要求
+### 10.4.1 A/B tests require an explicit sample-size and significance plan
 
-样本量取决于基线、方差、最小可检测效应和统计功效，不能因「用了 LLM」就断言方差更大。先明确主指标和随机化单位；多轮场景按用户或租户稳定分组，避免同一用户来回切版本。检查分流比例异常（SRM）、曝光丢失和跨组污染，并覆盖业务周期与反馈延迟。
+Sample size depends on the baseline, variance, minimum detectable effect, and statistical power. Using an LLM does not by itself establish that variance is higher. Define the primary metric and unit of randomization first. In multi-turn settings, assign users or tenants to stable groups so that the same user does not switch back and forth between versions. Check for sample ratio mismatch (SRM), missing exposure records, and cross-group contamination, and allow for business cycles and feedback delays.
 
 ```python
 from scipy import stats
 
 def compare_user_scores(control_scores: list[float], treatment_scores: list[float]):
-    # 两组独立、每用户一个汇总分数、样本量充足的连续指标示例
+    # Continuous metric: independent groups, one aggregate score per user, sufficient samples.
     result = stats.ttest_ind(control_scores, treatment_scores, equal_var=False)
     return result.statistic, result.pvalue
 ```
 
-这是 Welch t 检验的局部示例，不是自动上线函数；空样本、缺失值和检验前提需要先检查。二元任务完成率、重尾成本、用户内相关数据各有相应方法。报告提升幅度与置信区间，区分统计显著与业务有用；不应每天重复看固定样本检验并在首次显著时停止。可预先固定样本量与时长，或使用事先选定的序贯检验；多指标、多版本比较需要控制误报。
+This is a limited example of Welch’s t-test, not a function that decides to deploy automatically. First check for empty samples, missing values, and the test’s assumptions. Binary task-completion rates, heavy-tailed costs, and within-user correlated observations each require appropriate methods. Report the improvement and its confidence interval, distinguishing statistical significance from business usefulness. Do not repeatedly inspect a fixed-sample test every day and stop at the first significant result. Either fix the sample size and duration in advance or choose a sequential test beforehand. Comparisons across multiple metrics or versions require false-positive control.
 
-## 10.5 回滚要快且要有明确触发条件
+## 10.5 Rollback should be fast and have explicit triggers
 
-回滚不应该依赖人工盯着仪表盘做判断,应该把 10.3 节的护栏指标接入自动化回滚:
+Rollback should not depend on someone watching a dashboard and making a judgment. Connect the guard metrics in Section 10.3 to automated rollback:
 
 ```python
 from math import isfinite
@@ -113,43 +113,43 @@ def check_rollout_health(current_metrics: dict, guard_metrics: dict) -> bool:
     return True
 ```
 
-示例配置的值都是上界，键与指标同名；真实发布系统还需检查数据类型、窗口、分母和采集新鲜度，不能把缺失或过期指标当作正常。回滚按[第 9 章](09-prompt-model-data-versioning.md)的已验证组合恢复 Prompt、模型、路由、工具和兼容的数据版本。正在执行的任务需要版本粘性或排空；已发邮件、已扣款等副作用不会被配置回滚撤销。安全补丁、删除标记和权限撤销不能跟着回滚失效。
+The Chinese reason strings distinguish absent guards, a missing metric, an invalid metric or threshold, and a threshold breach. All values in the example configuration are upper bounds, and keys match metric names. A real release system must also check types, measurement windows, denominators, and collection freshness; missing or stale metrics must not count as healthy. Rollback should restore the validated combination of prompt, model, routing, tools, and compatible data versions described in [Chapter 9](09-prompt-model-data-versioning.md). In-flight tasks need version stickiness or draining. A configuration rollback does not undo side effects such as sent emails or completed charges. Security patches, deletion markers, and permission revocations must remain effective through rollback.
 
-## 10.6 常见错误
+## 10.6 Common mistakes
 
-### 10.6.1 评测通过就直接全量发布
+### 10.6.1 Releasing to all traffic as soon as evaluation passes
 
-离线评测无法覆盖全部生产分布，应按风险选择影子测试、受控试点或灰度。无法隔离写操作时不要机械复制生产请求做 Shadow。
+Offline evaluation cannot cover the entire production distribution. Choose shadow testing, a controlled pilot, or a staged rollout according to risk. Do not blindly duplicate production requests for shadow testing when writes cannot be isolated.
 
-### 10.6.2 灰度阶段不设护栏指标,靠人工盯着看
+### 10.6.2 Watching the rollout manually instead of setting guard metrics
 
-人工监控响应慢且容易疏漏,护栏指标应该接入自动化的暂停/回滚机制。
+Manual monitoring is slow to respond and prone to omissions. Connect guard metrics to an automated pause or rollback mechanism.
 
-### 10.6.3 把灰度发布和 A/B 测试混为一谈
+### 10.6.3 Conflating staged rollouts with A/B tests
 
-灰度发布关注"安全性",A/B 测试关注"业务效果哪个更优",两者的流量策略和判断依据都不同,不能用同一套流程处理。
+Staged rollouts focus on release safety; A/B tests focus on better business outcomes. Their traffic strategies and decision criteria differ, so they should not be treated as the same procedure.
 
-### 10.6.4 A/B 测试样本量不足就下结论
+### 10.6.4 Drawing A/B conclusions from insufficient samples
 
-低流量或高方差指标可能需要较长观察；只运行一小时或只看 p 值，无法证明收益稳定，也不能证明「没有显著退化」就是安全。
+Low traffic or high-variance metrics may require longer observation. Running for only one hour or looking only at a p-value cannot establish stable gains, nor does it prove that “no significant regression” means the release is safe.
 
-### 10.6.5 回滚只回滚模型,不回滚配套的 Prompt 和路由策略
+### 10.6.5 Rolling back the model without its associated prompt and routing policy
 
-三者应作为一个整体版本快照一起回滚,否则可能出现新旧配置不匹配引发的次生问题。
+Roll back all three together as one versioned snapshot. Otherwise, mismatched old and new configuration may create secondary failures.
 
-## 10.7 本章总结
+## 10.7 Chapter summary
 
-1. **LLM CI/CD 在传统测试之外增加评测门禁**，不取消确定性的契约、授权和状态机测试;
-2. **Shadow 不返回候选结果，但仍需隔离副作用、资源与数据流向**;
-3. **灰度发布按比例递增放量,每阶段设自动化护栏指标**,越界自动暂停或回滚;
-4. **A/B 测试和灰度发布目的不同**：前者估计业务效果差异，后者控制放量风险；分别约定实验方法与发布门禁，不把 p 值当成上线许可;
-5. **回滚要快且自动化**,回滚目标是版本注册表里的完整版本快照,而非单一组件。
+1. **LLM CI/CD adds evaluation gates to traditional tests.** It does not remove deterministic contract, authorization, or state-machine tests.
+2. **Shadow tests do not serve candidate results, but still require isolation of side effects, resources, and data flows.**
+3. **Staged rollouts increase traffic incrementally with automated guard metrics at each stage.** Threshold breaches trigger a pause or rollback.
+4. **A/B tests and staged rollouts have different objectives:** estimating differences in business outcomes versus controlling rollout risk. Define the experimental method and release gates separately; a p-value is not permission to deploy.
+5. **Rollback should be fast and automated.** Restore a complete versioned snapshot from the registry, not just one component.
 
-## 参考资料
+## References
 
 - [Martin Fowler: CanaryRelease](https://martinfowler.com/bliki/CanaryRelease.html)
 - [Google SRE Workbook: Canarying Releases](https://sre.google/workbook/canarying-releases/)
-- [SciPy: ttest_ind，独立样本与 Welch 检验前提](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.ttest_ind.html)
+- [SciPy: ttest_ind, independent samples, and Welch’s test assumptions](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.ttest_ind.html)
 - [Martin Fowler: Continuous Delivery for Machine Learning](https://martinfowler.com/articles/cd4ml.html)
 - [Spinnaker: Canary Analysis](https://spinnaker.io/docs/guides/user/canary/)
 - [Optimizely: Statistical significance in A/B testing](https://www.optimizely.com/optimization-glossary/statistical-significance/)

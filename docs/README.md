@@ -1,45 +1,45 @@
 ---
-title: Awesome AI Roadmap：中文 AI 工程知识图谱
-description: 面向 AI 工程面试准备的中文知识图谱，按模型、协议、应用架构、框架、生产治理和现场交付组织，共 9 个主题、143 个章节。
+title: "Awesome AI Roadmap: AI Engineering Interview Handbook"
+description: An English-first bilingual handbook covering models, protocols, application architectures, frameworks, production governance, and field delivery across nine topics and 143 chapters.
 ---
 
-# 文档主题索引
+# Handbook Topic Index
 
-这份知识图谱用于 AI 工程面试准备，按技术层次而非产品清单组织。九个主题覆盖模型原理、多模态能力、协议接口、应用架构、框架实现、生产工程、安全治理与现场交付；复习时既要能解释机制，也要能说明方案的限制。
+This handbook prepares you for AI engineering interviews through the layers of a system, not a catalog of products. Its nine topics cover model foundations, multimodal capabilities, protocols, application architectures, frameworks, production engineering, safety and governance, and field delivery. A useful answer explains both how a mechanism works and what limits the design.
 
-目录采用三级结构：**主题 → 子模块 → 章节**。主题 README 负责展示模块关系，子模块 README 负责维护具体章节顺序，章节之间通过相对链接形成跨主题知识图谱。
+The hierarchy is **topic, module, chapter**. A topic index shows how its modules relate; a module index lists its chapters. Relative links connect related explanations across topics. English is the primary manuscript, and every reader-facing page has a Simplified Chinese companion.
 
-如果希望像读一本书一样从头学习，请从[中文书稿目录](book/README.md)开始。书稿按九篇连续编排，篇内沿用原有章号；扉页、前言、阅读说明和致谢单独安排，不打断技术正文。
+For a continuous reading path, start with the [book contents](book/README.md). The book has nine parts and preserves chapter numbering within each part. The title page, preface, reading guide, and acknowledgments are separate from the technical chapters. Choose a language on the website or download that language's EPUB; neither format has its own independently maintained prose.
 
-## 总体分层
+## The overall structure
 
 ```mermaid
 flowchart TB
-    subgraph L1["第一层 · 模型与多模态能力"]
-        LLM["LLM<br/>Transformer / 训练 / 推理 / 部署"]
-        MM["多模态 AI<br/>视觉 / 语音 / 图像与视频生成"]
+    subgraph L1["Layer 1: Models and multimodal capabilities"]
+        LLM["LLM<br/>Transformers / training / inference / serving"]
+        MM["Multimodal AI<br/>Vision / speech / image and video generation"]
     end
 
-    subgraph L2["第二层 · 协议与接口"]
-        TOOLS["Tools<br/>Function Calling / MCP / Skill / A2A"]
+    subgraph L2["Layer 2: Protocols and interfaces"]
+        TOOLS["Tools<br/>Function calling / MCP / skills / A2A"]
     end
 
-    subgraph L3["第三层 · 应用架构"]
-        AGENT["Agent<br/>Harness / 规划 / 记忆 / 多智能体"]
-        RAG["RAG<br/>索引 / 检索 / 重排 / 生成"]
+    subgraph L3["Layer 3: Application architectures"]
+        AGENT["Agents<br/>Harnesses / planning / memory / multi-agent systems"]
+        RAG["RAG<br/>Indexing / retrieval / reranking / generation"]
     end
 
-    subgraph L4["第四层 · 框架实现"]
-        FW["框架与编排<br/>LangChain / LlamaIndex / DSPy / Semantic Kernel"]
+    subgraph L4["Layer 4: Framework implementations"]
+        FW["Frameworks and orchestration<br/>LangChain / LlamaIndex / DSPy / Semantic Kernel"]
     end
 
-    subgraph L5["第五层 · 生产与治理"]
-        ENG["AI Engineering / LLMOps<br/>评测 / 观测 / 发布 / 可靠性"]
-        SAFE["AI 安全与治理<br/>威胁 / 隔离 / 红队 / 审计"]
+    subgraph L5["Layer 5: Production and governance"]
+        ENG["AI Engineering / LLMOps<br/>Evaluation / observability / releases / reliability"]
+        SAFE["AI safety and governance<br/>Threats / isolation / red teaming / audit"]
     end
 
-    subgraph L6["第六层 · 现场交付"]
-        FDE["FDE<br/>发现 / 验收 / 集成 / 交付 / 复用"]
+    subgraph L6["Layer 6: Field delivery"]
+        FDE["FDE<br/>Discovery / acceptance / integration / delivery / reuse"]
     end
 
     LLM --> MM
@@ -54,84 +54,84 @@ flowchart TB
     ENG --> SAFE
     ENG --> FDE
     SAFE --> FDE
-    FDE -.现场反馈.-> FW
-    AGENT -.风险输入.-> SAFE
-    RAG -.风险输入.-> SAFE
-    RAG -.知识增强.-> AGENT
+    FDE -.field feedback.-> FW
+    AGENT -.risk inputs.-> SAFE
+    RAG -.risk inputs.-> SAFE
+    RAG -.knowledge augmentation.-> AGENT
 ```
 
-图中的层次用于组织知识，不代表项目必须采用全部组件。评测、安全和客户验收贯穿设计与交付；简单任务可以直接使用模型 API，不必先搭建 Agent 或引入编排框架。
+The layers organize the material; they do not require a project to adopt every component. Evaluation, safety, and customer acceptance run through design and delivery. A simple task may need only a model API call, not an agent or an orchestration framework.
 
-## 主题目录
+## Topics
 
-| 层次 | 主题 | 内容范围 | 章数 | 入口 |
+| Layer | Topic | Coverage | Chapters | Start here |
 |---|---|---|---|---|
-| 底层原理 | LLM | Transformer、训练与对齐、解码、量化、MoE、部署与评测选型 | 23 | [进入 LLM](llm/README.md) |
-| 模型能力 | 多模态 AI | 融合架构、VLM、Document AI、语音、图像与视频生成、评测与服务 | 10 | [进入多模态 AI](multimodal/README.md) |
-| 协议接口 | Tools | Function Calling、工具学习、MCP、Skill、A2A、传输协议、安全与 LLM 网关 | 15 | [进入 Tools](tools/README.md) |
-| 应用架构 | Agent | 架构、Harness、记忆、规划、多 Agent、评估与安全，以及代码编辑和后训练工程 | 25 | [进入 Agent](agent/README.md) |
-| 应用架构 | RAG | 文档处理、索引、检索重排、多模态、生成评估、更新与安全，以及 Text-to-SQL | 22 | [进入 RAG](rag/README.md) |
-| 框架实现 | 框架与编排 | LangChain、LangGraph、LlamaIndex、DSPy、Semantic Kernel、轻量 Agent 框架与迁移 | 23 | [进入框架与编排](frameworks/README.md) |
-| 生产工程 | AI Engineering | LLMOps、网关与回退、评测、可观测性、CI/CD、SLO、成本与数据飞轮 | 13 | [进入 AI Engineering](engineering/README.md) |
-| 安全治理 | AI 安全与治理 | 威胁建模、Prompt 攻击、供应链、隐私、执行隔离、红队、治理与审计 | 10 | [进入 AI 安全与治理](safety/README.md) |
-| 现场交付 | FDE | 需求发现、产品协作、评测验收、系统集成与交付，以及范围变更、PoC、项目记忆与交接经验 | 2 | [进入 FDE](fde/README.md) |
+| Foundations | LLM | Transformers, training and alignment, decoding, quantization, MoE, serving, evaluation, and model selection | 23 | [LLM](llm/README.md) |
+| Model capabilities | Multimodal AI | Fusion, VLMs, Document AI, speech, image and video generation, evaluation, and serving | 10 | [Multimodal AI](multimodal/README.md) |
+| Protocols and interfaces | Tools | Function calling, tool learning, MCP, skills, A2A, transports, security, and model gateways | 15 | [Tools](tools/README.md) |
+| Application architectures | Agents | Architecture, harnesses, memory, planning, multi-agent systems, evaluation, safety, code editing, and post-training | 25 | [Agents](agent/README.md) |
+| Application architectures | RAG | Document processing, indexing, retrieval and reranking, multimodal data, generation, evaluation, updates, security, and Text-to-SQL | 22 | [RAG](rag/README.md) |
+| Framework implementations | Frameworks and orchestration | LangChain, LangGraph, LlamaIndex, DSPy, Semantic Kernel, lightweight agent frameworks, and migration | 23 | [Frameworks](frameworks/README.md) |
+| Production engineering | AI Engineering | LLMOps, gateways and fallback, evaluation, observability, CI/CD, SLOs, cost, and feedback data | 13 | [AI Engineering](engineering/README.md) |
+| Safety and governance | AI safety and governance | Threat modeling, prompt attacks, supply chains, privacy, execution isolation, red teaming, governance, and audit | 10 | [Safety and governance](safety/README.md) |
+| Field delivery | FDE | Discovery, product collaboration, acceptance, integration, delivery, scope changes, proofs of concept, project memory, and handover | 2 | [FDE](fde/README.md) |
 
-## 主题之间的关系
+## Where shared concepts are explained
 
-同一个概念在不同层次会被反复提到，但视角不同。仓库通过「详解归属地」避免重复维护：
+A concept can appear at several layers without needing several copies of its full explanation. The following ownership keeps those explanations consistent:
 
-| 概念 | 详解归属 | 引用方 | 视角差异 |
+| Concept | Main explanation | Referenced by | Difference in focus |
 |---|---|---|---|
-| CoT 思维链 | LLM | Agent 规划章、RAG 生成章 | LLM 讲机制，Agent 讲如何转化为规划能力 |
-| 幻觉 | LLM | RAG 生成章、Agent 安全章 | LLM 讲根因，RAG 讲如何通过知识约束生成 |
-| KV Cache / Prompt Caching | LLM | Agent 上下文、AI Engineering | LLM 讲缓存机制，应用与工程层讲使用策略 |
-| VLM / 语音 / 生成模型 | 多模态 AI | Agent Computer Use、RAG 多模态章 | 多模态讲模型能力，应用层讲如何进入任务链路 |
-| Function Calling / MCP | Tools | Agent Harness、框架与编排 | Tools 讲调用接口与协议，Agent 讲运行时，框架讲具体封装 |
-| Runtime / Harness | Agent | 框架与编排、AI Engineering | Agent 讲通用运行时，框架讲实现，工程层讲生产运营 |
-| 记忆 | Agent | 框架与编排的 LangChain 模块 | Agent 讲分层与取舍，框架主题讲具体实现 |
-| 向量检索 | RAG | 框架与编排 | RAG 讲索引与召回原理，框架主题讲组件封装 |
-| 可观测性与发布 | AI Engineering | 各应用主题 | 工程层讲跨应用生产闭环，应用主题定义领域信号 |
-| 跨层安全治理 | AI 安全与治理 | LLM、Tools、Agent、RAG | 各层讲局部控制，治理主题统一威胁模型、红队和审计 |
-| 客户现场交付 | FDE | 全部技术主题 | 技术主题讲能力，FDE 讲如何组合能力并交付可衡量结果 |
-| Agent 后训练 | Agent 第 25 章 | LLM、Tools、AI Engineering | LLM 讲优化算法，Tools 讲调用数据，Agent 串起失败归因、训练样本与任务验收 |
-| 结构化数据问答 | RAG 第 22 章 | Tools、FDE | 需要全量统计时改用受限 SQL 查询，不靠检索几个片段估算总数 |
+| Chain of thought | LLM | Agent planning, RAG generation | LLM covers mechanisms; Agents explains their role in planning |
+| Hallucination | LLM | RAG generation, Agent safety | LLM covers causes; RAG covers generation constrained by retrieved evidence |
+| KV cache / prompt caching | LLM | Agent context, AI Engineering | LLM covers mechanisms; application and engineering chapters cover usage |
+| VLMs / speech / generative models | Multimodal AI | Agent computer use, multimodal RAG | Multimodal AI covers model capabilities; applications show how they fit into tasks |
+| Function calling / MCP | Tools | Agent harnesses, frameworks | Tools covers interfaces and protocols; Agents covers execution; frameworks provide implementations |
+| Runtime / harness | Agents | Frameworks, AI Engineering | Agents covers the general runtime; frameworks cover implementations; engineering covers operations |
+| Memory | Agents | LangChain modules | Agents explains layers and trade-offs; framework chapters show specific implementations |
+| Vector retrieval | RAG | Frameworks | RAG covers indexing and retrieval; frameworks cover component abstractions |
+| Observability and releases | AI Engineering | Application topics | Engineering connects production feedback to change management; applications define domain signals |
+| Cross-layer safety governance | AI safety and governance | LLM, Tools, Agents, RAG | Local controls belong to each layer; governance connects threat models, red teaming, and audit |
+| Delivery in customer environments | FDE | All technical topics | Technical topics explain capabilities; FDE combines them to deliver measurable outcomes |
+| Agent post-training | Agents, Chapter 25 | LLM, Tools, AI Engineering | LLM covers optimization; Tools covers call data; Agents connects failure analysis, training examples, and acceptance |
+| Structured-data questions | RAG, Chapter 22 | Tools, FDE | Complete-data aggregation calls for a constrained query, not a total guessed from a few retrieved chunks |
 
-## 阅读建议
+## Suggested reading paths
 
-- **零基础入门**：LLM 第 1–5 章 → Tools 第 1、4 章 → Agent 第 1–2 章 → RAG 第 1 章；
-- **Agent / Harness 工程**：Agent 全部 → Tools 全部 → 框架与编排 → AI Engineering；
-- **RAG / 知识系统**：RAG 全部 → LLM 第 5、18、21、23 章 → 框架与编排第 14–15 章；
-- **多模态应用**：多模态 AI → Agent 第 16–23 章或 RAG 第 21 章 → AI Engineering；
-- **生产平台与 SRE**：AI Engineering → LLM 推理部署 → Tools 网关 → AI 安全与治理；
-- **安全与治理**：AI 安全与治理 → Agent、Tools、RAG 各自的安全章节。
-- **客户交付与解决方案**：FDE → AI Engineering → 按项目需要回查 Agent、RAG、Harness 与安全治理。
+- **Getting started:** LLM Chapters 1-5, Tools Chapters 1 and 4, Agent Chapters 1-2, then RAG Chapter 1.
+- **Agent and harness engineering:** Agents, Tools, Frameworks and orchestration, then AI Engineering.
+- **RAG and knowledge systems:** RAG, LLM Chapters 5, 18, 21, and 23, then Frameworks Chapters 14-15.
+- **Multimodal applications:** Multimodal AI, Agent Chapters 16-23 or RAG Chapter 21, then AI Engineering.
+- **Production platforms and SRE:** AI Engineering, LLM inference and serving, Tools gateways, then safety and governance.
+- **Safety and governance:** the safety topic, followed by the relevant Agent, Tools, and RAG safety chapters.
+- **Customer delivery and solutions:** FDE, AI Engineering, then Agents, RAG, harnesses, and governance as the project requires.
 
-## 按面试题型串联知识
+## Connecting topics through interview questions
 
-基础题先把概念解释准确，系统设计题再把数据从哪里来、谁能执行动作、出错后怎么办讲清楚。下面几条路径适合练习跨章节的问题。
+For foundational questions, explain the concept accurately. For system design, also explain where data comes from, who may take an action, and what happens after a failure. These paths help practice questions that span chapters.
 
-| 练习题 | 建议串联的章节 | 需要说清楚的取舍 |
+| Practice question | Suggested chapters | What the answer should distinguish |
 |---|---|---|
-| 如何给企业内部知识助手选方案？ | [RAG、微调与长上下文](rag/01-foundations/02-rag-finetune-longcontext.md) → [RAG 评测](rag/05-generation-evaluation/18-rag-evaluation.md) → [离线 Eval](engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md) | 知识缺失和行为问题如何区分，如何用业务查询集证明改动有效 |
-| 如何让 Agent 在工具超时后继续执行？ | [Harness 边界](agent/02-runtime-harness/16-harness-definition-and-boundaries.md) → [Checkpoint 与恢复](agent/02-runtime-harness/21-checkpoint-persistence-recovery.md) → [重试与幂等](engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md) | 恢复计算状态与避免重复业务写入不是同一个问题 |
-| MCP 接入后，权限由谁负责？ | [MCP 与 Function Calling](tools/02-mcp/06-mcp-vs-function-calling.md) → [Tool Protocol 安全](tools/02-mcp/15-tool-protocol-security.md) → [最小权限与身份](safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md) | 协议能力、模型调用意图与服务端授权的边界 |
-| 模型效果不错，为什么线上还是不能用？ | [模型评测](llm/05-evaluation-selection/21-evaluation-metrics.md) → [输出契约](engineering/03-output-safety/05-structured-output-contracts.md) → [SLO 与故障响应](engineering/06-performance-operations/12-slo-capacity-incident-response.md) | 榜单成绩、结构合法、业务正确和服务可靠分别如何衡量 |
-| 如何把客户的模糊需求变成可交付项目？ | [FDE 基础](fde/01-foundations/01-forward-deployed-engineering.md) → [现场经验与踩坑](fde/02-field-practice/02-delivery-lessons.md) → [版本管理](engineering/05-release-pipeline/09-prompt-model-data-versioning.md) | 需求调整由谁确认，PoC 结论怎样保留，客户如何验收和接手 |
-| Agent 改了代码，为什么问题还没解决？ | [代码搜索、编辑与验证](agent/06-coding-agents/24-code-search-edit-verification.md) → [Agent 后训练](agent/07-post-training/25-agent-post-training.md) | 区分搜索遗漏、编辑失败、验证不足和模型错误，再决定是否值得训练 |
-| 怎样让助手准确统计订单，而不是猜一个总数？ | [Text-to-SQL](rag/07-structured-queries/22-text-to-sql.md) → [工具 Schema](tools/01-function-calling/03-tool-schema-design.md) → [离线评测](engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md) | 业务口径、表关联、查询权限和独立结果验收 |
+| How would you choose an approach for an internal knowledge assistant? | [RAG, fine-tuning, and long context](rag/01-foundations/02-rag-finetune-longcontext.md), [RAG evaluation](rag/05-generation-evaluation/18-rag-evaluation.md), [offline evaluation](engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md) | Missing knowledge versus unwanted behavior, and evidence from a representative business query set |
+| How can an agent continue after a tool timeout? | [Harness responsibilities](agent/02-runtime-harness/16-harness-definition-and-boundaries.md), [checkpointing and recovery](agent/02-runtime-harness/21-checkpoint-persistence-recovery.md), [retries and idempotency](engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md) | Restoring computation is not the same as preventing duplicate business writes |
+| Who is responsible for permissions after MCP is connected? | [MCP and function calling](tools/02-mcp/06-mcp-vs-function-calling.md), [tool protocol security](tools/02-mcp/15-tool-protocol-security.md), [least privilege and identity](safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md) | Protocol capabilities, proposed calls, and backend authorization |
+| Why might a high-scoring model still be unsuitable for production? | [Model evaluation](llm/05-evaluation-selection/21-evaluation-metrics.md), [output contracts](engineering/03-output-safety/05-structured-output-contracts.md), [SLOs and incident response](engineering/06-performance-operations/12-slo-capacity-incident-response.md) | Benchmark scores, structural validity, business correctness, and service reliability |
+| How do you turn a vague customer request into a deliverable project? | [FDE foundations](fde/01-foundations/01-forward-deployed-engineering.md), [field lessons](fde/02-field-practice/02-delivery-lessons.md), [versioning](engineering/05-release-pipeline/09-prompt-model-data-versioning.md) | Who approves changes, what a proof of concept establishes, and how the customer accepts and takes over the system |
+| Why can an agent change code without fixing the problem? | [Code search, editing, and verification](agent/06-coding-agents/24-code-search-edit-verification.md), [agent post-training](agent/07-post-training/25-agent-post-training.md) | Search omissions, edit failures, weak verification, and model errors before deciding whether training is appropriate |
+| How can an assistant count orders accurately rather than guess a total? | [Text-to-SQL](rag/07-structured-queries/22-text-to-sql.md), [tool schemas](tools/01-function-calling/03-tool-schema-design.md), [offline evaluation](engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md) | Business definitions, table relationships, query authorization, and independent result checks |
 
-准备项目题时，可以挑一次具体改动来讲：原来哪里不好用，试过哪些办法，最后为什么这样改。把相关代码、失败样本和前后结果一起看，比背一遍架构图更容易发现自己没想清楚的地方。
+For project questions, choose a concrete change: what was not working, which alternatives you tried, and why you made that decision. Reviewing the code, failure examples, and before-and-after results together reveals gaps in your understanding more effectively than memorizing an architecture diagram.
 
-## 常见问题
+## Frequently asked questions
 
-### 这份路线图适合什么读者？
+### Who is this handbook for?
 
-它主要面向准备 AI 应用开发、Agent/RAG、模型工程和 FDE 等岗位面试的读者。初学者可以按推荐路径理解原理；有项目经验的读者可以从实际问题出发，沿交叉链接补齐评测、可靠性和权限等容易漏掉的环节。
+It is primarily for readers preparing for roles in AI application development, agents and RAG, model engineering, and FDE. Beginners can follow the suggested paths to learn the foundations. Experienced readers can start with a practical problem and use the links to revisit evaluation, reliability, permissions, and other easily missed concerns.
 
-### 应该从 LLM、Agent 还是 RAG 开始？
+### Should I start with LLMs, agents, or RAG?
 
-想理解模型能力边界，应先读 LLM；想构建能调用工具并持续执行任务的系统，从 Agent 和 Tools 开始；想让模型使用私有或持续更新的知识，从 RAG 开始。设计方案时就应结合 AI Engineering 和安全治理确定评测、权限与可靠性要求。
+Start with LLMs to understand model capabilities and limitations. Start with Agents and Tools to build systems that call tools and carry tasks across multiple steps. Start with RAG for private or changing knowledge. Bring in production engineering and safety during design to establish evaluation, permission, and reliability requirements.
 
-### 内容多久更新一次？
+### How often is the content updated?
 
-项目不采用固定发布周期。协议、框架或模型能力出现重要变化时更新对应章节，页面日期来自当前文件路径的 Git 历史，不一定对应内容最初公开的日期。高时效性结论仍应结合正文标注的版本与官方链接核验。
+There is no fixed release schedule. Significant changes to protocols, frameworks, or model capabilities lead to updates in the relevant chapters. Page dates come from the history of their current file paths and may not indicate the original publication date. Check time-sensitive claims against the versions and official references cited in the text.

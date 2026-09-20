@@ -1,20 +1,22 @@
 ---
-description: 解释 CoT 中间步骤如何参与生成、Self-Consistency 如何聚合答案，以及推理文本的忠实性、验证方法和计算成本边界。
+description: Explain how CoT intermediate steps affect generation, how self-consistency aggregates answers, and where reasoning text reaches its limits in faithfulness, verification, and computational cost.
 ---
 
-# 第十七章：CoT 思维链
+# Chapter 17: Chain of Thought
 
-## 17.1 没有 CoT 时模型在做什么
+## 17.1 What does a model do without CoT?
 
-直接回答通常指不显式生成中间推导，而不是模型内部完全没有计算或推理。不能仅根据输出短，就判断它在「凭直觉猜答案」；有些推理模型还会使用不直接展示给用户的推理 token。
+A direct answer usually means that the model does not explicitly generate intermediate reasoning—not that it performs no internal computation or reasoning. A short response alone does not show that the model is “guessing by intuition.” Some reasoning models also use reasoning tokens that are not shown directly to the user.
 
-CoT（Chain-of-Thought）提示让模型在最终答案前生成中间步骤。原始研究在算术、常识和符号推理任务上观察到收益，但不是所有模型和任务都受益，也不等于自动检查每一步。
+Chain-of-thought (CoT) prompting asks a model to generate intermediate steps before its final answer. The original research found benefits on arithmetic, commonsense, and symbolic reasoning tasks. Not every model or task benefits, however, and generating steps does not automatically check them.
 
-### 17.1.1 一个经典例子
+### 17.1.1 A classic example
 
 > 小明有 5 个苹果，他给了小红 2 个，然后又买了 3 个，最后还剩几个？
 
-用这道简单题说明输出形式，而不是声称模型直接回答就会出错：
+The original Chinese question asks: Xiaoming has 5 apples, gives Xiaohong 2, and buys another 3. How many does he have at the end?
+
+This simple problem illustrates an output format; it is not a claim that a model would get a direct answer wrong:
 
 ```
 小明初始 5 个
@@ -22,203 +24,205 @@ CoT（Chain-of-Thought）提示让模型在最终答案前生成中间步骤。�
 再买 3 个后变成 6 个
 ```
 
-这里每一步可用算术核查。**可检查不等于已检查**：如果系统没有运行计算器、规则检查或人工复核，文本只是提供了检查机会。
+The steps say that Xiaoming starts with 5, has 3 after giving away 2, and reaches 6 after buying 3 more.
 
-## 17.2 CoT 的核心思路
+Each step can be checked arithmetically. **Checkable does not mean checked**: without a calculator, rule-based check, or human review, the text merely creates an opportunity for verification.
 
-CoT 将中间结果放入后续生成的上下文，使多步任务可以显式维护状态、分解计算，再生成答案。
+## 17.2 The core idea of CoT
 
-当任务需要组合多个已知条件时，中间步骤可以保存计算结果，供后续推导使用。但“问题复杂”不证明答案从未在训练中出现，也不保证逐步生成就能解出；仍要检查每步依据及最终结果。
+CoT places intermediate results into the context for subsequent generation. This lets a multistep task explicitly maintain state and break down calculations before producing an answer.
 
-### 17.2.1 中间 token 怎样影响答案
+When a task combines several known conditions, intermediate steps can retain calculated results for later reasoning. But a “complex problem” is not proof that its answer never appeared in training, nor a guarantee that step-by-step generation will solve it. Each step's basis and the final result still need checking.
 
-原因在于语言模型本来就是逐 token 生成的。
+### 17.2.1 How intermediate tokens affect the answer
 
-在自回归模型可用的上下文窗口内，后续 token 可以条件于前面的中间步骤。额外生成提供了可读写的中间状态和更多顺序计算机会，但「看到前文」不保证正确利用前文；窗口裁剪、注意力结构和训练方式也会影响实际依赖。
+The mechanism follows from a language model's token-by-token generation.
 
-若用 `r` 表示中间推导、`a` 表示答案、`x` 表示问题，可写成：
+Within the context window available to an autoregressive model, later tokens can be conditioned on earlier intermediate steps. Extra generation provides readable and writable intermediate state and more opportunities for sequential computation. Yet having access to earlier text does not guarantee using it correctly. Context truncation, attention structure, and training also affect the actual dependencies.
+
+Let `r` denote intermediate reasoning, `a` the answer, and `x` the question:
 
 $$
 p(a\mid x)=\sum_r p(r\mid x)p(a\mid x,r)
 $$
 
-这里是同一个“先生成推导、再生成答案”过程的边缘化关系，不是说增加 CoT 提示前后的答案分布必然相同。单条 CoT 只探索其中一条路径，并没有真的枚举或求和所有推导。这也解释了为什么中间步骤既能帮助计算，也能传播错误前提。
+This is a marginalization identity for the same process of generating reasoning followed by an answer. It does not say that the answer distribution must stay unchanged when a CoT prompt is added. A single chain explores only one path; it does not enumerate or sum over all possible reasoning. This also explains why intermediate steps can help computation while propagating mistaken premises.
 
-### 17.2.2 一个必须区分的点
+### 17.2.2 An essential distinction
 
-> **「让模型推理」和「把完整推理链展示给用户」不是一回事。**
+> **Having a model reason is not the same as showing the user its entire chain of thought.**
 
-部分产品和 API 将内部推理与最终输出分离，提供简洁答案或推理摘要。让最终答案更短不代表内部推理 token 免费，也不代表摘要忠实记录了全部内部计算；需按接口的用量、计费与推理预算说明测量。
+Some products and APIs separate internal reasoning from final output, returning a concise answer or a reasoning summary. A shorter final answer does not make internal reasoning tokens free, nor does it establish that the summary faithfully records all internal computation. Measure usage according to the interface's accounting, pricing, and reasoning-budget documentation.
 
-## 17.3 两种 CoT 形式
+## 17.3 Two forms of CoT
 
-| | 做法 | 需要验证的条件 | 代价 |
+| | Method | What to validate | Cost |
 |---|---|---|---|
-| **Few-shot CoT** | 示例包含问题、逐步推导和答案 | 示例是否正确、与任务匹配；模型能否复用推导模式 | 增加输入长度，可能引入示例偏差 |
-| **Zero-shot CoT** | 不给示例，用分步推导指令引出中间步骤 | 原研究中有效不代表所有现代模型都有效 | 输入较短，但仍有推导输出成本 |
+| **Few-shot CoT** | Examples contain a question, step-by-step reasoning, and an answer | Whether examples are correct and task-relevant, and whether the model can reuse their reasoning patterns | Longer inputs and possible example bias |
+| **Zero-shot CoT** | A step-by-step instruction elicits intermediate steps without examples | Success in the original research does not imply success on every modern model | Shorter inputs, but reasoning output still costs tokens |
 
-### 17.3.1 Zero-shot CoT 为什么令人惊讶
+### 17.3.1 Why zero-shot CoT was surprising
 
-2022 年的 Zero-shot CoT 研究表明，一句「Let's think step by step」在其测试模型和任务上能改善结果；原方法还包括从生成推导中提取最终答案的步骤。这个结论不是「任意模型加触发词就更聪明」。
+The 2022 zero-shot CoT study showed that “Let's think step by step” could improve results on the models and tasks it tested. The original method also included a step to extract the final answer from the generated reasoning. Its conclusion was not that a trigger phrase makes any model smarter.
 
-对已经接受推理训练的模型，应先使用清晰的任务与约束，再测试推理预算。OpenAI 的推理模型指导明确指出，要求「think step by step」可能不必要甚至干扰表现，不能把早期提示技巧当作所有模型的默认设置。
+For models already trained to reason, start with clear tasks and constraints, then test reasoning budgets. OpenAI's guidance for reasoning models explicitly says that asking them to “think step by step” may be unnecessary or even detrimental. Early prompting techniques should not become defaults for every model.
 
-## 17.4 CoT 为什么有效
+## 17.4 Why CoT can work
 
-中间步骤提供显式工作空间，让模型能在额外的顺序计算中复用已学的分解方式。收益来自任务与这些计算方式相匹配；外部复核可以利用步骤，但不是 CoT 自动附带的能力。下图分开列出这几种作用：
+Intermediate steps provide an explicit workspace in which the model can reuse learned decomposition patterns through additional sequential computation. Benefits depend on the fit between the task and those computational patterns. External verification can use the steps, but it is not a built-in capability of CoT. The diagram separates these effects:
 
 ```mermaid
 flowchart TB
-    A["① 可检查的中间结果<br/>便于外部工具或人工复核<br/>不代表模型会自动纠错"]
-    B["② 草稿纸作用<br/>复杂中间状态不用全部憋在隐状态里<br/>显式输出减轻推理负担"]
-    C["③ 利用已学的分解模式<br/>受训练数据、模型能力<br/>与任务匹配程度影响"]
-    A --> R["可能改善任务正确率<br/>需要对照评测"]
+    A["① Checkable intermediate results<br/>Support external tools or human review<br/>Do not imply automatic self-correction"]
+    B["② A scratchpad<br/>Complex intermediate state<br/>need not stay entirely hidden<br/>Explicit output reduces<br/>the reasoning burden"]
+    C["③ Reuse learned decomposition patterns<br/>Depends on training data, model capability,<br/>and task fit"]
+    A --> R["May improve task accuracy<br/>Requires controlled evaluation"]
     B --> R
     C --> R
 
     style R fill:#e6f4ea
 ```
 
-## 17.5 Self-Consistency：对多条路径聚合答案
+## 17.5 Self-consistency: aggregating answers across paths
 
-**做法**：对同一个问题用随机采样生成多条推导，将最终答案归一化，再选出现频次最高的答案。需要足够的路径多样性，但不等于温度越高越好；严格说是取众数，获胜答案不一定超过半数。
+**Method**: stochastically sample several reasoning paths for the same question, normalize their final answers, and select the most frequent answer. Sufficient path diversity is important, but higher temperature is not always better. Strictly speaking, the method takes the mode; the winning answer need not receive more than half the votes.
 
-### 17.5.1 直觉
+### 17.5.1 The intuition
 
-如果正确答案能由多条路径得到，而错误比较分散，聚合可能改善结果。但同一模型的样本共享知识与偏差，完全可能一致地误解题意，反复得到同一个错误答案。一致性是信号，不是真实性的证明。
+Aggregation may help when several paths lead to the correct answer while errors are dispersed. However, samples from the same model share knowledge and biases. They can all misunderstand the question and repeatedly produce the same wrong answer. Agreement is a signal, not proof of truth.
 
 ```mermaid
 flowchart LR
-    Q["问题"] --> P1["推理路径 1 → 答案 A"]
-    Q --> P2["推理路径 2 → 答案 A"]
-    Q --> P3["推理路径 3 → 答案 B"]
-    Q --> P4["推理路径 4 → 答案 A"]
-    Q --> P5["推理路径 5 → 答案 C"]
-    P1 --> V["归一化后取众数"]
+    Q["Question"] --> P1["Reasoning path 1 → Answer A"]
+    Q --> P2["Reasoning path 2 → Answer A"]
+    Q --> P3["Reasoning path 3 → Answer B"]
+    Q --> P4["Reasoning path 4 → Answer A"]
+    Q --> P5["Reasoning path 5 → Answer C"]
+    P1 --> V["Normalize answers<br/>and take the mode"]
     P2 --> V
     P3 --> V
     P4 --> V
     P5 --> V
-    V --> O["输出 A（3 票）"]
+    V --> O["Return A: 3 votes"]
 
     style O fill:#e6f4ea
 ```
 
-### 17.5.2 收益与代价
+### 17.5.2 Benefits and costs
 
 | | |
 |---|---|
-| **收益** | 原论文在多个推理基准上报告改善，幅度随模型、题目与采样预算变化；不存在通用的 5–15% 收益 |
-| **代价** | 采样 `n` 条路径增加总生成 token 和验证开销；串行耗时会累加，并行可降低墙钟延迟，但受限流、排队和尾部慢请求影响 |
+| **Benefits** | The original paper reported improvements on several reasoning benchmarks, with gains varying by model, problem, and sampling budget; there is no universal 5–15% gain |
+| **Costs** | Sampling `n` paths increases total generated tokens and verification overhead; sequential times accumulate, while parallel execution can reduce wall-clock latency but remains subject to rate limits, queuing, and slow tail requests |
 
-温度采样的机制见 [第十三章](../03-inference-serving/13-temperature-top-p-top-k.md)。
+See [Chapter 13](../03-inference-serving/13-temperature-top-p-top-k.md) for temperature sampling.
 
-聚合前要处理 `0.5` 与 `1/2` 等等价答案、单位、非法输出和平票。开放式报告、代码或有多个有效答案的任务，不宜直接比较字符串；可改用单元测试、规则验证或明确的选择器，并把选择器误差算入最终效果。
+Before aggregation, handle equivalent answers such as `0.5` and `1/2`, units, invalid outputs, and ties. Direct string comparison is unsuitable for open-ended reports, code, or tasks with several valid answers. Unit tests, rule-based verification, or an explicit selector may be more appropriate; include the selector's errors in the final evaluation.
 
-若任务有可靠验证器，「生成多候选 → 验证 → 选择」与「多数投票」是不同方案。前者依赖可验证性，后者依赖答案分布；比较时应给相同总预算，而不是只比单次请求。
+When a task has a reliable verifier, “generate candidates → verify → select” is a different method from majority voting. The former depends on verifiability; the latter depends on the answer distribution. Compare them under equal total budgets, not merely one request each.
 
-## 17.6 CoT 的局限
+## 17.6 Limitations of CoT
 
-这些局限决定了 CoT 适不适合进生产链路。
+These limitations determine whether CoT belongs in a production workflow.
 
-### 17.6.1 token 消耗大
+### 17.6.1 High token usage
 
-显式步骤和内部推理都可能增加 token、计算与响应时间，具体增量取决于模型、题目和预算。应测量总用量、首个可见答案的延迟与端到端尾延迟，而不是用固定额外 token 数估算所有任务。
+Explicit steps and internal reasoning can both increase tokens, computation, and response time. The increase depends on the model, problem, and budget. Measure total usage, time to the first visible answer, and end-to-end tail latency rather than estimating every task with a fixed number of extra tokens.
 
-### 17.6.2 对简单问题适得其反
+### 17.6.2 Counterproductive on simple problems
 
-对简单算术、明确分类等任务，长推导可能只增加开销，甚至引入无关分支。是否保留推理应由对照实验决定。
+For simple arithmetic or clearly defined classification, lengthy reasoning may add only overhead—or introduce irrelevant branches. Controlled experiments should determine whether to retain reasoning.
 
-### 17.6.3 推理链本身也会出错
+### 17.6.3 The reasoning chain can itself be wrong
 
-如果后续步骤依赖错误前提，错误可能沿链传播；模型也可能偶然纠正错误或忽略部分步骤。因此不能仅凭推导流畅，推断答案正确。
+If later steps depend on a mistaken premise, the error may propagate. A model may also happen to correct a mistake or ignore some steps. Fluent reasoning alone therefore does not establish a correct answer.
 
-> **CoT 有时能减少跳跃性错误，但不会自动纠正错误前提。** 如果前面某一步已经错了，后面可能只是在把这个错误展开。
+> **CoT can sometimes reduce errors caused by skipped steps, but it does not automatically correct false premises.** Once an earlier step is wrong, later steps may simply elaborate that error.
 
-### 17.6.4 不能凭空补齐事实
+### 17.6.4 It cannot invent missing facts
 
-例如查询一个新发布产品的价格，需要当前官方资料，而不是围绕旧价格写更长推导。CoT 可能帮助解析歧义或综合证据，但不替代检索和知识更新。
+Finding the price of a newly released product requires current official information, not a longer derivation based on an old price. CoT may help resolve ambiguity or synthesize evidence, but it does not replace retrieval or knowledge updates.
 
-### 17.6.5 正确解释也不一定忠实
+### 17.6.5 A correct explanation need not be faithful
 
-《Measuring Faithfulness in Chain-of-Thought Reasoning》通过插入错误、改写等干预发现，模型对 CoT 的依赖程度随任务而变，有时甚至忽略推导文本。由此要区分：
+*Measuring Faithfulness in Chain-of-Thought Reasoning* used interventions such as inserting mistakes and paraphrasing. It found that models' dependence on CoT varies by task and that they sometimes ignore the reasoning text. Distinguish:
 
-- **答案正确性**：最终结果是否满足题目；
-- **步骤有效性**：写出的每一步是否成立；
-- **解释忠实性**：这些步骤是否真的影响了模型生成答案的过程。
+- **Answer correctness**: does the final result satisfy the question?
+- **Step validity**: is each written step valid?
+- **Explanation faithfulness**: did those steps actually influence the process that generated the answer?
 
-正确答案配上一段合理解释，不能单独证明后两者。审计应优先依靠可重放的工具结果、测试和外部证据，而不是把思维链当作完整运行日志。
+A correct answer accompanied by a plausible explanation does not, by itself, establish the latter two properties. Audits should prioritize replayable tool results, tests, and external evidence rather than treating a chain of thought as a complete execution log.
 
-### 17.6.6 适用边界
+### 17.6.6 Where it applies
 
-| 值得比较分步推导 | 通常先用简单基线 |
+| Worth comparing step-by-step reasoning | Usually start with a simple baseline |
 |---|---|
-| 数学题、逻辑题、代码调试 | 简单问答、边界明确的分类与提取 |
-| 有证据约束的多步推导 | 事实召回与当前信息查询 |
-| 需要中间结论可核查的场景 | 对延迟极敏感的场景 |
+| Mathematics, logic, and code debugging | Simple question answering, clearly bounded classification and extraction |
+| Multistep reasoning grounded in evidence | Factual recall and current-information queries |
+| Situations requiring checkable intermediate conclusions | Highly latency-sensitive situations |
 
-### 17.6.7 推理预算由谁控制
+### 17.6.7 Who controls the reasoning budget?
 
-想让模型多想一会儿，先要看它提供哪种控制方式。推理预算不是所有模型共用的一个参数：
+To let a model spend more time thinking, first examine the controls it exposes. Reasoning budget is not a single shared parameter across all models:
 
-| 控制方式 | 形态 | 语义 |
+| Control | Form | Meaning |
 |---|---|---|
-| 推理档位（如 OpenAI `reasoning.effort`） | 离散档位，支持的取值随模型而变 | 指导模型投入多少思考，不是精确的 token 上限 |
-| 手动数字预算（如 Claude `thinking.budget_tokens`） | 支持手动 extended thinking 的模型/接口，以 token 数配置 | 设定思考预算，不是整次调用的总输出上限 |
-| Budget forcing（s1 论文） | 在解码时强制结束思考，或延迟结束并追加 `Wait` | 训练后的解码干预，不是普通的 effort 档位 |
+| Reasoning effort, such as OpenAI `reasoning.effort` | Discrete levels whose supported values depend on the model | Guides how much the model thinks; not an exact token cap |
+| Manual numerical budget, such as Claude `thinking.budget_tokens` | A token count on models/interfaces supporting manual extended thinking | Sets a thinking budget, not the total output limit for the entire call |
+| Budget forcing, from the s1 paper | Force thinking to end during decoding, or delay termination and append `Wait` | A post-training decoding intervention, not an ordinary effort level |
 
-Claude 常规手动模式要求 `budget_tokens` 至少为 1024，且小于 `max_tokens`，为回答留出空间。但不能把这条规则照搬到所有模式：Amazon Bedrock 文档明确说明，在受支持的 interleaved thinking 工具调用模式中，思考预算可以超过 `max_tokens`。使用其他入口时，要查对应模型和模式的要求。
+Claude's standard manual mode requires `budget_tokens` to be at least 1024 and smaller than `max_tokens`, leaving room for the answer. Do not apply that rule to every mode: Amazon Bedrock documentation explicitly states that the thinking budget can exceed `max_tokens` in supported interleaved-thinking tool-use modes. For other access paths, check the requirements for the relevant model and mode.
 
-有些 Claude 模型支持 adaptive thinking，由模型决定思考投入，再通过它支持的 effort 选项调节。配置前看目标模型的文档，不要把手动预算参数直接搬过去。
+Some Claude models support adaptive thinking, in which the model decides how much to think, with adjustments through the effort options it supports. Consult the target model's documentation instead of transferring manual-budget parameters unchanged.
 
-预算与温度也不是一回事。effort 引导思考投入；温度影响候选 token 的采样分布，而且推理模型未必允许调整温度。提高 effort 不等于增加采样多样性，也不保证答案更好。简单题可能只多花了 token；是否值得升档，要在相同任务集上比较正确率、用量和延迟。
+Budget and temperature are also different. Effort guides reasoning investment; temperature changes the sampling distribution over candidate tokens, and reasoning models may not allow temperature adjustments. Raising effort neither increases sampling diversity by definition nor guarantees a better answer. A simple problem may merely consume more tokens. Compare accuracy, usage, and latency on the same task set before raising the effort level.
 
-effort 的引导作用还要与总输出上限分开。OpenAI Responses API 的 `max_output_tokens` 涵盖推理、可见输出和不可见的格式化 token，不能只按答案长度设置。若在推理阶段就耗尽这个额度，响应可能一个可见 token 都没有，状态为 `incomplete`，`incomplete_details.reason` 为 `max_output_tokens`，输入与已生成的推理 token 仍会计费。降低 effort 并不等于把推理从中间截断。
+Separate effort guidance from the overall output limit as well. In the OpenAI Responses API, `max_output_tokens` includes reasoning tokens, visible output, and non-visible formatting tokens; do not size it solely for the final answer. If this allowance is exhausted during reasoning, the response may contain no visible tokens, have status `incomplete`, and report `incomplete_details.reason` as `max_output_tokens`. Input and already generated reasoning tokens are still billed. Lowering effort is not the same as truncating reasoning halfway through.
 
-## 17.7 常见错误
+## 17.7 Common mistakes
 
-### 17.7.1 说不出 CoT 为什么有效的底层机制
+### 17.7.1 Being unable to explain why CoT works
 
-可从自回归条件生成解释中间状态如何进入后续上下文，再说明为什么增加步骤不保证增加正确率。
+Start with autoregressive conditional generation: explain how intermediate state enters the context for later generation, then explain why extra steps do not guarantee greater accuracy.
 
-### 17.7.2 认为 CoT 能消除推理错误
+### 17.7.2 Assuming CoT eliminates reasoning errors
 
-中间步骤可以辅助计算，但错误前提仍可能传播；需要计算器、测试或证据核查，不能只要求模型「再想一遍」。
+Intermediate steps can help computation, but mistaken premises may still propagate. Use calculators, tests, or evidence checks rather than simply asking the model to “think again.”
 
-### 17.7.3 无差别地对所有任务加 CoT
+### 17.7.3 Adding CoT to every task indiscriminately
 
-先按任务建立直接回答基线，对确实需要多步处理的任务再比较预算与收益。
+Establish a direct-answer baseline for each task, then compare budgets and benefits for tasks that genuinely need multistep processing.
 
-### 17.7.4 把完整推理链直接展示给最终用户
+### 17.7.4 Showing end users the entire chain of thought
 
-展示关键依据和可核查步骤即可；不要把模型生成的解释当作可靠的内部过程记录。
+Key evidence and verifiable steps are sufficient. Do not treat a generated explanation as a reliable record of the model's internal process.
 
-### 17.7.5 忽略 CoT 的成本
+### 17.7.5 Ignoring CoT's cost
 
-即使最终回答很短，也要计入内部推理、候选采样和验证器的用量。
+Even a short final answer may incur internal reasoning, candidate-sampling, and verifier usage.
 
-### 17.7.6 把 Self-Consistency 说成免费提升
+### 17.7.6 Describing self-consistency as a free improvement
 
-样本数是预算参数，不是固定的调用次数；总计算量增加不等于并行墙钟延迟严格线性增加。
+The sample count is a budget parameter, not a fixed required number of calls. More total computation does not imply a strictly linear increase in parallel wall-clock latency.
 
-### 17.7.7 把 CoT 等同于「规划能力」
+### 17.7.7 Equating CoT with planning capability
 
-CoT 是线性生成中间步骤；规划还涉及状态、行动约束、搜索与执行反馈。显式搜索可以调用 CoT，但不是写出一段计划就具备可靠规划能力。ToT、GoT 等结构见 [Agent 主题第十一章](../../agent/02-reasoning-planning/11-llm-agent-planning.md)。
+CoT generates intermediate steps linearly. Planning also involves state, action constraints, search, and execution feedback. Explicit search can invoke CoT, but writing down a plan does not confer reliable planning. See [Agent Chapter 11](../../agent/02-reasoning-planning/11-llm-agent-planning.md) for structures such as ToT and GoT.
 
-## 17.8 本章总结
+## 17.8 Summary
 
-1. CoT 使中间步骤参与后续生成，但直接回答也包含模型内部计算。
-2. Few-shot、Zero-shot 与已训练的内部推理机制需要分别评测，没有固定的优劣排序。
-3. Self-Consistency 聚合多条路径的答案；相关错误、多解任务和预算限制决定它的收益。
-4. 答案正确、步骤有效与解释忠实是三个不同问题，不能相互替代。
-5. 最终应比较相同预算下的任务成功率，并用工具和证据验证关键结论。
+1. CoT lets intermediate steps participate in later generation, but direct answers also involve internal model computation.
+2. Evaluate few-shot prompting, zero-shot prompting, and trained internal reasoning separately; there is no fixed ranking.
+3. Self-consistency aggregates answers across paths. Correlated errors, multiple valid answers, and budget constraints determine its benefits.
+4. Answer correctness, step validity, and explanation faithfulness are three separate questions, not interchangeable properties.
+5. Ultimately, compare task success under equal budgets and verify key conclusions with tools and evidence.
 
-> CoT 的价值，不是凭空增加知识，而是把中间推导摊出来，让后续步骤能利用前文，也让人有机会检查每一步。
+> CoT does not create knowledge from nothing. Its value is in laying out intermediate reasoning so that later steps can use earlier results and people have an opportunity to check each step.
 
-## 参考资料
+## References
 
 - [Chain-of-Thought Prompting Elicits Reasoning in Large Language Models](https://arxiv.org/abs/2201.11903)
-- [Large Language Models are Zero-Shot Reasoners（Let's think step by step）](https://arxiv.org/abs/2205.11916)
+- [Large Language Models are Zero-Shot Reasoners (Let's think step by step)](https://arxiv.org/abs/2205.11916)
 - [Self-Consistency Improves Chain of Thought Reasoning in Language Models](https://arxiv.org/abs/2203.11171)
 - [Least-to-Most Prompting Enables Complex Reasoning in Large Language Models](https://arxiv.org/abs/2205.10625)
 - [Tree of Thoughts: Deliberate Problem Solving with Large Language Models](https://arxiv.org/abs/2305.10601)
@@ -228,5 +232,5 @@ CoT 是线性生成中间步骤；规划还涉及状态、行动约束、搜索�
 - [Do NOT Think That Much for 2+3=? On the Overthinking of o1-Like LLMs](https://arxiv.org/abs/2412.21187)
 - [OpenAI: Reasoning best practices](https://developers.openai.com/api/docs/guides/reasoning-best-practices)
 - [OpenAI: Reasoning models](https://developers.openai.com/api/docs/guides/reasoning)
-- [Anthropic Python SDK: 手动 thinking 配置](https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/thinking_config_enabled_param.py)
-- [Amazon Bedrock: Extended thinking](https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-extended-thinking.html)（包含 Bedrock 上的手动预算规则、interleaved thinking 例外及模型差异，不代表所有 Claude 入口行为相同）
+- [Anthropic Python SDK: manual thinking configuration](https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/thinking_config_enabled_param.py)
+- [Amazon Bedrock: Extended thinking](https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-extended-thinking.html) (covers Bedrock's manual-budget rules, the interleaved-thinking exception, and model differences; it does not imply identical behavior across every Claude access path)

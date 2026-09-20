@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "language": "en",
+  "edition": "en-draft-1",
+  "title": "AI Engineering Interviews: From Model Foundations to Field Delivery",
+  "chapter_count": 143,
+  "source_url": "https://github.com/zongyangbigpolo/awesome-ai-roadmap/blob/main/",
+  "front_matter": [
+    {"id": "title-page", "path": "docs/book/title-page.md"},
+    {"id": "preface", "path": "docs/book/preface.md"},
+    {"id": "how-to-read", "path": "docs/book/how-to-read.md"}
+  ],
+  "parts": [
+    {
+      "id": "llm",
+      "title": "Large Language Models",
+      "chapters": [
+        {"id": "llm-01", "path": "docs/llm/01-foundations/01-what-is-llm.md"},
+        {"id": "llm-02", "path": "docs/llm/01-foundations/02-transformer-architecture.md"},
+        {"id": "llm-03", "path": "docs/llm/01-foundations/03-attention-variants.md"},
+        {"id": "llm-04", "path": "docs/llm/01-foundations/04-position-encoding.md"},
+        {"id": "llm-05", "path": "docs/llm/01-foundations/05-tokenizer.md"},
+        {"id": "llm-06", "path": "docs/llm/02-training-alignment/06-llm-training.md"},
+        {"id": "llm-07", "path": "docs/llm/02-training-alignment/07-scaling-law-emergence.md"},
+        {"id": "llm-08", "path": "docs/llm/02-training-alignment/08-finetuning.md"},
+        {"id": "llm-09", "path": "docs/llm/02-training-alignment/09-lora.md"},
+        {"id": "llm-10", "path": "docs/llm/02-training-alignment/10-post-training.md"},
+        {"id": "llm-11", "path": "docs/llm/02-training-alignment/11-dpo-vs-ppo.md"},
+        {"id": "llm-12", "path": "docs/llm/03-inference-serving/12-decoding-strategies.md"},
+        {"id": "llm-13", "path": "docs/llm/03-inference-serving/13-temperature-top-p-top-k.md"},
+        {"id": "llm-14", "path": "docs/llm/03-inference-serving/14-kv-cache.md"},
+        {"id": "llm-15", "path": "docs/llm/03-inference-serving/15-quantization.md"},
+        {"id": "llm-16", "path": "docs/llm/04-prompt-reliability/16-prompt-engineering.md"},
+        {"id": "llm-17", "path": "docs/llm/04-prompt-reliability/17-cot.md"},
+        {"id": "llm-18", "path": "docs/llm/04-prompt-reliability/18-hallucination.md"},
+        {"id": "llm-19", "path": "docs/llm/03-inference-serving/19-moe.md"},
+        {"id": "llm-20", "path": "docs/llm/03-inference-serving/20-deployment-frameworks.md"},
+        {"id": "llm-21", "path": "docs/llm/05-evaluation-selection/21-evaluation-metrics.md"},
+        {"id": "llm-22", "path": "docs/llm/05-evaluation-selection/22-model-selection.md"},
+        {"id": "llm-23", "path": "docs/llm/06-multimodal/23-multimodal-models.md"}
+      ]
+    },
+    {
+      "id": "multimodal",
+      "title": "Multimodal AI",
+      "chapters": [
+        {"id": "multimodal-01", "path": "docs/multimodal/01-foundations/01-multimodal-fusion-architecture.md"},
+        {"id": "multimodal-02", "path": "docs/multimodal/02-vision-document/02-vlm-grounding.md"},
+        {"id": "multimodal-03", "path": "docs/multimodal/02-vision-document/03-ocr-document-ai.md"},
+        {"id": "multimodal-04", "path": "docs/multimodal/02-vision-document/04-computer-use.md"},
+        {"id": "multimodal-05", "path": "docs/multimodal/03-speech-audio/05-asr-tts-audio-lm.md"},
+        {"id": "multimodal-06", "path": "docs/multimodal/03-speech-audio/06-realtime-duplex-voice.md"},
+        {"id": "multimodal-07", "path": "docs/multimodal/04-generation/07-diffusion-flow-matching-image.md"},
+        {"id": "multimodal-08", "path": "docs/multimodal/04-generation/08-video-generation.md"},
+        {"id": "multimodal-09", "path": "docs/multimodal/05-data-training-evaluation/09-multimodal-data-alignment.md"},
+        {"id": "multimodal-10", "path": "docs/multimodal/05-data-training-evaluation/10-evaluation-safety-serving.md"}
+      ]
+    },
+    {
+      "id": "tools",
+      "title": "Tools and Protocols",
+      "chapters": [
+        {"id": "tools-01", "path": "docs/tools/01-function-calling/01-function-calling.md"},
+        {"id": "tools-02", "path": "docs/tools/01-function-calling/02-tool-learning.md"},
+        {"id": "tools-03", "path": "docs/tools/01-function-calling/03-tool-schema-design.md"},
+        {"id": "tools-04", "path": "docs/tools/02-mcp/04-what-is-mcp.md"},
+        {"id": "tools-05", "path": "docs/tools/02-mcp/05-mcp-components.md"},
+        {"id": "tools-06", "path": "docs/tools/02-mcp/06-mcp-vs-function-calling.md"},
+        {"id": "tools-07", "path": "docs/tools/01-function-calling/07-reasoning-models-and-tools.md"},
+        {"id": "tools-08", "path": "docs/tools/03-skills/08-what-is-skill.md"},
+        {"id": "tools-09", "path": "docs/tools/03-skills/09-skill-vs-mcp.md"},
+        {"id": "tools-10", "path": "docs/tools/03-skills/10-fc-skill-mcp.md"},
+        {"id": "tools-11", "path": "docs/tools/04-agent-communication/11-a2a-protocol.md"},
+        {"id": "tools-12", "path": "docs/tools/02-mcp/12-mcp-transport.md"},
+        {"id": "tools-13", "path": "docs/tools/05-transport-gateway/13-sse-websocket-webrtc.md"},
+        {"id": "tools-14", "path": "docs/tools/05-transport-gateway/14-llm-gateway.md"},
+        {"id": "tools-15", "path": "docs/tools/02-mcp/15-tool-protocol-security.md"}
+      ]
+    },
+    {
+      "id": "rag",
+      "title": "Retrieval-Augmented Generation",
+      "chapters": [
+        {"id": "rag-01", "path": "docs/rag/01-foundations/01-what-is-rag.md"},
+        {"id": "rag-02", "path": "docs/rag/01-foundations/02-rag-finetune-longcontext.md"},
+        {"id": "rag-03", "path": "docs/rag/02-ingestion-indexing/03-document-parsing.md"},
+        {"id": "rag-04", "path": "docs/rag/02-ingestion-indexing/04-chunking-strategy.md"},
+        {"id": "rag-05", "path": "docs/rag/02-ingestion-indexing/05-semantic-truncation.md"},
+        {"id": "rag-06", "path": "docs/rag/02-ingestion-indexing/06-embedding-principles.md"},
+        {"id": "rag-07", "path": "docs/rag/02-ingestion-indexing/07-embedding-selection.md"},
+        {"id": "rag-08", "path": "docs/rag/02-ingestion-indexing/08-vector-database.md"},
+        {"id": "rag-09", "path": "docs/rag/02-ingestion-indexing/09-vectordb-production.md"},
+        {"id": "rag-10", "path": "docs/rag/03-retrieval/10-online-pipeline.md"},
+        {"id": "rag-11", "path": "docs/rag/03-retrieval/11-retrieval-paradigms.md"},
+        {"id": "rag-12", "path": "docs/rag/03-retrieval/12-query-rewriting.md"},
+        {"id": "rag-13", "path": "docs/rag/03-retrieval/13-hybrid-retrieval-rerank.md"},
+        {"id": "rag-14", "path": "docs/rag/03-retrieval/14-retrieval-optimization.md"},
+        {"id": "rag-15", "path": "docs/rag/04-advanced/15-advanced-rag-paradigms.md"},
+        {"id": "rag-16", "path": "docs/rag/04-advanced/16-graphrag.md"},
+        {"id": "rag-17", "path": "docs/rag/05-generation-evaluation/17-generation-hallucination.md"},
+        {"id": "rag-18", "path": "docs/rag/05-generation-evaluation/18-rag-evaluation.md"},
+        {"id": "rag-19", "path": "docs/rag/06-operations-security/19-dynamic-update.md"},
+        {"id": "rag-20", "path": "docs/rag/06-operations-security/20-rag-challenges-security.md"},
+        {"id": "rag-21", "path": "docs/rag/04-advanced/21-multimodal-rag.md"},
+        {"id": "rag-22", "path": "docs/rag/07-structured-queries/22-text-to-sql.md"}
+      ]
+    },
+    {
+      "id": "agent",
+      "title": "Agents",
+      "chapters": [
+        {"id": "agent-01", "path": "docs/agent/01-foundations/01-agent-foundations.md"},
+        {"id": "agent-02", "path": "docs/agent/01-foundations/02-agent-architecture.md"},
+        {"id": "agent-03", "path": "docs/agent/01-foundations/03-agentic-building-blocks.md"},
+        {"id": "agent-04", "path": "docs/agent/02-reasoning-planning/04-agent-design-patterns.md"},
+        {"id": "agent-05", "path": "docs/agent/02-reasoning-planning/05-agent-reasoning-methods.md"},
+        {"id": "agent-06", "path": "docs/agent/02-reasoning-planning/06-task-decomposition.md"},
+        {"id": "agent-07", "path": "docs/agent/03-memory-context/07-agent-memory.md"},
+        {"id": "agent-08", "path": "docs/agent/03-memory-context/08-agent-memory-implementation.md"},
+        {"id": "agent-09", "path": "docs/agent/04-multi-agent/09-single-vs-multi-agent.md"},
+        {"id": "agent-10", "path": "docs/agent/03-memory-context/10-agent-memory-compression.md"},
+        {"id": "agent-11", "path": "docs/agent/02-reasoning-planning/11-llm-agent-planning.md"},
+        {"id": "agent-12", "path": "docs/agent/02-reasoning-planning/12-agent-reflection.md"},
+        {"id": "agent-13", "path": "docs/agent/04-multi-agent/13-multi-agent-coordination.md"},
+        {"id": "agent-14", "path": "docs/agent/05-production/14-agent-evaluation.md"},
+        {"id": "agent-15", "path": "docs/agent/05-production/15-agent-security.md"},
+        {"id": "agent-16", "path": "docs/agent/02-runtime-harness/16-harness-definition-and-boundaries.md"},
+        {"id": "agent-17", "path": "docs/agent/02-runtime-harness/17-agent-loop-and-runtime-state-machine.md"},
+        {"id": "agent-18", "path": "docs/agent/02-runtime-harness/18-context-engineering-assembly.md"},
+        {"id": "agent-19", "path": "docs/agent/02-runtime-harness/19-tool-registry-and-execution-pipeline.md"},
+        {"id": "agent-20", "path": "docs/agent/02-runtime-harness/20-permissions-sandbox-isolation.md"},
+        {"id": "agent-21", "path": "docs/agent/02-runtime-harness/21-checkpoint-persistence-recovery.md"},
+        {"id": "agent-22", "path": "docs/agent/02-runtime-harness/22-human-in-the-loop-and-interruption.md"},
+        {"id": "agent-23", "path": "docs/agent/02-runtime-harness/23-tracing-evaluation-cost-and-coding-agent-case-study.md"},
+        {"id": "agent-24", "path": "docs/agent/06-coding-agents/24-code-search-edit-verification.md"},
+        {"id": "agent-25", "path": "docs/agent/07-post-training/25-agent-post-training.md"}
+      ]
+    },
+    {
+      "id": "frameworks",
+      "title": "Frameworks and Orchestration",
+      "chapters": [
+        {"id": "frameworks-01", "path": "docs/frameworks/01-langchain/01-foundations/01-agent-frameworks.md"},
+        {"id": "frameworks-02", "path": "docs/frameworks/01-langchain/01-foundations/02-chain-and-lcel.md"},
+        {"id": "frameworks-03", "path": "docs/frameworks/01-langchain/01-foundations/03-langchain-architecture.md"},
+        {"id": "frameworks-04", "path": "docs/frameworks/01-langchain/02-agent-building/04-build-agent.md"},
+        {"id": "frameworks-05", "path": "docs/frameworks/01-langchain/02-agent-building/05-tool-registration.md"},
+        {"id": "frameworks-06", "path": "docs/frameworks/01-langchain/02-agent-building/06-memory.md"},
+        {"id": "frameworks-07", "path": "docs/frameworks/01-langchain/03-ecosystem/07-langchain-vs-llamaindex.md"},
+        {"id": "frameworks-08", "path": "docs/frameworks/01-langchain/03-ecosystem/08-langchain4j.md"},
+        {"id": "frameworks-09", "path": "docs/frameworks/01-langchain/04-langgraph/09-langchain-vs-langgraph.md"},
+        {"id": "frameworks-10", "path": "docs/frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md"},
+        {"id": "frameworks-11", "path": "docs/frameworks/01-langchain/03-ecosystem/11-version-evolution.md"},
+        {"id": "frameworks-12", "path": "docs/frameworks/01-langchain/05-production/12-deep-research.md"},
+        {"id": "frameworks-13", "path": "docs/frameworks/01-langchain/05-production/13-langsmith-production-loop.md"},
+        {"id": "frameworks-14", "path": "docs/frameworks/02-llamaindex/14-data-index-abstractions.md"},
+        {"id": "frameworks-15", "path": "docs/frameworks/02-llamaindex/15-query-engine-workflows.md"},
+        {"id": "frameworks-16", "path": "docs/frameworks/03-dspy/16-declarative-programming-model.md"},
+        {"id": "frameworks-17", "path": "docs/frameworks/03-dspy/17-compiler-and-optimizers.md"},
+        {"id": "frameworks-18", "path": "docs/frameworks/04-semantic-kernel/18-kernel-plugin-planner.md"},
+        {"id": "frameworks-19", "path": "docs/frameworks/04-semantic-kernel/19-process-and-agent-framework.md"},
+        {"id": "frameworks-20", "path": "docs/frameworks/05-lightweight-agent-frameworks/20-autogen-and-crewai.md"},
+        {"id": "frameworks-21", "path": "docs/frameworks/05-lightweight-agent-frameworks/21-pydanticai-and-decision-matrix.md"},
+        {"id": "frameworks-22", "path": "docs/frameworks/06-selection-portability/22-cross-framework-technical-taxonomy.md"},
+        {"id": "frameworks-23", "path": "docs/frameworks/06-selection-portability/23-lockin-and-portable-architecture.md"}
+      ]
+    },
+    {
+      "id": "engineering",
+      "title": "Production Engineering",
+      "chapters": [
+        {"id": "engineering-01", "path": "docs/engineering/01-foundations/01-llmops-vs-mlops-devops.md"},
+        {"id": "engineering-02", "path": "docs/engineering/01-foundations/02-production-architecture-overview.md"},
+        {"id": "engineering-03", "path": "docs/engineering/02-request-reliability/03-model-gateway-routing-fallback.md"},
+        {"id": "engineering-04", "path": "docs/engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md"},
+        {"id": "engineering-05", "path": "docs/engineering/03-output-safety/05-structured-output-contracts.md"},
+        {"id": "engineering-06", "path": "docs/engineering/03-output-safety/06-guardrails-degradation.md"},
+        {"id": "engineering-07", "path": "docs/engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md"},
+        {"id": "engineering-08", "path": "docs/engineering/04-evaluation-observability/08-online-observability-tracing.md"},
+        {"id": "engineering-09", "path": "docs/engineering/05-release-pipeline/09-prompt-model-data-versioning.md"},
+        {"id": "engineering-10", "path": "docs/engineering/05-release-pipeline/10-llm-cicd-canary-ab.md"},
+        {"id": "engineering-11", "path": "docs/engineering/06-performance-operations/11-caching-batching-throughput-cost.md"},
+        {"id": "engineering-12", "path": "docs/engineering/06-performance-operations/12-slo-capacity-incident-response.md"},
+        {"id": "engineering-13", "path": "docs/engineering/06-performance-operations/13-feedback-loop-data-flywheel.md"}
+      ]
+    },
+    {
+      "id": "safety",
+      "title": "Safety and Governance",
+      "chapters": [
+        {"id": "safety-01", "path": "docs/safety/01-threat-modeling/01-ai-threat-modeling-attack-surface.md"},
+        {"id": "safety-02", "path": "docs/safety/02-prompt-content-attacks/02-prompt-injection-jailbreak-system-prompt-leakage.md"},
+        {"id": "safety-03", "path": "docs/safety/02-prompt-content-attacks/03-output-handling-secret-exfiltration.md"},
+        {"id": "safety-04", "path": "docs/safety/03-data-model-supply-chain/04-training-finetuning-rag-poisoning.md"},
+        {"id": "safety-05", "path": "docs/safety/03-data-model-supply-chain/05-model-supply-chain-serialization-risks.md"},
+        {"id": "safety-06", "path": "docs/safety/03-data-model-supply-chain/06-privacy-pii-memory-leakage.md"},
+        {"id": "safety-07", "path": "docs/safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md"},
+        {"id": "safety-08", "path": "docs/safety/04-agent-execution-isolation/08-code-execution-browser-computer-use-sandboxing.md"},
+        {"id": "safety-09", "path": "docs/safety/05-assurance-governance/09-security-evaluation-red-teaming-continuous-assurance.md"},
+        {"id": "safety-10", "path": "docs/safety/05-assurance-governance/10-ai-governance-risk-classification-audit-provenance.md"}
+      ]
+    },
+    {
+      "id": "fde",
+      "title": "Forward Deployed Engineering",
+      "chapters": [
+        {"id": "fde-01", "path": "docs/fde/01-foundations/01-forward-deployed-engineering.md"},
+        {"id": "fde-02", "path": "docs/fde/02-field-practice/02-delivery-lessons.md"}
+      ]
+    }
+  ],
+  "back_matter": [
+    {"id": "acknowledgments", "path": "docs/book/acknowledgments.md"},
+    {"id": "colophon", "path": "docs/book/colophon.md"}
+  ]
+}
