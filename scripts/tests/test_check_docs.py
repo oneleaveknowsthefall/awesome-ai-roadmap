@@ -7,6 +7,9 @@ import unittest
 
 
 CHECKER = Path(__file__).resolve().parents[1] / "check_docs.py"
+sys.path.insert(0, str(CHECKER.parent))
+import check_docs
+
 TOPICS = {
     "llm": "LLM", "multimodal": "多模态 AI", "tools": "Tools",
     "agent": "Agent", "rag": "RAG", "frameworks": "框架与编排",
@@ -109,6 +112,60 @@ class ReviewCoverageTests(unittest.TestCase):
         self.assertIn("invalid review disposition", result.stdout)
         self.assertIn("missing review rationale", result.stdout)
         self.assertIn("missing technical review notes", result.stdout)
+
+    def test_historical_structured_note_shapes_pass_alongside_text(self):
+        root = CHECKER.parents[1]
+        for name in ("models", "production", "frameworks", "tools"):
+            with self.subTest(scope=name):
+                original = json.loads((root / f"book/reviews/{name}.json").read_text(encoding="utf-8"))
+                notes = original["chapters"][0]["technical_checks"]
+                self.assertTrue(any(isinstance(note, dict) for note in notes))
+                self.review([self.entry(technical_checks=["Text review note.", *notes])])
+                result = self.run_check()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_invalid_technical_notes_fail(self):
+        invalid = (
+            None, "", {}, [],
+            [""], [" \n"], [None], [7], [True], [[]], [{}],
+            [{"check": ""}], [{"check": "  "}], [{"check": None}],
+            [{"check": ["Not a string"]}], [{"result": "Missing check"}],
+            [{"check": "A check", "result": 3}],
+            [{"check": "A check", "source_urls": "https://example.com"}],
+            [{"check": "A check", "source_urls": [None]}],
+            [{"check": "A check", "source_urls": [""]}],
+            ["Valid note", {"check": ""}],
+        )
+        for notes in invalid:
+            with self.subTest(notes=notes):
+                self.review([self.entry(technical_checks=notes)])
+                result = self.run_check()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("missing technical review notes", result.stdout)
+        entry = self.entry()
+        del entry["technical_checks"]
+        self.review([entry])
+        result = self.run_check()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing technical review notes", result.stdout)
+
+    def test_complete_real_chinese_review_history_is_unchanged_and_valid(self):
+        root = CHECKER.parents[1]
+        files = sorted((root / "book/reviews").glob("*.json"))
+        self.assertTrue(files)
+        before = {path: path.read_bytes() for path in files}
+        chapters = sorted(path.relative_to(root).as_posix()
+                          for path in (root / "docs").rglob("[0-9][0-9]-*.md")
+                          if not path.name.endswith(".zh.md"))
+        self.assertTrue(chapters)
+        previous = check_docs.issues[:]
+        check_docs.issues.clear()
+        try:
+            check_docs.check_historical_reviews(root, chapters)
+            self.assertEqual(check_docs.issues, [])
+        finally:
+            check_docs.issues[:] = previous
+        self.assertEqual(before, {path: path.read_bytes() for path in files})
 
     def test_invalid_json_reports_file(self):
         self.write("book/reviews/example.json", "{")

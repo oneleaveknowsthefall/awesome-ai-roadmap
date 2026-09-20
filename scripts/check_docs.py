@@ -173,6 +173,21 @@ def check_indexes(root, texts, links, chapters):
                     report(index, f"{topic} chapter count is not {count}")
 
 
+def valid_review_note(note):
+    if isinstance(note, str):
+        return bool(note.strip())
+    if not isinstance(note, dict) or not isinstance(note.get("check"), str) or not note["check"].strip():
+        return False
+    if "result" in note and not isinstance(note["result"], str):
+        return False
+    if "source_urls" in note and (
+        not isinstance(note["source_urls"], list) or
+        not all(isinstance(url, str) and url.strip() for url in note["source_urls"])
+    ):
+        return False
+    return True
+
+
 def check_historical_reviews(root, chapters):
     """Review paths are logical IDs of the original Chinese manuscript, not English reviews."""
     files = sorted((root / "book/reviews").glob("*.json"))
@@ -208,7 +223,7 @@ def check_historical_reviews(root, chapters):
                 report(path, f"missing review rationale: {chapter_path}")
             checks = entry.get("technical_checks")
             if not isinstance(checks, list) or not checks or not all(
-                isinstance(note, str) and note.strip() for note in checks
+                valid_review_note(note) for note in checks
             ):
                 report(path, f"missing technical review notes: {chapter_path}")
     for chapter_path in sorted(chapter_set - reviewed.keys()):
