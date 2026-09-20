@@ -166,7 +166,7 @@ reply: SupportReply = result["structured_response"]
 
 这里直接传 Pydantic 类型时，框架会根据模型能力选择 `ProviderStrategy`（供应商原生结构约束）或 `ToolStrategy`（用工具调用承载输出）。若同时提供业务工具，必须验证模型支持相应组合；JSON Schema 字典则应显式包进策略。`structured_response` 是成功完成后的结果，不代表拒答、截断或校验重试耗尽时也一定存在。调用方必须区分成功、等待审批和异常，而不是缺字段就制造一个「已处理」答复。
 
-**底层执行流程**（详见 [第三章](../01-foundations/03-langchain-architecture.md)）：
+**底层执行流程**（详见 [第三章](../01-foundations/03-langchain-architecture.zh.md)）：
 
 ```mermaid
 flowchart TB
@@ -234,7 +234,7 @@ flowchart TB
     style L3 fill:#fff3cd
 ```
 
-如何把 Trace、生产反馈、Dataset、离线实验和发布门禁连成闭环，见 [LangSmith 生产质量闭环](../05-production/13-langsmith-production-loop.md)。
+如何把 Trace、生产反馈、Dataset、离线实验和发布门禁连成闭环，见 [LangSmith 生产质量闭环](../05-production/13-langsmith-production-loop.zh.md)。
 
 ### 4.8.1 上线前检查清单
 

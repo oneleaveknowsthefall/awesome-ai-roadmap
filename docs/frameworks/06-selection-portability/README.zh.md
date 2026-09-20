@@ -10,8 +10,8 @@ description: "按状态、恢复、工具契约和评测遥测比较框架，以
 
 ## 章节
 
-1. [第二十二章：跨框架技术解构：状态、持久化、工具契约与可观测性](22-cross-framework-technical-taxonomy.md)
-2. [第二十三章：Lock-in 识别、可移植架构与迁移策略](23-lockin-and-portable-architecture.md)
+1. [第二十二章：跨框架技术解构：状态、持久化、工具契约与可观测性](22-cross-framework-technical-taxonomy.zh.md)
+2. [第二十三章：Lock-in 识别、可移植架构与迁移策略](23-lockin-and-portable-architecture.zh.md)
 
 ## 模块关系
 
@@ -28,4 +28,4 @@ flowchart LR
 - **已经用了某个框架，担心被锁死**：直接看第二十三章的 lock-in 识别清单和适配器架构；
 - **需要把现有系统从一个框架迁移到另一个框架**：看第二十三章 23.4 节的迁移策略部分。
 
-返回 [AI 框架与编排 相关知识点](../README.md)。
+返回 [AI 框架与编排 相关知识点](../README.zh.md)。

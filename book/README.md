@@ -1,8 +1,8 @@
 # Maintaining and publishing the bilingual book
 
-[简体中文维护指南](README.zh.md)
+[简体中文](README.zh.md)
 
-This guide is for authors and maintainers, not part of the reader manuscript. Readers can start at [`docs/book/README.md`](../docs/book/README.md) in English or [`docs/book/README.zh.md`](../docs/book/README.zh.md) in Simplified Chinese. English is the primary manuscript; Chinese is a complete companion, not a summary. Each language uses the **same Markdown sources for its website and reflowable EPUB3**, with no separate EPUB prose.
+This guide is for authors and maintainers, not part of the reader manuscript. Readers can start at the [book contents](../docs/book/README.md) and use the website's language switcher for the corresponding Chinese page. English is the primary manuscript; Chinese is a complete companion, not a summary. Each language uses the **same Markdown sources for its website and reflowable EPUB3**, with no separate EPUB prose.
 
 The book covers all 143 knowledge chapters. **Release validation requires two complete EPUBs built from synchronized, complete sources.** Small bilingual test books can verify the export pipeline but cannot establish that the full English book has been built or reviewed.
 

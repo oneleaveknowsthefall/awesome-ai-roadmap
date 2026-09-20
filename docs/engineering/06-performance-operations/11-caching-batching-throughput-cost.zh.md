@@ -6,7 +6,7 @@ description: 区分答案缓存与前缀缓存，核算批处理、并发与重�
 
 ## 11.1 成本优化的四个杠杆
 
-对按用量计费的模型 API，token 用量、工具使用和调用次数直接影响费用；自托管还要算算力利用率与运维。常用的四个杠杆是：**减少重复计算（缓存）、把可延迟任务交给异步批处理、换更便宜的模型（路由）、压缩上下文（减少 token）**。这里先看前两个应用层杠杆，路由降本已在[第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.md)讨论，推理引擎内部的量化、KV Cache 等降本手段见 [LLM · 推理与部署](../../llm/03-inference-serving/README.md)。
+对按用量计费的模型 API，token 用量、工具使用和调用次数直接影响费用；自托管还要算算力利用率与运维。常用的四个杠杆是：**减少重复计算（缓存）、把可延迟任务交给异步批处理、换更便宜的模型（路由）、压缩上下文（减少 token）**。这里先看前两个应用层杠杆，路由降本已在[第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.zh.md)讨论，推理引擎内部的量化、KV Cache 等降本手段见 [LLM · 推理与部署](../../llm/03-inference-serving/README.zh.md)。
 
 ```mermaid
 flowchart TB
@@ -18,13 +18,13 @@ flowchart TB
 
 ## 11.2 语义缓存:应用层最直接的降本手段
 
-语义缓存用向量相似度寻找可复用答案，机制见 [Tools · LLM 网关](../../tools/05-transport-gateway/14-llm-gateway.md)。相似度不是答案等价概率，0.85–0.95 之类阈值只能作为特定嵌入模型下的实验值；「可退款」与「不可退款」、不同日期和不同订单可能非常相似却不能共用答案。
+语义缓存用向量相似度寻找可复用答案，机制见 [Tools · LLM 网关](../../tools/05-transport-gateway/14-llm-gateway.zh.md)。相似度不是答案等价概率，0.85–0.95 之类阈值只能作为特定嵌入模型下的实验值；「可退款」与「不可退款」、不同日期和不同订单可能非常相似却不能共用答案。
 
 先做精确缓存，再评估语义复用是否划算。缓存键或过滤条件应覆盖租户、用户权限、Prompt/模型/知识库/策略版本和业务时效；命中后仍要验证资源权限。对付款、实时余额等请求通常不能复用旧答案。按场景同时统计命中率、错误命中率、节省费用和答案陈旧率，删除文档或撤销权限时联动失效，不能只追求更高命中率。
 
 ## 11.3 Prompt Caching:另一种缓存,作用层次不同
 
-**答案缓存命中后可以跳过整次生成；Prompt Caching 则仍然发起调用，只复用已计算的前缀状态。** 后者减少重复的 prefill 计算，未命中的输入和新输出仍要计算，生成时也仍需读取历史 KV 做注意力运算。这是[LLM · KV Cache](../../llm/03-inference-serving/14-kv-cache.md)机制在应用层的直接收益，不是整段上下文此后都不参与推理。
+**答案缓存命中后可以跳过整次生成；Prompt Caching 则仍然发起调用，只复用已计算的前缀状态。** 后者减少重复的 prefill 计算，未命中的输入和新输出仍要计算，生成时也仍需读取历史 KV 做注意力运算。这是[LLM · KV Cache](../../llm/03-inference-serving/14-kv-cache.zh.md)机制在应用层的直接收益，不是整段上下文此后都不参与推理。
 
 **应用层能做的事是把 Prompt 结构设计成"缓存友好"**:
 
@@ -60,13 +60,13 @@ def submit_batch_job(tasks: list[dict]) -> str:
 
 | 手段 | 说明 |
 |---|---|
-| 检索结果精简 | RAG 场景下只把真正相关的片段放入上下文,而非整篇文档,详见 [RAG · 检索](../../rag/03-retrieval/README.md) |
-| 历史对话摘要 | 多轮对话中把较早的轮次压缩成摘要而非保留全文,详见 [Agent · 记忆与上下文](../../agent/03-memory-context/README.md) |
+| 检索结果精简 | RAG 场景下只把真正相关的片段放入上下文,而非整篇文档,详见 [RAG · 检索](../../rag/03-retrieval/README.zh.md) |
+| 历史对话摘要 | 多轮对话中把较早的轮次压缩成摘要而非保留全文,详见 [Agent · 记忆与上下文](../../agent/03-memory-context/README.zh.md) |
 | 精简系统 Prompt | 定期审查系统 Prompt 是否存在冗余指令,过长的系统 Prompt 会在每次调用中重复计费 |
 
 ## 11.6 吞吐:用并发和排队策略平衡延迟与成本
 
-在自建推理服务的场景下(见 [LLM · 部署框架](../../llm/03-inference-serving/20-deployment-frameworks.md)),连续批处理(continuous batching)等技术由推理引擎负责;应用层能控制的是**并发请求数的准入策略**——过多并发请求同时涌入会推高排队延迟,进而影响 SLO(见[第 12 章](12-slo-capacity-incident-response.md)):
+在自建推理服务的场景下(见 [LLM · 部署框架](../../llm/03-inference-serving/20-deployment-frameworks.zh.md)),连续批处理(continuous batching)等技术由推理引擎负责;应用层能控制的是**并发请求数的准入策略**——过多并发请求同时涌入会推高排队延迟,进而影响 SLO(见[第 12 章](12-slo-capacity-incident-response.zh.md)):
 
 ```python
 import asyncio
@@ -83,7 +83,7 @@ Semaphore 只限制单进程活跃调用，不限制等待队列长度，也不�
 
 ## 11.7 成本可观测性:没有度量就没有优化依据
 
-[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md)提到的 Trace 数据应该聚合出按业务场景、按团队维度的成本报表:
+[第 8 章](../04-evaluation-observability/08-online-observability-tracing.zh.md)提到的 Trace 数据应该聚合出按业务场景、按团队维度的成本报表:
 
 | 报表维度 | 回答的问题 |
 |---|---|

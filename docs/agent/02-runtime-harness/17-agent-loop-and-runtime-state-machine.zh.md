@@ -88,7 +88,7 @@ stateDiagram-v2
 | 循环驱动方式 | 内置 agent loop，SDK 内部驱动 | `Runner.run` 内部驱动，暴露三种调用方式（同步/异步/流式） | 显式的图执行引擎，节点与边由开发者定义 |
 | 终止判定 | 无工具调用可结束回合，hooks 可干预 | final output 或配置的工具停止行为；`max_turns` 触发异常 | `END` 表示图结束；`interrupt()` 是暂停，不等于成功终止 |
 | 嵌套/切换 | Subagents（嵌套） | Handoffs（切换 current agent） | 子图（Subgraphs），见 [LangGraph: Subgraphs](https://docs.langchain.com/oss/python/langgraph/use-subgraphs) |
-| 状态可见性 | 通过流式消息（`SystemMessage`/`AssistantMessage`）暴露 | 通过 `RunResult`/`RunResultStreaming` 暴露 | 状态是图上的显式字段，见[第十三章 13.15 节](../04-multi-agent/13-multi-agent-coordination.md) |
+| 状态可见性 | 通过流式消息（`SystemMessage`/`AssistantMessage`）暴露 | 通过 `RunResult`/`RunResultStreaming` 暴露 | 状态是图上的显式字段，见[第十三章 13.15 节](../04-multi-agent/13-multi-agent-coordination.zh.md) |
 
 三者都要处理调用、观察、继续与停止，但不共享一份字段规范或完全相同的状态机。对接时应把产品事件映射到自己的任务状态，并核对轮数口径：例如 Claude Agent SDK 的 `max_turns` 按工具使用轮数计数，不能直接把另一 SDK 的数值原样搬来。
 

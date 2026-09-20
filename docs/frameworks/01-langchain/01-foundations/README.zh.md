@@ -8,8 +8,8 @@ description: 从框架选型、Runnable 与 LCEL 入手，理解 LangChain v1 �
 
 ## 章节
 
-1. [第一章：主流 AI Agent 开发框架概览](01-agent-frameworks.md)
-2. [第二章：Chain 的设计理念与 LCEL](02-chain-and-lcel.md)
-3. [第三章：LangChain v1 的底层架构](03-langchain-architecture.md)
+1. [第一章：主流 AI Agent 开发框架概览](01-agent-frameworks.zh.md)
+2. [第二章：Chain 的设计理念与 LCEL](02-chain-and-lcel.zh.md)
+3. [第三章：LangChain v1 的底层架构](03-langchain-architecture.zh.md)
 
-返回 [LangChain 生态](../README.md)。
+返回 [LangChain 生态](../README.zh.md)。

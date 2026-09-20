@@ -54,7 +54,7 @@ result = chain.invoke({"question": "什么是 Agent？"})
 
 > **这段代码的重要之处不是管道符**，而是**组合后的整体仍然遵循 Runnable 协议**，因此可以使用统一的同步、异步、批处理、流式和追踪接口。
 
-**它代表 LangChain 从「大量预制类」转向「少量标准协议 + 组合」**（详见 [第二章](../01-foundations/02-chain-and-lcel.md)）。
+**它代表 LangChain 从「大量预制类」转向「少量标准协议 + 组合」**（详见 [第二章](../01-foundations/02-chain-and-lcel.zh.md)）。
 
 > **对于步骤固定的确定性流程，Runnable 和 LCEL 往往比 Agent 更容易测试和控制。**
 
@@ -72,7 +72,7 @@ result = chain.invoke({"question": "什么是 Agent？"})
 | **Node** | 执行模型、工具或**普通业务逻辑** |
 | **Edge** | 决定结果接下来流向哪里 |
 
-> **循环和分支不再隐藏在执行器内部**，检查点还能保存运行状态，为暂停恢复、人工介入和长时间执行提供基础（详见 [第十章](../04-langgraph/10-langgraph-advantages.md)）。
+> **循环和分支不再隐藏在执行器内部**，检查点还能保存运行状态，为暂停恢复、人工介入和长时间执行提供基础（详见 [第十章](../04-langgraph/10-langgraph-advantages.zh.md)）。
 
 **LangGraph 并不是把 LangChain 完全替换掉**：LangChain 提供模型、Tool、middleware 和 `create_agent` 等高层开发体验，LangGraph 提供底层状态与执行能力。
 

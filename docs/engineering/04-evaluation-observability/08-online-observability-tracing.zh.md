@@ -62,7 +62,7 @@ def trace_metadata(tenant_id: str, prompt_version: str, trace_key: bytes) -> dic
     return {"tenant_hash": tenant_hash, "prompt_version": prompt_version}
 ```
 
-HMAC 标识仍可关联用户，属于假名化而非匿名化；需要访问控制、密钥轮换和保留期限。具体平台的数据模型并不完全等同于 OpenTelemetry，选型时需确认映射、导出和删除能力，原则可参考 [LangSmith 生产质量闭环](../../frameworks/01-langchain/05-production/13-langsmith-production-loop.md)。
+HMAC 标识仍可关联用户，属于假名化而非匿名化；需要访问控制、密钥轮换和保留期限。具体平台的数据模型并不完全等同于 OpenTelemetry，选型时需确认映射、导出和删除能力，原则可参考 [LangSmith 生产质量闭环](../../frameworks/01-langchain/05-production/13-langsmith-production-loop.zh.md)。
 
 ## 8.5 采样策略:不是所有流量都值得全量记录
 
@@ -72,7 +72,7 @@ HMAC 标识仍可关联用户，属于假名化而非匿名化；需要访问控
 |---|---|
 | 安全拦截、越权、支付 | 必要的决策审计不依赖调试 Trace 采样；限量、脱敏记录，明确保留与访问策略 |
 | 普通失败请求 | 尾部采样优先保留，考虑缓冲容量和导出丢失，不能无条件承诺 100% |
-| 新模型/新 Prompt 的灰度发布 | 按版本和租户分层采样,保留对照组用于[第 10 章](../05-release-pipeline/10-llm-cicd-canary-ab.md)的 A/B 分析 |
+| 新模型/新 Prompt 的灰度发布 | 按版本和租户分层采样,保留对照组用于[第 10 章](../05-release-pipeline/10-llm-cicd-canary-ab.zh.md)的 A/B 分析 |
 | 普通低风险流量 | 随机采样,设置成本上限 |
 
 ## 8.6 从 Trace 到告警:指标聚合与阈值
@@ -113,7 +113,7 @@ Trace 堆积如山但没有形成 p99 延迟、错误率这类可以设阈值告
 
 ### 8.7.5 把可观测性当成事后补救,而非架构设计的一部分
 
-参见[第 2 章](../01-foundations/02-production-architecture-overview.md),可观测性的数据边界和采样策略应该在系统设计阶段就规划好。
+参见[第 2 章](../01-foundations/02-production-architecture-overview.zh.md),可观测性的数据边界和采样策略应该在系统设计阶段就规划好。
 
 ## 8.8 本章总结
 

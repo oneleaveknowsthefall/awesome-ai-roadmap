@@ -8,7 +8,7 @@ description: "FDE 基础章阅读入口，涵盖产品协作、需求访谈、�
 
 ## 章节目录
 
-1. [第一章：Forward Deployed Engineering：从业务问题到可复用生产系统](01-forward-deployed-engineering.md)
+1. [第一章：Forward Deployed Engineering：从业务问题到可复用生产系统](01-forward-deployed-engineering.zh.md)
 
 ## 面试准备怎么读
 
@@ -18,6 +18,6 @@ description: "FDE 基础章阅读入口，涵盖产品协作、需求访谈、�
 
 1.11 节把这些方法放进一个订单异常助手案例里，沿着访谈、第一版错误、验收、小范围上线和成本测算往下讲。最后用 1.12 节的问题，试着解释自己会怎样处理同样的情况。
 
-继续看[第二章：FDE 项目踩坑与交付经验](../02-field-practice/02-delivery-lessons.md)，可以把需求变更、PoC 结论、项目记忆和交接几个问题再往下展开。
+继续看[第二章：FDE 项目踩坑与交付经验](../02-field-practice/02-delivery-lessons.zh.md)，可以把需求变更、PoC 结论、项目记忆和交接几个问题再往下展开。
 
-返回 [FDE 主题](../README.md)。
+返回 [FDE 主题](../README.zh.md)。

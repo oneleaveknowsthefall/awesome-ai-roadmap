@@ -94,7 +94,7 @@ $$
 
 1 GiB 为 2³⁰ 字节，1 GB 为 10⁹ 字节。若另有 7B 个 FP16 权重，裸权重约 14 GB；还要加入激活、workspace 和框架开销。不能只说「7B 的 32K KV 就是 17GB」，也不能只靠权重大小决定可容纳并发。
 
-MLA 可能缓存压缩 latent 与位置相关分量，滑动窗口层只保留窗口内状态；这些不能直接套用上述常规 KV 公式。详见[第三章](../01-foundations/03-attention-variants.md)。
+MLA 可能缓存压缩 latent 与位置相关分量，滑动窗口层只保留窗口内状态；这些不能直接套用上述常规 KV 公式。详见[第三章](../01-foundations/03-attention-variants.zh.md)。
 
 ## 14.5 跨请求：共享的必须是完整计算前缀
 

@@ -142,7 +142,7 @@ flowchart TB
 
 更隐蔽的变体是 **Rug Pull**：服务端在审核后改变定义。可以记录来源、版本和哈希，对变更告警并重审；哈希只检测变化，不证明初始内容安全，也无法证明远端实现与描述一致。
 
-MCP/A2A 的 OAuth、token audience、SSRF、最小权限与审计控制详见 [Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md)。本章继续关注 Agent 执行链中的任务授权、数据流与运行时隔离。
+MCP/A2A 的 OAuth、token audience、SSRF、最小权限与审计控制详见 [Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.zh.md)。本章继续关注 Agent 执行链中的任务授权、数据流与运行时隔离。
 
 ### 15.6.2 记忆投毒（Memory Poisoning）
 

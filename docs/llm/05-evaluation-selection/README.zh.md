@@ -10,7 +10,7 @@ description: 说明公开基准、业务保留集和线上指标如何支撑模�
 
 ## 章节
 
-1. [第二十一章：能力评测指标](21-evaluation-metrics.md)
-2. [第二十二章：模型选型实践](22-model-selection.md)
+1. [第二十一章：能力评测指标](21-evaluation-metrics.zh.md)
+2. [第二十二章：模型选型实践](22-model-selection.zh.md)
 
-返回 [LLM 相关知识点](../README.md)。
+返回 [LLM 相关知识点](../README.zh.md)。

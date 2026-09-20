@@ -8,8 +8,8 @@ description: 多模态数据与上线验证索引，涵盖过滤偏差、事实�
 
 ## 章节
 
-1. [第九章：多模态训练数据与对齐](09-multimodal-data-alignment.md)
-2. [第十章：多模态评测、安全与推理服务](10-evaluation-safety-serving.md)
+1. [第九章：多模态训练数据与对齐](09-multimodal-data-alignment.zh.md)
+2. [第十章：多模态评测、安全与推理服务](10-evaluation-safety-serving.zh.md)
 
 ## 模块内关系
 
@@ -20,6 +20,6 @@ flowchart LR
 
 第九章讨论数据如何提供或遗漏训练信号，第十章讨论能力、风险与服务成本如何验证。它们不是训练完成后才补做的收尾：数据划分、去污染、权限和资源预算需要在数据采集与系统设计时确定。
 
-关键区分包括：相似度不等于配对正确率，发布日期不等于无污染，内容凭证不等于事实真实，媒体特征缓存不等于任意上下文 KV 复用。通用框架见 [LLM · 多模态模型](../../llm/06-multimodal/23-multimodal-models.md)。
+关键区分包括：相似度不等于配对正确率，发布日期不等于无污染，内容凭证不等于事实真实，媒体特征缓存不等于任意上下文 KV 复用。通用框架见 [LLM · 多模态模型](../../llm/06-multimodal/23-multimodal-models.zh.md)。
 
-返回 [多模态相关知识点](../README.md)。
+返回 [多模态相关知识点](../README.zh.md)。

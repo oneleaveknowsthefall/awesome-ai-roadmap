@@ -1,7 +1,7 @@
 ---
-description: 《AI 工程面试：从模型原理到现场交付》中文简体书稿扉页。
+description: Title page of AI Engineering Interviews, from model foundations to field delivery.
 ---
 
-# AI 工程面试：从模型原理到现场交付
+# AI Engineering Interviews: From Model Foundations to Field Delivery
 
-理解机制、解释取舍，把方案讲到能验证
+Mechanisms, trade-offs, and testable engineering decisions

@@ -10,8 +10,8 @@ description: "从数据摄取、索引与查询路由理解 LlamaIndex，再分�
 
 ## 章节
 
-1. [第十四章：LlamaIndex 的数据与索引抽象](14-data-index-abstractions.md)
-2. [第十五章：LlamaIndex 的查询引擎与 Workflows 编排](15-query-engine-workflows.md)
+1. [第十四章：LlamaIndex 的数据与索引抽象](14-data-index-abstractions.zh.md)
+2. [第十五章：LlamaIndex 的查询引擎与 Workflows 编排](15-query-engine-workflows.zh.md)
 
 ## 模块关系
 
@@ -27,7 +27,7 @@ flowchart LR
 
 - 建议先读第十四章，了解数据如何变成可检索结构；再读第十五章，看这些结构如何被用于回答问题和多步流程；
 - 如果想和 LangChain 对照，两章正文都标注了与 `docs/frameworks/01-langchain` 对应章节的抽象差异，适合交替阅读；
-- 如果主要关心状态机与事件驱动的区别，可直接看第十五章 15.3 节，再跳转 [框架选型与可移植架构](../06-selection-portability/README.md) 的统一对照表。
+- 如果主要关心状态机与事件驱动的区别，可直接看第十五章 15.3 节，再跳转 [框架选型与可移植架构](../06-selection-portability/README.zh.md) 的统一对照表。
 - 准备技术讨论时，尝试解释文档更新后如何删除旧节点、为何换向量库仍需回归，以及检查点恢复后怎样防止工具重复提交。
 
-返回 [AI 框架与编排 相关知识点](../README.md)。
+返回 [AI 框架与编排 相关知识点](../README.zh.md)。

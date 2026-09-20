@@ -14,7 +14,7 @@ $$
 \theta^{*} = \arg\max_{\theta} \frac{1}{|D|} \sum_{(x, y) \in D} \mu\bigl(f_\theta(x), y\bigr)
 $$
 
-这与 [评测与选型主题](../../llm/README.md) 中「能力评测指标」一章讨论的是同一套量化方法，只是在 DSPy 里它直接成为**优化目标**，而不只是事后打分工具。
+这与 [评测与选型主题](../../llm/README.zh.md) 中「能力评测指标」一章讨论的是同一套量化方法，只是在 DSPy 里它直接成为**优化目标**，而不只是事后打分工具。
 
 ## 17.2 按搜索对象选择优化器
 
@@ -58,7 +58,7 @@ compiled.save("optimized.json")
 
 ## 17.3 优化器与观测平台的职责差异
 
-[LangSmith 生产质量闭环](../01-langchain/05-production/13-langsmith-production-loop.md) 覆盖 Trace、数据集和评测，不仅用于上线后，也能在开发期运行离线实验。与 DSPy 的区别不是「上线后人工」对「上线前自动」，而是观测/评测平台与程序参数优化器的职责不同。
+[LangSmith 生产质量闭环](../01-langchain/05-production/13-langsmith-production-loop.zh.md) 覆盖 Trace、数据集和评测，不仅用于上线后，也能在开发期运行离线实验。与 DSPy 的区别不是「上线后人工」对「上线前自动」，而是观测/评测平台与程序参数优化器的职责不同。
 
 DSPy 的评测循环发生在**编译阶段之内**，是「评测即优化」：
 

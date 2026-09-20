@@ -8,7 +8,7 @@ description: "解释 LlamaIndex 的 Document、Node、摄取缓存和索引存�
 
 私有数据通常既不在模型的已知知识里，也没有整理成可检索、可溯源的上下文。PDF 中的表格、数据库记录和工单正文需要先解析、定位并建立检索结构，不能只把文件路径交给模型。
 
-LlamaIndex 的常用切入点就是这条数据加工链路；[LangChain 生态](../01-langchain/README.md) 则更强调 Model / Message / Tool 的统一接口，以及模型如何调用工具。
+LlamaIndex 的常用切入点就是这条数据加工链路；[LangChain 生态](../01-langchain/README.zh.md) 则更强调 Model / Message / Tool 的统一接口，以及模型如何调用工具。
 
 两者有大量能力重叠，也可以分工互补；这里比较的是常用抽象的侧重点，不是「LlamaIndex 只能做 RAG」或「LangChain 不擅长数据处理」的产品边界。
 
@@ -50,7 +50,7 @@ nodes = pipeline.run(documents=[Document(text=raw_text, metadata={"source": "han
 
 `IngestionPipeline` 的作用不只是切分文本，更重要的是把切分策略、元数据抽取和 Embedding 生成固化成可复用、可缓存的组件序列。同一份原始数据如果要更换切分策略，通常只需要替换 `transformations` 里的一步，不必重写整个摄取脚本。
 
-对照 [LangChain 生态](../01-langchain/README.md) 的常见流水线，LlamaIndex 的 Node 关系提供了更直接的上下文扩展入口。不过，使用 `SentenceSplitter` 不代表自动获得层级父子关系；层级检索需要相应解析器、关系数据和 Retriever 配合。
+对照 [LangChain 生态](../01-langchain/README.zh.md) 的常见流水线，LlamaIndex 的 Node 关系提供了更直接的上下文扩展入口。不过，使用 `SentenceSplitter` 不代表自动获得层级父子关系；层级检索需要相应解析器、关系数据和 Retriever 配合。
 
 ## 14.3 索引抽象：从向量索引到属性图索引
 

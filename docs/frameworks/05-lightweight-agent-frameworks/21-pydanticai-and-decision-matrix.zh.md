@@ -52,7 +52,7 @@ print(result.output.label, result.output.score)
 
 这里有两个工程上直接相关的点：
 
-1. **`@agent.tool` 装饰的函数签名和 docstring 直接生成工具 Schema**——这和 [Tools 主题](../../tools/README.md) 中 Function Calling 的 Schema 设计原则完全一致，PydanticAI 没有发明新协议，只是让 Schema 生成过程和 Python 类型注解无缝衔接；
+1. **`@agent.tool` 装饰的函数签名和 docstring 直接生成工具 Schema**——这和 [Tools 主题](../../tools/README.zh.md) 中 Function Calling 的 Schema 设计原则完全一致，PydanticAI 没有发明新协议，只是让 Schema 生成过程和 Python 类型注解无缝衔接；
 2. **`RunContext` 是依赖注入的入口**——工具函数通过 `ctx.deps` 访问运行时注入的依赖（数据库连接、当前用户身份等），这些依赖在测试时可以被替换成 mock 对象，不需要真的连接外部系统就能验证 Agent 的调用逻辑。
 
 ## 21.3 类型安全带来的工程收益
@@ -72,7 +72,7 @@ flowchart LR
 
 ## 21.4 类型化接口之外，还要比较什么
 
-还要比较状态归属、失败后的恢复粒度，以及工具和观测数据的迁移成本。可以按下面三步检查；跨全部框架的对照见[第二十二章](../06-selection-portability/22-cross-framework-technical-taxonomy.md)。
+还要比较状态归属、失败后的恢复粒度，以及工具和观测数据的迁移成本。可以按下面三步检查；跨全部框架的对照见[第二十二章](../06-selection-portability/22-cross-framework-technical-taxonomy.zh.md)。
 
 **先看状态：框架提供什么对象，运行数据放在哪里。**
 
@@ -104,7 +104,7 @@ flowchart LR
 | Semantic Kernel | KernelFunction 与 Plugin；OpenTelemetry / Application Insights | Plugin、Filter、线程及 MAF 迁移 |
 | LangGraph | 可接 Tool Schema 与执行节点；LangSmith / 其他集成 | reducer、检查点与中断语义 |
 
-这是核对清单，不是「最严格/最成熟/最低锁定」排名。新 .NET/Python 项目应另外评估 [MAF](../04-semantic-kernel/19-process-and-agent-framework.md)，不要默认选处于维护模式的 AutoGen 或 SK 实验 Process。PydanticAI 的持久执行也需要部署相应引擎，运维负担并未因为提供集成而消失。
+这是核对清单，不是「最严格/最成熟/最低锁定」排名。新 .NET/Python 项目应另外评估 [MAF](../04-semantic-kernel/19-process-and-agent-framework.zh.md)，不要默认选处于维护模式的 AutoGen 或 SK 实验 Process。PydanticAI 的持久执行也需要部署相应引擎，运维负担并未因为提供集成而消失。
 
 已有会话可通过 `message_history` 传给下一次 run；这与依赖注入不同，也不等于崩溃恢复。恢复长任务时要按 Temporal、DBOS 等后端的语义划定可重放步骤，避免把数据库连接或授权令牌作为历史数据持久保存。
 

@@ -94,7 +94,7 @@ flowchart LR
 
 两者都涉及发现成本和运行时注入成本。工具搜索可以延迟暴露完整 Schema，Skill 也要维护可发现目录；比较时应统计实际模型输入，而不是只比较 Server 和文件夹数量。
 
-工具与 Skill 都要测试路由召回、误触发、上下文预算和权限。相关方法见[动态工具筛选](../01-function-calling/03-tool-schema-design.md)。
+工具与 Skill 都要测试路由召回、误触发、上下文预算和权限。相关方法见[动态工具筛选](../01-function-calling/03-tool-schema-design.zh.md)。
 
 ## 9.4 什么时候用哪个
 

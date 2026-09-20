@@ -12,12 +12,12 @@ Palantir、OpenAI、Baseten 对这个岗位的安排不完全一样。这里先�
 
 第二章单独整理现场经验：需求改了谁确认，PoC 之后要留下什么，项目换人后怎样继续，以及客户验收和技术完成有什么区别。做法来自四个开源项目，不需要先安装工具才能使用。
 
-相关岗位的补充阅读放在[第一章](01-foundations/01-forward-deployed-engineering.md) 1.2.1 节“产品与设计协作”。其中的 AI 产品经理短文，从调研资料核实讲到需求取舍、原型与 PRD，再到研发变更和上线反馈。
+相关岗位的补充阅读放在[第一章](01-foundations/01-forward-deployed-engineering.zh.md) 1.2.1 节“产品与设计协作”。其中的 AI 产品经理短文，从调研资料核实讲到需求取舍、原型与 PRD，再到研发变更和上线反馈。
 
 ## 子模块
 
-1. [FDE 基础与交付方法（第 1 章）](01-foundations/README.md)
-2. [现场经验与踩坑（第 2 章）](02-field-practice/README.md)
+1. [FDE 基础与交付方法（第 1 章）](01-foundations/README.zh.md)
+2. [现场经验与踩坑（第 2 章）](02-field-practice/README.zh.md)
 
 ## 主题定位
 
@@ -42,4 +42,4 @@ flowchart LR
 | AI 安全与治理 | 如何控制跨层风险 | 满足客户数据、权限、审计和合规要求 |
 | FDE | 如何把上述能力转化成客户结果 | 对问题、交付和现场反馈闭环负责 |
 
-返回[文档主题索引](../README.md)。
+返回[文档主题索引](../README.zh.md)。

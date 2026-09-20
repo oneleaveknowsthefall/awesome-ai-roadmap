@@ -6,7 +6,7 @@ description: "说明 DSPy 的 Signature、Module、Adapter 与程序组合，区
 
 ## 16.1 命令式 Prompt 工程的天花板
 
-[LangChain 生态](../01-langchain/README.md) 和 [LlamaIndex 生态](../02-llamaindex/README.md) 在常见用法里，Prompt 往往还是**字符串常量**：写一段模板，塞进变量，调用模型，看输出是否符合预期，再手工改字符串。这个循环有一个结构性问题：**Prompt 的「意图」和「具体措辞」被绑在一起**，换一个模型、换一个任务分布，之前调好的措辞可能立刻失效，而工程上也缺少系统化的方法判断该往哪个方向调整。
+[LangChain 生态](../01-langchain/README.zh.md) 和 [LlamaIndex 生态](../02-llamaindex/README.zh.md) 在常见用法里，Prompt 往往还是**字符串常量**：写一段模板，塞进变量，调用模型，看输出是否符合预期，再手工改字符串。这个循环有一个结构性问题：**Prompt 的「意图」和「具体措辞」被绑在一起**，换一个模型、换一个任务分布，之前调好的措辞可能立刻失效，而工程上也缺少系统化的方法判断该往哪个方向调整。
 
 DSPy（Declarative Self-improving Python）的出发点是把这两件事拆开：先声明输入、输出和任务目标，再选择 Module 及程序结构，让优化器在指定搜索空间内改进指令、示例或模型权重。常规 Prompt 优化并不自动决定业务流程该拆成几步；没有编译也能运行 DSPy 程序。
 

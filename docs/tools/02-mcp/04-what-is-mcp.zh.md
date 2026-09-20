@@ -8,7 +8,7 @@ description: 解释 MCP 模型上下文协议解决的问题、Host-Client-Serve
 
 MCP 要先和 Function Calling 分开看。
 
-[Function Calling](../01-function-calling/01-function-calling.md) 解决的是「**模型怎么表达调用意图**」——一个模型层的输出格式约定。
+[Function Calling](../01-function-calling/01-function-calling.zh.md) 解决的是「**模型怎么表达调用意图**」——一个模型层的输出格式约定。
 
 MCP 解决的是完全不同的一组问题：
 
@@ -140,7 +140,7 @@ Prompts 通常以「斜杠命令」或菜单项的形式暴露给用户，由**�
 
 MCP 的消息格式是 JSON-RPC 2.0——一种用 JSON 表达「远程函数调用」的轻量协议。
 
-以下仅展示方法与数据关系，省略当前版本必需的 `_meta`、`resultType` 及列表缓存字段，不是完整报文；完整请求见[第十二章](12-mcp-transport.md)。
+以下仅展示方法与数据关系，省略当前版本必需的 `_meta`、`resultType` 及列表缓存字段，不是完整报文；完整请求见[第十二章](12-mcp-transport.zh.md)。
 
 ```jsonc
 // 请求：客户端列出所有工具
@@ -162,7 +162,7 @@ MCP 的消息格式是 JSON-RPC 2.0——一种用 JSON 表达「远程函数调
 
 JSON-RPC 使用可读的 JSON 和统一的请求、结果、错误结构，便于跨语言调试。但解析几条 JSON 只是起点，完整 Client 还要处理版本、能力、授权、取消和故障恢复；不能用教学代码行数衡量实现成本。
 
-传输方式（stdio / Streamable HTTP）的细节见 [第十二章](12-mcp-transport.md)。
+传输方式（stdio / Streamable HTTP）的细节见 [第十二章](12-mcp-transport.zh.md)。
 
 ## 4.7 生命周期与版本兼容
 
@@ -253,7 +253,7 @@ Client 是 Host 内的协议连接器，不是安全沙箱。Host 控制用户�
 
 ### 4.9.6 忽视 MCP Server 的信任边界
 
-启动本地 Server 会运行第三方代码；连接远程 Server 则会向对端传递数据，两者风险不同。工具描述可能被投毒，详见[工具协议安全](15-tool-protocol-security.md)。
+启动本地 Server 会运行第三方代码；连接远程 Server 则会向对端传递数据，两者风险不同。工具描述可能被投毒，详见[工具协议安全](15-tool-protocol-security.zh.md)。
 
 ## 4.10 本章总结
 

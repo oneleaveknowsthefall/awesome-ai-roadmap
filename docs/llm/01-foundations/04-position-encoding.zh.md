@@ -154,7 +154,7 @@ BLOOM 与 MPT 是采用 ALiBi 的公开例子，不应说成「只有 BLOOM 某�
 - 扩窗后短上下文能力是否回归，以及 prefill 延迟和显存增长；
 - 截断、滑窗、前缀缓存和多轮续接是否使用一致的位置编号。
 
-位置编码只是长上下文方案的一部分，训练数据、注意力模式、缓存预算与评测都需要配套。相关开销见[第三章](03-attention-variants.md)，缓存管理见[第十四章](../03-inference-serving/14-kv-cache.md)。
+位置编码只是长上下文方案的一部分，训练数据、注意力模式、缓存预算与评测都需要配套。相关开销见[第三章](03-attention-variants.zh.md)，缓存管理见[第十四章](../03-inference-serving/14-kv-cache.zh.md)。
 
 ## 参考资料
 

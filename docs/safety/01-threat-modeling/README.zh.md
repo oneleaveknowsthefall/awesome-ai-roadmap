@@ -4,6 +4,6 @@
 
 ## 章节
 
-1. [第一章：AI 系统威胁建模与攻击面全景](01-ai-threat-modeling-attack-surface.md)
+1. [第一章：AI 系统威胁建模与攻击面全景](01-ai-threat-modeling-attack-surface.zh.md)
 
-返回 [AI 安全与治理](../README.md)。
+返回 [AI 安全与治理](../README.zh.md)。

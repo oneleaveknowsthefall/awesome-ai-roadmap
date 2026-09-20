@@ -32,11 +32,11 @@ PROMPT_REGISTRY = {
 }
 ```
 
-Prompt 版本和它期望的输出 Schema 版本（[第 5 章](../03-output-safety/05-structured-output-contracts.md)）应该分开编号但显式关联。改 Prompt 不一定改输出格式；改 Schema 必须重新验证 Prompt、生成配置和消费者的兼容性，但若格式由独立 Schema 参数约束，不一定要修改 Prompt 文本。
+Prompt 版本和它期望的输出 Schema 版本（[第 5 章](../03-output-safety/05-structured-output-contracts.zh.md)）应该分开编号但显式关联。改 Prompt 不一定改输出格式；改 Schema 必须重新验证 Prompt、生成配置和消费者的兼容性，但若格式由独立 Schema 参数约束，不一定要修改 Prompt 文本。
 
 ### 9.2.2 Prompt 变更走和代码一样的评审流程
 
-Prompt 改动应该进入版本控制系统,通过 Pull Request 走评审,并附上[第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)离线评测的对比分数,而不是在生产配置后台直接编辑生效。
+Prompt 改动应该进入版本控制系统,通过 Pull Request 走评审,并附上[第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.zh.md)离线评测的对比分数,而不是在生产配置后台直接编辑生效。
 
 ## 9.3 模型版本锁定
 
@@ -70,7 +70,7 @@ indexed_at: 2026-08-25T02:00:00Z
 | 记录项 | 用途 |
 |---|---|
 | Prompt 版本 + 关联的 Schema 版本 | 排查输出格式变化的根因 |
-| 模型快照版本 + 路由策略版本 | 排查"这次输出风格为什么不一样"([第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.md)) |
+| 模型快照版本 + 路由策略版本 | 排查"这次输出风格为什么不一样"([第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.zh.md)) |
 | 知识库/数据版本 | 排查检索内容变化的根因 |
 | 代码、工具 Schema、权限与护栏版本 | 区分生成质量变化和执行策略变化，防止只回滚模型却留下不兼容配置 |
 | 评测集、评分器、rubric 与运行 ID | 分数必须绑定具体评测条件，单个 `eval_score` 不能作为完整发布证据 |

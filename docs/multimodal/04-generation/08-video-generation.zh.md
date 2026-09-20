@@ -4,7 +4,7 @@ description: 比较时间层与时空 patch 视频生成，解释序列成本、
 
 # 第八章：视频生成模型
 
-> 本章讨论视频生成相对图像生成新增的时序维度问题；扩散与 Flow Matching 的基础生成原理见 [第七章](07-diffusion-flow-matching-image.md)，本章默认读者已了解该基础，只展开视频特有的架构扩展与评测。
+> 本章讨论视频生成相对图像生成新增的时序维度问题；扩散与 Flow Matching 的基础生成原理见 [第七章](07-diffusion-flow-matching-image.zh.md)，本章默认读者已了解该基础，只展开视频特有的架构扩展与评测。
 
 ## 8.1 视频比图像多出的维度
 

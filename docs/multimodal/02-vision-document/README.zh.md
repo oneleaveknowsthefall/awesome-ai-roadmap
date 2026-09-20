@@ -8,9 +8,9 @@ description: 组织视觉定位、文档结构抽取与 GUI 操作三章，强�
 
 ## 章节
 
-1. [第二章：视觉语言模型与视觉 Grounding](02-vlm-grounding.md)
-2. [第三章：OCR 与 Document AI](03-ocr-document-ai.md)
-3. [第四章：Computer Use 与 GUI Agent](04-computer-use.md)
+1. [第二章：视觉语言模型与视觉 Grounding](02-vlm-grounding.zh.md)
+2. [第三章：OCR 与 Document AI](03-ocr-document-ai.zh.md)
+3. [第四章：Computer Use 与 GUI Agent](04-computer-use.zh.md)
 
 ## 模块内关系
 
@@ -24,4 +24,4 @@ flowchart LR
 
 可沿一条失败链复习：坐标是否映射回正确页面 → 字段或元素是否识别正确 → 结构关系是否成立 → 操作后状态是否符合目标。单图 VQA 高分不能替代其中任何一项验证。
 
-返回 [多模态相关知识点](../README.md)。
+返回 [多模态相关知识点](../README.zh.md)。

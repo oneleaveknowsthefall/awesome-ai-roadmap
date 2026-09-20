@@ -1058,7 +1058,7 @@ A2A 解决互操作协议，不替代：
 - 费用结算；
 - 结果验证。
 
-A2A 的 binding、Agent Card 与 Task 状态机详见 [Tools：A2A 协议](../../tools/04-agent-communication/11-a2a-protocol.md)；跨组织身份、回调 SSRF、token audience 和 Card 信任边界详见 [Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md)。
+A2A 的 binding、Agent Card 与 Task 状态机详见 [Tools：A2A 协议](../../tools/04-agent-communication/11-a2a-protocol.zh.md)；跨组织身份、回调 SSRF、token audience 和 Card 信任边界详见 [Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.zh.md)。
 
 ## 13.33 Agent 协作消息 Schema
 
@@ -1376,7 +1376,7 @@ $$
 
 ### 13.41.3 评测协作而不只是评测回答
 
-除了[第九章 §9.31：评估 Multi-Agent 是否值得](09-single-vs-multi-agent.md)，还要测路由误派与拒绝是否合理、Handoff 约束保留率、必需依赖覆盖、陈旧结果拒收、重试放大、重复副作用和预算超限。质量、费用、端到端延迟及其尾部应一起报告，不能只展示成功样本的平均用时。
+除了[第九章 §9.31：评估 Multi-Agent 是否值得](09-single-vs-multi-agent.zh.md)，还要测路由误派与拒绝是否合理、Handoff 约束保留率、必需依赖覆盖、陈旧结果拒收、重试放大、重复副作用和预算超限。质量、费用、端到端延迟及其尾部应一起报告，不能只展示成功样本的平均用时。
 
 用固定故障时序验证不变量：领取后宕机、外部操作成功但回执丢失、旧 Worker 在重新分配后回包、取消与完成同时发生、账本提交后通知投递失败。记录系统是否安全终止、保留部分成果或正确重试，并把“无法确认副作用”单列，不能计作已恢复成功。
 

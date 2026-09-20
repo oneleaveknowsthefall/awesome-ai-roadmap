@@ -1,15 +1,17 @@
 ---
-description: 介绍九篇的线性阅读顺序、篇内章号与交叉引用约定，以及面试准备时怎样组织回答和验证。
+description: Reading order, chapter numbering, language editions, and ways to practice explanations and failure analysis for AI engineering interviews.
 ---
 
-# 怎样读这本书
+# How to Read This Book
 
-全书按九篇顺序展开：大语言模型、多模态 AI、工具与协议、检索增强生成、智能体、框架与编排、生产工程、安全与治理、现场交付。第一次阅读，建议沿目录向前走；遇到引用后文的地方，先理解当前问题，必要时再跳转补读。
+The book has nine parts: large language models, multimodal AI, tools and protocols, retrieval-augmented generation, agents, frameworks and orchestration, production engineering, safety and governance, and field delivery. On a first reading, follow the contents in order. When a section points ahead, first understand the question at hand and use the reference if you need more detail.
 
-**章号在每一篇重新从第 1 章开始。**“第一篇第 1 章”讨论大语言模型，“第五篇第 1 章”讨论智能体，两者不是同一章。章内的“第十四章”“14.2 节”等未注明主题的文字，沿用所在篇的编号；跨篇引用保留主题名称和链接。编排没有把所有章节强行改成一套全局章号，原有的小节编号也保持不变。
+**Chapter numbering restarts at 1 in each part.** Chapter 1 in Part 1 discusses language models; Chapter 1 in Part 5 discusses agents. References such as "Chapter 14" or "Section 14.2" without another topic name use the numbering of the current part. Cross-part references name the topic and include a link. The book does not impose a single global chapter sequence, and section numbers stay with their chapters.
 
-准备一道题时，可以先合上书，用自己的话回答最核心的区别，再回来看遗漏了什么。例如，说“RAG 可以减少幻觉”之后，还需要解释检索为什么可能找错、找到的证据为什么可能被误用，以及怎样区分两类错误。能够把这些边界说清，比把几个组件名称连在一起更有帮助。
+English is the primary manuscript, with a complete Simplified Chinese companion. Both editions use the same chapter identities and numbering. The website lets you switch languages within a chapter; each EPUB contains one language, so choose the corresponding download.
 
-读到流程或代码时，试着代入一个失败事件：请求超时、证据过期、权限撤回，或者工具已经成功但响应丢失。看看当前方案是否仍然成立，需要在哪里记录状态、拒绝继续，或交给人处理。代码中的装配片段和伪代码应结合上下文理解，不应直接视为可部署系统。
+When preparing an answer, close the book and explain the central distinction in your own words, then check what you missed. Saying "RAG can reduce hallucinations" is only a start. You also need to explain why retrieval can find the wrong evidence, why generation can misuse valid evidence, and how to distinguish those failures. That is more useful than listing components.
 
-参考资料放在相应章节末尾，便于沿着一个问题继续读原始论文、规范或产品文档。涉及版本、日期和适用条件的限定也是答案的一部分，不要在口头表达时省掉它们。
+For a workflow or code example, introduce a failure: a timeout, stale evidence, revoked permission, or a successful tool action whose response was lost. Does the design still hold? Where must it record state, stop, or ask a person to intervene? Read setup snippets and pseudocode in their stated context rather than treating them as deployable systems. Some examples intentionally retain Chinese input text or business data; translating those values would change the example's conditions.
+
+References at the end of each chapter lead to the original papers, specifications, and product documentation. Version, date, and applicability limits are part of an answer, not details to discard when explaining it aloud.

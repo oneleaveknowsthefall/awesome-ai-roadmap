@@ -151,7 +151,7 @@ Eval 集应包括：
 4. 权限、注入、模糊输入等对抗样本；
 5. 新用户、新地区和新数据源导致的分布变化。
 
-数据集必须持续扩充。上线后出现的新边界条件应进入回归集，形成“现场事件 → 标注样本 → 回归测试 → 发布门禁”的闭环。通用方法详见 [AI Engineering 第七章](../../engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md)。
+数据集必须持续扩充。上线后出现的新边界条件应进入回归集，形成“现场事件 → 标注样本 → 回归测试 → 发布门禁”的闭环。通用方法详见 [AI Engineering 第七章](../../engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.zh.md)。
 
 还要留一份没有用于改 Prompt 的验收集。按客户、订单或时间划分，避免同一工单的改写同时出现在开发集和验收集；记录样本版本、分母、排除条件以及多次运行的波动。业务事实用源系统快照核对，副作用看最终系统状态，表达质量才交给经过人工校准的 Judge。一次“零越权”只说明这一批样本未出现越权，不代表风险为零。
 
@@ -188,7 +188,7 @@ flowchart TD
 
 先做规则、单次调用或 Workflow 基线，再证明 Agent 的额外质量收益足以覆盖时延、成本和风险。库存、余额和订单状态应查实时业务接口，不宜当作静态文档切块后等待索引更新。RAG 用来找证据，Agent 用来动态选步骤，两者并不互斥。
 
-图中的持久化判断也适用于固定 Workflow：只要有跨天审批或业务写入，就可能需要状态存储、幂等和恢复；反过来，短请求也必须有鉴权、超时和审计。Harness 不是 Agent 框架的同义词，其运行时边界详见 [Agent Harness 第十六章](../../agent/02-runtime-harness/16-harness-definition-and-boundaries.md)。
+图中的持久化判断也适用于固定 Workflow：只要有跨天审批或业务写入，就可能需要状态存储、幂等和恢复；反过来，短请求也必须有鉴权、超时和审计。Harness 不是 Agent 框架的同义词，其运行时边界详见 [Agent Harness 第十六章](../../agent/02-runtime-harness/16-harness-definition-and-boundaries.zh.md)。
 
 不要把早期博客里的工具清单当成今天的采购建议。Anthropic 的 [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) 已提醒读者工具环境发生变化，并指向 [Managed Agents 工程文章](https://www.anthropic.com/engineering/managed-agents)。后者将会话记录、Harness 与执行沙箱分离；可以借鉴这种故障和凭据边界，但是否采用托管服务仍要看客户的网络、数据留存、成本和迁移要求。
 
@@ -206,7 +206,7 @@ FDE 需要明确：
 - 删除、更正、审计和事故响应如何执行；
 - 检索结果是否继承原始对象的访问控制。
 
-“拿到 API Key 就算完成集成”是典型错误。身份应从用户、Agent、工具一直传播到目标资源，授权在数据与动作执行点再次校验。MCP/A2A 等协议层风险见 [Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md)，跨系统身份治理见 [AI 安全第七章](../../safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md)。
+“拿到 API Key 就算完成集成”是典型错误。身份应从用户、Agent、工具一直传播到目标资源，授权在数据与动作执行点再次校验。MCP/A2A 等协议层风险见 [Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.zh.md)，跨系统身份治理见 [AI 安全第七章](../../safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.zh.md)。
 
 “API 数据不用于训练”也不等于“不留存”。OpenAI 当前[数据控制文档](https://developers.openai.com/api/docs/guides/your-data)分别说明滥用监控日志和应用状态：默认滥用监控日志通常保留最多 30 天，并有文档列出的例外；ZDR 需要批准，也有端点、能力和其他适用限制。`store=false` 不是覆盖文件、向量库、第三方工具和日志的总开关。面试中应说清楚要逐项核对哪些数据流，而不是承诺“用了企业 API 就天然合规”。
 
@@ -248,7 +248,7 @@ PoC 证明“某些样本上可以工作”；生产系统必须证明“在权�
 - 灰度发布、回滚和事故响应；
 - 明确客户、FDE、平台团队和供应商的责任边界。
 
-生产化方法详见 [AI Engineering](../../engineering/README.md)。FDE 不应长期成为人工运维代理；交付完成的标志之一，是客户和平台团队能够通过文档、自动化和观测独立运营系统。
+生产化方法详见 [AI Engineering](../../engineering/README.zh.md)。FDE 不应长期成为人工运维代理；交付完成的标志之一，是客户和平台团队能够通过文档、自动化和观测独立运营系统。
 
 ## 1.8 线上问题怎样进入下一版改进
 
@@ -307,7 +307,7 @@ FDE 模式的结构性风险是：短期为了交付速度不断加入客户特�
 4. 有负责维护的平台团队，并约定版本更新和停止支持的方式；
 5. 不会把某个客户的数据或业务规则泄漏到共享层。
 
-FDE 与产品团队需要定期评审现场模式，而不是让 FDE 直接把所有客户代码合入核心产品。详见 [框架锁定与可移植架构](../../frameworks/06-selection-portability/23-lockin-and-portable-architecture.md)。
+FDE 与产品团队需要定期评审现场模式，而不是让 FDE 直接把所有客户代码合入核心产品。详见 [框架锁定与可移植架构](../../frameworks/06-selection-portability/23-lockin-and-portable-architecture.zh.md)。
 
 ## 1.10 一线团队是怎么做的
 
@@ -613,4 +613,4 @@ flowchart TD
 - [Varick Agents：Careers](https://www.varickagents.com/careers)
 - [run_maotui：产品工作中的 AI 协作分享](https://x.com/run_maotui/status/2100157320944881776)（1.2.1 节的参考：调研核实、需求取舍、PRD 交接与项目决策维护；查阅于 2026-09-17）
 
-返回 [FDE 模块目录](README.md)。
+返回 [FDE 模块目录](README.zh.md)。

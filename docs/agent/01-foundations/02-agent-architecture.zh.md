@@ -183,7 +183,7 @@ sequenceDiagram
 
 ## 2.5 MCP：标准化工具与上下文连接
 
-> 这里讨论架构集成边界；MCP 协议本身见[Tools：MCP](../../tools/02-mcp/04-what-is-mcp.md)，需要跨系统 Agent 协作时见[Tools：A2A](../../tools/04-agent-communication/11-a2a-protocol.md)。
+> 这里讨论架构集成边界；MCP 协议本身见[Tools：MCP](../../tools/02-mcp/04-what-is-mcp.zh.md)，需要跨系统 Agent 协作时见[Tools：A2A](../../tools/04-agent-communication/11-a2a-protocol.zh.md)。
 
 MCP（Model Context Protocol）为 AI 应用连接工具和数据源提供了标准协议。
 
@@ -225,7 +225,7 @@ State 描述任务当前执行到哪里，例如：
 - 错误、重试次数和预算；
 - 等待中的人工审批。
 
-状态通常需要结构化保存，并支持 checkpoint、恢复和并发控制。需要跨进程恢复的 Agent 应能从 checkpoint 继续执行，但恢复状态不等于外部动作只执行一次。例如退款已成功、进程却在保存结果前退出，恢复后直接重跑会重复退款；还需要查询业务状态或使用服务端支持的幂等键，详见[第六章](../02-reasoning-planning/06-task-decomposition.md) §6.17 的失败处理。
+状态通常需要结构化保存，并支持 checkpoint、恢复和并发控制。需要跨进程恢复的 Agent 应能从 checkpoint 继续执行，但恢复状态不等于外部动作只执行一次。例如退款已成功、进程却在保存结果前退出，恢复后直接重跑会重复退款；还需要查询业务状态或使用服务端支持的幂等键，详见[第六章](../02-reasoning-planning/06-task-decomposition.zh.md) §6.17 的失败处理。
 
 ### 2.6.2 工作记忆
 

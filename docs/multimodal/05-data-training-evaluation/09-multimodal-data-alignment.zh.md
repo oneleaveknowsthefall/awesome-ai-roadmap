@@ -4,7 +4,7 @@ description: 讨论图文过滤、合成描述、交错文档与事实增强偏�
 
 # 第九章：多模态训练数据与对齐
 
-> 本章讨论数据覆盖、过滤和训练目标如何影响多模态能力，不能把“质量比数量重要”当成不需实验的定律。整体训练框架见 [LLM · 多模态模型](../../llm/06-multimodal/23-multimodal-models.md)；RLHF、DPO 的通用原理见 [LLM · 训练与对齐](../../llm/02-training-alignment/README.md)。
+> 本章讨论数据覆盖、过滤和训练目标如何影响多模态能力，不能把“质量比数量重要”当成不需实验的定律。整体训练框架见 [LLM · 多模态模型](../../llm/06-multimodal/23-multimodal-models.zh.md)；RLHF、DPO 的通用原理见 [LLM · 训练与对齐](../../llm/02-training-alignment/README.zh.md)。
 
 ## 9.1 不同训练目标分别需要什么数据？
 

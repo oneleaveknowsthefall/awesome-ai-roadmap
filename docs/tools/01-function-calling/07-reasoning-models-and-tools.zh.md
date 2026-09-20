@@ -16,7 +16,7 @@ flowchart LR
     style A fill:#fce8e6
 ```
 
-[第六章](../02-mcp/06-mcp-vs-function-calling.md) 讲过，很多 Host 会把 Server 的工具定义转换成模型原生的 Function Calling 格式。这条**模型驱动**的桥接路径依赖模型接口；若该接口不可用，Host 可以改用结构化输出、规则工作流或人工触发 `tools/call`。MCP 本身并未要求模型具备 Function Calling。
+[第六章](../02-mcp/06-mcp-vs-function-calling.zh.md) 讲过，很多 Host 会把 Server 的工具定义转换成模型原生的 Function Calling 格式。这条**模型驱动**的桥接路径依赖模型接口；若该接口不可用，Host 可以改用结构化输出、规则工作流或人工触发 `tools/call`。MCP 本身并未要求模型具备 Function Calling。
 
 需要核查的是：**哪个模型快照、哪个 API、哪个 Host 适配器不支持什么能力**。厂商未公开的实现原因，不能用“推理架构冲突”自行补全。
 
@@ -136,7 +136,7 @@ flowchart LR
 
 例如 ReTool 让模型在推理中使用代码执行工具，再用结果继续推理和学习。ToolRL 则研究工具选择、参数等细粒度奖励；二者不能概括成同一个训练环境。最终答案奖励、调用格式奖励和真实业务状态校验也要分开看。
 
-这把工具调用作为策略可选动作，用任务奖励优化何时调用、用多少次、如何利用结果；奖励是否充分仍须验证，见[第二章](02-tool-learning.md)。
+这把工具调用作为策略可选动作，用任务奖励优化何时调用、用多少次、如何利用结果；奖励是否充分仍须验证，见[第二章](02-tool-learning.zh.md)。
 
 公开研究说明两类能力可以结合，不构成对各家训练流程的统一结论。
 

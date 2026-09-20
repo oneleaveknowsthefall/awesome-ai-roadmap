@@ -64,7 +64,7 @@ result = await RAGWorkflow(timeout=60).run(query="差旅报销上限是多少？
 
 ## 15.3 编排哲学对比：事件驱动 vs 状态图
 
-[LangGraph](../01-langchain/04-langgraph/README.md) 显式声明状态通道、节点和边，但条件路由与动态发送仍在运行时决定路径。LlamaIndex Workflows 用 Event 类型表达连接，**同时提供 `Context` 和 `ctx.store` 保存共享状态**，也支持 Pydantic 类型化状态；事件驱动不等于没有状态 Schema。
+[LangGraph](../01-langchain/04-langgraph/README.zh.md) 显式声明状态通道、节点和边，但条件路由与动态发送仍在运行时决定路径。LlamaIndex Workflows 用 Event 类型表达连接，**同时提供 `Context` 和 `ctx.store` 保存共享状态**，也支持 Pydantic 类型化状态；事件驱动不等于没有状态 Schema。
 
 | 维度 | LangGraph（状态图） | LlamaIndex Workflows（事件驱动） |
 |---|---|---|
@@ -78,7 +78,7 @@ result = await RAGWorkflow(timeout=60).run(query="差旅报销上限是多少？
 
 ## 15.4 互操作：把 LlamaIndex 当工具，还是当运行时
 
-LlamaIndex 和 LangChain 的组合边界，[LangChain 生态 · 第七章](../01-langchain/03-ecosystem/07-langchain-vs-llamaindex.md) 已经从 LangChain 视角讲过一次（把 Query Engine 包装成 LangChain 的 `@tool`）。从 LlamaIndex 视角看，常见有两种落法：
+LlamaIndex 和 LangChain 的组合边界，[LangChain 生态 · 第七章](../01-langchain/03-ecosystem/07-langchain-vs-llamaindex.zh.md) 已经从 LangChain 视角讲过一次（把 Query Engine 包装成 LangChain 的 `@tool`）。从 LlamaIndex 视角看，常见有两种落法：
 
 1. **把 LlamaIndex 当「数据工具」**：暴露 `query_engine.query()` / `aquery()`，把顶层编排交给外部 Agent 框架。适合数据层可独立封装、外部已有编排或审批系统的项目，外部编排本身不必很轻。
 2. **把 LlamaIndex Workflows 当「运行时」**：整个多步骤流程（检索 → 反思 → 重试 → 生成）都用 Workflows 编排，外部框架只在入口处调用一次 `workflow.run()`。适合「数据和编排都很重，且希望减少跨框架状态同步」的项目。
@@ -93,7 +93,7 @@ flowchart LR
     end
 ```
 
-选择的关键在于中间状态由谁持有：如果多步骤的中间状态（检索结果、反思意见、重试次数）需要和外部 Agent 的记忆、审批流程共享，适合选方案一，把控制权交给外部框架；如果这些中间状态只在数据加工内部有意义，外部只关心最终答案，适合选方案二，以减少跨框架序列化成本。这也对应 [框架选型与可移植架构](../06-selection-portability/README.md) 中的「状态归属先于工具选择」。
+选择的关键在于中间状态由谁持有：如果多步骤的中间状态（检索结果、反思意见、重试次数）需要和外部 Agent 的记忆、审批流程共享，适合选方案一，把控制权交给外部框架；如果这些中间状态只在数据加工内部有意义，外部只关心最终答案，适合选方案二，以减少跨框架序列化成本。这也对应 [框架选型与可移植架构](../06-selection-portability/README.zh.md) 中的「状态归属先于工具选择」。
 
 ## 15.5 常见错误
 

@@ -6,7 +6,7 @@ description: 设计受质量、数据驻留和容量约束的模型路由与回�
 
 ## 3.1 路由决策：网关之上的一层策略
 
-[Tools · LLM 网关](../../tools/05-transport-gateway/14-llm-gateway.md)讲过网关**这个组件本身**要具备统一接口、负载均衡、限流配额等能力。更麻烦的是请求到了网关以后:**应该按什么策略决定打给哪个模型、什么时候放弃当前模型换下一个**。这是一层建立在网关基础设施之上的**路由策略**,也是 LLMOps 团队日常调整最频繁的配置之一。
+[Tools · LLM 网关](../../tools/05-transport-gateway/14-llm-gateway.zh.md)讲过网关**这个组件本身**要具备统一接口、负载均衡、限流配额等能力。更麻烦的是请求到了网关以后:**应该按什么策略决定打给哪个模型、什么时候放弃当前模型换下一个**。这是一层建立在网关基础设施之上的**路由策略**,也是 LLMOps 团队日常调整最频繁的配置之一。
 
 ```mermaid
 flowchart TB
@@ -44,7 +44,7 @@ def route_by_complexity(task_type: str) -> str:
 
 ### 3.2.2 能力优先路由
 
-某些任务(代码生成、多步推理)只有少数模型能稳定完成,路由策略需要维护一张「模型-能力」映射表,而不是简单的成本阈值判断。这张表本身要跟随[第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)的评测结果持续更新——模型能力会随供应商升级而变化。
+某些任务(代码生成、多步推理)只有少数模型能稳定完成,路由策略需要维护一张「模型-能力」映射表,而不是简单的成本阈值判断。这张表本身要跟随[第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.zh.md)的评测结果持续更新——模型能力会随供应商升级而变化。
 
 能力映射还要覆盖推理档位。同一个模型换了 effort 档位，成功率、延迟和成本都可能变化，因此应把「模型 × 档位」作为路由候选。简单任务可以比较低档位与非推理模型，高难任务再考虑升档；选择要有第 7 章的评测数据支持，不能只凭模型对这一次请求的难度自报。
 
@@ -54,7 +54,7 @@ def route_by_complexity(task_type: str) -> str:
 
 ### 3.2.3 灰度路由
 
-发布新 Prompt 或切换模型版本时,按用户 ID 哈希或请求比例分流一部分流量到新版本,这是[第 10 章](../05-release-pipeline/10-llm-cicd-canary-ab.md)灰度发布的路由层实现基础。
+发布新 Prompt 或切换模型版本时,按用户 ID 哈希或请求比例分流一部分流量到新版本,这是[第 10 章](../05-release-pipeline/10-llm-cicd-canary-ab.zh.md)灰度发布的路由层实现基础。
 
 ## 3.3 回退链路的设计
 
@@ -78,7 +78,7 @@ fallback_chain:
 |---|---|
 | HTTP 5xx / 超时 | 最直接的失败信号 |
 | 429 限流 | 供应商配额耗尽,不代表模型本身有问题 |
-| 输出未通过契约校验 | 先区分拒绝、截断、Schema 不兼容与偶发格式错误；只有可恢复且预算允许时才修复或回退，见[第 5 章](../03-output-safety/05-structured-output-contracts.md) |
+| 输出未通过契约校验 | 先区分拒绝、截断、Schema 不兼容与偶发格式错误；只有可恢复且预算允许时才修复或回退，见[第 5 章](../03-output-safety/05-structured-output-contracts.zh.md) |
 | 内容安全拦截 | 不自动回退；先按统一业务政策判断是否拒绝、缩小任务或复核，不能轮询供应商直到有一家放行 |
 
 ### 3.3.3 回退要防止「雪崩式重试」
@@ -97,9 +97,9 @@ fallback_chain:
 | 端到端延迟(含回退耗时) | 回退会显著拉长尾延迟,需要单独监控 |
 | 推理档位与 reasoning token 用量 | 排查「模型没换、账单和延迟却上涨」 |
 
-OpenAI 返回的 `reasoning_tokens` 已包含在 `output_tokens` 中，只用于拆分用量，不能再与总输出相加。其他供应商要按各自的 `usage` 定义映射，不能套用同一套账单计算规则。网关侧的用量记录见 [Tools · LLM 网关](../../tools/05-transport-gateway/14-llm-gateway.md)。
+OpenAI 返回的 `reasoning_tokens` 已包含在 `output_tokens` 中，只用于拆分用量，不能再与总输出相加。其他供应商要按各自的 `usage` 定义映射，不能套用同一套账单计算规则。网关侧的用量记录见 [Tools · LLM 网关](../../tools/05-transport-gateway/14-llm-gateway.zh.md)。
 
-这些字段是[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md) Trace 数据模型的一部分。
+这些字段是[第 8 章](../04-evaluation-observability/08-online-observability-tracing.zh.md) Trace 数据模型的一部分。
 
 ## 3.5 常见错误
 

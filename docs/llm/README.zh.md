@@ -10,12 +10,12 @@ description: 从 Transformer、训练对齐到推理部署、Prompt、评测和�
 
 ## 子模块
 
-1. [基础原理（第 1–5 章）](01-foundations/README.md)
-2. [训练与对齐（第 6–11 章）](02-training-alignment/README.md)
-3. [推理与部署（第 12–15、19–20 章）](03-inference-serving/README.md)
-4. [Prompt 与可靠性（第 16–18 章）](04-prompt-reliability/README.md)
-5. [评测与选型（第 21–22 章）](05-evaluation-selection/README.md)
-6. [多模态（第 23 章）](06-multimodal/README.md)
+1. [基础原理（第 1–5 章）](01-foundations/README.zh.md)
+2. [训练与对齐（第 6–11 章）](02-training-alignment/README.zh.md)
+3. [推理与部署（第 12–15、19–20 章）](03-inference-serving/README.zh.md)
+4. [Prompt 与可靠性（第 16–18 章）](04-prompt-reliability/README.zh.md)
+5. [评测与选型（第 21–22 章）](05-evaluation-selection/README.zh.md)
+6. [多模态（第 23 章）](06-multimodal/README.zh.md)
 
 ## 模块关系
 
@@ -51,4 +51,4 @@ flowchart TB
 
 Prompt 工程适合调整单次调用的指令和输出形式，RAG 适合补充外部知识，微调适合改变稳定的行为模式。大多数应用会先做好 Prompt 与评测，再判断问题属于知识缺失还是行为不匹配。
 
-返回[文档主题索引](../README.md)。
+返回[文档主题索引](../README.zh.md)。

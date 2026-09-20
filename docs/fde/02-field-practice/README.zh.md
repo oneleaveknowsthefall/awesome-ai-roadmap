@@ -8,10 +8,10 @@ description: "FDE 现场交付经验：怎样处理需求变化、追踪待确�
 
 ## 章节目录
 
-1. [第二章：FDE 项目踩坑与交付经验](02-delivery-lessons.md)
+1. [第二章：FDE 项目踩坑与交付经验](02-delivery-lessons.zh.md)
 
 ## 怎么读
 
 第一章介绍从需求到上线的完整过程。第二章结合 FDEOps、FDEstack、OpenFDE 和 Applied AI Field Guide 的公开做法，把需求变更、项目记录和交接几个问题讲得更具体。可以对照自己正在做的项目，看看下一步究竟缺代码、缺信息，还是缺一个明确的决定。
 
-返回 [FDE 主题](../README.md)。
+返回 [FDE 主题](../README.zh.md)。

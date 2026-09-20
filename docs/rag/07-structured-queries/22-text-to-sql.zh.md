@@ -8,7 +8,7 @@ description: 用可手算的订单快照讲解 Text-to-SQL，从未发货口径�
 
 客服问“上周还有多少订单没完成”，如果系统只检索到几张订单，再让模型加总，遗漏的订单根本不会进入计算。问题不是模型算术差，而是输入没有覆盖统计范围。
 
-[第三章](../02-ingestion-indexing/03-document-parsing.md) §3.4 已经区分了定位表格与全表聚合；[第十六章](../04-advanced/16-graphrag.md) §16.6 也提出，已有可靠关系表时可以直接查询，不必先抽成知识图谱。Text-to-SQL 接上这条路径：**模型把问题翻译成 SQL，数据库计算，应用交付结果。**
+[第三章](../02-ingestion-indexing/03-document-parsing.zh.md) §3.4 已经区分了定位表格与全表聚合；[第十六章](../04-advanced/16-graphrag.zh.md) §16.6 也提出，已有可靠关系表时可以直接查询，不必先抽成知识图谱。Text-to-SQL 接上这条路径：**模型把问题翻译成 SQL，数据库计算，应用交付结果。**
 
 李博杰《深入理解 AI Agent》第五章的[“生成 SQL 查询”](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter5.md)让模型生成查询，由应用执行和展示结果，而不是要求模型逐行搬运数据。配套 ERP 示例用 SQLite 员工、工资两表，单次模型调用生成查询，再与独立 Python 参考答案比较。
 
@@ -31,7 +31,7 @@ description: 用可手算的订单快照讲解 Text-to-SQL，从未发货口径�
 
 这里有两个时间条件：**下单窗口决定哪些订单入选，快照截止点决定这些订单当时发了多少。**只在今天的订单表加一个下单日期条件，不能还原上周的发货状态。
 
-[FDE 订单异常助手](../../fde/01-foundations/01-forward-deployed-engineering.md) §1.11.2 同样把“已发出”“客户已收到”“采购预计到仓库”分开。Text-to-SQL 不能把这些差别压成一个模糊的 `status != 'completed'`。
+[FDE 订单异常助手](../../fde/01-foundations/01-forward-deployed-engineering.zh.md) §1.11.2 同样把“已发出”“客户已收到”“采购预计到仓库”分开。Text-to-SQL 不能把这些差别压成一个模糊的 `status != 'completed'`。
 
 ## 22.3 固定两张表，先看清一行代表什么
 
@@ -139,7 +139,7 @@ flowchart TD
     D --> G
 ```
 
-[Tools 第三章](../../tools/01-function-calling/03-tool-schema-design.md) §3.2.3 提醒过：“只支持 SELECT”的描述不能代替只读凭据、对象权限和查询限制。上游 [`agent.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/agent.py#L31-L87)也在提示词里限定 SELECT，但 [`demo.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py#L119-L165)直接调用 `cur.execute(sql)`；不能把这种执行方式当作已落实数据库只读权限。
+[Tools 第三章](../../tools/01-function-calling/03-tool-schema-design.zh.md) §3.2.3 提醒过：“只支持 SELECT”的描述不能代替只读凭据、对象权限和查询限制。上游 [`agent.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/agent.py#L31-L87)也在提示词里限定 SELECT，但 [`demo.py`](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter5/erp-agent/demo.py#L119-L165)直接调用 `cur.execute(sql)`；不能把这种执行方式当作已落实数据库只读权限。
 
 ## 22.5 一条完整查询，先按订单汇总
 

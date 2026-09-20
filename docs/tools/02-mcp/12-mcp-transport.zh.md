@@ -129,7 +129,7 @@ sequenceDiagram
 
 ### 12.3.3 stdio 最大的坑：stdout 是协议专用通道
 
-[第五章](05-mcp-components.md) 提过，这里再强调一次，因为它是自写 Server 时踩得最多的坑：
+[第五章](05-mcp-components.zh.md) 提过，这里再强调一次，因为它是自写 Server 时踩得最多的坑：
 
 **stdout 被 JSON-RPC 独占，任何非协议内容写进去都会污染通道，导致 Client 解析失败。**
 

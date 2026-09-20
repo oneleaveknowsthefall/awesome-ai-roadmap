@@ -111,7 +111,7 @@ flowchart LR
 | **收益** | 原论文在多个推理基准上报告改善，幅度随模型、题目与采样预算变化；不存在通用的 5–15% 收益 |
 | **代价** | 采样 `n` 条路径增加总生成 token 和验证开销；串行耗时会累加，并行可降低墙钟延迟，但受限流、排队和尾部慢请求影响 |
 
-温度采样的机制见 [第十三章](../03-inference-serving/13-temperature-top-p-top-k.md)。
+温度采样的机制见 [第十三章](../03-inference-serving/13-temperature-top-p-top-k.zh.md)。
 
 聚合前要处理 `0.5` 与 `1/2` 等等价答案、单位、非法输出和平票。开放式报告、代码或有多个有效答案的任务，不宜直接比较字符串；可改用单元测试、规则验证或明确的选择器，并把选择器误差算入最终效果。
 
@@ -203,7 +203,7 @@ effort 的引导作用还要与总输出上限分开。OpenAI Responses API 的 
 
 ### 17.7.7 把 CoT 等同于「规划能力」
 
-CoT 是线性生成中间步骤；规划还涉及状态、行动约束、搜索与执行反馈。显式搜索可以调用 CoT，但不是写出一段计划就具备可靠规划能力。ToT、GoT 等结构见 [Agent 主题第十一章](../../agent/02-reasoning-planning/11-llm-agent-planning.md)。
+CoT 是线性生成中间步骤；规划还涉及状态、行动约束、搜索与执行反馈。显式搜索可以调用 CoT，但不是写出一段计划就具备可靠规划能力。ToT、GoT 等结构见 [Agent 主题第十一章](../../agent/02-reasoning-planning/11-llm-agent-planning.zh.md)。
 
 ## 17.8 本章总结
 

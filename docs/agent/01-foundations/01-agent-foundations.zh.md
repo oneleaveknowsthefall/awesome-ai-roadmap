@@ -165,7 +165,7 @@ Agent 可以尝试把复杂目标拆解为多个步骤，并根据执行反馈�
 
 ## 1.5 MCP：连接 Agent 与外部工具
 
-> 这里从 Agent 的使用视角切入；MCP 的生命周期、传输和安全规范详见[Tools：MCP](../../tools/02-mcp/04-what-is-mcp.md)，跨 Agent 协作协议详见[Tools：A2A](../../tools/04-agent-communication/11-a2a-protocol.md)。
+> 这里从 Agent 的使用视角切入；MCP 的生命周期、传输和安全规范详见[Tools：MCP](../../tools/02-mcp/04-what-is-mcp.zh.md)，跨 Agent 协作协议详见[Tools：A2A](../../tools/04-agent-communication/11-a2a-protocol.zh.md)。
 
 Anthropic 在 2024 年 11 月提出了 MCP。2025 年 12 月，Anthropic 将 MCP 捐赠给 Linux 基金会旗下的 Agentic AI Foundation（AAIF）；MCP 由社区维护者负责技术治理，AAIF 提供厂商中立的组织与基础设施支持。
 

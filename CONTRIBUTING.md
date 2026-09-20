@@ -1,73 +1,97 @@
-# 贡献指南
+# Contributing
 
-## 面试准备与文风
+[简体中文](CONTRIBUTING.zh.md)
 
-知识库主要用于 AI 工程相关岗位的面试准备。读完一节，应能说明机制为什么成立、适用条件是什么，以及换一种约束后该如何取舍，而不是只记住术语。
+## Audience and writing style
 
-先直接回答问题，再展开必要的原理和例子。需要推导时保留推导，需要比较时说清比较条件；补充追问时，优先选择能暴露理解差异的问题，例如“重试为什么可能造成重复扣款”“召回率提高后答案为什么反而变差”。
+The handbook is primarily for AI engineering interview preparation. After reading a section, a reader should be able to explain why a mechanism works, the conditions it relies on, and how a changed constraint affects the design, rather than simply name the technique.
 
-书稿以简体中文写作，后续再准备英文版。按“读者提出问题—给出回答—解释理由—讨论条件变化”的顺序组织一节，但不要求每一节都凑齐同样的栏目。概念应先解释再使用，交叉引用提供延伸阅读，不应成为理解当前回答的必要跳转。已经自然、准确的段落保留，不因审校而改写；这轮书稿不扩展 AI Infra 主题。
+Answer the question directly, then develop the necessary reasoning and examples. Retain useful derivations and state the conditions of a comparison. Choose follow-up questions that reveal a real distinction, such as why a retry might duplicate a charge or why higher retrieval recall might worsen an answer.
 
-不要统一套用“标准答案—核心洞见—一句话总结”，也不要用“掌握这一点就能拿高分”代替技术解释。写项目时，讲清楚谁遇到了什么问题、试过什么、哪里出错、为什么改方案。少用抽象名词连缀成句，没必要的英文术语直接换成中文。
+English is the primary manuscript, with a complete Simplified Chinese companion. A question, direct answer, explanation, and change of conditions are a useful progression, not a mandatory set of headings. Define a concept before relying on it. Cross-references should supply detail, not force repeated detours to understand the current answer. Preserve passages that are already clear and accurate; the migration does not add an AI infrastructure topic.
 
-虚构案例在开头简短说明一次即可，说明范围包括场景和示例数字，不要在每段、索引和页脚反复提醒。目标和结果仍要分清，也不能把案例写成作者的亲身经历。来源打不开、资料是否重新核对等信息集中放到参考资料；正文保留影响判断的条件，不写成审计记录。
+Do not impose a uniform "standard answer, key insight, one-line summary" template or promise interview success instead of explaining the engineering. Tell project stories through who faced the problem, what they tried, what failed, and why the design changed. Prefer concrete actions over abstract nouns. Write idiomatically in each language rather than mirroring sentence structure word for word.
 
-## 目录与命名
+Introduce a hypothetical case once, with a short note covering its setting and example data. Do not repeat it throughout the chapter or indexes. Keep targets distinct from results and never turn a case into the author's claimed experience. Put source-access limitations in references and review records; keep conditions that affect the conclusion in the explanation itself.
 
-- 章节放在对应的 `docs/<topic>/<module>/` 目录，文件名使用 `NN-lowercase-slug.md`。
-- 每个主题 README 维护子模块目录与模块关系；每个子模块 README 维护章节目录；根 README 仅维护主题级入口。
-- 新概念应先确认其「详解归属地」。其他主题只解释本层视角，并链接到主章节，避免复制整段内容。
-- 网站索引支持按需查阅，书稿清单维护连续阅读顺序，两者共用同一份章节正文。不要复制正文建立一套需要人工同步的“电子书版”。
-- 前言、扉页、致谢和书末说明不是知识章节，不占用技术章节的编号。
+## Directories, languages, and source ownership
 
-## 章节结构
+- Put English chapters in `docs/<topic>/<module>/NN-lowercase-slug.md`, with Chinese companions at `NN-lowercase-slug.zh.md`.
+- Pair each topic and module's `README.md` with `README.zh.md`. Topic indexes explain module relationships; module indexes list chapters; root indexes introduce topics.
+- Give each concept a main location for its detailed explanation. Other topics should explain their own perspective and link to it, not duplicate the full text.
+- The site supports browsing, while the book manifests define continuous reading order. Both use the same source text for each language; there is no second set of EPUB prose.
+- Title pages, prefaces, acknowledgments, and closing matter are not knowledge chapters and do not consume chapter numbers.
 
-1. 使用唯一一级标题：`# 第N章：标题`。
-2. 二级标题按 `## N.1`、`## N.2` 连续编号。
-3. 使用 Mermaid 表达流程和关系；LaTeX 只用于数学表达。
-4. 保留有信息增量的易错点、总结和一手参考资料；不为了凑固定结构重复正文。
-5. 涉及版本、性能或模型能力时，注明核验日期、版本和适用条件，避免使用“永远”“唯一”“必然”等无边界结论。
-6. 重要章节在 Markdown front matter 中填写独立 `description`，准确概括页面回答的问题，不堆砌关键词。
-7. FAQ 只用于读者确实会重复询问的问题。问答必须在页面正文中可见，不为搜索引擎批量生成同质内容。
-8. 图表不能只靠颜色、网页交互或“上图左侧”表达含义；附近的文字应说明关键关系。代码与表格按窄屏阅读安排，不用手工空格排版或插入固定页码。
+Use the existing manuscript to preserve scope and the original cited papers, standards, and official documentation to verify technical meaning. A model's memory is not a substitute. Tie historical claims to their actual versions, and correct a demonstrated error in both languages rather than silently allowing them to disagree.
 
-## 书稿与出版版本
+## Chapter structure
 
-本轮交付是中文母稿，不等同于可直接上传 KDP 的 EPUB。Mermaid 和 LaTeX 在源文件中保留；最终电子书需要可离线显示的图与公式、可导航目录，以及真实 Kindle 预览。语言支持、AI 内容申报和上传格式以出版时的 KDP 官方要求为准，不能通过错误标注语言绕过限制。
+1. Use one H1: `# Chapter N: Title` in English and the existing numbered chapter form in Chinese.
+2. Number H2 sections consecutively as `## N.1`, `## N.2`, and so on; keep corresponding section numbers aligned between languages.
+3. Use Mermaid for processes and relationships, and LaTeX only for mathematics.
+4. Keep useful pitfalls, summaries, and primary references. Do not repeat the body just to fill a template.
+5. Attach dates, versions, and conditions to claims about changing APIs, performance, or model capabilities.
+6. Give important chapters a specific front matter `description` in the page's own language.
+7. Use FAQs only for genuine recurring questions, with every answer visible in the page.
+8. Explain diagrams in nearby prose rather than relying only on color, interactive controls, or a reader's screen layout. Keep code and tables readable on narrow screens; do not align text with manual spaces or insert fixed page numbers.
 
-英文版沿用稳定的章节标识和技术来源。第一次出现的术语应解释中文含义并保留必要英文原名，不预先生成占位翻译，也不把译文当作与中文源稿无关的第二套知识。
+## English-first updates
 
-致谢可以预留编辑位置，但不得虚构贡献者、合作机构或背书。出版操作清单和待办留在维护说明中，不放入读者正文。
+Edit the English source first, then update the affected Chinese companion in the same PR. Translate headings, explanations, diagram labels, and code comments, but preserve identifiers, protocol fields, data, units, time zones, formulas, and executable behavior. Chinese strings that are themselves example data may remain with an English explanation.
 
-## 数学与链接
+Use the [bilingual editing rules](book/i18n/README.md) and [glossary](book/i18n/glossary.json). Do not upload manuscript content to an external translation service or introduce paid API calls without approval. CI does not translate pages on demand; it checks that complete, reviewed language pairs are present.
 
-- 不使用 GitHub 不支持的 `\operatorname`、`\boxed`、`\text`。
-- 数学环境中不写裸 `<` 或 `>`。
-- 行内 `$...$` 前如果是中文文字或中文标点，必须加一个空格；否则 GitHub 可能直接显示公式源码。
-- 块公式使用独立的 `$$` 起止行，内部不留空行；不要让 `-`、`=` 等运算符独占一行，否则 GitHub 可能先把它解析成 Markdown 标题。
-- 避免数学中的反斜杠加标点写法：GitHub Markdown 可能先吃掉反斜杠。范数用 `\Vert`，集合括号用 `\lbrace` / `\rbrace`，矩阵换行用 `\cr`，必要的间距用 `\quad`；百分比放在正文，公式用小数。
-- 修改公式后同时查看 GitHub 和 Wiki 的实际浏览器渲染，确认没有原始 `$$` 残留、错误节点或丢失的矩阵行；本地构建成功不等于公式显示正确。
-- 优先引用规范、官方文档、原论文和可复现的工程报告。
-- 相对链接应指向概念的详解归属章节，不重复维护同一内容。
+After reviewing the pair, record its revisions explicitly:
 
-## 提交前检查
+```bash
+python3 scripts/check_translations.py --record docs/topic/module/NN-chapter.md \
+  --note "Describe the paired review and any source checks."
+```
+
+An English wording-only change may leave the Chinese text unchanged if the reviewer explicitly confirms that it still conveys the same meaning. A matching hash records that decision; it does not prove semantic correctness. Never refresh records merely to make CI pass.
+
+## Mathematics and links
+
+- Avoid the unsupported macros `\operatorname`, `\boxed`, and `\text`.
+- Do not put raw `<` or `>` inside math expressions.
+- Separate inline `$...$` from preceding Chinese characters or punctuation with a space so GitHub recognizes it.
+- Put display math between standalone `$$` lines without internal blank lines. Do not leave operators such as `-` or `=` alone on a line, where Markdown may treat them as headings or lists.
+- Avoid backslash-punctuation sequences that GitHub may consume before math rendering. Use `\Vert`, `\lbrace`, `\rbrace`, `\cr`, and `\quad` as appropriate; put percentages in prose and decimals in formulas.
+- After changing a formula, inspect the actual GitHub and website rendering as well as the EPUB. A successful build alone does not establish visual correctness.
+- Prefer specifications, official documentation, original papers, and reproducible engineering reports.
+- English internal Markdown links use normal `.md` paths; Chinese links use the paired `.zh.md` paths. Keep external citations and shared asset paths unchanged.
+
+For a Chinese companion copied from an existing page, the protected link helper supports a dry check and an explicit write:
+
+```bash
+python3 scripts/localize_zh_links.py docs/topic/module/NN-chapter.zh.md
+python3 scripts/localize_zh_links.py --write docs/topic/module/NN-chapter.zh.md
+```
+
+## Checks before submission
 
 ```bash
 python3 scripts/check_docs.py
-npm install
+python3 scripts/localize_zh_links.py
+python3 scripts/check_translations.py
 npm run check:mermaid
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-docs.txt
-.venv/bin/mkdocs build --strict
+python3 scripts/build_book.py --language en --check --check-index
+python3 scripts/build_book.py --language zh-CN --check --check-index
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/mkdocs build --strict
 ```
 
-新增章节后同步更新子模块 `README.md`、主题 `README.md`、根目录索引中的章节范围与主题计数。
-新增、删除或移动页面时，还需同步更新 `mkdocs.yml` 中的 Wiki 导航。
+Install the repository's locked dependencies when needed. Changes to website or export behavior also need their relevant unit and integration tests, documented in the [maintenance guide](book/README.md).
 
-书稿修改通过 Pull Request 交由维护者审阅合并，不直接推送 `main`，也不自动发布到 KDP。
+Adding, removing, or moving a chapter requires both language sources, both book manifests, paired module/topic/root indexes, MkDocs navigation, and updated inventory and synchronization records. After changing titles or manifests, regenerate the two book indexes with `--write-index` before recording the reviewed pairs.
 
-## 许可与署名
+Submit manuscript revisions through a PR for the maintainer to merge. Do not push them directly to `main` or upload a book to KDP automatically.
 
-原创文档和图表按 [CC BY 4.0](LICENSE) 发布。提交内容即表示你有权按该许可提供内容；第三方材料必须保留原始来源和许可说明。
+## Publishing, licenses, and attribution
 
-作者署名和通用许可说明集中放在项目说明与书末，不在每个技术章节或模块索引后重复插入。技术出处仍就近保留；引用的第三方代码若有必须随附的声明，不能当作页尾杂项直接删除。
+The two languages use the same stable chapter identities. Each language can be read on the website or exported to an EPUB with local figures, formulas, and navigation. A valid EPUB is not proof of Kindle layout quality or publication eligibility. Review the current platform requirements for language, content, and AI-generated material before release; never mislabel a language to bypass them.
+
+Acknowledgment placeholders are for confirmed contributors, not invented people or endorsements. Keep operational checklists and unfinished editorial tasks out of the reader manuscript.
+
+Original text and diagrams are released under [CC BY 4.0](LICENSE). A contribution must be material you have the right to provide under that license. Preserve original sources and any required third-party notices.
+
+Collect author attribution and general licensing information in the project description and closing matter, not after every chapter or module. Keep technical citations near their claims; a notice required for reproduced third-party code must not be discarded as boilerplate.

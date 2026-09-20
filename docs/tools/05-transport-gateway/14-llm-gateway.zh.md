@@ -218,7 +218,7 @@ flowchart TB
 
 **适用场景**：高频重复问答（如客服机器人），命中率可以很高，省下的费用可观。**需要个性化或强实时性的问答要在网关层识别出来直接绕过缓存。**
 
-> 语义缓存和 [Prompt Caching](../../llm/03-inference-serving/14-kv-cache.md) 不是一回事：前者是「跳过整次调用」，后者是「调用照做但复用已计算的 KV」。
+> 语义缓存和 [Prompt Caching](../../llm/03-inference-serving/14-kv-cache.zh.md) 不是一回事：前者是「跳过整次调用」，后者是「调用照做但复用已计算的 KV」。
 
 ### 14.3.7 API Key 集中管理
 

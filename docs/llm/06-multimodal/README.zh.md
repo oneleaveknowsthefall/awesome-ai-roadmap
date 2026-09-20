@@ -10,6 +10,6 @@ description: 理解图像、音频和视频接入语言模型的方式，关注�
 
 ## 章节
 
-1. [第二十三章：多模态模型](23-multimodal-models.md)
+1. [第二十三章：多模态模型](23-multimodal-models.zh.md)
 
-返回 [LLM 相关知识点](../README.md)。
+返回 [LLM 相关知识点](../README.zh.md)。

@@ -8,10 +8,10 @@ description: 学习语言模型目标、Transformer 数据流、注意力开销�
 
 ## 章节
 
-1. [第一章：大语言模型与传统 NLP 的本质区别](01-what-is-llm.md)
-2. [第二章：Transformer 架构原理](02-transformer-architecture.md)
-3. [第三章：MHA 的局限与 MQA、GQA、Flash Attention](03-attention-variants.md)
-4. [第四章：位置编码](04-position-encoding.md)
-5. [第五章：Tokenizer 分词器](05-tokenizer.md)
+1. [第一章：大语言模型与传统 NLP 的本质区别](01-what-is-llm.zh.md)
+2. [第二章：Transformer 架构原理](02-transformer-architecture.zh.md)
+3. [第三章：MHA 的局限与 MQA、GQA、Flash Attention](03-attention-variants.zh.md)
+4. [第四章：位置编码](04-position-encoding.zh.md)
+5. [第五章：Tokenizer 分词器](05-tokenizer.zh.md)
 
-返回 [LLM 相关知识点](../README.md)。
+返回 [LLM 相关知识点](../README.zh.md)。

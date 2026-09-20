@@ -12,11 +12,11 @@ Python 示例按 LangChain v1 接口讲解，最低 Python 3.10；节点内 `asy
 
 ## 子模块
 
-1. [基础架构（第 1–3 章）](01-foundations/README.md)
-2. [Agent 构建（第 4–6 章）](02-agent-building/README.md)
-3. [生态与演进（第 7–8、11 章）](03-ecosystem/README.md)
-4. [LangGraph（第 9–10 章）](04-langgraph/README.md)
-5. [生产闭环（第 12–13 章）](05-production/README.md)
+1. [基础架构（第 1–3 章）](01-foundations/README.zh.md)
+2. [Agent 构建（第 4–6 章）](02-agent-building/README.zh.md)
+3. [生态与演进（第 7–8、11 章）](03-ecosystem/README.zh.md)
+4. [LangGraph（第 9–10 章）](04-langgraph/README.zh.md)
+5. [生产闭环（第 12–13 章）](05-production/README.zh.md)
 
 ## 模块关系
 
@@ -36,6 +36,6 @@ flowchart TB
 - **复杂工作流**：基础架构 → Agent 构建 → LangGraph；
 - **技术选型与升级**：基础架构 → 生态与演进；
 - **生产质量闭环**：Agent 构建 → LangGraph → 生产闭环；
-- **跨框架比较**：读完本模块任意子模块后，可直接跳到 [框架选型与可移植架构](../06-selection-portability/README.md) 看统一对照表。
+- **跨框架比较**：读完本模块任意子模块后，可直接跳到 [框架选型与可移植架构](../06-selection-portability/README.zh.md) 看统一对照表。
 
-返回 [AI 框架与编排 相关知识点](../README.md)。
+返回 [AI 框架与编排 相关知识点](../README.zh.md)。

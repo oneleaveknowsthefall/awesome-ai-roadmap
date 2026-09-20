@@ -91,7 +91,7 @@ flowchart TB
 这些路径都能成立：
 
 - **没有原生 Function Calling**，Host 仍可用结构化文本、规则或人工选择触发工具；区别在可靠性和适配成本；
-- **MCP 可与 Function Calling 配合**：许多 Host 会把 MCP Tool 转成模型 schema，但 MCP 不强制这条适配路径。[第六章](../02-mcp/06-mcp-vs-function-calling.md) 详细拆过这条时序链；
+- **MCP 可与 Function Calling 配合**：许多 Host 会把 MCP Tool 转成模型 schema，但 MCP 不强制这条适配路径。[第六章](../02-mcp/06-mcp-vs-function-calling.zh.md) 详细拆过这条时序链；
 - **需要外部操作的 Skill 依赖宿主提供相应能力，而非特定协议**：执行中可使用 MCP、内嵌函数或其他受控集成。
 
 仅有 Function Calling 加执行器就能工作；确定性程序也能单独用 MCP；纯写作 Skill 可以不调任何外部工具。三者都不是另外两者成立的必要条件。

@@ -8,7 +8,7 @@ description: 解释 LangGraph 的 super-step、reducer、检查点、中断重�
 
 直接比较功能表，容易漏掉一个前提：LangChain Agent 本身就运行在 LangGraph 之上。
 
-本章提到的持久化、流式输出和人工介入，并不是在说 LangChain Agent 无法获得这些能力（层次关系见 [第九章](09-langchain-vs-langgraph.md)）。
+本章提到的持久化、流式输出和人工介入，并不是在说 LangChain Agent 无法获得这些能力（层次关系见 [第九章](09-langchain-vs-langgraph.zh.md)）。
 
 > 直接使用 LangGraph 的差异在于：开发者可以决定这些能力放在哪个节点、围绕哪些状态生效、失败后从哪里恢复，以及不同子流程如何组合。
 

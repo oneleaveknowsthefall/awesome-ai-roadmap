@@ -10,7 +10,7 @@ description: 用 limit=0 的分页缺陷串起代码定位、符号与调用关�
 
 开发者把缺陷交给 Agent，要求修复查询接口，又不能改变后台导出任务的既有行为。困难不是模型会不会写 `is None`，而是它能否证明：找到了真正执行的函数，只改了该改的位置，并且没有用一个绿色的语法检查冒充业务验收。
 
-[第 19 章](../02-runtime-harness/19-tool-registry-and-execution-pipeline.md)已经解释工具如何调度与返回错误；[第 20 章](../02-runtime-harness/20-permissions-sandbox-isolation.md)解释执行边界；[第 23 章](../02-runtime-harness/23-tracing-evaluation-cost-and-coding-agent-case-study.md)比较产品与记录成本。本章只把代码这条链走透：
+[第 19 章](../02-runtime-harness/19-tool-registry-and-execution-pipeline.zh.md)已经解释工具如何调度与返回错误；[第 20 章](../02-runtime-harness/20-permissions-sandbox-isolation.zh.md)解释执行边界；[第 23 章](../02-runtime-harness/23-tracing-evaluation-cost-and-coding-agent-case-study.zh.md)比较产品与记录成本。本章只把代码这条链走透：
 
 ```mermaid
 flowchart TD
@@ -230,7 +230,7 @@ print("旧错误已复现；6 个函数级样例满足预期")
 
 最终交给小周的应是可解释的差异：查询把 `None` 与 `0` 分开，导出约定没变；函数样例覆盖了什么、接口和相关回归覆盖了什么、哪些环境尚未验证，分别说清楚。工程交付的边界由这些证据决定，不由 Agent 最后一条“已完成”决定。
 
-如果同类错误反复出现，先按[第二十五章](../07-post-training/25-agent-post-training.md)定位模型第一次做错决定的位置，再判断该改工具、提示还是训练数据，不要把每次编辑失败都归因于模型能力。
+如果同类错误反复出现，先按[第二十五章](../07-post-training/25-agent-post-training.zh.md)定位模型第一次做错决定的位置，再判断该改工具、提示还是训练数据，不要把每次编辑失败都归因于模型能力。
 
 ## 参考资料与来源边界
 

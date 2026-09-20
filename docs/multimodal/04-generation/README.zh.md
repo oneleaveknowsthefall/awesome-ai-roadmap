@@ -8,8 +8,8 @@ description: 图像与视频生成学习索引，连接扩散、Flow Matching、
 
 ## 章节
 
-1. [第七章：扩散模型、Flow Matching 与图像生成](07-diffusion-flow-matching-image.md)
-2. [第八章：视频生成模型](08-video-generation.md)
+1. [第七章：扩散模型、Flow Matching 与图像生成](07-diffusion-flow-matching-image.zh.md)
+2. [第八章：视频生成模型](08-video-generation.zh.md)
 
 ## 模块内关系
 
@@ -22,4 +22,4 @@ flowchart LR
 
 第七章重点区分训练路径、预测参数化、采样器和条件引导；第八章增加主体身份、运动及长时序一致性。直线条件路径不保证一步生成，画面平滑也不保证有正确运动，这两类反例是理解方法边界的切入点。
 
-返回 [多模态相关知识点](../README.md)。
+返回 [多模态相关知识点](../README.zh.md)。

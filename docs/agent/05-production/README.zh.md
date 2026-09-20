@@ -8,7 +8,7 @@ description: 结合任务结果、轨迹约束、重复试验与成本评测 Age
 
 ## 章节
 
-1. [第十四章：Agent 评估与 Benchmark](14-agent-evaluation.md)
-2. [第十五章：Agent 安全与 Prompt Injection](15-agent-security.md)
+1. [第十四章：Agent 评估与 Benchmark](14-agent-evaluation.zh.md)
+2. [第十五章：Agent 安全与 Prompt Injection](15-agent-security.zh.md)
 
-返回 [Agent 相关知识点](../README.md)。
+返回 [Agent 相关知识点](../README.zh.md)。

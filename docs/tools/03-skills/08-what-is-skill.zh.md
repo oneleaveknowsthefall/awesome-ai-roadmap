@@ -102,7 +102,7 @@ flowchart TB
 
 上下文窗口有容量限制。无关指令会占据本可留给任务证据的空间，也可能干扰模型选择；按需加载能减少这部分输入，但若路由漏掉了必要 Skill，任务质量同样会下降。
 
-这一点和 [Agent 的上下文压缩](../../agent/03-memory-context/10-agent-memory-compression.md) 是同一个思路：不是能塞多少就塞多少，而是让模型在恰当的时候只看到恰当的东西。
+这一点和 [Agent 的上下文压缩](../../agent/03-memory-context/10-agent-memory-compression.zh.md) 是同一个思路：不是能塞多少就塞多少，而是让模型在恰当的时候只看到恰当的东西。
 
 ### 8.3.4 description 决定 Skill 能不能被用上
 
@@ -116,7 +116,7 @@ description: "帮助处理代码相关的任务"
 description: "对 Python/Go 代码做安全与性能审查，输出含风险等级的结构化报告。适用于 PR review 和上线前检查。"
 ```
 
-这和[工具描述设计](../01-function-calling/03-tool-schema-design.md)类似：写清能力和边界，并用任务集评估触发质量；两者的描述都不是唯一信息源或强制执行规则。
+这和[工具描述设计](../01-function-calling/03-tool-schema-design.zh.md)类似：写清能力和边界，并用任务集评估触发质量；两者的描述都不是唯一信息源或强制执行规则。
 
 ## 8.4 Skill 与相邻概念的关系
 

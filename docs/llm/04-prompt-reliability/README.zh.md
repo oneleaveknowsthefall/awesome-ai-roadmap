@@ -10,8 +10,8 @@ description: 从提示词的可验证约束到思维链与幻觉治理，区分�
 
 ## 章节
 
-1. [第十六章：Prompt 工程](16-prompt-engineering.md)
-2. [第十七章：CoT 思维链](17-cot.md)
-3. [第十八章：幻觉的成因与缓解](18-hallucination.md)
+1. [第十六章：Prompt 工程](16-prompt-engineering.zh.md)
+2. [第十七章：CoT 思维链](17-cot.zh.md)
+3. [第十八章：幻觉的成因与缓解](18-hallucination.zh.md)
 
-返回 [LLM 相关知识点](../README.md)。
+返回 [LLM 相关知识点](../README.zh.md)。

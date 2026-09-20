@@ -20,17 +20,17 @@ flowchart LR
     style D fill:#e6f4ea
 ```
 
-这套流程和[第 10 章](../05-release-pipeline/10-llm-cicd-canary-ab.md)的发布流水线是同一件事的两个视角:EDD 讲的是"改动怎么被验证",发布流水线讲的是"验证通过之后怎么安全上线"。
+这套流程和[第 10 章](../05-release-pipeline/10-llm-cicd-canary-ab.zh.md)的发布流水线是同一件事的两个视角:EDD 讲的是"改动怎么被验证",发布流水线讲的是"验证通过之后怎么安全上线"。
 
 ## 7.2 黄金测试集:业务侧评测的核心资产
 
-[LLM · 评测与选型](../../llm/05-evaluation-selection/README.md)详细讲过 MMLU、HumanEval 这类学术 Benchmark 存在数据污染、脱离业务场景的系统性缺陷。业务侧的做法是建一套小而精的**黄金测试集(golden dataset)**:
+[LLM · 评测与选型](../../llm/05-evaluation-selection/README.zh.md)详细讲过 MMLU、HumanEval 这类学术 Benchmark 存在数据污染、脱离业务场景的系统性缺陷。业务侧的做法是建一套小而精的**黄金测试集(golden dataset)**:
 
 | 来源 | 说明 |
 |---|---|
 | 人工设计的典型与边界案例 | 建立最小质量基线,覆盖格式、越权、拒绝等场景 |
 | 脱敏后的真实生产失败案例 | 每一次线上事故复盘后,把复现用例回收进测试集,防止同类问题再犯 |
-| 用户反馈标注的案例 | 来自[第 13 章](../06-performance-operations/13-feedback-loop-data-flywheel.md)的反馈闭环 |
+| 用户反馈标注的案例 | 来自[第 13 章](../06-performance-operations/13-feedback-loop-data-flywheel.zh.md)的反馈闭环 |
 
 可以先用 50–200 条做冒烟和问题发现，但这只是启动规模，不足以证明罕见风险已受控。按订单查询、退款、越权等切片报告样本数与得分；高风险切片不能被总均分抵消。
 
@@ -81,7 +81,7 @@ def release_gate(eval_result: EvalResult, baseline: EvalResult) -> GateDecision:
 
 ## 7.5 离线评测不能替代线上监测
 
-离线评测在固定测试集上运行,能发现的是"这个改动是否比基线更好",但测试集永远无法覆盖生产环境的全部输入分布。**离线评测负责"改动前把关",线上可观测性([第 8 章](08-online-observability-tracing.md))负责"上线后持续验证真实流量表现"**,两者缺一不可。
+离线评测在固定测试集上运行,能发现的是"这个改动是否比基线更好",但测试集永远无法覆盖生产环境的全部输入分布。**离线评测负责"改动前把关",线上可观测性([第 8 章](08-online-observability-tracing.zh.md))负责"上线后持续验证真实流量表现"**,两者缺一不可。
 
 ## 7.6 与相邻章节的分工
 
@@ -89,9 +89,9 @@ def release_gate(eval_result: EvalResult, baseline: EvalResult) -> GateDecision:
 
 | 场景 | 详见 |
 |---|---|
-| Agent 多轮工具调用、任务完成率评估 | [Agent · 评估与安全](../../agent/05-production/14-agent-evaluation.md) |
-| RAG 检索召回率、引用准确性评估 | [RAG · 生成与评估](../../rag/05-generation-evaluation/README.md) |
-| 模型通用能力的学术 Benchmark | [LLM · 评测与选型](../../llm/05-evaluation-selection/README.md) |
+| Agent 多轮工具调用、任务完成率评估 | [Agent · 评估与安全](../../agent/05-production/14-agent-evaluation.zh.md) |
+| RAG 检索召回率、引用准确性评估 | [RAG · 生成与评估](../../rag/05-generation-evaluation/README.zh.md) |
+| 模型通用能力的学术 Benchmark | [LLM · 评测与选型](../../llm/05-evaluation-selection/README.zh.md) |
 
 ## 7.7 常见错误
 

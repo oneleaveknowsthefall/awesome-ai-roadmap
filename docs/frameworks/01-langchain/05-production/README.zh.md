@@ -8,7 +8,7 @@ description: 通过 Deep Research 的证据与预算管理、Deep Agents 执行�
 
 ## 章节
 
-1. [第十二章：Deep Research 的实现逻辑](12-deep-research.md)
-2. [第十三章：用 LangSmith 建立生产质量闭环](13-langsmith-production-loop.md)
+1. [第十二章：Deep Research 的实现逻辑](12-deep-research.zh.md)
+2. [第十三章：用 LangSmith 建立生产质量闭环](13-langsmith-production-loop.zh.md)
 
-返回 [LangChain 生态](../README.md)。
+返回 [LangChain 生态](../README.zh.md)。

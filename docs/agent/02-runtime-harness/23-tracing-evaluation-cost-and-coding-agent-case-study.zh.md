@@ -64,7 +64,7 @@ Trace 和成本核算是"事后可见"，成本控制则要在运行时主动生
 
 将本模块第 16–22 章的抽象概念对照到三个真实存在的 Coding Agent Harness，能更直观地看到这些设计决策如何落地。
 
-这里比较运行时与产品接口。具体怎样定位代码、选择编辑格式并确认修改有效，见[第二十四章：代码搜索、编辑与验证](../06-coding-agents/24-code-search-edit-verification.md)。
+这里比较运行时与产品接口。具体怎样定位代码、选择编辑格式并确认修改有效，见[第二十四章：代码搜索、编辑与验证](../06-coding-agents/24-code-search-edit-verification.zh.md)。
 
 ### 23.7.1 Claude Code / Claude Agent SDK
 

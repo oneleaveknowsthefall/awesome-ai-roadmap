@@ -8,14 +8,14 @@ description: 覆盖 AI Agent 的架构、规划、记忆、多智能体与 Harne
 
 ## 子模块
 
-1. [基础与架构（第 1–3 章）](01-foundations/README.md)
-2. [Runtime 与 Harness（第 16–23 章）](02-runtime-harness/README.md)
-3. [推理、规划与反思（第 4–6、11–12 章）](02-reasoning-planning/README.md)
-4. [记忆与上下文（第 7–8、10 章）](03-memory-context/README.md)
-5. [多智能体系统（第 9、13 章）](04-multi-agent/README.md)
-6. [评估与安全（第 14–15 章）](05-production/README.md)
-7. [Coding Agent 工程（第 24 章）](06-coding-agents/README.md)
-8. [Agent 后训练（第 25 章）](07-post-training/README.md)
+1. [基础与架构（第 1–3 章）](01-foundations/README.zh.md)
+2. [Runtime 与 Harness（第 16–23 章）](02-runtime-harness/README.zh.md)
+3. [推理、规划与反思（第 4–6、11–12 章）](02-reasoning-planning/README.zh.md)
+4. [记忆与上下文（第 7–8、10 章）](03-memory-context/README.zh.md)
+5. [多智能体系统（第 9、13 章）](04-multi-agent/README.zh.md)
+6. [评估与安全（第 14–15 章）](05-production/README.zh.md)
+7. [Coding Agent 工程（第 24 章）](06-coding-agents/README.zh.md)
+8. [Agent 后训练（第 25 章）](07-post-training/README.zh.md)
 
 ## 模块关系
 
@@ -39,7 +39,7 @@ flowchart TB
 
 图中的依赖从基础概念走向执行与协作：规划决定尝试什么，记忆提供可用信息，Harness 负责实际执行。评估与安全约束这些过程；代码任务和后训练则分别追问“改动是否正确”和“反复出现的策略错误怎样改善”。
 
-协议细节不在本主题重复展开：工具接入见 [Tools · MCP](../tools/02-mcp/README.md)，跨 Agent 互操作见 [Tools · Agent 通信](../tools/04-agent-communication/README.md)。
+协议细节不在本主题重复展开：工具接入见 [Tools · MCP](../tools/02-mcp/README.zh.md)，跨 Agent 互操作见 [Tools · Agent 通信](../tools/04-agent-communication/README.zh.md)。
 
 ## 阅读建议
 
@@ -48,7 +48,7 @@ flowchart TB
 - **多 Agent 系统**：基础与架构 → 推理规划 → 多智能体系统；
 - **工程落地 / Harness 开发**：基础与架构 → Runtime 与 Harness；
 - **Coding Agent**：Runtime 与 Harness → Coding Agent 工程 → 评估与安全；
-- **用训练改善 Agent**：先读 [LLM 训练与对齐](../llm/02-training-alignment/README.md)和[工具学习](../tools/01-function-calling/02-tool-learning.md)，再读 Agent 后训练；
+- **用训练改善 Agent**：先读 [LLM 训练与对齐](../llm/02-training-alignment/README.zh.md)和[工具学习](../tools/01-function-calling/02-tool-learning.zh.md)，再读 Agent 后训练；
 - **生产上线**：完成目标模块后阅读评估与安全。
 
 ## 常见问题
@@ -65,4 +65,4 @@ flowchart TB
 
 当任务需要明确的权限隔离、独立上下文、并行工作或不同专业角色时，Multi-Agent 才可能带来收益。若一个 Agent 加工具和结构化工作流就能完成任务，拆成多个 Agent 往往只会增加通信和调试成本。
 
-返回[文档主题索引](../README.md)。
+返回[文档主题索引](../README.zh.md)。

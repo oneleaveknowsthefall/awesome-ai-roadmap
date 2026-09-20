@@ -110,7 +110,7 @@ PoisonedRAG 在论文所测威胁模型中表明，攻击者有能力把文本�
 - **输出校验与出口控制**：检查异常 URL、指令性语句和格式，并限制可外发域名与敏感字段；
 - **最小权限与人工确认**：连接发邮件、调 API 等工具会增加实际操作风险；检索内容不应直接触发高权限动作，确认界面也要展示可信的目标与参数。
 
-真正的控制点不在于把材料“提示”为数据，而在于把能力和数据流限制在可审计边界内。纯问答型 RAG 仍可能造成错误决策或信息泄漏；一旦接入 Agent 工具，注入还可能触发真实操作。Agent 的隔离与授权模式见[Agent 安全](../../agent/05-production/15-agent-security.md)。
+真正的控制点不在于把材料“提示”为数据，而在于把能力和数据流限制在可审计边界内。纯问答型 RAG 仍可能造成错误决策或信息泄漏；一旦接入 Agent 工具，注入还可能触发真实操作。Agent 的隔离与授权模式见[Agent 安全](../../agent/05-production/15-agent-security.zh.md)。
 
 ### 20.3.3 数据泄漏
 
@@ -233,8 +233,8 @@ PoisonedRAG 在论文所测威胁模型中表明，攻击者有能力把文本�
 
 ## 跨主题详解
 
-- Agent 侧的能力隔离、数据流控制和工具授权，见[Agent 安全](../../agent/05-production/15-agent-security.md)。
-- 引用、时效与鲁棒性评测，见[RAG 评估](../05-generation-evaluation/18-rag-evaluation.md)。
+- Agent 侧的能力隔离、数据流控制和工具授权，见[Agent 安全](../../agent/05-production/15-agent-security.zh.md)。
+- 引用、时效与鲁棒性评测，见[RAG 评估](../05-generation-evaluation/18-rag-evaluation.zh.md)。
 
 ## 参考资料
 

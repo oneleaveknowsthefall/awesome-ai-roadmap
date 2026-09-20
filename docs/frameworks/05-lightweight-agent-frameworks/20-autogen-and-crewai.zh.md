@@ -6,7 +6,7 @@ description: "分析 AutoGen 的维护状态、Core/AgentChat 分层与 CrewAI �
 
 ## 20.1 两条多智能体编排路线
 
-[Semantic Kernel · 第十九章](../04-semantic-kernel/19-process-and-agent-framework.md) 已区分协作模式与产品状态。**AutoGen 已进入维护模式：不再增加新功能或增强，由社区继续维护，官方建议新用户采用 Microsoft Agent Framework，存量用户参考迁移指南。** 这不是「已有代码立刻不能运行」，也不是仍承诺积极新增功能。
+[Semantic Kernel · 第十九章](../04-semantic-kernel/19-process-and-agent-framework.zh.md) 已区分协作模式与产品状态。**AutoGen 已进入维护模式：不再增加新功能或增强，由社区继续维护，官方建议新用户采用 Microsoft Agent Framework，存量用户参考迁移指南。** 这不是「已有代码立刻不能运行」，也不是仍承诺积极新增功能。
 
 本章保留 AutoGen 用于理解和维护既有系统，并与 CrewAI 比较架构；目录名「轻量级」是组织标签，不代表这两者只适合原型或具有低运行成本：
 
@@ -79,7 +79,7 @@ result = ResearchFlow().kickoff()
 
 这里的 `researcher`、`writer` 应预先配置为 CrewAI 的 Agent，任务也应使用 CrewAI Task，不能复用上一段的 AutoGen 对象。启动步骤命名为 `prepare_topic`，避免覆盖 Flow 自身用于启动整个工作流的 `kickoff()` 方法。
 
-这条分层设计把确定性控制和角色协作拆开处理：需要固定顺序执行的步骤交给 Flow，具体子任务里的多 Agent 协作交给 Crew。它与 [LlamaIndex · 第十五章](../02-llamaindex/15-query-engine-workflows.md) 中 Workflows 的定位有相似之处，都是用一层显式的事件驱动骨架包裹内部更不确定的执行细节。
+这条分层设计把确定性控制和角色协作拆开处理：需要固定顺序执行的步骤交给 Flow，具体子任务里的多 Agent 协作交给 Crew。它与 [LlamaIndex · 第十五章](../02-llamaindex/15-query-engine-workflows.zh.md) 中 Workflows 的定位有相似之处，都是用一层显式的事件驱动骨架包裹内部更不确定的执行细节。
 
 ## 20.4 两种路线的工程含义对比
 

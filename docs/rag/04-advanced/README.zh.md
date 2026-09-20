@@ -8,8 +8,8 @@ description: 比较自适应检索、树摘要、图检索与多模态 RAG 的�
 
 ## 章节
 
-1. [第十五章：高级 RAG 范式](15-advanced-rag-paradigms.md)
-2. [第十六章：GraphRAG 与图检索](16-graphrag.md)
-3. [第二十一章：多模态 RAG](21-multimodal-rag.md)
+1. [第十五章：高级 RAG 范式](15-advanced-rag-paradigms.zh.md)
+2. [第十六章：GraphRAG 与图检索](16-graphrag.zh.md)
+3. [第二十一章：多模态 RAG](21-multimodal-rag.zh.md)
 
-返回 [RAG 相关知识点](../README.md)。
+返回 [RAG 相关知识点](../README.zh.md)。

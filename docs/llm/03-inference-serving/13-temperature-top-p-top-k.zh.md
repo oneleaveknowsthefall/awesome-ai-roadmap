@@ -4,7 +4,7 @@ description: 用可计算的概率示例解释温度与 Top-K、Top-P 的重归�
 
 # 第十三章：Temperature、Top-P、Top-K 调参
 
-> [第十二章](12-decoding-strategies.md)讨论生成策略。本章重点是：给出一组 logits 和参数后，最终采样分布怎样得到，怎样验证参数是否真的生效。
+> [第十二章](12-decoding-strategies.zh.md)讨论生成策略。本章重点是：给出一组 logits 和参数后，最终采样分布怎样得到，怎样验证参数是否真的生效。
 
 ## 13.1 三个参数控制什么
 

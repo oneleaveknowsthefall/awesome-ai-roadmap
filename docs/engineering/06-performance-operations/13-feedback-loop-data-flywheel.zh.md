@@ -6,7 +6,7 @@ description: 将显式与隐式反馈转化为经授权的评测或训练数据�
 
 ## 13.1 反馈闭环是整个生产架构图的最后一环,也是第一环
 
-回到[第 2 章](../01-foundations/02-production-architecture-overview.md)的架构全景图:所有环节最终都指向反馈闭环,而反馈闭环产出的数据又重新流回评测集和训练数据,成为下一轮迭代的起点。**这里不是再加一个新组件,而是把第 7–12 章那些已经搭好的评测、发布和训练数据入口真正接起来。**
+回到[第 2 章](../01-foundations/02-production-architecture-overview.zh.md)的架构全景图:所有环节最终都指向反馈闭环,而反馈闭环产出的数据又重新流回评测集和训练数据,成为下一轮迭代的起点。**这里不是再加一个新组件,而是把第 7–12 章那些已经搭好的评测、发布和训练数据入口真正接起来。**
 
 ```mermaid
 flowchart LR
@@ -44,9 +44,9 @@ def infer_implicit_signal(session_events: list[dict]) -> str | None:
 
 ## 13.3 从反馈到评测集:短周期闭环
 
-这一层闭环与[第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)直接衔接,是响应最快、成本最低的反馈利用方式:
+这一层闭环与[第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.zh.md)直接衔接,是响应最快、成本最低的反馈利用方式:
 
-1. 反馈关联到具体的 Trace ID 和当时的版本快照([第 9 章](../05-release-pipeline/09-prompt-model-data-versioning.md));
+1. 反馈关联到具体的 Trace ID 和当时的版本快照([第 9 章](../05-release-pipeline/09-prompt-model-data-versioning.zh.md));
 2. 脱敏后按根因分诊到对应的测试集切片(如 `金额计算错误`、`语气生硬`);
 3. 人工确认后加入黄金测试集,成为该切片的新增回归用例;
 4. 下一次发布评测时自动覆盖该场景。
@@ -55,7 +55,7 @@ def infer_implicit_signal(session_events: list[dict]) -> str | None:
 
 ## 13.4 从反馈到训练数据:长周期闭环(数据飞轮)
 
-当反馈数据积累到一定规模,且短周期的 Prompt 调整已经无法进一步提升某类任务的表现时,才需要考虑更重的手段——用积累的数据做微调或偏好对齐(RLHF/DPO,见 [LLM · 训练与对齐](../../llm/02-training-alignment/README.md))。
+当反馈数据积累到一定规模,且短周期的 Prompt 调整已经无法进一步提升某类任务的表现时,才需要考虑更重的手段——用积累的数据做微调或偏好对齐(RLHF/DPO,见 [LLM · 训练与对齐](../../llm/02-training-alignment/README.zh.md))。
 
 ```mermaid
 flowchart TB
@@ -75,7 +75,7 @@ flowchart TB
 
 ## 13.5 反馈闭环的治理边界
 
-反馈数据也是用户数据,治理边界和[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md)讲的 Trace 数据边界原则一致:
+反馈数据也是用户数据,治理边界和[第 8 章](../04-evaluation-observability/08-online-observability-tracing.zh.md)讲的 Trace 数据边界原则一致:
 
 | 治理要求 | 说明 |
 |---|---|

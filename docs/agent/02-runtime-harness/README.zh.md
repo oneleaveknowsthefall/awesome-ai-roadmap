@@ -8,13 +8,13 @@ description: 按循环、上下文、工具、权限、恢复、审批和观测�
 
 ## 章节
 
-1. [第十六章：Agent Harness 的定义、边界与分层](16-harness-definition-and-boundaries.md)
-2. [第十七章：Agent Loop 与运行时状态机](17-agent-loop-and-runtime-state-machine.md)
-3. [第十八章：Context Engineering 与上下文装配](18-context-engineering-assembly.md)
-4. [第十九章：Tool Registry、调用契约与执行管线](19-tool-registry-and-execution-pipeline.md)
-5. [第二十章：权限、沙箱与隔离](20-permissions-sandbox-isolation.md)
-6. [第二十一章：Checkpoint、持久化、重试、超时、幂等与恢复](21-checkpoint-persistence-recovery.md)
-7. [第二十二章：Human-in-the-loop、审批与可中断执行](22-human-in-the-loop-and-interruption.md)
-8. [第二十三章：Tracing、评测、成本控制与 Coding Agent Harness 案例](23-tracing-evaluation-cost-and-coding-agent-case-study.md)
+1. [第十六章：Agent Harness 的定义、边界与分层](16-harness-definition-and-boundaries.zh.md)
+2. [第十七章：Agent Loop 与运行时状态机](17-agent-loop-and-runtime-state-machine.zh.md)
+3. [第十八章：Context Engineering 与上下文装配](18-context-engineering-assembly.zh.md)
+4. [第十九章：Tool Registry、调用契约与执行管线](19-tool-registry-and-execution-pipeline.zh.md)
+5. [第二十章：权限、沙箱与隔离](20-permissions-sandbox-isolation.zh.md)
+6. [第二十一章：Checkpoint、持久化、重试、超时、幂等与恢复](21-checkpoint-persistence-recovery.zh.md)
+7. [第二十二章：Human-in-the-loop、审批与可中断执行](22-human-in-the-loop-and-interruption.zh.md)
+8. [第二十三章：Tracing、评测、成本控制与 Coding Agent Harness 案例](23-tracing-evaluation-cost-and-coding-agent-case-study.zh.md)
 
-返回 [Agent 相关知识点](../README.md)。
+返回 [Agent 相关知识点](../README.zh.md)。

@@ -10,13 +10,13 @@ description: 汇集解码、采样、KV 与前缀缓存、量化、MoE 和推理
 
 ## 章节
 
-1. [第十二章：解码策略](12-decoding-strategies.md)
-2. [第十三章：Temperature、Top-P、Top-K 调参](13-temperature-top-p-top-k.md)
-3. [第十四章：KV Cache 与 Prompt Caching](14-kv-cache.md)
-4. [第十五章：模型量化](15-quantization.md)
-5. [第十九章：MoE 混合专家模型](19-moe.md)
-6. [第二十章：部署框架选型](20-deployment-frameworks.md)
+1. [第十二章：解码策略](12-decoding-strategies.zh.md)
+2. [第十三章：Temperature、Top-P、Top-K 调参](13-temperature-top-p-top-k.zh.md)
+3. [第十四章：KV Cache 与 Prompt Caching](14-kv-cache.zh.md)
+4. [第十五章：模型量化](15-quantization.zh.md)
+5. [第十九章：MoE 混合专家模型](19-moe.zh.md)
+6. [第二十章：部署框架选型](20-deployment-frameworks.zh.md)
 
-返回 [LLM 相关知识点](../README.md)。
+返回 [LLM 相关知识点](../README.zh.md)。
 
 模型架构示例保留明确版本；API 默认值、缓存价格与框架支持矩阵以各章所引官方资料及实际部署版本为准，不将历史实验数值当作当前性能保证。

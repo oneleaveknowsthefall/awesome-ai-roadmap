@@ -20,11 +20,11 @@ description: 解释 Function Calling、MCP、Agent Skill、A2A 和传输网关�
 
 ## 子模块
 
-1. [Function Calling（第 1–3、7 章）](01-function-calling/README.md)
-2. [MCP（第 4–6、12、15 章）](02-mcp/README.md)
-3. [Skills（第 8–10 章）](03-skills/README.md)
-4. [Agent 通信（第 11 章）](04-agent-communication/README.md)
-5. [传输与网关（第 13–14 章）](05-transport-gateway/README.md)
+1. [Function Calling（第 1–3、7 章）](01-function-calling/README.zh.md)
+2. [MCP（第 4–6、12、15 章）](02-mcp/README.zh.md)
+3. [Skills（第 8–10 章）](03-skills/README.zh.md)
+4. [Agent 通信（第 11 章）](04-agent-communication/README.zh.md)
+5. [传输与网关（第 13–14 章）](05-transport-gateway/README.zh.md)
 
 ## 模块关系
 
@@ -56,4 +56,4 @@ flowchart TB
 
 Skill 组织完成任务所需的知识和步骤，MCP 连接工具、资源与提示模板，A2A 用于不同 Agent 系统之间的任务协作。三者处于不同层次，可以组合使用。
 
-返回[文档主题索引](../README.md)。
+返回[文档主题索引](../README.zh.md)。

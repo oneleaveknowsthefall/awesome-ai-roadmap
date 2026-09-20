@@ -8,7 +8,7 @@ description: 建立 RAG 的主张与引用校验、拒答策略、检索证据�
 
 ## 章节
 
-1. [第十七章：生成、Grounding 与幻觉规避](17-generation-hallucination.md)
-2. [第十八章：RAG 评估体系](18-rag-evaluation.md)
+1. [第十七章：生成、Grounding 与幻觉规避](17-generation-hallucination.zh.md)
+2. [第十八章：RAG 评估体系](18-rag-evaluation.zh.md)
 
-返回 [RAG 相关知识点](../README.md)。
+返回 [RAG 相关知识点](../README.zh.md)。

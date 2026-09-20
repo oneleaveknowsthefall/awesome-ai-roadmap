@@ -43,7 +43,7 @@ OpenAI 的 [Structured Outputs](https://platform.openai.com/docs/guides/structur
 
 没有答案也不一定是格式出了错。OpenAI Responses API 返回 `incomplete` 时，先查 `incomplete_details.reason`。若值为 `max_output_tokens`，说明生成触及了 token 限制，但还要结合实际用量和上下文余量，判断是输出额度不够，还是生成过程中用尽了上下文空间。确认后再决定增加输出额度、精简输入或拆分任务，并守住剩余费用和时限。按 5.5 节原样重试可能再次截断，不应当作默认解决办法。
 
-预留多少输出空间，要按 API 对总用量的定义计算，而不是只估算 JSON 的长度。OpenAI 的 `max_output_tokens` 还包含推理和不可见的格式化 token；Claude 的手动预算规则及不同模式的例外，见 [LLM 第 17 章 §17.6.7](../../llm/04-prompt-reliability/17-cot.md)。
+预留多少输出空间，要按 API 对总用量的定义计算，而不是只估算 JSON 的长度。OpenAI 的 `max_output_tokens` 还包含推理和不可见的格式化 token；Claude 的手动预算规则及不同模式的例外，见 [LLM 第 17 章 §17.6.7](../../llm/04-prompt-reliability/17-cot.zh.md)。
 
 ## 5.3 用 Schema 做双重校验:生成时约束 + 接收后再验证
 
@@ -93,8 +93,8 @@ def parse_model_output(raw_json: str) -> ExtractedOrder:
 | **原样重试** | 偶发的格式错误 | 一次额外的模型调用费用 |
 | **把错误信息回填给模型再试一次** | 可定位的字段或类型错误 | 增加调用、延迟与注入面，收益应在业务数据上测量 |
 | **规则修复(如去除多余的 Markdown 代码块标记)** | 已知的、固定模式的格式问题 | 几乎零成本,但只能覆盖已知问题 |
-| **降级到更严格约束解码的模型** | 反复失败 | 见[第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.md)的回退链路 |
-| **走降级路径,不再尝试解析** | 重试多次仍失败 | 见[第 6 章](06-guardrails-degradation.md) |
+| **降级到更严格约束解码的模型** | 反复失败 | 见[第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.zh.md)的回退链路 |
+| **走降级路径,不再尝试解析** | 重试多次仍失败 | 见[第 6 章](06-guardrails-degradation.zh.md) |
 
 ```python
 def parse_with_repair(raw_text: str, schema: type, max_repairs: int = 1):

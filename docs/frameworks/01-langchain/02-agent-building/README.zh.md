@@ -8,8 +8,8 @@ description: 学习 create_agent 的完整接线、工具契约、可信身份�
 
 ## 章节
 
-1. [第四章：用 LangChain 构建生产级 Agent 的七步](04-build-agent.md)
-2. [第五章：Tool 注册与工具契约](05-tool-registration.md)
-3. [第六章：LangChain 的短期记忆与长期记忆](06-memory.md)
+1. [第四章：用 LangChain 构建生产级 Agent 的七步](04-build-agent.zh.md)
+2. [第五章：Tool 注册与工具契约](05-tool-registration.zh.md)
+3. [第六章：LangChain 的短期记忆与长期记忆](06-memory.zh.md)
 
-返回 [LangChain 生态](../README.md)。
+返回 [LangChain 生态](../README.zh.md)。

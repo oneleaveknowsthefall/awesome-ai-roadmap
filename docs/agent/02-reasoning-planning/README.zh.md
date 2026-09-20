@@ -12,10 +12,10 @@ description: 区分模型推理、推理时搜索、任务调度与反馈修订�
 
 ## 章节
 
-1. [第四章：Agent 设计范式](04-agent-design-patterns.md)
-2. [第五章：Agent 的模型推理与搜索方法](05-agent-reasoning-methods.md)
-3. [第六章：复杂任务拆分与调度](06-task-decomposition.md)
-4. [第十一章：如何赋予 LLM 与 Agent 规划能力](11-llm-agent-planning.md)
-5. [第十二章：Agent 的反思、验证与自我改进](12-agent-reflection.md)
+1. [第四章：Agent 设计范式](04-agent-design-patterns.zh.md)
+2. [第五章：Agent 的模型推理与搜索方法](05-agent-reasoning-methods.zh.md)
+3. [第六章：复杂任务拆分与调度](06-task-decomposition.zh.md)
+4. [第十一章：如何赋予 LLM 与 Agent 规划能力](11-llm-agent-planning.zh.md)
+5. [第十二章：Agent 的反思、验证与自我改进](12-agent-reflection.zh.md)
 
-返回 [Agent 相关知识点](../README.md)。
+返回 [Agent 相关知识点](../README.zh.md)。

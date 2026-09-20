@@ -8,20 +8,20 @@ description: 串联预训练、计算预算分配、微调与偏好优化，围�
 
 ## 章节
 
-1. [第六章：大模型的三阶段训练流程](06-llm-training.md)
-2. [第七章：Scaling Law 与涌现能力](07-scaling-law-emergence.md)
-3. [第八章：大模型微调方案](08-finetuning.md)
-4. [第九章：LoRA 深入解析](09-lora.md)
-5. [第十章：Post-Training 方法全景](10-post-training.md)
-6. [第十一章：DPO vs PPO 深度对比](11-dpo-vs-ppo.md)
+1. [第六章：大模型的三阶段训练流程](06-llm-training.zh.md)
+2. [第七章：Scaling Law 与涌现能力](07-scaling-law-emergence.zh.md)
+3. [第八章：大模型微调方案](08-finetuning.zh.md)
+4. [第九章：LoRA 深入解析](09-lora.zh.md)
+5. [第十章：Post-Training 方法全景](10-post-training.zh.md)
+6. [第十一章：DPO vs PPO 深度对比](11-dpo-vs-ppo.zh.md)
 
 ## 阅读线索
 
 - 理解训练流程与预算：先读第六、七章，区分经验配比与硬性规则。
 - 设计微调实验：第八章做错误归因与显存核算，第九章检查 LoRA 的初始化、合并和部署约束。
 - 理解偏好优化：第十章建立方法关系，第十一章追到 KL、概率比、优势与 DPO 推导。
-- 将算法用于多步工具任务：继续读 [Agent 后训练](../../agent/07-post-training/25-agent-post-training.md)，看错误轨迹怎样变成训练数据，以及如何保住原来正常的能力。
+- 将算法用于多步工具任务：继续读 [Agent 后训练](../../agent/07-post-training/25-agent-post-training.zh.md)，看错误轨迹怎样变成训练数据，以及如何保住原来正常的能力。
 
 模型数据量与训练流程按各章引用的原始报告版本说明；不据未公开信息推断后续模型。实验结果不能直接推广为固定显存、质量排名或参数规模门槛。
 
-返回 [LLM 相关知识点](../README.md)。
+返回 [LLM 相关知识点](../README.zh.md)。

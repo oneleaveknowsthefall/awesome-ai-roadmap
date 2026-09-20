@@ -1,0 +1,1540 @@
+{
+  "pairs": {
+    "CONTRIBUTING.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "80e1efeba7cae7fd300338799b7c120897bfdc3a3a40a9ca708f17abd7b3be78",
+      "translation": "CONTRIBUTING.zh.md",
+      "translation_sha256": "fd5d0d53e3a10c75d0fecce1e27d8f6c57ff6fcc212f41d12fe5a8e7833b3435"
+    },
+    "README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "5fa0853da51ab00d49f9d3b087cea976ddeadaea3078ae5dee11eda60f558483",
+      "translation": "README.zh.md",
+      "translation_sha256": "9d5c2fc05ace52a57e9fb598914a28c47eeb84d18e72ca5507f44ba881e9bdd9"
+    },
+    "book/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "82702210a810f893305a2d5dc5d1cb636b35dd2f15ad2e9031d7fee3326e78a5",
+      "translation": "book/README.zh.md",
+      "translation_sha256": "f00bbbf4e5b282b118b6e7ec04511d88f9823083a6a6b482caa0468b48edf1a3"
+    },
+    "docs/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "9b16793f3f085d3909596d58d07a590b9fa9b52e700e6c4370bc9cba74e91e7f",
+      "translation": "docs/README.zh.md",
+      "translation_sha256": "680c45c086dbabd2a22f567023f20d2fe17b4fd817a6590551deebfa068d79fb"
+    },
+    "docs/about.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "0957cc31650c03e3b96f1a03f7f1fd0c927161266b5522204bb85474af3c65b9",
+      "translation": "docs/about.zh.md",
+      "translation_sha256": "f5ced968f60ba2a28fdad4a08e9e36a62837bd6d8020912f363c60716528bb65"
+    },
+    "docs/agent/01-foundations/01-agent-foundations.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "4d2825962220f38c02df19412ee6350268092201dac1c7d2f078dbd948a7b4cc",
+      "translation": "docs/agent/01-foundations/01-agent-foundations.zh.md",
+      "translation_sha256": "1dcfbbd245b582217208eb76237906860f27084dd57a06b4dfac0dc778e00355"
+    },
+    "docs/agent/01-foundations/02-agent-architecture.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "c62ac6dfdf704113d515426c8d01507622b5f65b9caa46f9e3ed4b101e7b7eae",
+      "translation": "docs/agent/01-foundations/02-agent-architecture.zh.md",
+      "translation_sha256": "d20a7522c0b9da129a1e8f2c82b6214863efc284e3b718aae430af54856aef5a"
+    },
+    "docs/agent/01-foundations/03-agentic-building-blocks.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "0fc19c1b15ece649c604cba3b9f31ff3840bf28c00ddce9744a3abf0511274e4",
+      "translation": "docs/agent/01-foundations/03-agentic-building-blocks.zh.md",
+      "translation_sha256": "4b911bb25c591d5ec3d8de30f897cce0c38097873e647978e8bed03b16b378d2"
+    },
+    "docs/agent/01-foundations/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "b1d600c14430be4ec388399c6a79fa2c0b9d613d2234d28bdb82d9b25122469b",
+      "translation": "docs/agent/01-foundations/README.zh.md",
+      "translation_sha256": "c5e114cbe8d7958a66ab0659e5db3dfa58ce0673c59ea0eb1fb0b88daa963029"
+    },
+    "docs/agent/02-reasoning-planning/04-agent-design-patterns.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "b6f75a8eca7ae0cfce958b537a38f628330593ddb8b3e08523bbe9f53bc27b85",
+      "translation": "docs/agent/02-reasoning-planning/04-agent-design-patterns.zh.md",
+      "translation_sha256": "171a8aaa97b59d2be7665b603866136ea645a9280c85c3a92b041f7336e86fe8"
+    },
+    "docs/agent/02-reasoning-planning/05-agent-reasoning-methods.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "b3f88128639b693940444d77d6c0b149834cf66178db4ec10fa115176d60983f",
+      "translation": "docs/agent/02-reasoning-planning/05-agent-reasoning-methods.zh.md",
+      "translation_sha256": "d08b5644f36a1aabb311dd0d68123dc093bacbbf689fec961f228001820a1f94"
+    },
+    "docs/agent/02-reasoning-planning/06-task-decomposition.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "0ec96ad3affa6c94ca891bbabb1e207cfe1f7a1f7fd58238769e60e7cd18493a",
+      "translation": "docs/agent/02-reasoning-planning/06-task-decomposition.zh.md",
+      "translation_sha256": "94058fb2e5b42a5411d81584aeb1c9e9b7604c4b691fa908def949716dd9ea92"
+    },
+    "docs/agent/02-reasoning-planning/11-llm-agent-planning.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "b9f6a569b099180adbdd6c3d5fe6ace46faaafc0391b787ad8896658f953dbe0",
+      "translation": "docs/agent/02-reasoning-planning/11-llm-agent-planning.zh.md",
+      "translation_sha256": "9db3816a84d6689367f01f32b8d7481573ef68e7e30d7110b7e0bf4691ac9087"
+    },
+    "docs/agent/02-reasoning-planning/12-agent-reflection.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "e9b5679d67ac98368847366b755b1b3ddfd2bc10dd3423f4b5a4707825c1c998",
+      "translation": "docs/agent/02-reasoning-planning/12-agent-reflection.zh.md",
+      "translation_sha256": "965d9d0ce915cbeb1bd3a626b62c834ca1a9805c2057a6d268c0c908df47f625"
+    },
+    "docs/agent/02-reasoning-planning/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "c447202080f8a65d3d0f4614eae06ce49683288ae918bf65b28da5c17afbe251",
+      "translation": "docs/agent/02-reasoning-planning/README.zh.md",
+      "translation_sha256": "64cf5f279c9dc7562e7bb901622bb0f74dead77760a007ea42d297d15acbaa07"
+    },
+    "docs/agent/02-runtime-harness/16-harness-definition-and-boundaries.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "88f1d1458f6bfbf46f8d8dacda32aceba2bcb3816664d1956538c25cf6433727",
+      "translation": "docs/agent/02-runtime-harness/16-harness-definition-and-boundaries.zh.md",
+      "translation_sha256": "ee0be85f6a4941e61fb51945ac02cabdada9f9a655f54a54775976ba6c437b01"
+    },
+    "docs/agent/02-runtime-harness/17-agent-loop-and-runtime-state-machine.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "10c8b2ec7d2e591663df9768af78485f959ccc7f22081d275fa887d385143571",
+      "translation": "docs/agent/02-runtime-harness/17-agent-loop-and-runtime-state-machine.zh.md",
+      "translation_sha256": "f8fa2299c3818a313406a1046f00e4d6253426915fa7c928b91a20c8fad484ab"
+    },
+    "docs/agent/02-runtime-harness/18-context-engineering-assembly.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "03afc7453c8c2b9e419f11e514eda112b9103a3eb76953446f77b49b30e75975",
+      "translation": "docs/agent/02-runtime-harness/18-context-engineering-assembly.zh.md",
+      "translation_sha256": "298665b9c771e4d5cbcd568a5714715f9a48c1ed99629d915f20b5616e3f5587"
+    },
+    "docs/agent/02-runtime-harness/19-tool-registry-and-execution-pipeline.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "4a17d2978076cc5996ec8238b095cc1bb57f759a422c83f657380a00fa7ec0d7",
+      "translation": "docs/agent/02-runtime-harness/19-tool-registry-and-execution-pipeline.zh.md",
+      "translation_sha256": "352b4801a1196970c93a5c17d9b607723de468009446391a600acf4a05622ea7"
+    },
+    "docs/agent/02-runtime-harness/20-permissions-sandbox-isolation.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "7e63af03f57234b4940fbb7220b18df9d528b432823652b2da93e056957cdcd6",
+      "translation": "docs/agent/02-runtime-harness/20-permissions-sandbox-isolation.zh.md",
+      "translation_sha256": "8d545a5b4546e158a08e89ed78c253ea0c3c605534cdaf79418656b0b23e4b85"
+    },
+    "docs/agent/02-runtime-harness/21-checkpoint-persistence-recovery.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "169ef1f94cdebc71bed348a60eb65d32a183af6629819a8ae70e8f6555f0c942",
+      "translation": "docs/agent/02-runtime-harness/21-checkpoint-persistence-recovery.zh.md",
+      "translation_sha256": "5a5e15e9b8b0a0cd27ed3d5ebe41f114f8cf3b2241e7724cd286af6b81367dad"
+    },
+    "docs/agent/02-runtime-harness/22-human-in-the-loop-and-interruption.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "7bbbaac9a83eecaf25e250db58db2ae3ab901b64ebb4d7f62c6fed85daf9ee82",
+      "translation": "docs/agent/02-runtime-harness/22-human-in-the-loop-and-interruption.zh.md",
+      "translation_sha256": "a82edb5f045f97d2e9f2be1c275fd61ec4be390a4a58b0a734225eee472d4ac5"
+    },
+    "docs/agent/02-runtime-harness/23-tracing-evaluation-cost-and-coding-agent-case-study.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "da3ac0132c9a3d922d89d32bdc5ed04fa4109e9d69eaf6c9021bfb3b99159b00",
+      "translation": "docs/agent/02-runtime-harness/23-tracing-evaluation-cost-and-coding-agent-case-study.zh.md",
+      "translation_sha256": "2366fd0fd30de9229603a3ce7a3a7a9cef524fd41c874ade4fa0e3b6fbffe876"
+    },
+    "docs/agent/02-runtime-harness/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "b3d4d4d400ff972c55ec7a7a1c97e3a47f6a0bf9363090ccffa6718e3f642689",
+      "translation": "docs/agent/02-runtime-harness/README.zh.md",
+      "translation_sha256": "fb8ee006eacd8b607709b0592b7222a3ff264c5642e2a2b859fdc7de34a1a284"
+    },
+    "docs/agent/03-memory-context/07-agent-memory.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "1c61502444aa06c3cb7805e122e73656d5ccf17c97082c5897323131e6251a92",
+      "translation": "docs/agent/03-memory-context/07-agent-memory.zh.md",
+      "translation_sha256": "e860e938b1dac6fcc79126eb14b7c6bbb20ca1c9ce6739ed5c77e9e6b5e61227"
+    },
+    "docs/agent/03-memory-context/08-agent-memory-implementation.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "10a9225841eb46a0ea8d6d758c3099891831ba984a2ad9b2e48f99e1a5d71515",
+      "translation": "docs/agent/03-memory-context/08-agent-memory-implementation.zh.md",
+      "translation_sha256": "375cf5068bf260199b3fb1b2816106392a3613f6ac24dc790f5298c117b8ccaa"
+    },
+    "docs/agent/03-memory-context/10-agent-memory-compression.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "680a5e74ce2d267470ad32a02435c71b12e94249128c7453576afd60e25fd444",
+      "translation": "docs/agent/03-memory-context/10-agent-memory-compression.zh.md",
+      "translation_sha256": "ff69c075a95afa247bb8d7a4c7a20cd9e9444b6f477cddb5d20e241b1f07cf7d"
+    },
+    "docs/agent/03-memory-context/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "76ec78b6f6363bb1eef33fc08e026b4779944bdb5b36c0195a925b97ae04c87f",
+      "translation": "docs/agent/03-memory-context/README.zh.md",
+      "translation_sha256": "b2dcb94925606899eb05fc122a139ab9a1daffe76369ad8d66ee5ae2f9bd3cc3"
+    },
+    "docs/agent/04-multi-agent/09-single-vs-multi-agent.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "b1c0acaa107f68d1ebd99a757f0a9161e106ff94af4a5dd4883d16bb5a8ebf72",
+      "translation": "docs/agent/04-multi-agent/09-single-vs-multi-agent.zh.md",
+      "translation_sha256": "99f660c72faf67fe5e8e33ec4b03cd9c2014717b92d5085b770ca66e2f083e31"
+    },
+    "docs/agent/04-multi-agent/13-multi-agent-coordination.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "a8f8bcec5887d61783212eff2e92298be3353df08113b4cabc410a6472ce0f96",
+      "translation": "docs/agent/04-multi-agent/13-multi-agent-coordination.zh.md",
+      "translation_sha256": "b0894dd5ac68ee18c6d4d88771ea1567c3d9064275f45488eed1da5eac75a09f"
+    },
+    "docs/agent/04-multi-agent/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "8ea721bb14bebc9eb867485d69c8115f6499253468bd0ce121053c1a65e6b6ae",
+      "translation": "docs/agent/04-multi-agent/README.zh.md",
+      "translation_sha256": "9c35f934b9b7e9c6da7bf2d415f5cfd612070b96253fcd55898c9988d01b2ccb"
+    },
+    "docs/agent/05-production/14-agent-evaluation.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "2c60a23ce3efc5f5c6c9f6cffb47c273cf57b773bc39d3ce3c9f22f1a358c050",
+      "translation": "docs/agent/05-production/14-agent-evaluation.zh.md",
+      "translation_sha256": "f2517b3851566c7944c686bb579f553ca6bd0770599bac0c7b3455cfd76151f3"
+    },
+    "docs/agent/05-production/15-agent-security.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "1b2fae77a61f33db9ef3aa0c836ef20139e5439c14cc8f9b3923872bbc79ed28",
+      "translation": "docs/agent/05-production/15-agent-security.zh.md",
+      "translation_sha256": "717c4a39ac00056ee74d2ac83643266d808a5172919e243f61a700cd65fd0af7"
+    },
+    "docs/agent/05-production/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "35c220fcb65b4c70f97d957999da5570d19828d66c398f83ef8eabd7a1b9dd82",
+      "translation": "docs/agent/05-production/README.zh.md",
+      "translation_sha256": "1ecb36caee92ffbf6d2d8531a9825a899e388f9466387393bf6669e60a14b679"
+    },
+    "docs/agent/06-coding-agents/24-code-search-edit-verification.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "3632558b64eafb1198f98e34420b7d902080d3d77af0874f27ba6c7fc5eddc5d",
+      "translation": "docs/agent/06-coding-agents/24-code-search-edit-verification.zh.md",
+      "translation_sha256": "9f5c4dbf170d3ba5e7b6f8a4a945cec787349a538f9a7c6fd6a679a27e06d4c8"
+    },
+    "docs/agent/06-coding-agents/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "41885cc92e2e79f5fb2a189fae9403de6d57183404ca85def113cf25995a1518",
+      "translation": "docs/agent/06-coding-agents/README.zh.md",
+      "translation_sha256": "541838f8b316c03f8cc9341a62c07fb5147128d4d6c6cfa722fbd4736087ac63"
+    },
+    "docs/agent/07-post-training/25-agent-post-training.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "2b2e3b993a4f1786d3292b38c8082b6aee5b6080bbef1ba74d87d75a8b6d23f3",
+      "translation": "docs/agent/07-post-training/25-agent-post-training.zh.md",
+      "translation_sha256": "42f6bb2b807a86cbf19488c1e60ad6c4bc2297b36c67e06bc451c754e44aa722"
+    },
+    "docs/agent/07-post-training/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "3a016032cf41ee91425caaa97e521409230690edfe8bf3834278dab6141af3aa",
+      "translation": "docs/agent/07-post-training/README.zh.md",
+      "translation_sha256": "628cbe7907149a9893b978f05929b976ef0c49fafc231aa423d30de7d4b358fd"
+    },
+    "docs/agent/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "738415923e79e24d2eecb08e3e9381e71998696ae2d1929d4a8022b4f77c44c5",
+      "translation": "docs/agent/README.zh.md",
+      "translation_sha256": "37767d7b6ccce876caa4cd89e7f01fe96771d04df9e6dd01c6a46bf06d844120"
+    },
+    "docs/book/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "36773127fa3e3365b69c4e65a0409392988ae1647463e4b5b422447f6ae32dc8",
+      "translation": "docs/book/README.zh.md",
+      "translation_sha256": "7308788c3916049e72e068f6ba6d282dc8f3c525d1836c9611a0dcc0f2da3a7d"
+    },
+    "docs/book/acknowledgments.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "e232ecba4dd4fef592a3c67a05f58e78882c5537eacbee68e850f7312abc2f5f",
+      "translation": "docs/book/acknowledgments.zh.md",
+      "translation_sha256": "e8171bf3e00a1a519d3997e3745ea5b461736bcc2ff7ea284f03723b5386f4eb"
+    },
+    "docs/book/colophon.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "7cb595fb91d64d8319dae7d44aa042fcb3861812721b7faa255d01a150e90d45",
+      "translation": "docs/book/colophon.zh.md",
+      "translation_sha256": "c7c01899c61b981a84c4c3f14ae8c88598f24de332812615a1fd526ee1eb017a"
+    },
+    "docs/book/how-to-read.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "de0e62e4f36eb1d797d75fed9427f0dec43c1a31fcef944492ba7bb093e93de6",
+      "translation": "docs/book/how-to-read.zh.md",
+      "translation_sha256": "88e42f58047d331612f04cc69ee2d6f6b2154f528983a4d1b2e4695938166ba2"
+    },
+    "docs/book/preface.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "6a802a1719ee8c2fd55c89bc67695e193f2ca1bea13392a1d329c4cd85a602fa",
+      "translation": "docs/book/preface.zh.md",
+      "translation_sha256": "f8f7e288a4dd68d7fc025dd7677f95a6fef6bf833ff5a347bc3d673f955664ae"
+    },
+    "docs/book/title-page.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "943d9949c51918b694a29dfe9f26fd74123dd229a6d8ae7d3d3b321be67b6521",
+      "translation": "docs/book/title-page.zh.md",
+      "translation_sha256": "86bd9b2a114a7cdfdaa6563278132ee8f9d89278bde45812df713bf63f343949"
+    },
+    "docs/editorial-policy.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "ac725879d803e309da2e0350db9d2df6b53cd372332e5270a3b0d9329d7263a0",
+      "translation": "docs/editorial-policy.zh.md",
+      "translation_sha256": "8c2c3de9fb20f8f70c0dc36f8f04d16f8fd7e8da4e627ce105681cadf1e4e2bb"
+    },
+    "docs/engineering/01-foundations/01-llmops-vs-mlops-devops.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d229f9b5d6b668daad6d2879986f7e96532569103fd5d136ce127f0d877307a7",
+      "translation": "docs/engineering/01-foundations/01-llmops-vs-mlops-devops.zh.md",
+      "translation_sha256": "65d5211383c8b08f8e90e7d665fefacabf22e8b7ca5cc992e254391ebc28b82d"
+    },
+    "docs/engineering/01-foundations/02-production-architecture-overview.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "252d4750902204715dd76ef97d48431571d2474f48c2c1160ebf4a9f77785e13",
+      "translation": "docs/engineering/01-foundations/02-production-architecture-overview.zh.md",
+      "translation_sha256": "7640a80acd5c63a3c0c672b7aef6d77e9ae53975b03625f9dba1800490750fb8"
+    },
+    "docs/engineering/01-foundations/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "5ea3aedf329fc215ac1b81c00670410c8dbd3bc64f5c4b27255b981eb997a140",
+      "translation": "docs/engineering/01-foundations/README.zh.md",
+      "translation_sha256": "5002757341225c40d56bf82e37b2a5fe129f2e57688c4beab44638e7251b76b5"
+    },
+    "docs/engineering/02-request-reliability/03-model-gateway-routing-fallback.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "9585630ca0f161bb71d8ded663b5b82b7fd0b34786d005e51604a2c921379087",
+      "translation": "docs/engineering/02-request-reliability/03-model-gateway-routing-fallback.zh.md",
+      "translation_sha256": "654abce8b12f732ebe6c6c3b32a0d30cf35557cab5d515231936b65bb69edcb3"
+    },
+    "docs/engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "e787501d9e1e920620add4cc991ab724f25646e32d560350d8f86d1adc7ee595",
+      "translation": "docs/engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.zh.md",
+      "translation_sha256": "18de4f272f281d4f770bba3ca2e38781ab69c9299c45d0a292fec6d2633a8d82"
+    },
+    "docs/engineering/02-request-reliability/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "ed8ce6eabb0cdb298e0f0cd014fd5c2d9e0c59adcc271dcbe6dccc2cc3581dd8",
+      "translation": "docs/engineering/02-request-reliability/README.zh.md",
+      "translation_sha256": "bdb9fa6f9fb7c4cf39b382205ca7b433c5b519db194a4e48a4bd023c324d6e48"
+    },
+    "docs/engineering/03-output-safety/05-structured-output-contracts.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "5d014445805b7756bbe2e31fd8787db9b61f4896d27471515cd763637bdc1097",
+      "translation": "docs/engineering/03-output-safety/05-structured-output-contracts.zh.md",
+      "translation_sha256": "963735139bbaac7a907c5ee524526f42debcd49ccffb0363519aa0ac22607e05"
+    },
+    "docs/engineering/03-output-safety/06-guardrails-degradation.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "a7e682039611cc1daabcab6b609922c638d3d227c5721adf5bb8fe8a838b3f97",
+      "translation": "docs/engineering/03-output-safety/06-guardrails-degradation.zh.md",
+      "translation_sha256": "4b41de5d4c1105e68ec66937265d83c3bc3c13d8e42692ab785b7ec7e58148fb"
+    },
+    "docs/engineering/03-output-safety/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "49db9f58197e551c59618fc02cc0932049feee8f43a92dc72864b180df9b43d8",
+      "translation": "docs/engineering/03-output-safety/README.zh.md",
+      "translation_sha256": "9346772fab7b60d4005bea9d7e4573439b7f400c4ffd0cb720f9c87e4b1ddd32"
+    },
+    "docs/engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "632758d3980d6baad45d8b6f8a319e168f209d03ac05a6bd3cb4a9553284e68c",
+      "translation": "docs/engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.zh.md",
+      "translation_sha256": "dbdc770e57428b1564a3f2f430ef74dc14d5da253310e26b23e26e80fbc0f830"
+    },
+    "docs/engineering/04-evaluation-observability/08-online-observability-tracing.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "58a5966f5577532660a0d2ca2dd4887439ab313c87c2cff5fe2ecc9ab15696dd",
+      "translation": "docs/engineering/04-evaluation-observability/08-online-observability-tracing.zh.md",
+      "translation_sha256": "d3d29864fe3ad4d8e82a9559cc252d4baf3144f92a36d1de7fd302879735d79a"
+    },
+    "docs/engineering/04-evaluation-observability/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "5e3b80b88662a5943a1a5191ff359c395b97e678931f3523c3aa0b9ebcc4089c",
+      "translation": "docs/engineering/04-evaluation-observability/README.zh.md",
+      "translation_sha256": "0c11f1f2f045ee584357b8c592fcca700d4f2d660ba8c72d03f994c0bd44fe7c"
+    },
+    "docs/engineering/05-release-pipeline/09-prompt-model-data-versioning.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "a43052b246b66b876ee82dfb02bd6e3a1402ad7c4b84bfa01f18911a2dc197d9",
+      "translation": "docs/engineering/05-release-pipeline/09-prompt-model-data-versioning.zh.md",
+      "translation_sha256": "1455de5e74f72f3d0498893d51c503a1484995fcf43e53b8f1104b9e03fc5817"
+    },
+    "docs/engineering/05-release-pipeline/10-llm-cicd-canary-ab.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "cd0df4e53a40ebf97c628dc15b69dc8af53a6b5542a89b2c7a085696e79d095c",
+      "translation": "docs/engineering/05-release-pipeline/10-llm-cicd-canary-ab.zh.md",
+      "translation_sha256": "5abf11e1b284a957abe7138771d69b7621398517a697d859ae5287982cc385c7"
+    },
+    "docs/engineering/05-release-pipeline/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "574ef32443da24819d930639e6240f7650ed838f60f58dab9592febb5f55cf5b",
+      "translation": "docs/engineering/05-release-pipeline/README.zh.md",
+      "translation_sha256": "0d2ec518213c39f802cf17918476ea2b8c91dc50f75cc7887290a0411bf32e5f"
+    },
+    "docs/engineering/06-performance-operations/11-caching-batching-throughput-cost.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "747340fef2f5c4bb0b16717248a05107f878770cdd19fbccebb48390e03ba77e",
+      "translation": "docs/engineering/06-performance-operations/11-caching-batching-throughput-cost.zh.md",
+      "translation_sha256": "97311faaa7a8b5a23b83dec11668af67552422a3d98ea7cb1b7f2ba5430b7751"
+    },
+    "docs/engineering/06-performance-operations/12-slo-capacity-incident-response.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "c03b214fee396c69d3c760bf7dd4d995559c7bbca873253d2c1e70992307057d",
+      "translation": "docs/engineering/06-performance-operations/12-slo-capacity-incident-response.zh.md",
+      "translation_sha256": "5dc39bd4aeeea79039eba085b011fd128d6b7d420fa306cc04677c94d0586627"
+    },
+    "docs/engineering/06-performance-operations/13-feedback-loop-data-flywheel.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "c04022a70a3d881878df851318364bfebee41b571ef851b3dbb8566c36a7c7b1",
+      "translation": "docs/engineering/06-performance-operations/13-feedback-loop-data-flywheel.zh.md",
+      "translation_sha256": "859fc623efc37293341726322514284bdf9e38c38b70caccdff48432b8b00bec"
+    },
+    "docs/engineering/06-performance-operations/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "9680abdc81856047c49b42c54cd2c1fba72a2e0b3961398dad2278d85c5d057e",
+      "translation": "docs/engineering/06-performance-operations/README.zh.md",
+      "translation_sha256": "cd1b2250e561874fbaedfcd1bb7721ef860d95312d51c29caf7a722eccba21b1"
+    },
+    "docs/engineering/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "5de2731afb12314dfb29e710489b791415e47245eb90ea33edd13b48d2236a25",
+      "translation": "docs/engineering/README.zh.md",
+      "translation_sha256": "77d08a4f258b03a65a52e06c79637ad0fbce78a8efb8b722bf3082f38c913d10"
+    },
+    "docs/fde/01-foundations/01-forward-deployed-engineering.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "6c6084c45fb6a636221a3e2e2341554d82c6e4255e0ba46c9963e4fc5f623599",
+      "translation": "docs/fde/01-foundations/01-forward-deployed-engineering.zh.md",
+      "translation_sha256": "27025fa581b489d85ec1f73de4bf131ac11d54f168ccadcbe7d7a21d7335bc5f"
+    },
+    "docs/fde/01-foundations/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d32e2dc3f32cb5aae984581cb53582eac05f08de26de809ba0d843be1f32b547",
+      "translation": "docs/fde/01-foundations/README.zh.md",
+      "translation_sha256": "979079f176c6acff70a6a7ed1ac2837c0f829886096c88014be182000010f0dd"
+    },
+    "docs/fde/02-field-practice/02-delivery-lessons.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "77423dd5d07f7380ae13e1cb855e034ce0f514d7779fbe000c02b927affda393",
+      "translation": "docs/fde/02-field-practice/02-delivery-lessons.zh.md",
+      "translation_sha256": "d71564a948bc3c4c9ef6b45900d649f9e709ffe0564ba4812425c967423f5c77"
+    },
+    "docs/fde/02-field-practice/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "cfa5782b3b9484fb164071c2694b4aad1f876fff8b8c701566b8172c23356517",
+      "translation": "docs/fde/02-field-practice/README.zh.md",
+      "translation_sha256": "13d50cd5821e84dfb43c6638999f9045b77bbff17db7f61bfa505d98fe237cc1"
+    },
+    "docs/fde/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "0c04f1eb492077a6ec4c7b6bceb565fdb98092bae239d7711adf13579771562f",
+      "translation": "docs/fde/README.zh.md",
+      "translation_sha256": "005eaf41428c3b6ae5386955420ceebda20b01a55979aebf9b0b8ba500832978"
+    },
+    "docs/frameworks/01-langchain/01-foundations/01-agent-frameworks.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "e94afbdbcf7806476a8ab9d601a9bbbf13ad3e17c2a58392076f1f2cd1ae10db",
+      "translation": "docs/frameworks/01-langchain/01-foundations/01-agent-frameworks.zh.md",
+      "translation_sha256": "743677b12b7bfd898d358963083d85efe7cd648a0aba6ba97fbcc8d29d5f0348"
+    },
+    "docs/frameworks/01-langchain/01-foundations/02-chain-and-lcel.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "7e3b9617cf805fe00cefe3c5187e030df0cf88399a39e84644637ae22b308126",
+      "translation": "docs/frameworks/01-langchain/01-foundations/02-chain-and-lcel.zh.md",
+      "translation_sha256": "31af55da297944f5b347a2ca4ba9a4a487d5e6e04eda643f5d5ccea8d8f0b5bb"
+    },
+    "docs/frameworks/01-langchain/01-foundations/03-langchain-architecture.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "8f0b4455eee54be662646deb45605ca0d687fa9aeaa2e4b79e01c1c9660e4824",
+      "translation": "docs/frameworks/01-langchain/01-foundations/03-langchain-architecture.zh.md",
+      "translation_sha256": "98d504b5cafcf736e86eaad37e6509575c56f75ea83b8f06b31a770cb6d76a57"
+    },
+    "docs/frameworks/01-langchain/01-foundations/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "23a8a44584dc951ec973ebe7cd624ba10d9358467cd8a80951e765e5b2e303b5",
+      "translation": "docs/frameworks/01-langchain/01-foundations/README.zh.md",
+      "translation_sha256": "76c7da47d411f94955af0ac9317c1858a7ed9249d3216baf3369b7cef265a742"
+    },
+    "docs/frameworks/01-langchain/02-agent-building/04-build-agent.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "f00c5b53f243b3dec19545ddfbadd1b31e1ebbb04bd8097d4b29eb0185429e16",
+      "translation": "docs/frameworks/01-langchain/02-agent-building/04-build-agent.zh.md",
+      "translation_sha256": "61e9f1d31323ebe2b9ab07993cca69108287ac3b0341aac82bd2b34942aa0eb6"
+    },
+    "docs/frameworks/01-langchain/02-agent-building/05-tool-registration.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d446813a93f31861957bc3c0c62726cba1f1eba97c6d7a0d1e1fb71f4fc9217f",
+      "translation": "docs/frameworks/01-langchain/02-agent-building/05-tool-registration.zh.md",
+      "translation_sha256": "9f3f23f3547bdb6d983de9e623415b8b01115466fe2f1376232f94a2bce08314"
+    },
+    "docs/frameworks/01-langchain/02-agent-building/06-memory.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "75b3efd1dbda9518b61e914ed6ef9cf236bd1b0b14890db1bdeb70a35dad4649",
+      "translation": "docs/frameworks/01-langchain/02-agent-building/06-memory.zh.md",
+      "translation_sha256": "889285a3cf7f6bcb3f7e0436d163fee8838329676d9485f790bf0900f6d63899"
+    },
+    "docs/frameworks/01-langchain/02-agent-building/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "e05a8f27b69b314fad4b271f3b88ab45fc6a36347d358a8ef1f7951a30a0d984",
+      "translation": "docs/frameworks/01-langchain/02-agent-building/README.zh.md",
+      "translation_sha256": "f4058a738778875c443d9b6fea4d58b712cc440d495f3254ca640ab2772f1d23"
+    },
+    "docs/frameworks/01-langchain/03-ecosystem/07-langchain-vs-llamaindex.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "f5d4472a61ab618e2f16857b2bcf3c29535498cc840020e31828a2168ef18900",
+      "translation": "docs/frameworks/01-langchain/03-ecosystem/07-langchain-vs-llamaindex.zh.md",
+      "translation_sha256": "67398c0643dc9eff98a4ab7c1c0f54d96b1a08710fc9d87b3243346045cd8448"
+    },
+    "docs/frameworks/01-langchain/03-ecosystem/08-langchain4j.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "a883c7c77368147117a2d38ac31ffbeac2e2ce27e011b8df2c1dec6729065aa0",
+      "translation": "docs/frameworks/01-langchain/03-ecosystem/08-langchain4j.zh.md",
+      "translation_sha256": "f71960b2f755adb8b32338fab94438f14f1a1f1c266e5a92201b4cb1f81486d2"
+    },
+    "docs/frameworks/01-langchain/03-ecosystem/11-version-evolution.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "42e8297a8259e9e9e006e9720d1002154a3cdd9f56d842ba3d9cf6865187ea44",
+      "translation": "docs/frameworks/01-langchain/03-ecosystem/11-version-evolution.zh.md",
+      "translation_sha256": "f633c8b1ddf8f0cfc4b38522929554059ec6c6ab38725ca0f652119611db931e"
+    },
+    "docs/frameworks/01-langchain/03-ecosystem/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "5094b6fb8722e8ca338db60d5f07ffc8abf1a869438c324cdf872b82c01a98b8",
+      "translation": "docs/frameworks/01-langchain/03-ecosystem/README.zh.md",
+      "translation_sha256": "e3639a1cb7f2e0b6ebb58c79ae77bd7a41c700baa918c2152a6c4c32dd562ee4"
+    },
+    "docs/frameworks/01-langchain/04-langgraph/09-langchain-vs-langgraph.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "dfcc1b37f58608fd34bf7a6a9c4515739b7ba391df75b22ea410f6421913da57",
+      "translation": "docs/frameworks/01-langchain/04-langgraph/09-langchain-vs-langgraph.zh.md",
+      "translation_sha256": "4a2f0ca7d150822befd3bc18cd61ff010b2c5e70558b44a9cbc17b5658aea07b"
+    },
+    "docs/frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "04718e63190bfdf7c97ebc82ea3afb9db0859cfd546306ccf36a65c513d6dc9b",
+      "translation": "docs/frameworks/01-langchain/04-langgraph/10-langgraph-advantages.zh.md",
+      "translation_sha256": "d246561630f64fff1c69ccbb29db532f33ee969ebd3235a88fb495f885022065"
+    },
+    "docs/frameworks/01-langchain/04-langgraph/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "4be54b709abc6b9f04aa7bfc7ab00f341b5d4d86463b273d3c019c97fa3663ea",
+      "translation": "docs/frameworks/01-langchain/04-langgraph/README.zh.md",
+      "translation_sha256": "f0f8dcc7c0aee836f53f9b75c6349f853cd272b124ea1f04a8c5df7252a027f0"
+    },
+    "docs/frameworks/01-langchain/05-production/12-deep-research.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "da5eb1fd465f565a450d37df086a67a338e71566dfae02d8e79261800d93d056",
+      "translation": "docs/frameworks/01-langchain/05-production/12-deep-research.zh.md",
+      "translation_sha256": "1a9f3cf24984989a179256b3321c94494d1a99840a95a39a7f8a76cb8665d65b"
+    },
+    "docs/frameworks/01-langchain/05-production/13-langsmith-production-loop.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "37409c80b38c2859223f1d84790754fc4f5a99a56a5d192b1623dfb2df4db69e",
+      "translation": "docs/frameworks/01-langchain/05-production/13-langsmith-production-loop.zh.md",
+      "translation_sha256": "ae659a57a6dbfb30f62c2a7816b504c91aa05df61bbb4b1d2d0a20aa546494a5"
+    },
+    "docs/frameworks/01-langchain/05-production/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "512e4c214964e3698e67e991da710328e896871bc61c818b2501c64243cdb3b1",
+      "translation": "docs/frameworks/01-langchain/05-production/README.zh.md",
+      "translation_sha256": "03ceb29fe87b71a58019051ea1facf64a90776edfd8a16a2b6371bcfcaef3a7b"
+    },
+    "docs/frameworks/01-langchain/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "e6339beed0d9c1f773e0ef390934d034ae7ec375cbff2d3981e22a3796d8d6c0",
+      "translation": "docs/frameworks/01-langchain/README.zh.md",
+      "translation_sha256": "b3d8bd3b858b1de30a3273fcecc7f75d6cde023b215a3e36eadc19b30a14d7b8"
+    },
+    "docs/frameworks/02-llamaindex/14-data-index-abstractions.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d25161b38ae896fb3197bea2845777d81b151f7ffe74484f2b922dd6dfc34d3d",
+      "translation": "docs/frameworks/02-llamaindex/14-data-index-abstractions.zh.md",
+      "translation_sha256": "9e3997dd4ded0f00d16dba6bc550e1dec1ee2a7e76749c5e8bc687c487f51221"
+    },
+    "docs/frameworks/02-llamaindex/15-query-engine-workflows.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "2240e5fda577f17081d161736690a8177307e0fa793bef5ecd8e377c1cb9bf50",
+      "translation": "docs/frameworks/02-llamaindex/15-query-engine-workflows.zh.md",
+      "translation_sha256": "df6172d4f082a1a2339775f48a60496d72e436a6f95076b55692305a6b10508c"
+    },
+    "docs/frameworks/02-llamaindex/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "fb09b101288395e8f987e08926db9efaacd8d2469335687a0eedbb440d3651d7",
+      "translation": "docs/frameworks/02-llamaindex/README.zh.md",
+      "translation_sha256": "97ecf038c9e0ef10d4f92e18480ab285ea89ee7000efe7223aac207d7b03d8a9"
+    },
+    "docs/frameworks/03-dspy/16-declarative-programming-model.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "51098a7cff2344c6bc66570f8e272193d46a6c91b5c94aa71469bd53d65ef1d3",
+      "translation": "docs/frameworks/03-dspy/16-declarative-programming-model.zh.md",
+      "translation_sha256": "60ebd70ff6831a7b37fe987c734961c735f75d52bb76d660d4959cf90e759439"
+    },
+    "docs/frameworks/03-dspy/17-compiler-and-optimizers.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "49e7c1a295b266f999208e94bcacb3087724371fb85eef2159395422fd621abf",
+      "translation": "docs/frameworks/03-dspy/17-compiler-and-optimizers.zh.md",
+      "translation_sha256": "572a1f255fdcf94b4046740fa919d2b10830bf99d45ef43c09667db4022f6e1e"
+    },
+    "docs/frameworks/03-dspy/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "89eef1913356c586874e088a22e130dabfed37439f080f4174ea9b4eb8396000",
+      "translation": "docs/frameworks/03-dspy/README.zh.md",
+      "translation_sha256": "b1892f274fcc74ca1f26bd0de4e3cde589bfa85fc6a4419125e9c4bfbf2b0ddf"
+    },
+    "docs/frameworks/04-semantic-kernel/18-kernel-plugin-planner.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d56d7b9ccfb9ff56daa09082e81fad8c5d87c51757f5df66cda20f3509043970",
+      "translation": "docs/frameworks/04-semantic-kernel/18-kernel-plugin-planner.zh.md",
+      "translation_sha256": "ac75f7ae6326b03b8e847e7835ec17605945b3423cccc59c914c1b7ddb1ec64d"
+    },
+    "docs/frameworks/04-semantic-kernel/19-process-and-agent-framework.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "db7f599cf4789e3d2c4d70d1867990945dcd0b6ec08808a2a18c087db1509325",
+      "translation": "docs/frameworks/04-semantic-kernel/19-process-and-agent-framework.zh.md",
+      "translation_sha256": "c8a2f085831fd30fa76449ece5bc0a8efae2aa48ec6636c9799593d3fe698bab"
+    },
+    "docs/frameworks/04-semantic-kernel/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "880cfca983a68036b3999abe5bc5fb6d049ad4dc600282e805a7c61bdc866e89",
+      "translation": "docs/frameworks/04-semantic-kernel/README.zh.md",
+      "translation_sha256": "07a568d8f4c3d2fd6f1aa8fb711df31d0e10b98c40d4a621ecf343ff24c2557c"
+    },
+    "docs/frameworks/05-lightweight-agent-frameworks/20-autogen-and-crewai.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "3fe7fbbe7ca9209f9d30e9b70f89e4d5de82f3dd504405da2700300ee98521c0",
+      "translation": "docs/frameworks/05-lightweight-agent-frameworks/20-autogen-and-crewai.zh.md",
+      "translation_sha256": "ce2a81d451296f16cbd61851dabcee8975b68c2d5748fa3c2fd3cf0555e2e7ef"
+    },
+    "docs/frameworks/05-lightweight-agent-frameworks/21-pydanticai-and-decision-matrix.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "e9413674c654361be18259d4451bb931d60f5069e56e8560613c025e67c76681",
+      "translation": "docs/frameworks/05-lightweight-agent-frameworks/21-pydanticai-and-decision-matrix.zh.md",
+      "translation_sha256": "c445f03d18cf74e008e9f88d24205201bfd471c262c38eb7501439e72fefbdc8"
+    },
+    "docs/frameworks/05-lightweight-agent-frameworks/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "ff88885ff9c6d1bf3fde149c2afb8b63632beca26a1c7fb9c09a56f59eb7d401",
+      "translation": "docs/frameworks/05-lightweight-agent-frameworks/README.zh.md",
+      "translation_sha256": "0e8d0ad093d2189eaf3e65eb8172c56284360d34b82a4bcffb4ee28c4769230a"
+    },
+    "docs/frameworks/06-selection-portability/22-cross-framework-technical-taxonomy.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "94a612ecf0165bc35dfcab5b309bdc8259cb419383e0c993b904a835f956d90e",
+      "translation": "docs/frameworks/06-selection-portability/22-cross-framework-technical-taxonomy.zh.md",
+      "translation_sha256": "87abbbc224a3cdfa17ee1ded804ff76fd3ea81fbbbeff1272da856136f675241"
+    },
+    "docs/frameworks/06-selection-portability/23-lockin-and-portable-architecture.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "b0d372d640b5d6cc08c41bbc29f2932fdd49d6d7d352a8eabe44b2fdaa77eef5",
+      "translation": "docs/frameworks/06-selection-portability/23-lockin-and-portable-architecture.zh.md",
+      "translation_sha256": "56fcd692be94d2053799131ba25447cc65d22e2c8a5c07d1533237d9f1a706ff"
+    },
+    "docs/frameworks/06-selection-portability/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "285ea14ac388ba4fc31a67e741deecedcd2d294dc46ddcf6e4dc9210973cee77",
+      "translation": "docs/frameworks/06-selection-portability/README.zh.md",
+      "translation_sha256": "b6f4137d20a33fcb8618938e6ac237d700697a8a625ecef413eb0813f5194850"
+    },
+    "docs/frameworks/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "a51eb2889e226f55cebe3b16a996fd74e827caac7d8780b2d95b77df5edd9aa4",
+      "translation": "docs/frameworks/README.zh.md",
+      "translation_sha256": "23c3de9530effe7a900b11a19fe4c464dac92deacfaa8d00aaff33f0a2c160a0"
+    },
+    "docs/llm/01-foundations/01-what-is-llm.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "23a2b7e719525247d95c93b822d4174d26bb8ecef0cf5037584143d31f002620",
+      "translation": "docs/llm/01-foundations/01-what-is-llm.zh.md",
+      "translation_sha256": "6086f653f462024ca2a4da37f5f648f344cf277425879ab820ca7f0ac72a4e50"
+    },
+    "docs/llm/01-foundations/02-transformer-architecture.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "879a4bfcf3844a9a3ed250b2394119582a664702fd55d6782d673bf79d304804",
+      "translation": "docs/llm/01-foundations/02-transformer-architecture.zh.md",
+      "translation_sha256": "c636ca3bda976f60ba00160e33a44452cc9c9f3aa39d9db519b95889f23437d4"
+    },
+    "docs/llm/01-foundations/03-attention-variants.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "426ffd8a37530e8c53ee044f06bd5b31733768ede3b710a7e421679ec4964a0c",
+      "translation": "docs/llm/01-foundations/03-attention-variants.zh.md",
+      "translation_sha256": "284e4f899d67c7cac3fb3113b1c1162129ccb72bda9d81c30fa3df9b4296d46b"
+    },
+    "docs/llm/01-foundations/04-position-encoding.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "784eca0d087e48809a0c3798db01033f5bd0cee07ada72a35ca4b6e0f5961167",
+      "translation": "docs/llm/01-foundations/04-position-encoding.zh.md",
+      "translation_sha256": "55e355944a27e4dfea1b3e004468022a35d784e06ec11c79527b2094a98c435d"
+    },
+    "docs/llm/01-foundations/05-tokenizer.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "16e804d8915d96100e071e421ad87dfab5a00e9bed63de612dccb6067ba55214",
+      "translation": "docs/llm/01-foundations/05-tokenizer.zh.md",
+      "translation_sha256": "eaaec2eea64807c53f4d30b352b09eeffa15942c0ab885d60dcd624a67c1338d"
+    },
+    "docs/llm/01-foundations/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d4f54dec1d76a894eac5a1c38f3db2c4a6069b92922b89d55b5e00f103f891c7",
+      "translation": "docs/llm/01-foundations/README.zh.md",
+      "translation_sha256": "19b265e97ef32dc1c280b9804762176d40fbe6a34329e44adb2a811cacbbfae9"
+    },
+    "docs/llm/02-training-alignment/06-llm-training.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "38c34debd26d9328410980c9684013a7cf4f15e79f7bbf63b05056e661729acb",
+      "translation": "docs/llm/02-training-alignment/06-llm-training.zh.md",
+      "translation_sha256": "bc18b78f94e81f08f41b7d104326afd2d71b03c931af16f0ddd00706fabec597"
+    },
+    "docs/llm/02-training-alignment/07-scaling-law-emergence.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "7f9b58215eb78c56e535a1eb2137cad4959beabfae01f84ccb72c2108e40e258",
+      "translation": "docs/llm/02-training-alignment/07-scaling-law-emergence.zh.md",
+      "translation_sha256": "cde7b5ac0e25bc17f56b23eccb9131217756c47a44ceec40b98a3e728774514e"
+    },
+    "docs/llm/02-training-alignment/08-finetuning.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "e29e3b0b19947c231c071f6cc899cb119efebddbd10ad328f9c653f4f27f480d",
+      "translation": "docs/llm/02-training-alignment/08-finetuning.zh.md",
+      "translation_sha256": "bebc6d41944f90e08badb085259a625bfca6cf16bf21a713818f9dde34a04bfb"
+    },
+    "docs/llm/02-training-alignment/09-lora.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "b7633cfd88f0b40a7264527e9537145c2c4d033b5491b985bd74b9a0c16d36ca",
+      "translation": "docs/llm/02-training-alignment/09-lora.zh.md",
+      "translation_sha256": "3d88467c8c559642e2a9f9e62886b647a44024816b3ad32f0142dd39dfe1cb3d"
+    },
+    "docs/llm/02-training-alignment/10-post-training.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "1b6c7aae38ebfbf519f683e80cc0852fd0e56352df5825e166b5a9ffcc4a51d9",
+      "translation": "docs/llm/02-training-alignment/10-post-training.zh.md",
+      "translation_sha256": "629aa3ff6e74df8307958fe1fcb81bab291e22b2f3e31f32e8e5efc1f5cc689c"
+    },
+    "docs/llm/02-training-alignment/11-dpo-vs-ppo.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "c65aeaf535767d09bfff64ebcbaecfcc20b0dcdc4261077850a7c4cd228215af",
+      "translation": "docs/llm/02-training-alignment/11-dpo-vs-ppo.zh.md",
+      "translation_sha256": "73cf7db69e3cd93a5d22c490bd6da9110df67e0f90f01ee70deb3c27d2574044"
+    },
+    "docs/llm/02-training-alignment/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "353b3b41b0cc818f9e26f84a6129f5efaeca3d5c156dd8bafb07a1a5d95a3eba",
+      "translation": "docs/llm/02-training-alignment/README.zh.md",
+      "translation_sha256": "e2c2d9f4748badc578acf48667d0f68ec29a3072bccb0920d85f6d50927fe7aa"
+    },
+    "docs/llm/03-inference-serving/12-decoding-strategies.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "e81be6cd528b0487fdc4a6ab4f524e0c5fa1ab2d17197e45bf0869a8b83a3cf3",
+      "translation": "docs/llm/03-inference-serving/12-decoding-strategies.zh.md",
+      "translation_sha256": "508f09bc8951050a40ea809eb4e11ef02b00b175add91dea9426736ebf79258d"
+    },
+    "docs/llm/03-inference-serving/13-temperature-top-p-top-k.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "88fa5b4aba2d67b1946bcf60ce441278e2e9c9e54d4f140c76882425e9f6214a",
+      "translation": "docs/llm/03-inference-serving/13-temperature-top-p-top-k.zh.md",
+      "translation_sha256": "8bb708d387ebe7dbf9507050880a9b94e5535ff7af6be10964570eb099b46793"
+    },
+    "docs/llm/03-inference-serving/14-kv-cache.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "df1702535bef075451c8d8570c273b8d70486254dd33d8c8ba874dc554eb1007",
+      "translation": "docs/llm/03-inference-serving/14-kv-cache.zh.md",
+      "translation_sha256": "a5783464e2383b3ff8d9e02cdb0f7c5d66cf788a3c186e1f6dd731f4fc6c5648"
+    },
+    "docs/llm/03-inference-serving/15-quantization.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "9c5ae9e8ef0d0e77eca8fee43f3e61074d03dc166e6f4ae0717c4ee5c1cc9635",
+      "translation": "docs/llm/03-inference-serving/15-quantization.zh.md",
+      "translation_sha256": "4057226fa78691cfa6cce0c2fdef8ec1e5f5c0c1e56a4cf432a3f70b1050c7ce"
+    },
+    "docs/llm/03-inference-serving/19-moe.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "e6628b40a9eb374cc1ff3b6db7b649b94d5572b90b03193f0d224d5b2dd1a4bd",
+      "translation": "docs/llm/03-inference-serving/19-moe.zh.md",
+      "translation_sha256": "d00eab62d24ea18a4d9157eee91a65ab15baa9e821f0b71d54043b609301743d"
+    },
+    "docs/llm/03-inference-serving/20-deployment-frameworks.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "a347fb9732af3cbe929e4e0c6f15536cc90b7d70f095a4602881f354fc358773",
+      "translation": "docs/llm/03-inference-serving/20-deployment-frameworks.zh.md",
+      "translation_sha256": "d7d885648b5f10390446a4f3d823dbbe3785bf066104a9a12dffbd745f33ccc3"
+    },
+    "docs/llm/03-inference-serving/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "a35919ef3193bdcf3f0ffa3127ee7f335b9bc9d569dee91a3a12b4d88dc97884",
+      "translation": "docs/llm/03-inference-serving/README.zh.md",
+      "translation_sha256": "c4b3bcb44582abcaf06d1bdb82de29892aa1100108fc97976a7fad27c89fcbf0"
+    },
+    "docs/llm/04-prompt-reliability/16-prompt-engineering.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "cf954720449a04c66a9a04442933694581eca342e6b56ca6a60bde95d49235b2",
+      "translation": "docs/llm/04-prompt-reliability/16-prompt-engineering.zh.md",
+      "translation_sha256": "1e28c54b1d9717e426cb7cbb1dff2b0fabae29e46d112295abc61817e464acfa"
+    },
+    "docs/llm/04-prompt-reliability/17-cot.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "6b54b93c955446811cf55930c6489fe0b185250944850952861123e77cac510e",
+      "translation": "docs/llm/04-prompt-reliability/17-cot.zh.md",
+      "translation_sha256": "163da34de5705d30cf1c9d525cf6f99c1d77e1d4b7253e8be882e4aea785f61b"
+    },
+    "docs/llm/04-prompt-reliability/18-hallucination.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d36f506263bb9ae812fd80cb551797f10e07ab0fc26a277d8ade818cfb6e8d56",
+      "translation": "docs/llm/04-prompt-reliability/18-hallucination.zh.md",
+      "translation_sha256": "535f291fecd8c5823007d52cc2d570bc49027a4b39dd4dbe3a03e09809265cb2"
+    },
+    "docs/llm/04-prompt-reliability/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "c883b25f3c75b8abeb20a4daa26979b27a2bf0f30ee44f9f4fa06ec8d213625f",
+      "translation": "docs/llm/04-prompt-reliability/README.zh.md",
+      "translation_sha256": "2dedd7d1c8dd8cae9cf7598f6fb43f255e68e4025f86ef7151f3c67afc0bc76b"
+    },
+    "docs/llm/05-evaluation-selection/21-evaluation-metrics.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "b697ba51b9ce237dbb76c44023594146670575c0b5c0620b0af5cf8d341c7cd2",
+      "translation": "docs/llm/05-evaluation-selection/21-evaluation-metrics.zh.md",
+      "translation_sha256": "1244bf60aa5789d73656f32d11dc19841d637c9d2ab6b6b0f2665e1aab9e9e30"
+    },
+    "docs/llm/05-evaluation-selection/22-model-selection.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "aceb813bbab0050d1bff3131887bb275afe47b2239031503f6bacde1bd922a25",
+      "translation": "docs/llm/05-evaluation-selection/22-model-selection.zh.md",
+      "translation_sha256": "9e653dd17703aae29245db070de2e1b3ed92a8c096ccacc709812e7ee3ee44ce"
+    },
+    "docs/llm/05-evaluation-selection/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "22e06ccbdff789ea7bc7a46fac74ba847afefca28ba52f70fca145531706864f",
+      "translation": "docs/llm/05-evaluation-selection/README.zh.md",
+      "translation_sha256": "f61679d6b2a35aaa54b7013ebc7899a1b57f74d29b6e28bf83560144871a8616"
+    },
+    "docs/llm/06-multimodal/23-multimodal-models.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "c5f7adbb292115206cf1fdb3c4d2091980d40e92693e2f29983e187e982f4388",
+      "translation": "docs/llm/06-multimodal/23-multimodal-models.zh.md",
+      "translation_sha256": "e38a73b4e113931f6e685d0bf165754b2b8f0dbea9d3a4822df968e516aa6620"
+    },
+    "docs/llm/06-multimodal/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "b25e852ee247802c0771b3d3ffc0ede98e2288d539fe76551d98e2a88a114d85",
+      "translation": "docs/llm/06-multimodal/README.zh.md",
+      "translation_sha256": "d7c9c44dfbce3bfa4578ba3e87b9b38b1a35af6064f78574766272804936e1b3"
+    },
+    "docs/llm/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "b3b049ddb460b35cc92398f60af63590a797937076e41c29c2c58e46d47df4e9",
+      "translation": "docs/llm/README.zh.md",
+      "translation_sha256": "ae7bfb2be0a7f0462df898b47e7e6d2ecc415c1daa78579bffc85391797b838a"
+    },
+    "docs/multimodal/01-foundations/01-multimodal-fusion-architecture.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "648faf282317704a40cf0ae443ee28b1753bf47931d2db199a7421260a79ee74",
+      "translation": "docs/multimodal/01-foundations/01-multimodal-fusion-architecture.zh.md",
+      "translation_sha256": "d669726677812605cb32674e9fd233e18b1fa138d7ded7c47a1a38e3dd820c78"
+    },
+    "docs/multimodal/01-foundations/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "e0d619b444e23c7b69679f9a3dcd33d8cdce1eff63e520eacf7d7c3523df9d09",
+      "translation": "docs/multimodal/01-foundations/README.zh.md",
+      "translation_sha256": "a9596cee92c316031ff1db46e9c71ba578fafcb535878ea6ff760158e82bd0b0"
+    },
+    "docs/multimodal/02-vision-document/02-vlm-grounding.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "13765dab213a97fb09eca00acc185d42d79454864357c3f525f652e30401c476",
+      "translation": "docs/multimodal/02-vision-document/02-vlm-grounding.zh.md",
+      "translation_sha256": "e7708c4ddc73679932ca53b3385abc018b9671f7ab27e847db4e5b44d0c98c93"
+    },
+    "docs/multimodal/02-vision-document/03-ocr-document-ai.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "87ffbc252c054670dacabb46074b93e777c564ca24fe44366cab0f8bee7434b9",
+      "translation": "docs/multimodal/02-vision-document/03-ocr-document-ai.zh.md",
+      "translation_sha256": "3f424d5a84b58c7a8dac7309f18c106a28d08776b5e6d1a20474c9522f836b8e"
+    },
+    "docs/multimodal/02-vision-document/04-computer-use.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "88c985c375e7243f1ae44a7c29cbad5be7f9c540c405db3dec62e29cb993ffa9",
+      "translation": "docs/multimodal/02-vision-document/04-computer-use.zh.md",
+      "translation_sha256": "f625ba52f1ddbfdcb1c25bcd605e95adf7d57b669b59622f7023b8a69c2a490e"
+    },
+    "docs/multimodal/02-vision-document/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "9b2da0d692fd5f9afb006b898ffdf183608f0a557639f01c8db9f9fc354d2d0a",
+      "translation": "docs/multimodal/02-vision-document/README.zh.md",
+      "translation_sha256": "f00a03f82fe0f243aac9dc00f2ae14742d644804bf246d880249eae3996a1c32"
+    },
+    "docs/multimodal/03-speech-audio/05-asr-tts-audio-lm.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "71732a1d0328b7064d0d3e8384e79b41007a597084cd32563e162eb9a849f4b2",
+      "translation": "docs/multimodal/03-speech-audio/05-asr-tts-audio-lm.zh.md",
+      "translation_sha256": "99fc665b93e8fab2586e7d140b18b9a078dde89de9d2cc694abc615a298337ee"
+    },
+    "docs/multimodal/03-speech-audio/06-realtime-duplex-voice.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "55db6cf278438a0e6162cf912e84db7d66856fc0f5a0432723b5675190fa1242",
+      "translation": "docs/multimodal/03-speech-audio/06-realtime-duplex-voice.zh.md",
+      "translation_sha256": "6cb11a30514a9f9f988aa12007c36408e3891bb66cdce6d2921d749025475179"
+    },
+    "docs/multimodal/03-speech-audio/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "c1c29525b98c9a9b2b43d2627b3c6549ff9ec244dd5cebd6c08380cb06c43b5c",
+      "translation": "docs/multimodal/03-speech-audio/README.zh.md",
+      "translation_sha256": "f9adf2534e7c48692229cc5123115a8f4974a9546ebbaf40ee9a3c2ba74e207d"
+    },
+    "docs/multimodal/04-generation/07-diffusion-flow-matching-image.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "a37d0f0fd20d769f10b68c1a2adab14148a7a7728d70b30e0b0f8369cc0c186e",
+      "translation": "docs/multimodal/04-generation/07-diffusion-flow-matching-image.zh.md",
+      "translation_sha256": "c9d0abcf5c4dd0eae509fd3f2890291cf5e48875c23e6d122ca9a71544e275cd"
+    },
+    "docs/multimodal/04-generation/08-video-generation.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "ac8051bc382b1ac935f2592cdb9a20ba7474b8399de36a910d538ccd0101a37b",
+      "translation": "docs/multimodal/04-generation/08-video-generation.zh.md",
+      "translation_sha256": "f51757f1dd886d4487a80b65bb76fff85ae3d3c5932fae3c0fa8fb7c2b210529"
+    },
+    "docs/multimodal/04-generation/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "9979961fb69a5339f6bad1ade1b1d36816828ebdc201c3db247e41371a1a0102",
+      "translation": "docs/multimodal/04-generation/README.zh.md",
+      "translation_sha256": "d7dbb1b29e724a88e63ccad0b4c209ebf43a5a8269a0943738d593c9a3c96643"
+    },
+    "docs/multimodal/05-data-training-evaluation/09-multimodal-data-alignment.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "0b073ca9b419b0898f55a19e7a4029717b1d9d912e80049691676f5b24d6bd4c",
+      "translation": "docs/multimodal/05-data-training-evaluation/09-multimodal-data-alignment.zh.md",
+      "translation_sha256": "0668dd8af9deb1dad15508683ee9084476192b7c01deb282d999b0daef751498"
+    },
+    "docs/multimodal/05-data-training-evaluation/10-evaluation-safety-serving.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "0ae0e0d3ed710ec2a58ea9fc193b67a352539ca858a81611e389f1ca51e643a8",
+      "translation": "docs/multimodal/05-data-training-evaluation/10-evaluation-safety-serving.zh.md",
+      "translation_sha256": "9b0f7b4e991f6261d0c4cc0f436641acdd41e14f60d3d15a9e9c61a483b68903"
+    },
+    "docs/multimodal/05-data-training-evaluation/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "0a4264c7fcc5f1fd0967bcf6e7e92e6158a51849c56651bb3a514cf0d8c47b08",
+      "translation": "docs/multimodal/05-data-training-evaluation/README.zh.md",
+      "translation_sha256": "a6bfba93c05ad874e09189561a74a0145c6ea90fe5bfbf48ff7d5a8409536031"
+    },
+    "docs/multimodal/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "0cc213c2ab1ef087a0e4a8f5b40751ca57825a2813e10e412f69f1528c7efd2b",
+      "translation": "docs/multimodal/README.zh.md",
+      "translation_sha256": "de7c537ae7b6a4200919e70793ba5e28378b35416a2f594208822ce19f67c6da"
+    },
+    "docs/rag/01-foundations/01-what-is-rag.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "a1c6f45b9964a1c3a7775063dd16d8349b8fbff3c55d5ba0f5e5ecb452e0e2af",
+      "translation": "docs/rag/01-foundations/01-what-is-rag.zh.md",
+      "translation_sha256": "bdf6672a277e9ae00ebb35546846708674326c248904340fa3b1fa33e32f978e"
+    },
+    "docs/rag/01-foundations/02-rag-finetune-longcontext.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "ee32b4d316e43b53f9b088a0b4aa54122001d6e72aad253071310fd463a5dc32",
+      "translation": "docs/rag/01-foundations/02-rag-finetune-longcontext.zh.md",
+      "translation_sha256": "ef751005b853612f93db660ed71d012e5f7f863330258cedd18f6c0df19bc4f5"
+    },
+    "docs/rag/01-foundations/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "9971401dcbb2a6e1db61db1a60bb0e0378262cfe35220d411ab6a7336bc1d72f",
+      "translation": "docs/rag/01-foundations/README.zh.md",
+      "translation_sha256": "d81623fca9e2fd1b7ce8b036cfe528bee4ccd9f56ab252e34720ca64b154d290"
+    },
+    "docs/rag/02-ingestion-indexing/03-document-parsing.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "99f998261204b300af5e4d382a56dc1599d84e39e2debcf9bbff59a13bb01b41",
+      "translation": "docs/rag/02-ingestion-indexing/03-document-parsing.zh.md",
+      "translation_sha256": "f11a9ba17e7d1a163b0217aa4ab6cfe6c4bc358c778b48eb6aaa57d38624b013"
+    },
+    "docs/rag/02-ingestion-indexing/04-chunking-strategy.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "b38761df5e515b5cc1de0ef379723c4b804e82255efad6821064e9ca23c0e56a",
+      "translation": "docs/rag/02-ingestion-indexing/04-chunking-strategy.zh.md",
+      "translation_sha256": "c74efe83d651928b91c9a0d0682b1c6927a066487561736cf0dc21a422190170"
+    },
+    "docs/rag/02-ingestion-indexing/05-semantic-truncation.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "a2374966d3c90bf2e7df9d667026695b81636723e5250a09aea6f6d532484e57",
+      "translation": "docs/rag/02-ingestion-indexing/05-semantic-truncation.zh.md",
+      "translation_sha256": "73126c55aab11298f3d01276f438c2a26a17e3ce972ce48d337bca4f4d64034c"
+    },
+    "docs/rag/02-ingestion-indexing/06-embedding-principles.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "a0eafb1597172df2ef78054b18125a8c38bed88b4659f753f48d54c72fc71f1b",
+      "translation": "docs/rag/02-ingestion-indexing/06-embedding-principles.zh.md",
+      "translation_sha256": "37c6f94ac93f55a87940168f75146f6f1352457bdfc3fc5bf617e0a788b7b77d"
+    },
+    "docs/rag/02-ingestion-indexing/07-embedding-selection.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "5b0b47adc41fedd5bcf9ef3897016cf01a815f253c0fa70aed8293462e2b243f",
+      "translation": "docs/rag/02-ingestion-indexing/07-embedding-selection.zh.md",
+      "translation_sha256": "0cd2cea1477706fef6f1c2240be97b4832c5de3bdab1d503074191cec64f7d78"
+    },
+    "docs/rag/02-ingestion-indexing/08-vector-database.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "f91b1617a48cccc15a11e657401a0def4331653cd959d10ae155baf1b550ba2a",
+      "translation": "docs/rag/02-ingestion-indexing/08-vector-database.zh.md",
+      "translation_sha256": "1340b58ce6e4ae25827e3cd77b701aa09a4384704a9892a00c98d2013b1b71b1"
+    },
+    "docs/rag/02-ingestion-indexing/09-vectordb-production.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d5924caacab1a0e00a0a014b9fc79a78900a3a6beef052c1f6f42121704f50dc",
+      "translation": "docs/rag/02-ingestion-indexing/09-vectordb-production.zh.md",
+      "translation_sha256": "0c1606a7123dbcde86aa5177816c5728d33e94a863626ebebf415492acee74b4"
+    },
+    "docs/rag/02-ingestion-indexing/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "11186a21dcab236d6a8c3db7f20a3e133da63d208175e2d2adb79768332ffe8a",
+      "translation": "docs/rag/02-ingestion-indexing/README.zh.md",
+      "translation_sha256": "c398a81512b80b0a6fcf7bcd0874e6cec3da266e536fc364fab1708561d969ba"
+    },
+    "docs/rag/03-retrieval/10-online-pipeline.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "69d35161abc9c2ac89ede26bc1c3d5cdf6889f7383b7ed65204b68b665d59841",
+      "translation": "docs/rag/03-retrieval/10-online-pipeline.zh.md",
+      "translation_sha256": "d88847200f466166f761f7230f536ac10c70c3354248d4b6118a1ba174630a00"
+    },
+    "docs/rag/03-retrieval/11-retrieval-paradigms.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "f8865d882aaead5bf4eddbcee788a5e35a45570b26596e33ae77aee36cf64e11",
+      "translation": "docs/rag/03-retrieval/11-retrieval-paradigms.zh.md",
+      "translation_sha256": "a22c947786fcd42933057d0385c1305e94ae1721fa7f720ae41b22e129ed3c22"
+    },
+    "docs/rag/03-retrieval/12-query-rewriting.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "50fd096bcef15ca6cad61a1bece061205f49e49c1c8d7cc4a2ffb9cfda3b1ff8",
+      "translation": "docs/rag/03-retrieval/12-query-rewriting.zh.md",
+      "translation_sha256": "d9ce50a7dea0b039a4ba4273570431e6be4de61093ff450eaa4ce83bd80058e9"
+    },
+    "docs/rag/03-retrieval/13-hybrid-retrieval-rerank.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "f58298d3f6f6a41e06d23d9aec7b43f547acdbb0864d221342a4ebc8ac15fd10",
+      "translation": "docs/rag/03-retrieval/13-hybrid-retrieval-rerank.zh.md",
+      "translation_sha256": "5ec204e0dbc3e68fc1416f3ccb2f6d62444a876d2a5d27fed7db84e2b199cbc4"
+    },
+    "docs/rag/03-retrieval/14-retrieval-optimization.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "f2c96e754a81788a0c3bccef07e737f96aaaff99075945de6da3ed6e3d49c71d",
+      "translation": "docs/rag/03-retrieval/14-retrieval-optimization.zh.md",
+      "translation_sha256": "b4861a4d6eb9b20e8e9bc0e93963783e277972486e6c43bfc27ad0dc0e5b0b16"
+    },
+    "docs/rag/03-retrieval/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "cabad96f2995773fdc6da9fc08abd50df741189192cdd1752300bc00364742e1",
+      "translation": "docs/rag/03-retrieval/README.zh.md",
+      "translation_sha256": "dad0ea0e884b9c6a50619f26e2d2a200cca1287a72391c2e55a98dbda4222fc1"
+    },
+    "docs/rag/04-advanced/15-advanced-rag-paradigms.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "c76232fda0cfe396a4cb912f15e3ca657ac65fd64c67abb643369c9274226688",
+      "translation": "docs/rag/04-advanced/15-advanced-rag-paradigms.zh.md",
+      "translation_sha256": "3adfb6f705d7ff8476a457245548cd2ec763269f319cc198aedb9b03d9263a0f"
+    },
+    "docs/rag/04-advanced/16-graphrag.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d24b84c0ff615a0a6ef0b93edfa6490c45e27182c1b84ad2d672f2567aa5829d",
+      "translation": "docs/rag/04-advanced/16-graphrag.zh.md",
+      "translation_sha256": "1fe01fa7dce1f926ff3b053f260756ee80cd6c6b4373ec2faa44b86354380d83"
+    },
+    "docs/rag/04-advanced/21-multimodal-rag.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d8af3628bedab6941f936b8dd2fcd0a48fbcbb26c4e9f6dc0ec45db4de059b53",
+      "translation": "docs/rag/04-advanced/21-multimodal-rag.zh.md",
+      "translation_sha256": "caa60fa190cb6a27841c0bcf21d1cbb9e173ebc1370fa85cc61bf410b36cac1e"
+    },
+    "docs/rag/04-advanced/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "c7b12cda7cc504dfb20b1118b107e129060bb36a6d00f071fd23885f9350d759",
+      "translation": "docs/rag/04-advanced/README.zh.md",
+      "translation_sha256": "93819cfa76fddc9ffae98a274e4057de169d4c7a483cb492ab14aaee1e5a0507"
+    },
+    "docs/rag/05-generation-evaluation/17-generation-hallucination.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "bd429dcd1793276d412692d465431d30ccb5548a8f64a0aa20b0845a961b3f7d",
+      "translation": "docs/rag/05-generation-evaluation/17-generation-hallucination.zh.md",
+      "translation_sha256": "722f433a42d7ab35ee2a368695ba6725b82c2ec9241906ec9fde8f24f45915c1"
+    },
+    "docs/rag/05-generation-evaluation/18-rag-evaluation.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "2a6a195a6883a1ad5e9932689da0656573a2259ca9bc7bdfa782d6405e1a6351",
+      "translation": "docs/rag/05-generation-evaluation/18-rag-evaluation.zh.md",
+      "translation_sha256": "4134860452b3762273a4cbe9a341648d5c65262bbde533c06e029bce940c1e49"
+    },
+    "docs/rag/05-generation-evaluation/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "eeabef551f8ab203e50ac8a428f5e754b6bc0c381b2a13d4c9fccc504d92a40b",
+      "translation": "docs/rag/05-generation-evaluation/README.zh.md",
+      "translation_sha256": "c2d63d0885806e8dd4993a7547b018977ed9fef4510fac57d3e443d22198a56e"
+    },
+    "docs/rag/06-operations-security/19-dynamic-update.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d575eea3cf03197b9825e7bf7dbe722a5c2146b19692e945326bbeb653dd5724",
+      "translation": "docs/rag/06-operations-security/19-dynamic-update.zh.md",
+      "translation_sha256": "34388f66e53933d9b7fa659227b686f95b70ef63b80f59b53e6fe617ff23e5d4"
+    },
+    "docs/rag/06-operations-security/20-rag-challenges-security.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d124c89456bdd56418eba2a59125e643196c2a278cfe8382784ffed315cfe291",
+      "translation": "docs/rag/06-operations-security/20-rag-challenges-security.zh.md",
+      "translation_sha256": "feaed7d1517f30b15434c9e737bfab8e15478b4a2645a75c22cc4e5548eac107"
+    },
+    "docs/rag/06-operations-security/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "6444bd91c61d96176fb55daf9059c3f05716c083d5e8e5f36849a6f13746985c",
+      "translation": "docs/rag/06-operations-security/README.zh.md",
+      "translation_sha256": "8eb347c0b80c31296519b963955dabf41cc4099a579dc5243a0071e9e681e886"
+    },
+    "docs/rag/07-structured-queries/22-text-to-sql.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "e5e92b91a481dee8dadd0234b3af29f0355b67fa465350d517341ad39ad4661b",
+      "translation": "docs/rag/07-structured-queries/22-text-to-sql.zh.md",
+      "translation_sha256": "af50f41b0de906bc6c43425c9c2ca0f0d7ccdf3dd8dffaedff5e67a743460e41"
+    },
+    "docs/rag/07-structured-queries/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "0275e43378cf719b7e85a454b68cc876da0d325dd1142a2410f610ebe687ae17",
+      "translation": "docs/rag/07-structured-queries/README.zh.md",
+      "translation_sha256": "3c958c306e812a0eccdf96c6e2fbeae71167289b0bcbf0e5e133ce8b8eacff14"
+    },
+    "docs/rag/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "f8acc54364e9c078bc5ce878957b5ed8246b96fb99af056e960091cb1f4f82a5",
+      "translation": "docs/rag/README.zh.md",
+      "translation_sha256": "a2546a17475fd062dc0261e00c781e55e23c03d37a58a3592843b4b20c9e8f8c"
+    },
+    "docs/safety/01-threat-modeling/01-ai-threat-modeling-attack-surface.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "db6c9e051ef96670ce7a23e386caa7b39ba01efd3c7b11fd9e8e026d10efd031",
+      "translation": "docs/safety/01-threat-modeling/01-ai-threat-modeling-attack-surface.zh.md",
+      "translation_sha256": "122c698ddf7407bed0bbdce7a2cc3e1504f05981208623b2f6bb0b143149dfa3"
+    },
+    "docs/safety/01-threat-modeling/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "7651ec8d5d459a33614f6a7985ed72d4412475b35b53fb8913a696516a7da7e4",
+      "translation": "docs/safety/01-threat-modeling/README.zh.md",
+      "translation_sha256": "a299e5883fe90f099aa9ccca78ecb70758bb9d16f305dd8180b3df89dc7234b3"
+    },
+    "docs/safety/02-prompt-content-attacks/02-prompt-injection-jailbreak-system-prompt-leakage.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "62ab1b1eb40246e860f04db6598edfd729840094e01761bca2a7db288ad00010",
+      "translation": "docs/safety/02-prompt-content-attacks/02-prompt-injection-jailbreak-system-prompt-leakage.zh.md",
+      "translation_sha256": "2e2efa34a9d9bc1d284cf65d6074aadae98f9eaa4e234cb2cd1dbfe3cba6806d"
+    },
+    "docs/safety/02-prompt-content-attacks/03-output-handling-secret-exfiltration.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "ffa7a4ae11d23f2ce86c1a4e8d3ea8ffce47d60c87eda241693b1103e2ffa180",
+      "translation": "docs/safety/02-prompt-content-attacks/03-output-handling-secret-exfiltration.zh.md",
+      "translation_sha256": "a826530bd9e550e7133fd03bbf0f039cbe6092d9190b8113d8a30b4d43ecd9ae"
+    },
+    "docs/safety/02-prompt-content-attacks/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "3c94d805db3e13217ff5b8ade66b85119bce34f58abdf1e5e315a7667ee87443",
+      "translation": "docs/safety/02-prompt-content-attacks/README.zh.md",
+      "translation_sha256": "04be5165da50e566a46d64fa22cd5cc7d43f03d77f289516cc6ea56682681e0c"
+    },
+    "docs/safety/03-data-model-supply-chain/04-training-finetuning-rag-poisoning.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d2f81cb37bc7da6e62c38a1d7b7e0835bd1e75c7d0d1c46a8f20a114faa2fa95",
+      "translation": "docs/safety/03-data-model-supply-chain/04-training-finetuning-rag-poisoning.zh.md",
+      "translation_sha256": "6e782499a1e3ad83b8822aaaf7aae56cec73685c43ee979ba69de9e8bce01245"
+    },
+    "docs/safety/03-data-model-supply-chain/05-model-supply-chain-serialization-risks.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "5cc6224d40bc75e65096efbe1363f62103a517664694f846a6e4a2db66a5b58e",
+      "translation": "docs/safety/03-data-model-supply-chain/05-model-supply-chain-serialization-risks.zh.md",
+      "translation_sha256": "050726a295909b18b1f226f6fb371e62aa29a77af10cdd74c1a7fac106134a68"
+    },
+    "docs/safety/03-data-model-supply-chain/06-privacy-pii-memory-leakage.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d15527413ddef931dabb6be433c02798a17bcf4f9b9952791502d811d948e7ea",
+      "translation": "docs/safety/03-data-model-supply-chain/06-privacy-pii-memory-leakage.zh.md",
+      "translation_sha256": "0a3aea971600c8211d879d54afde325b4f15668289071eabc5f504b417ef28a3"
+    },
+    "docs/safety/03-data-model-supply-chain/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d5d1aaea214e12a9c6ab8f29fbe9687593a3581a06c7ea92b4b00233582daa7e",
+      "translation": "docs/safety/03-data-model-supply-chain/README.zh.md",
+      "translation_sha256": "2f848ba7ff23a465486259ab6c6612ed35ef9c6a37ac303f5e93f6424d957b02"
+    },
+    "docs/safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "08394bf602188d5f6814729af0d43686ee2cf2532cff59e7179b3e499d35dcdc",
+      "translation": "docs/safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.zh.md",
+      "translation_sha256": "ee4b297cb54f4dd5766eed85274bb3dbd24efe0b64427eac3b99b05d838ee3c8"
+    },
+    "docs/safety/04-agent-execution-isolation/08-code-execution-browser-computer-use-sandboxing.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "ca08152c2e8e09c7f0f5f9884f56bd7c0ef8a358fd116821ee8142ee4632b3f1",
+      "translation": "docs/safety/04-agent-execution-isolation/08-code-execution-browser-computer-use-sandboxing.zh.md",
+      "translation_sha256": "05990618fceeb01ac76c9d3813eabd82561757cc1a33bc65d1215b10dc8bcb1b"
+    },
+    "docs/safety/04-agent-execution-isolation/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "07a01210693305850a2bc895d61f0b2e7ed82e91cc55ca727fec95ebb11bd2d3",
+      "translation": "docs/safety/04-agent-execution-isolation/README.zh.md",
+      "translation_sha256": "d48d890b60a3fd2157993a7c030c75870b2c306d2f6dbd3a8804b834c1c1d676"
+    },
+    "docs/safety/05-assurance-governance/09-security-evaluation-red-teaming-continuous-assurance.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "b7e99cbddc9e412a729e5ba17a9e5de94cd9d6224d1997ccc2ec9a8dc47695ca",
+      "translation": "docs/safety/05-assurance-governance/09-security-evaluation-red-teaming-continuous-assurance.zh.md",
+      "translation_sha256": "e8f7676c3ca2d61987b9dc1f06fa892f485991e43dc10c12885d5360ea10f707"
+    },
+    "docs/safety/05-assurance-governance/10-ai-governance-risk-classification-audit-provenance.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "2474ae556469dedbbd861850c93a9b597af2160104a20ffee197cb1f3531f8f8",
+      "translation": "docs/safety/05-assurance-governance/10-ai-governance-risk-classification-audit-provenance.zh.md",
+      "translation_sha256": "be84f7656f98c692816a5d2bf14a3c3fb7bed4d7a84dd290950afaa8b481263c"
+    },
+    "docs/safety/05-assurance-governance/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "2c4df1d97ab146cfce8fa4a8300f0313d674253d68e426f5b7fa6c66aee3402d",
+      "translation": "docs/safety/05-assurance-governance/README.zh.md",
+      "translation_sha256": "f084b77fe040566958d7e6e4005a9f5b7c957a53a0fda2fdb8ed42ac4f83be4e"
+    },
+    "docs/safety/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "5467281e3665c4c761226d048d5211e365190065c90e21ef9354f779963ef033",
+      "translation": "docs/safety/README.zh.md",
+      "translation_sha256": "4c9214efd83abc621ad56fad8bbd73370083e11f275a7bead17fe4ef3fb82a38"
+    },
+    "docs/tools/01-function-calling/01-function-calling.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "ec210e1e96de0d897e0763e082a65a67ca096e7080b6a1bbea2d651c3b652792",
+      "translation": "docs/tools/01-function-calling/01-function-calling.zh.md",
+      "translation_sha256": "27fb54877a6e8f7e015d8eb32bc476ec8130cfc328a3ebab84f4ed015e12ed66"
+    },
+    "docs/tools/01-function-calling/02-tool-learning.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "c6267424b29d3dcbbb43110faea30eb36d6ba0c23e8abafe2d070b8ac11b8f73",
+      "translation": "docs/tools/01-function-calling/02-tool-learning.zh.md",
+      "translation_sha256": "436f5fdc79a7d4f03226cf464089b4ae9d4200857b50964580c5b70699427d14"
+    },
+    "docs/tools/01-function-calling/03-tool-schema-design.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "9d1d4a3a3d066d3439b5abb5d8598baf0171fa4b2ff8bc5352bea07b06a420dd",
+      "translation": "docs/tools/01-function-calling/03-tool-schema-design.zh.md",
+      "translation_sha256": "8c1eb5fbdacf29500bedf2e9aee5b14a7e77a4c345c152e4a9f9f0583ad9f1f7"
+    },
+    "docs/tools/01-function-calling/07-reasoning-models-and-tools.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "e8b7f7f2f7cdaff0921416452f56df8c569be57042812ce877cbf58f105dd563",
+      "translation": "docs/tools/01-function-calling/07-reasoning-models-and-tools.zh.md",
+      "translation_sha256": "c3b1903132a47ba010ccc4196f18459aa34336d45ca1a810c768d2a1ff1d737c"
+    },
+    "docs/tools/01-function-calling/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "3b788ac7ff607a329286b00a0d4697f3408f7ffade412e9eb4658f9fec037a56",
+      "translation": "docs/tools/01-function-calling/README.zh.md",
+      "translation_sha256": "3817be67d0d04a44c22294620cd3dfc014ea38a83a380df33ba9715e165b7da4"
+    },
+    "docs/tools/02-mcp/04-what-is-mcp.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "d65e2412871bb8439fdd5496a7d6cefb5c52304925e83226d236db482da6b467",
+      "translation": "docs/tools/02-mcp/04-what-is-mcp.zh.md",
+      "translation_sha256": "b48f0ae3562d3696aefe7f7cd428ab8311dd79c6ed6477a36bed44df2fbe3fc9"
+    },
+    "docs/tools/02-mcp/05-mcp-components.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "44b7eb513efcba31c80a2f47f38de9c2c083bfdc271c7aefdc6cd71dc1f3e3fa",
+      "translation": "docs/tools/02-mcp/05-mcp-components.zh.md",
+      "translation_sha256": "dccc52d5034eac5c72c570c20801c6c65f2545a486e05d9d14c76f058f5d46c9"
+    },
+    "docs/tools/02-mcp/06-mcp-vs-function-calling.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "3c736656e2687939811cf545fee2b6bc9648f4e207fa61d6663ee46b0f740920",
+      "translation": "docs/tools/02-mcp/06-mcp-vs-function-calling.zh.md",
+      "translation_sha256": "83978cc7e95dc59d3476569cefb1f4c39fcdd20ff1c9611b6cfc68e6de47df82"
+    },
+    "docs/tools/02-mcp/12-mcp-transport.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "2a80cc89f5072e374b882c0542eeb2d2831d2ea50c009ab53fb4b49f5b1302e3",
+      "translation": "docs/tools/02-mcp/12-mcp-transport.zh.md",
+      "translation_sha256": "1dccb707dbac6f4382ddf1000d981d050e5a6a65e8865eb1974a1530820343cb"
+    },
+    "docs/tools/02-mcp/15-tool-protocol-security.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "83fa1725f5482fc651e166f5c56a6adb44573a200df3d6475a51453041af324f",
+      "translation": "docs/tools/02-mcp/15-tool-protocol-security.zh.md",
+      "translation_sha256": "4df1a7df93c08994bc4a8b9772986da85715b0a2fdd4c3196e9ee3f8393e2091"
+    },
+    "docs/tools/02-mcp/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "710a5ed83399b8a4e53490f26260a0b87575493136814bc8552631c8a3f9605e",
+      "translation": "docs/tools/02-mcp/README.zh.md",
+      "translation_sha256": "c95e87b1cdf20533b593365976dfb0736db16437ae9726282b5671ea8d635a0a"
+    },
+    "docs/tools/03-skills/08-what-is-skill.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "5224262ed48b9c6bf53fc25295e18be38e225c1325b0aafba0dfd3e5a280f8a8",
+      "translation": "docs/tools/03-skills/08-what-is-skill.zh.md",
+      "translation_sha256": "e84f8d02e34b231447a12da55a822855f2aa7bd09e41777e7ebe67b934f1bdfd"
+    },
+    "docs/tools/03-skills/09-skill-vs-mcp.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "66d1b3a6af93a2ad29ec0009136e71d781ad4b1914ec78e057bbb3ba01bc476f",
+      "translation": "docs/tools/03-skills/09-skill-vs-mcp.zh.md",
+      "translation_sha256": "1fc35043fda303520f71545ee00489a3b4e16fc53bc84b011d02761b185dc1ce"
+    },
+    "docs/tools/03-skills/10-fc-skill-mcp.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "64bb38d9c22b9d0ad46139c555958d1e1a67c5d9fd86374e94238e352f181002",
+      "translation": "docs/tools/03-skills/10-fc-skill-mcp.zh.md",
+      "translation_sha256": "4bff4cbc4d59bba61081f10a6008566615f9cdc5888aec6be68cd02c94b7f9ce"
+    },
+    "docs/tools/03-skills/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "8059a35b4e2367ab1a6206306729b03016a357579d26e658e4a51dd4bb02d3a5",
+      "translation": "docs/tools/03-skills/README.zh.md",
+      "translation_sha256": "24bb4eec75034d7168696eba1ae6f5b31947203b883d817fd9feeb5409d87c8d"
+    },
+    "docs/tools/04-agent-communication/11-a2a-protocol.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "43d662bd9a444f00a70b0fb2dd107b573cdc9e0b44fbf88579a4a8630307db21",
+      "translation": "docs/tools/04-agent-communication/11-a2a-protocol.zh.md",
+      "translation_sha256": "4ab9edf9c3e311551bf4485d776c9623914986075767b36d14976d60ee6aaf95"
+    },
+    "docs/tools/04-agent-communication/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "ec5c21deb72a76a65e49e124ec43c4cc0f82a1de5a0497f7663a0ad2ac13939d",
+      "translation": "docs/tools/04-agent-communication/README.zh.md",
+      "translation_sha256": "234d4fcd1e5dc4fbc80fc4207b202e173a7c826247f78b6024352d5efebaab6d"
+    },
+    "docs/tools/05-transport-gateway/13-sse-websocket-webrtc.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "6e36662dec3485d606b42db2b99d1c72edeed1e5caf5391fb91e3a7e112f7f7f",
+      "translation": "docs/tools/05-transport-gateway/13-sse-websocket-webrtc.zh.md",
+      "translation_sha256": "c299765224444bb3a1b6618219c78bf5b36e25e36aa514ee1ba2c31ef145e3bd"
+    },
+    "docs/tools/05-transport-gateway/14-llm-gateway.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "0cb55cec08fcbd074a70ad96501cf294d737e7eeb12752462d2bdc93f442c90f",
+      "translation": "docs/tools/05-transport-gateway/14-llm-gateway.zh.md",
+      "translation_sha256": "188b09a24efb2e503602696e7e9748785bcb14eeb94825898d1cd45be66332c1"
+    },
+    "docs/tools/05-transport-gateway/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "f764860d6f80f7a80622dc944987605d0a3d0976f0ff05de5ce120518f7bcc25",
+      "translation": "docs/tools/05-transport-gateway/README.zh.md",
+      "translation_sha256": "aea8183fd5c1ce80fa65dd1a99a93d1ffdd6dc225193a8cd053d191fb25a45ef"
+    },
+    "docs/tools/README.md": {
+      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
+      "reviewed_at": "2026-09-20T03:42:34+00:00",
+      "source_sha256": "6f304c9a4f97f7ba4f76c8ff364d0b2ca072855bcfe95a9c18aa72ba5e83290c",
+      "translation": "docs/tools/README.zh.md",
+      "translation_sha256": "b35ec939ea6c7232496406809460d858bdfb98124856981be6d52720b9c0159b"
+    }
+  },
+  "source_language": "en",
+  "translation_language": "zh-CN",
+  "version": 1
+}

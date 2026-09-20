@@ -6,7 +6,7 @@ description: 设计工具描述、strict JSON Schema 和返回值，控制工具
 
 ## 3.1 为什么值得单独开一章
 
-[第一章](01-function-calling.md) 说明了工具名、描述、Schema 与上下文共同影响模型选择。工具定义还影响：
+[第一章](01-function-calling.zh.md) 说明了工具名、描述、Schema 与上下文共同影响模型选择。工具定义还影响：
 
 - 模型选错工具的概率；
 - 参数填错的概率；
@@ -210,7 +210,7 @@ flowchart LR
 
 工具 Schema 常是多轮对话中较稳定的部分。将稳定内容放在前面可提高支持前缀缓存的提供方/运行时的命中机会，但是否命中、计费和 TTL 以具体服务为准。
 
-原则是尽量稳定可缓存前缀；工具与消息的底层序列化顺序由提供方控制，不是手动调整字段顺序即可改变。详见 [KV Cache 与 Prompt Caching](../../llm/03-inference-serving/14-kv-cache.md)。
+原则是尽量稳定可缓存前缀；工具与消息的底层序列化顺序由提供方控制，不是手动调整字段顺序即可改变。详见 [KV Cache 与 Prompt Caching](../../llm/03-inference-serving/14-kv-cache.zh.md)。
 
 ## 3.6 工具粒度：粗一点还是细一点
 

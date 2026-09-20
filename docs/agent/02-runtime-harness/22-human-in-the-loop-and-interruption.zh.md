@@ -68,4 +68,4 @@ description: 解释人工审批的暂停与恢复机制，绑定操作参数、�
 - [Claude Agent SDK: Configure permissions](https://code.claude.com/docs/en/agent-sdk/permissions)
 - [LangGraph: Human-in-the-loop](https://docs.langchain.com/oss/python/langgraph/interrupts)
 - [AWS Prescriptive Guidance: Transactional outbox pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)：状态写入与通知投递的双写问题，以及重复消息的幂等处理。
-- [LangGraph 第十章：LangGraph 的核心优势](../../frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md)
+- [LangGraph 第十章：LangGraph 的核心优势](../../frameworks/01-langchain/04-langgraph/10-langgraph-advantages.zh.md)

@@ -6,11 +6,11 @@ description: 按用户可见的好事件定义 LLM 服务 SLO，正确计算错�
 
 ## 12.1 先定义 LLM 服务的 SLI,再谈 SLO
 
-Google SRE 体系里,SLI(服务水平指标)是可以被测量的具体数字,SLO(服务水平目标)是团队对 SLI 设定的目标值,错误预算(error budget)是允许偏离目标的余量。LLM 服务的 SLI 选取需要结合[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md)的可观测性数据,并且比传统 API 多几个特有维度:
+Google SRE 体系里,SLI(服务水平指标)是可以被测量的具体数字,SLO(服务水平目标)是团队对 SLI 设定的目标值,错误预算(error budget)是允许偏离目标的余量。LLM 服务的 SLI 选取需要结合[第 8 章](../04-evaluation-observability/08-online-observability-tracing.zh.md)的可观测性数据,并且比传统 API 多几个特有维度:
 
 | SLI 类别 | 传统 API 常见指标 | LLM 服务额外需要的指标 |
 |---|---|---|
-| 可用性 | 请求成功率 | 相同,但要区分"供应商 5xx"和"契约校验失败"([第 5 章](../03-output-safety/05-structured-output-contracts.md))两类失败 |
+| 可用性 | 请求成功率 | 相同,但要区分"供应商 5xx"和"契约校验失败"([第 5 章](../03-output-safety/05-structured-output-contracts.zh.md))两类失败 |
 | 延迟 | 阈值内完成比例、延迟分布 | 首 token、token 间停顿与完整任务时间，不能把心跳当 TTFT |
 | 质量 | 正确性、数据新鲜度、业务完成率 | 结构合规、事实正确与任务完成；离线分数是发布证据，不直接代表在线 SLI |
 | 成本 | 每交易资源开销 | 每成功任务的模型与工具总费用，通常单独作运营预算 |
@@ -61,7 +61,7 @@ flowchart TB
 | 容量规划要素 | 说明 |
 |---|---|
 | 供应商速率限制 | 每分钟 token 数(TPM)、每分钟请求数(RPM)上限,需要提前评估流量高峰是否会触顶 |
-| 多供应商分流 | 单一供应商配额不足以支撑峰值流量时,需要[第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.md)的路由能力做流量切分,而非依赖单一供应商扩容 |
+| 多供应商分流 | 单一供应商配额不足以支撑峰值流量时,需要[第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.zh.md)的路由能力做流量切分,而非依赖单一供应商扩容 |
 | 突发流量缓冲 | 大促、活动等可预期的流量高峰,应提前和供应商沟通临时提额,而不是等触发限流才应对 |
 | 自建部署的算力规划 | 测量 prefill/decode 吞吐、KV Cache 容量、输出长度分布与连续批处理，不能只按 GPU 数估算 |
 
@@ -80,7 +80,7 @@ flowchart TB
     CHECK_PROMPT --> MITIGATE
 ```
 
-质量下降但无异常并非 LLM 独有。服务返回 200、Schema 合规，也可能因检索权限、数据新鲜度、缓存或工具失败而生成错误内容；不要仅归因于模型升级。这也是为什么[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md)强调要采集足够的元数据(模型快照版本、路由决策)来支撑这类排查。
+质量下降但无异常并非 LLM 独有。服务返回 200、Schema 合规，也可能因检索权限、数据新鲜度、缓存或工具失败而生成错误内容；不要仅归因于模型升级。这也是为什么[第 8 章](../04-evaluation-observability/08-online-observability-tracing.zh.md)强调要采集足够的元数据(模型快照版本、路由决策)来支撑这类排查。
 
 ### 12.4.1 事后复盘必须产出可执行的改进项
 

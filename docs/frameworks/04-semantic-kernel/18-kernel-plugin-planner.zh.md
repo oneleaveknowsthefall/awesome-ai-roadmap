@@ -54,7 +54,7 @@ flowchart TB
     D -->|"不能：审批顺序或恢复边界独立"| PF["显式工作流<br/>核对 SK 实验包或 MAF Workflows"]
 ```
 
-这与 [LangChain 生态 · 第九章](../01-langchain/04-langgraph/09-langchain-vs-langgraph.md) 的判断类似，但触发因素不是单纯的步骤数：即使只有一次转账，也需要明确权限与审批；即使有多轮只读搜索，也可能用受预算限制的函数调用循环。
+这与 [LangChain 生态 · 第九章](../01-langchain/04-langgraph/09-langchain-vs-langgraph.zh.md) 的判断类似，但触发因素不是单纯的步骤数：即使只有一次转账，也需要明确权限与审批；即使有多轮只读搜索，也可能用受预算限制的函数调用循环。
 
 ## 18.5 Filter：拦截调用，而非自动获得合规
 

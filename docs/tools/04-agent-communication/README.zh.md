@@ -10,6 +10,6 @@ description: 以 A2A v1.0.1 发布规范理解 Agent Card、任务状态、协�
 
 ## 章节
 
-1. [第十一章：A2A 协议](11-a2a-protocol.md)
+1. [第十一章：A2A 协议](11-a2a-protocol.zh.md)
 
-返回 [Tools 相关知识点](../README.md)。
+返回 [Tools 相关知识点](../README.zh.md)。

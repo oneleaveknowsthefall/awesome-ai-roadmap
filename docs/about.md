@@ -1,31 +1,32 @@
 ---
-title: 关于作者与 Awesome AI Roadmap
-description: 介绍 Polo Li 维护的 Awesome AI Roadmap，以及这份面向 AI 工程面试准备的中文知识图谱的内容范围和使用方式。
+title: About the author and Awesome AI Roadmap
+description: The author, scope, editorial approach, and bilingual reading options of the Awesome AI Roadmap interview handbook.
 ---
 
-# 关于作者与项目
+# About the Author and Project
 
-## 作者
+## Author
 
-**Polo Li** 是 Awesome AI Roadmap 的主要作者和维护者。项目动态、提交记录和联系方式以 [GitHub 主页](https://github.com/zongyangbigpolo)为准。
+**Polo Li** is the principal author and maintainer of Awesome AI Roadmap. Project activity, contribution history, and contact information are available through the [GitHub profile](https://github.com/zongyangbigpolo).
 
-## 项目定位
+## What this handbook covers
 
-Awesome AI Roadmap 是一份面向 AI 工程面试准备的中文知识图谱。内容从 LLM 原理出发，延伸到多模态、Tools、Agent、RAG、框架与编排、AI Engineering、安全治理和 FDE，重点解释概念之间的边界、工程取舍和生产约束。
+Awesome AI Roadmap is an English-first AI engineering interview handbook with a complete Simplified Chinese companion. It starts with LLM foundations and extends to multimodal systems, tools, agents, RAG, frameworks and orchestration, production engineering, safety and governance, and forward deployed engineering. The focus is on explaining distinctions, making engineering trade-offs, and understanding production constraints.
 
-它不是厂商产品目录，也不追求罗列所有论文。每个概念尽量放在唯一的“详解归属地”，其他章节通过链接补充不同工程层次的视角。
+It is not a vendor catalog or an attempt to list every paper. Each concept has a main place for its detailed explanation; other chapters link to it and explain what changes at their own layer of the system.
 
-读者可以用它练习基础概念、方案选型和项目追问，但需要结合自己的经历回答项目题。文中明确标注的虚构 Demo 用于设计推演，不代表作者实际交付过对应项目。
+Use the handbook to practice foundational explanations, design choices, and follow-up questions. Project answers must still reflect your own experience. The explicitly hypothetical cases are design exercises, not claims that the author delivered those projects.
 
-## 内容如何维护
+## How the content is maintained
 
-- 优先引用规范、官方文档、原始论文和可复现的工程报告；
-- 涉及版本、性能和商业案例时，保留时间、环境与来源限制；
-- 章节更新通过 Git 提交记录保留；页面日期来自当前文件路径的历史，目录迁移可能影响创建日期；
-- 发现事实错误、失效链接或表达歧义时，可以在 [GitHub Issues](https://github.com/zongyangbigpolo/awesome-ai-roadmap/issues) 提交说明。
+- Prefer specifications, official documentation, original papers, and reproducible engineering reports.
+- Preserve the dates, environments, and source limitations attached to version, performance, and business claims.
+- Keep changes in Git history. Page dates reflect the history of the current file path, which can change during a directory or language migration.
+- Start content changes in the English manuscript and review the corresponding Chinese update in the same PR.
+- Report factual errors, broken references, or ambiguous explanations through [GitHub Issues](https://github.com/zongyangbigpolo/awesome-ai-roadmap/issues).
 
-具体规则见[编辑、引用与纠错规范](editorial-policy.md)。
+See the [editorial, citation, and correction policy](editorial-policy.md) for the detailed rules.
 
-## 许可
+## License
 
-仓库中的原创文档和图表采用 [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/deed.zh-hans) 许可。转载、翻译和改编时需注明作者、项目名称、原始链接及是否作出修改。
+The repository's original text and diagrams are licensed under [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/). When sharing, translating, or adapting them, credit the author and project, provide the original link, and indicate changes as required by the license.

@@ -10,11 +10,11 @@ description: 多模态面试知识索引，按融合架构、视觉文档、语�
 
 ## 子模块
 
-1. [基础与架构（第 1 章）](01-foundations/README.md)
-2. [视觉与文档智能（第 2–4 章）](02-vision-document/README.md)
-3. [语音与音频（第 5–6 章）](03-speech-audio/README.md)
-4. [多模态生成（第 7–8 章）](04-generation/README.md)
-5. [训练数据、评测与服务（第 9–10 章）](05-data-training-evaluation/README.md)
+1. [基础与架构（第 1 章）](01-foundations/README.zh.md)
+2. [视觉与文档智能（第 2–4 章）](02-vision-document/README.zh.md)
+3. [语音与音频（第 5–6 章）](03-speech-audio/README.zh.md)
+4. [多模态生成（第 7–8 章）](04-generation/README.zh.md)
+5. [训练数据、评测与服务（第 9–10 章）](05-data-training-evaluation/README.zh.md)
 
 ## 模块关系
 
@@ -43,16 +43,16 @@ flowchart TB
 | 概念 | 详解归属 | 本主题的角色 |
 |---|---|---|
 | 多模态模型概览 | LLM 第 06 模块 | 在整体训练、推理、评测与安全框架上，按视觉、语音和生成能力展开 |
-| 多模态 RAG 的摄取/表示/检索/Grounding/评测 | RAG 第 04 模块 | 本主题的[视觉与文档智能](02-vision-document/README.md)聚焦模型本身的架构与坐标定位能力；RAG 侧重把这些能力接入检索增强生成的工程链路 |
-| Agent 安全的通用威胁模型与防御模式 | Agent 第 05 模块 | 本主题的 [Computer Use](02-vision-document/04-computer-use.md) 只补充截图类输入和不可逆动作带来的额外风险 |
-| 实时传输协议（SSE/WebSocket/WebRTC） | Tools 第 05 模块 | 本主题的[实时全双工语音](03-speech-audio/06-realtime-duplex-voice.md)讨论模型与会话控制，包括持续监听、打断后的播放和上下文同步 |
+| 多模态 RAG 的摄取/表示/检索/Grounding/评测 | RAG 第 04 模块 | 本主题的[视觉与文档智能](02-vision-document/README.zh.md)聚焦模型本身的架构与坐标定位能力；RAG 侧重把这些能力接入检索增强生成的工程链路 |
+| Agent 安全的通用威胁模型与防御模式 | Agent 第 05 模块 | 本主题的 [Computer Use](02-vision-document/04-computer-use.zh.md) 只补充截图类输入和不可逆动作带来的额外风险 |
+| 实时传输协议（SSE/WebSocket/WebRTC） | Tools 第 05 模块 | 本主题的[实时全双工语音](03-speech-audio/06-realtime-duplex-voice.zh.md)讨论模型与会话控制，包括持续监听、打断后的播放和上下文同步 |
 
 ## 阅读建议
 
 - **理解多模态架构的来龙去脉**：基础与架构 → 视觉与文档智能 第 2 章；
-- **面向文档/RAG 工程**：视觉与文档智能 第 3 章 → [RAG · 文档解析](../rag/02-ingestion-indexing/03-document-parsing.md) → [RAG · 多模态 RAG](../rag/04-advanced/21-multimodal-rag.md)；
-- **面向 GUI/Computer Use Agent**：视觉与文档智能 第 2、4 章 → [Agent · 安全](../agent/05-production/15-agent-security.md)；
-- **面向语音产品**：语音与音频全部 → [Tools · SSE、WebSocket 与 WebRTC](../tools/05-transport-gateway/13-sse-websocket-webrtc.md)；
+- **面向文档/RAG 工程**：视觉与文档智能 第 3 章 → [RAG · 文档解析](../rag/02-ingestion-indexing/03-document-parsing.zh.md) → [RAG · 多模态 RAG](../rag/04-advanced/21-multimodal-rag.zh.md)；
+- **面向 GUI/Computer Use Agent**：视觉与文档智能 第 2、4 章 → [Agent · 安全](../agent/05-production/15-agent-security.zh.md)；
+- **面向语音产品**：语音与音频全部 → [Tools · SSE、WebSocket 与 WebRTC](../tools/05-transport-gateway/13-sse-websocket-webrtc.zh.md)；
 - **面向图像/视频生成**：多模态生成全部 → 训练数据、评测与服务 第 9–10 章。
 
-返回[文档主题索引](../README.md)。
+返回[文档主题索引](../README.zh.md)。

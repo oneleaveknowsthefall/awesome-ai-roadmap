@@ -182,7 +182,7 @@ flowchart TB
 
 ## 11.6 CoT：单路径推理，不是完整规划器
 
-> CoT 的机制、适用任务与解释性局限已在[第五章](05-agent-reasoning-methods.md)详述；这里仅说明它为何不能替代有状态、可验证的规划器。
+> CoT 的机制、适用任务与解释性局限已在[第五章](05-agent-reasoning-methods.zh.md)详述；这里仅说明它为何不能替代有状态、可验证的规划器。
 
 CoT（Chain of Thought）让模型沿一条中间推理链得到结论：
 
@@ -213,7 +213,7 @@ flowchart LR
 
 ### 11.6.1 工程边界
 
-CoT 文本可以出现“重新考虑”或初步验证，但这不等于控制器真的保存分支、回滚环境或执行了验证器。规划系统应输出可验证的步骤、依赖、成功标准、工具和风险，而不要求公开隐藏 Thought。其成本与可审计轨迹的记录原则分别见[第五章](05-agent-reasoning-methods.md)和[第十四章](../05-production/14-agent-evaluation.md)。
+CoT 文本可以出现“重新考虑”或初步验证，但这不等于控制器真的保存分支、回滚环境或执行了验证器。规划系统应输出可验证的步骤、依赖、成功标准、工具和风险，而不要求公开隐藏 Thought。其成本与可审计轨迹的记录原则分别见[第五章](05-agent-reasoning-methods.zh.md)和[第十四章](../05-production/14-agent-evaluation.zh.md)。
 
 ## 11.7 Task Decomposition：从目标生成子任务
 

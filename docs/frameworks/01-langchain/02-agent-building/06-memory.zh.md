@@ -84,7 +84,7 @@ Checkpointer 能保存历史，但每次是否把全部历史交给模型，要�
 - 客服 Agent 可能需要保护**当前工单和用户承诺**；
 - 代码 Agent 可能需要保护**最新报错和修改记录**。
 
-策略应同时考虑 Token 预算、消息角色和业务重要性（记忆压缩的通用方法见 [Agent 主题](../../../agent/README.md)）。
+策略应同时考虑 Token 预算、消息角色和业务重要性（记忆压缩的通用方法见 [Agent 主题](../../../agent/README.zh.md)）。
 
 还要保留工具调用协议的完整性：不能留下没有对应 AI 工具请求的 `ToolMessage`，也不能保留请求却删掉所需结果。摘要宜保留来源、未完成动作与不可丢失的承诺，而不只是泛化的聊天主题。合规删除则是另一条链路：当前 State、历史 checkpoint、Store、Trace、备份都需要按保留策略处理，`RemoveMessage` 不是物理擦除 API。
 
@@ -121,7 +121,7 @@ value     = JSON 数据
 
 ## 6.5 如何跨线程读取
 
-**工具可以通过 ToolRuntime 访问这些信息，但 `state`、`context` 和 `store` 仍要按作用域区分**（见 [第五章](05-tool-registration.md)）：
+**工具可以通过 ToolRuntime 访问这些信息，但 `state`、`context` 和 `store` 仍要按作用域区分**（见 [第五章](05-tool-registration.zh.md)）：
 
 | 入口 | 内容 |
 |---|---|
@@ -153,7 +153,7 @@ def remember_preference(
     return "偏好已保存"
 ```
 
-这是工具片段，需像[第五章](05-tool-registration.md)一样给 `create_agent` 接入 `context_schema=UserContext`、`store`，并在调用时传可信 `context`。模型只负责生成 `preference`，身份由已认证的应用注入，避免模型通过自填身份越权；业务服务仍需授权，namespace 本身不是安全隔离机制。
+这是工具片段，需像[第五章](05-tool-registration.zh.md)一样给 `create_agent` 接入 `context_schema=UserContext`、`store`，并在调用时传可信 `context`。模型只负责生成 `preference`，身份由已认证的应用注入，避免模型通过自填身份越权；业务服务仍需授权，namespace 本身不是安全隔离机制。
 
 **两个不同 `thread_id` 的会话，在可信租户与用户身份相同且获得授权时，可访问同一个长期记忆 namespace**；其他用户或租户必须被服务端权限隔离。
 

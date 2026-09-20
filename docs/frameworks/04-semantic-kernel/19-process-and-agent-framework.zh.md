@@ -40,7 +40,7 @@ classify
     .SendEventTo(new ProcessFunctionTargetBuilder(routeToTeam));
 ```
 
-上例仅定义流程拓扑，`ClassifyTicketStep`、`RouteToTeamStep`、运行时与启动事件还需实现。它和 [LangGraph](../01-langchain/04-langgraph/README.md) 都能表达多步骤控制，但不能因图形相似就认定持久化、暂停和重放语义相同。必须确认所用 SK 语言包和运行时如何保存 Step 状态、事件及外部请求，进程内执行样例本身不是可靠恢复证明。
+上例仅定义流程拓扑，`ClassifyTicketStep`、`RouteToTeamStep`、运行时与启动事件还需实现。它和 [LangGraph](../01-langchain/04-langgraph/README.zh.md) 都能表达多步骤控制，但不能因图形相似就认定持久化、暂停和重放语义相同。必须确认所用 SK 语言包和运行时如何保存 Step 状态、事件及外部请求，进程内执行样例本身不是可靠恢复证明。
 
 ## 19.3 SK Agent Orchestration：协作模式与运行时
 

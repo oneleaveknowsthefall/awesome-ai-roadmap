@@ -4,7 +4,7 @@ description: 区分视觉问答、指代表达定位与开放词表检测，说�
 
 # 第二章：视觉语言模型与视觉 Grounding
 
-> 本章的“Grounding”特指**视觉定位**：把语言指代（“左上角的红色按钮”）映射到图像中的具体坐标或区域。这与 RAG 领域"Grounding = 答案落回可验证证据"是同一个词的不同含义，后者见 [RAG · 多模态 RAG 第 21.5 节](../../rag/04-advanced/21-multimodal-rag.md)。多模态模型的通用架构与训练流程见 [第一章](../01-foundations/01-multimodal-fusion-architecture.md)与 [LLM · 多模态模型](../../llm/06-multimodal/23-multimodal-models.md)，本章只展开视觉理解与定位这条能力线。
+> 本章的“Grounding”特指**视觉定位**：把语言指代（“左上角的红色按钮”）映射到图像中的具体坐标或区域。这与 RAG 领域"Grounding = 答案落回可验证证据"是同一个词的不同含义，后者见 [RAG · 多模态 RAG 第 21.5 节](../../rag/04-advanced/21-multimodal-rag.zh.md)。多模态模型的通用架构与训练流程见 [第一章](../01-foundations/01-multimodal-fusion-architecture.zh.md)与 [LLM · 多模态模型](../../llm/06-multimodal/23-multimodal-models.zh.md)，本章只展开视觉理解与定位这条能力线。
 
 ## 2.1 VLM 的能力谱系
 
@@ -35,7 +35,7 @@ $$
 \mathrm{IoU}(B_{\mathrm{pred}},B_{\mathrm{gt}})=\frac{\lvert B_{\mathrm{pred}}\cap B_{\mathrm{gt}}\rvert}{\lvert B_{\mathrm{pred}}\cup B_{\mathrm{gt}}\rvert}
 $$
 
-RefCOCO 系列通常以 IoU 超过 0.5 判断单目标定位正确，边界等号的处理应以具体评测脚本为准。GUI 点击常用“点是否落在可操作目标内”而非框 IoU，见 [第四章](04-computer-use.md)。
+RefCOCO 系列通常以 IoU 超过 0.5 判断单目标定位正确，边界等号的处理应以具体评测脚本为准。GUI 点击常用“点是否落在可操作目标内”而非框 IoU，见 [第四章](04-computer-use.zh.md)。
 
 ## 2.3 开放词表检测：跳出固定类别表
 

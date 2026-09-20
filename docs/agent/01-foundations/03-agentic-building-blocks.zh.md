@@ -170,7 +170,7 @@ sequenceDiagram
 
 ## 3.4 MCP：标准化连接，而不是替代 Tool
 
-> 本章不重复协议规范；工具连接、传输与授权细节见[Tools：MCP](../../tools/02-mcp/04-what-is-mcp.md)，Agent 间互操作见[Tools：A2A](../../tools/04-agent-communication/11-a2a-protocol.md)。
+> 本章不重复协议规范；工具连接、传输与授权细节见[Tools：MCP](../../tools/02-mcp/04-what-is-mcp.zh.md)，Agent 间互操作见[Tools：A2A](../../tools/04-agent-communication/11-a2a-protocol.zh.md)。
 
 MCP（Model Context Protocol）是连接 AI 应用与外部系统的开放标准。它可以暴露：
 

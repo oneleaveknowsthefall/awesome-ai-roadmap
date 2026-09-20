@@ -4,7 +4,7 @@
 
 ## 章节
 
-1. [第三章：模型网关、路由与回退](03-model-gateway-routing-fallback.md)
-2. [第四章：重试、超时、幂等与熔断](04-retry-timeout-idempotency-circuit-breaker.md)
+1. [第三章：模型网关、路由与回退](03-model-gateway-routing-fallback.zh.md)
+2. [第四章：重试、超时、幂等与熔断](04-retry-timeout-idempotency-circuit-breaker.zh.md)
 
-返回 [AI Engineering / LLMOps 相关知识点](../README.md)。
+返回 [AI Engineering / LLMOps 相关知识点](../README.zh.md)。

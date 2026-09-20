@@ -10,7 +10,7 @@ description: 区分 SSE 事件格式、WebSocket 双向消息与 WebRTC 媒体�
 
 ## 章节
 
-1. [第十三章：SSE、WebSocket 与 WebRTC](13-sse-websocket-webrtc.md)
-2. [第十四章：LLM 网关](14-llm-gateway.md)
+1. [第十三章：SSE、WebSocket 与 WebRTC](13-sse-websocket-webrtc.zh.md)
+2. [第十四章：LLM 网关](14-llm-gateway.zh.md)
 
-返回 [Tools 相关知识点](../README.md)。
+返回 [Tools 相关知识点](../README.zh.md)。

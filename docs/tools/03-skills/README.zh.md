@@ -10,8 +10,8 @@ description: 理解 Agent Skills 开放文件格式、渐进加载与宿主执�
 
 ## 章节
 
-1. [第八章：Skill 是什么](08-what-is-skill.md)
-2. [第九章：Skill 与 MCP 的区别](09-skill-vs-mcp.md)
-3. [第十章：Function Calling、MCP、Skill 三者关系](10-fc-skill-mcp.md)
+1. [第八章：Skill 是什么](08-what-is-skill.zh.md)
+2. [第九章：Skill 与 MCP 的区别](09-skill-vs-mcp.zh.md)
+3. [第十章：Function Calling、MCP、Skill 三者关系](10-fc-skill-mcp.zh.md)
 
-返回 [Tools 相关知识点](../README.md)。
+返回 [Tools 相关知识点](../README.zh.md)。

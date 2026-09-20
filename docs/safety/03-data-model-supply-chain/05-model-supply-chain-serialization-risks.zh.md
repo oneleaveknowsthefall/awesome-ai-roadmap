@@ -63,7 +63,7 @@ sequenceDiagram
 | 风险 | 说明 |
 |---|---|
 | 依赖混淆（Dependency Confusion） | 内部私有包名被发布到公共仓库的同名恶意包抢注，构建时被错误拉取公共版本 |
-| 恶意 MCP Server / Tool 包 | 与 [Tool Protocol 安全 15.3.2](../../tools/02-mcp/15-tool-protocol-security.md) 描述的工具投毒相同思路，扩展到「工具本身作为软件包分发」的场景，需在安装前审查来源、版本与请求权限 |
+| 恶意 MCP Server / Tool 包 | 与 [Tool Protocol 安全 15.3.2](../../tools/02-mcp/15-tool-protocol-security.zh.md) 描述的工具投毒相同思路，扩展到「工具本身作为软件包分发」的场景，需在安装前审查来源、版本与请求权限 |
 | 恶意评测/预处理脚本 | 模型仓库附带的 `tokenizer.py`、自定义 `modeling_*.py` 等「远程代码」（`trust_remote_code`）文件本身可以包含任意逻辑 |
 | CI/CD 供应链 | 模型训练、评测、发布流水线中的任一环节（构建镜像、依赖安装脚本）被污染，都能影响最终产出物 |
 

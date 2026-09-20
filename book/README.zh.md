@@ -1,8 +1,8 @@
 # 双语书稿维护与出版
 
-[English maintenance guide](README.md)
+[English](README.md)
 
-这里面向作者和维护者，不是读者正文。英文读者入口是 [`docs/book/README.md`](../docs/book/README.md)，简体中文入口是 [`docs/book/README.zh.md`](../docs/book/README.zh.md)。英文是主稿，中文是完整配套版本，不是摘要。每种语言的**同一份 Markdown 源文件同时用于网站与可重排 EPUB3**，不另存一套电子书正文。
+这里面向作者和维护者，不是读者正文。读者可以从[中文书稿目录](../docs/book/README.zh.md)开始，并通过网站的语言切换器进入对应英文页面。英文是主稿，中文是完整配套版本，不是摘要。每种语言的**同一份 Markdown 源文件同时用于网站与可重排 EPUB3**，不另存一套电子书正文。
 
 全书覆盖全部 143 个知识章。**发布验收必须从齐全且同步的源稿实际构建两种语言的完整 EPUB。** 双语小样本只能验证导出流程，不能证明完整英文书已经构建或审校完成。
 

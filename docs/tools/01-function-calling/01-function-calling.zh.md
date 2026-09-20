@@ -12,7 +12,7 @@ Function Calling 是**让模型通过结构化调用项表达「我想调用哪�
 
 - **表达，不是执行**。模型输出调用意图，应用或平台工具运行时执行函数、发 HTTP 请求、连数据库；使用托管工具时不一定由你的应用亲自执行；
 - **结构化 JSON，不是自然语言**。这是 Function Calling 相对于「土办法」的核心改进；
-- **一种输出约定**。它是模型与应用之间的接口约定，不规定工具发现、分发或跨进程通信；[MCP](../02-mcp/04-what-is-mcp.md) 是解决这些接入问题的一种协议。
+- **一种输出约定**。它是模型与应用之间的接口约定，不规定工具发现、分发或跨进程通信；[MCP](../02-mcp/04-what-is-mcp.zh.md) 是解决这些接入问题的一种协议。
 
 应用应把模型提议、权限批准和实际执行分别记录，不能把其中任一步当成其他步骤已经发生。
 
@@ -154,7 +154,7 @@ tools = [{
 {"priority": {"type": "string", "enum": ["low", "medium", "high"]}}
 ```
 
-`enum` 既可用于服务端校验，也可被支持约束解码的运行时用于屏蔽非法 token。只有实际启用并支持该 Schema 的 strict/structured-output 路径才有此约束；仅注册 Schema 不能保证值合法，更不能保证优先级选得合理。上面的 Chat Completions 示例未开启 strict，严格模式见[第三章](03-tool-schema-design.md)。
+`enum` 既可用于服务端校验，也可被支持约束解码的运行时用于屏蔽非法 token。只有实际启用并支持该 Schema 的 strict/structured-output 路径才有此约束；仅注册 Schema 不能保证值合法，更不能保证优先级选得合理。上面的 Chat Completions 示例未开启 strict，严格模式见[第三章](03-tool-schema-design.zh.md)。
 
 ## 1.5 完整调用流程：两轮对话加中间执行
 
@@ -376,11 +376,11 @@ Function Calling 只解决了「模型怎么表达调用意图」。它没有解
 
 | 未解决的问题 | 由谁解决 |
 |---|---|
-| 工具怎么被**发现**（不用硬编码在代码里） | [MCP](../02-mcp/04-what-is-mcp.md) |
-| 工具怎么**跨进程 / 跨机器**提供 | [MCP 传输层](../02-mcp/12-mcp-transport.md) |
-| 复杂任务的**操作方法**怎么复用 | [Skill](../03-skills/08-what-is-skill.md) |
-| 多个 Agent 之间怎么**互相调用** | [A2A](../04-agent-communication/11-a2a-protocol.md) |
-| 多模型、多供应商怎么**统一治理** | [LLM 网关](../05-transport-gateway/14-llm-gateway.md) |
+| 工具怎么被**发现**（不用硬编码在代码里） | [MCP](../02-mcp/04-what-is-mcp.zh.md) |
+| 工具怎么**跨进程 / 跨机器**提供 | [MCP 传输层](../02-mcp/12-mcp-transport.zh.md) |
+| 复杂任务的**操作方法**怎么复用 | [Skill](../03-skills/08-what-is-skill.zh.md) |
+| 多个 Agent 之间怎么**互相调用** | [A2A](../04-agent-communication/11-a2a-protocol.zh.md) |
+| 多模型、多供应商怎么**统一治理** | [LLM 网关](../05-transport-gateway/14-llm-gateway.zh.md) |
 
 理解这个边界很重要：许多 LLM Host 会将 MCP Tool 转为模型能理解的 schema 并用 Function Calling 驱动调用；但 MCP 与 A2A 不以 Function Calling 为协议前提，Host 也可通过规则、结构化输出或人工流程发起调用。
 

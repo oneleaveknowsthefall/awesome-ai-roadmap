@@ -4,7 +4,7 @@ Prompt、模型、数据任何一项变更都可能改变系统行为，需要�
 
 ## 章节
 
-1. [第九章：Prompt / 模型 / 数据版本管理](09-prompt-model-data-versioning.md)
-2. [第十章：LLM CI/CD 与灰度、Canary、A/B 发布](10-llm-cicd-canary-ab.md)
+1. [第九章：Prompt / 模型 / 数据版本管理](09-prompt-model-data-versioning.zh.md)
+2. [第十章：LLM CI/CD 与灰度、Canary、A/B 发布](10-llm-cicd-canary-ab.zh.md)
 
-返回 [AI Engineering / LLMOps 相关知识点](../README.md)。
+返回 [AI Engineering / LLMOps 相关知识点](../README.zh.md)。

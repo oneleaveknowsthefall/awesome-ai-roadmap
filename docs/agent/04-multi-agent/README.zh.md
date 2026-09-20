@@ -8,9 +8,9 @@ description: 比较单、多 Agent 的选型条件，梳理并行调度、交接
 
 ## 章节
 
-1. [第九章：Single-Agent 与 Multi-Agent 系统](09-single-vs-multi-agent.md)
-2. [第十三章：Multi-Agent 协作、路由与动态切换](13-multi-agent-coordination.md)
+1. [第九章：Single-Agent 与 Multi-Agent 系统](09-single-vs-multi-agent.zh.md)
+2. [第十三章：Multi-Agent 协作、路由与动态切换](13-multi-agent-coordination.zh.md)
 
 第九章适合比较上下文隔离、任务耦合、成本与评测基线；第十三章进一步讨论消息语义、并发写入、租约、预算和故障恢复。
 
-返回 [Agent 相关知识点](../README.md)。
+返回 [Agent 相关知识点](../README.zh.md)。

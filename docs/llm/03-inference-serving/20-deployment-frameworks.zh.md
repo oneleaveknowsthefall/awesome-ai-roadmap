@@ -137,7 +137,7 @@ Hugging Face 已在官方文档中声明 TGI 进入**维护模式**：接受小�
 | **Q4_K_M** | 以 4-bit 为主的混合量化预设，不表示文件中每个参数恰好占 4 bit |
 | Q3_K_S | 3-bit，极端压缩，精度有损 |
 
-> **再强调一次：GGUF 是文件格式不是量化算法**（见 [第十五章](15-quantization.md)）。
+> **再强调一次：GGUF 是文件格式不是量化算法**（见 [第十五章](15-quantization.zh.md)）。
 
 **② SIMD 优化**
 
@@ -210,7 +210,7 @@ TensorRT-LLM 针对 NVIDIA GPU 的 kernel、运行时与服务调度进行优化
 
 ### 20.8.3 MoE 模型的部署支持差异
 
-跨设备 MoE 部署需检查专家并行与 dispatch/combine 通信（见[第十九章](19-moe.md)）；单设备 MoE 不一定需要跨卡 All-to-All：
+跨设备 MoE 部署需检查专家并行与 dispatch/combine 通信（见[第十九章](19-moe.zh.md)）；单设备 MoE 不一定需要跨卡 All-to-All：
 
 - 目标模型的具体路由、共享专家与 attention 结构是否支持；
 - 量化格式、专家并行拓扑、通信后端能否一起使用；

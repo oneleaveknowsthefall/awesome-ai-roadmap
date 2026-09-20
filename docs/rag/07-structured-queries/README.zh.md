@@ -8,6 +8,6 @@ description: 通过订单统计理解 Text-to-SQL 的业务口径、结构化查
 
 ## 章节
 
-1. [第二十二章：Text-to-SQL：从业务问题到可验证查询](22-text-to-sql.md)
+1. [第二十二章：Text-to-SQL：从业务问题到可验证查询](22-text-to-sql.zh.md)
 
-返回 [RAG 相关知识点](../README.md)。
+返回 [RAG 相关知识点](../README.zh.md)。

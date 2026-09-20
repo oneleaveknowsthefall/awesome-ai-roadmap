@@ -183,7 +183,7 @@ if __name__ == "__main__":
     mcp.run()
 ```
 
-对 `@mcp.tool()`，SDK 根据参数类型生成输入 Schema，并用 docstring 生成描述；Host 再决定如何向模型暴露它。[第三章](../01-function-calling/03-tool-schema-design.md)的描述写法仍适用。`@mcp.resource()` 注册的则是可读取资源，不会仅因函数存在就变成模型工具。
+对 `@mcp.tool()`，SDK 根据参数类型生成输入 Schema，并用 docstring 生成描述；Host 再决定如何向模型暴露它。[第三章](../01-function-calling/03-tool-schema-design.zh.md)的描述写法仍适用。`@mcp.resource()` 注册的则是可读取资源，不会仅因函数存在就变成模型工具。
 
 这里的 `db` 和 `format_orders` 需应用实现，并加入认证与对象级过滤。SDK 示例不声明支持所有协议版本，需固定依赖后按目标版本验证。
 
@@ -197,7 +197,7 @@ if __name__ == "__main__":
 | **上下文膨胀** | 响应变慢、成本飙升 | 接了太多 Server，几十个工具定义每轮全量传 |
 | **版本不匹配** | 部分功能不可用 | Server 实现的是旧规范版本，新特性用不了 |
 
-如果 Host 全量注入工具，就会产生上下文开销；可用[第三章](../01-function-calling/03-tool-schema-design.md)的筛选方法。版本不兼容则应按协议矩阵解决，不能靠减少工具数量掩盖。
+如果 Host 全量注入工具，就会产生上下文开销；可用[第三章](../01-function-calling/03-tool-schema-design.zh.md)的筛选方法。版本不兼容则应按协议矩阵解决，不能靠减少工具数量掩盖。
 
 ## 6.6 常见错误
 
@@ -223,7 +223,7 @@ MCP 工具发现不强制模型全量注入。Host 可先分页发现、缓存�
 
 ### 6.6.6 忽略第三方 Server 的信任问题
 
-本地 Server 涉及代码执行，远程 Server 涉及数据外传，两者都需信任审查。工具描述本身也可能被投毒，见[工具协议安全](15-tool-protocol-security.md)。
+本地 Server 涉及代码执行，远程 Server 涉及数据外传，两者都需信任审查。工具描述本身也可能被投毒，见[工具协议安全](15-tool-protocol-security.zh.md)。
 
 ## 6.7 本章总结
 

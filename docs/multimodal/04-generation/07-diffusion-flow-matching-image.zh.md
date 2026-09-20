@@ -4,7 +4,7 @@ description: 推导扩散噪声预测与条件 Flow Matching 的训练目标，�
 
 # 第七章：扩散模型、Flow Matching 与图像生成
 
-> 本章聚焦图像生成模型背后的**生成式建模范式**（Diffusion、Flow Matching）及其在文本到图像任务中的具体应用；视频生成在时序一致性上引入的额外问题见 [第八章](08-video-generation.md)。这里讨论的是"如何从噪声生成数据"，与 [第一章](../01-foundations/01-multimodal-fusion-architecture.md)讨论的"如何把多模态输入接入语言模型做理解"是不同方向的问题。
+> 本章聚焦图像生成模型背后的**生成式建模范式**（Diffusion、Flow Matching）及其在文本到图像任务中的具体应用；视频生成在时序一致性上引入的额外问题见 [第八章](08-video-generation.zh.md)。这里讨论的是"如何从噪声生成数据"，与 [第一章](../01-foundations/01-multimodal-fusion-architecture.zh.md)讨论的"如何把多模态输入接入语言模型做理解"是不同方向的问题。
 
 ## 7.1 生成式建模的核心问题
 

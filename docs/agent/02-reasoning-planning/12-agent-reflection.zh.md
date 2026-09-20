@@ -773,7 +773,7 @@ flowchart TB
 
 原始方法重点是在同一任务的多次 Trial 之间保留 verbal reflection，从而让下一次尝试避免重复错误。
 
-试次可以重新初始化环境，而保留有界反思记忆。它不同于在同一答案上继续润色，也不同于自动获得跨任务长期技能。论文 HumanEval 的最终单候选 `pass@1` 包含生成测试与多次修订，不能理解为一次模型调用成功率；该论文 MBPP Python 上也出现退化，详见[第四章 §4.6.2：HumanEval 结果应如何解读](04-agent-design-patterns.md)。
+试次可以重新初始化环境，而保留有界反思记忆。它不同于在同一答案上继续润色，也不同于自动获得跨任务长期技能。论文 HumanEval 的最终单候选 `pass@1` 包含生成测试与多次修订，不能理解为一次模型调用成功率；该论文 MBPP Python 上也出现退化，详见[第四章 §4.6.2：HumanEval 结果应如何解读](04-agent-design-patterns.zh.md)。
 
 它不要求：
 

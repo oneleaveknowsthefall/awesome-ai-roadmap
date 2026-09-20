@@ -32,7 +32,7 @@ flowchart TB
 | 身份与凭据 | 用户/Agent/Server 身份、OAuth 令牌、API Key | 冒充、confused deputy（第7章） |
 | 治理与审计数据 | 日志、模型卡、评测报告、内容出处 | 篡改、合规缺失（第9、10章） |
 
-信任边界不能只按「内网/外网」划分。要检查**哪些低信任内容进入了模型上下文，以及模型输出何时获得了触发动作的能力**。Host/调用方需要执行自己的策略，资源服务也必须独立授权；前者批准调用不等于后者已经确认用户可以操作该资源（详见[Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md) 15.1）。
+信任边界不能只按「内网/外网」划分。要检查**哪些低信任内容进入了模型上下文，以及模型输出何时获得了触发动作的能力**。Host/调用方需要执行自己的策略，资源服务也必须独立授权；前者批准调用不等于后者已经确认用户可以操作该资源（详见[Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.zh.md) 15.1）。
 
 ## 1.3 三个主流威胁建模框架
 
@@ -98,9 +98,9 @@ flowchart TB
 |---|---|---|
 | 训练/微调数据 | 数据投毒、后门触发器 | 第4章 |
 | 模型分发 | 供应链篡改、反序列化 RCE | 第5章 |
-| 运行时输入 | 直接/间接 Prompt Injection、越狱 | 第2章、[Agent 安全](../../agent/05-production/15-agent-security.md) |
-| RAG 检索 | 语料投毒、间接注入 | [RAG 安全](../../rag/06-operations-security/20-rag-challenges-security.md)、第4章 |
-| 工具/协议调用 | 越权、confused deputy | 第7章、[Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md) |
+| 运行时输入 | 直接/间接 Prompt Injection、越狱 | 第2章、[Agent 安全](../../agent/05-production/15-agent-security.zh.md) |
+| RAG 检索 | 语料投毒、间接注入 | [RAG 安全](../../rag/06-operations-security/20-rag-challenges-security.zh.md)、第4章 |
+| 工具/协议调用 | 越权、confused deputy | 第7章、[Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.zh.md) |
 | 代码/浏览器/Computer Use | 沙箱逃逸、SSRF、剪贴板劫持 | 第8章 |
 | 输出 | 二次注入、密钥外泄、不安全渲染 | 第3章 |
 | 隐私 | 记忆化抽取、PII 泄漏 | 第6章 |
@@ -127,9 +127,9 @@ L0–L5 是本章的讨论标签，不是行业标准或严格递增的权限等
 
 本仓库已经在 Agent、Tools、RAG 三个应用主题中，针对具体架构给出了防御细节：
 
-- [Agent 安全](../../agent/05-production/15-agent-security.md)：Prompt Injection 的架构级防御模式（Dual LLM、CaMeL 等）、致命三要素、权限最小化、执行隔离。
-- [Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md)：MCP/A2A 协议层的 OAuth、audience、token passthrough、SSRF 防护。
-- [RAG 落地难点与安全](../../rag/06-operations-security/20-rag-challenges-security.md)：语料投毒、检索侧间接注入、权限过滤、差分探测。
+- [Agent 安全](../../agent/05-production/15-agent-security.zh.md)：Prompt Injection 的架构级防御模式（Dual LLM、CaMeL 等）、致命三要素、权限最小化、执行隔离。
+- [Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.zh.md)：MCP/A2A 协议层的 OAuth、audience、token passthrough、SSRF 防护。
+- [RAG 落地难点与安全](../../rag/06-operations-security/20-rag-challenges-security.zh.md)：语料投毒、检索侧间接注入、权限过滤、差分探测。
 
 `docs/safety/` 不重复展开这些已经讲清楚的架构模式，而是承担三件事：
 

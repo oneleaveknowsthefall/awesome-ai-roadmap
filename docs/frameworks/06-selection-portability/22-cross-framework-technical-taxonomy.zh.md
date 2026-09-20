@@ -77,7 +77,7 @@ flowchart TB
 |---|---|---|
 | LangChain/LangGraph | LangSmith：Trace、Dataset、离线评测、生产反馈闭环 | 开发与生产均可用；不是只能接 LangSmith |
 | LlamaIndex | instrumentation / tracing 及评测集成 | 应串起摄取、检索、重排和生成，不能只看最后一次 LLM 调用 |
-| DSPy | 编译期指标驱动的评测（见 [第十七章](../03-dspy/17-compiler-and-optimizers.md)） | 评测即优化，但生产期在线监控仍需外部工具 |
+| DSPy | 编译期指标驱动的评测（见 [第十七章](../03-dspy/17-compiler-and-optimizers.zh.md)） | 评测即优化，但生产期在线监控仍需外部工具 |
 | Semantic Kernel / MAF | OpenTelemetry 与监控后端集成 | 按实际 SDK、导出器及语义约定版本配置 |
 | PydanticAI | 与 Pydantic Logfire 集成较紧密 | 同样基于 OpenTelemetry，适合已用 Pydantic 生态的团队 |
 | AutoGen / CrewAI | 消息/流程追踪与观测集成 | 核对跨 Agent 关联、工具 span、导出和数据驻留，不按“年轻”推断能力 |

@@ -723,7 +723,7 @@ $$
 
 ## 10.14 Prompt Caching 是什么
 
-> Prompt Caching 处理的是跨请求的前缀计算复用，不直接缓存 Embedding 或向量索引；与 RAG 入库时上下文增强的关系，见[RAG：语义被切断怎么办](../../rag/02-ingestion-indexing/05-semantic-truncation.md)。
+> Prompt Caching 处理的是跨请求的前缀计算复用，不直接缓存 Embedding 或向量索引；与 RAG 入库时上下文增强的关系，见[RAG：语义被切断怎么办](../../rag/02-ingestion-indexing/05-semantic-truncation.zh.md)。
 
 Prompt Caching 缓存重复 Prompt 前缀的中间计算结果，使后续请求可以复用。
 

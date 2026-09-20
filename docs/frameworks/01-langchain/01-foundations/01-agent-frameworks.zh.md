@@ -129,7 +129,7 @@ flowchart LR
 |---|---|---|
 | **OpenAI Agents SDK** | 围绕 Agent、Runner、Tools、Handoffs、Guardrails、Sessions、Tracing 的**轻量开发方式** | 以 OpenAI 模型和接口为主，快速实现客服分流、语音助手、工具 Agent |
 | **CrewAI** | 用**角色、目标、任务、团队**表达多 Agent 协作，通过 Flow 管理状态、条件和事件 | 研究报告、内容生产、多角色审核等**容易映射为团队分工**的场景。**但角色越多，调用成本和协作不确定性也越高** |
-| **AutoGen / Semantic Kernel / Microsoft Agent Framework** | 微软生态中的不同代际与抽象；不能当作同一个产品 | 存量系统要审查迁移指南与支持状态，见 [第 19 章](../../04-semantic-kernel/19-process-and-agent-framework.md)和[第 20 章](../../05-lightweight-agent-frameworks/20-autogen-and-crewai.md) |
+| **AutoGen / Semantic Kernel / Microsoft Agent Framework** | 微软生态中的不同代际与抽象；不能当作同一个产品 | 存量系统要审查迁移指南与支持状态，见 [第 19 章](../../04-semantic-kernel/19-process-and-agent-framework.zh.md)和[第 20 章](../../05-lightweight-agent-frameworks/20-autogen-and-crewai.zh.md) |
 | **Dify** | **更接近低代码 AI 应用开发平台** | **不宜和 Python Agent 框架放在同一层面比较** |
 
 ## 1.7 选型顺序：从外到内收窄

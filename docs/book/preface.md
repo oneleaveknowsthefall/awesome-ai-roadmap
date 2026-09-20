@@ -1,15 +1,15 @@
 ---
-description: 说明本书如何把模型、检索、工具、智能体与生产交付串成可解释、可验证的工程判断。
+description: How the handbook connects models, retrieval, tools, agents, and production delivery through engineering decisions that can be explained and tested.
 ---
 
-# 前言
+# Preface
 
-面试里，难题往往不在于能否说出一个术语，而在于接下来那句“为什么”。为什么这里需要检索，而不是微调？为什么加了一层校验，系统仍会执行错误操作？为什么离线指标变好了，用户却没有觉得更好用？
+The difficult part of an interview is often not naming a technique but answering the next question: why? Why use retrieval rather than fine-tuning here? Why can a system still take the wrong action after validation has been added? Why might an offline score improve without making the product more useful?
 
-这本书从这些追问出发。它先解释模型能够做什么、能力从哪里来，再走向多模态、工具调用、检索增强与智能体，最后讨论框架、上线运行、安全和客户现场的交付。原理不是开场白：只有知道一个机制依赖什么条件，才说得清它何时有效、何时会失败。
+Those follow-up questions guide this book. We begin with what models can do and where those capabilities come from, then move through multimodal systems, tool calling, retrieval, and agents. The later parts cover frameworks, production operations, safety, and delivery in a customer's environment. The foundations are not just an introduction: understanding the conditions a mechanism depends on is how you explain when it works and when it fails.
 
-书中的章节保留了各自适合的讲法。有的问题需要拆开一段流程，有的问题适合比较几个方案，有的问题则要沿着一次失误看下去。阅读时，不必把每章压成同样长度的答案。更值得练习的是：先回答问题，再解释关键机制；有人继续追问时，能够补上假设、反例与验证办法。
+Different questions call for different explanations. Sometimes we need to trace a process, sometimes compare alternatives, and sometimes follow a mistake through to its consequences. There is no need to turn every chapter into an answer of the same length. Practice answering the question directly, explaining the mechanism, and then supplying the assumptions, counterexamples, and checks that a follow-up question requires.
 
-示例用来帮助推理，不代替真实项目证据。谈自己的经历时，应说明自己实际承担的工作、当时能拿到的数据，以及仍然不知道的部分。书中的假设案例不能当作个人履历。
+Examples help you reason; they are not evidence of your own project experience. When discussing your work, be clear about what you actually owned, what information was available, and what remained uncertain. The hypothetical cases in this book are not material to present as personal achievements.
 
-技术名词和产品接口会变化，判断问题的方法也需要不断修正。希望读完以后，你不仅能解释一个熟悉的方案，还能在条件改变时，知道应当重新检查哪里。
+Terminology and product interfaces change, and our methods of evaluating systems need revision too. The aim is not only to explain a familiar design, but to recognize what must be reconsidered when its conditions change.

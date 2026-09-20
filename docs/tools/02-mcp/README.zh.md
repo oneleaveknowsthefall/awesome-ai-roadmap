@@ -10,10 +10,10 @@ description: 按 MCP 2026-07-28 核查角色、能力、逐请求协商、传输
 
 ## 章节
 
-1. [第四章：MCP 模型上下文协议的核心内容](04-what-is-mcp.md)
-2. [第五章：MCP 的三层组成](05-mcp-components.md)
-3. [第六章：MCP 与 Function Calling 的区别与选型](06-mcp-vs-function-calling.md)
-4. [第十二章：MCP 的传输层](12-mcp-transport.md)
-5. [第十五章：Tool Protocol 安全](15-tool-protocol-security.md)
+1. [第四章：MCP 模型上下文协议的核心内容](04-what-is-mcp.zh.md)
+2. [第五章：MCP 的三层组成](05-mcp-components.zh.md)
+3. [第六章：MCP 与 Function Calling 的区别与选型](06-mcp-vs-function-calling.zh.md)
+4. [第十二章：MCP 的传输层](12-mcp-transport.zh.md)
+5. [第十五章：Tool Protocol 安全](15-tool-protocol-security.zh.md)
 
-返回 [Tools 相关知识点](../README.md)。
+返回 [Tools 相关知识点](../README.zh.md)。

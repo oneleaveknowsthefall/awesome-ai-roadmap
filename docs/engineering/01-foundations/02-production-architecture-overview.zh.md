@@ -46,19 +46,19 @@ flowchart TB
 
 ## 2.2 请求路径：网关、编排、供应商
 
-入口层验证用户与租户身份；**模型网关**管理模型供应商凭据、配额、路由和回退。两者不能替代工具服务对具体资源的授权。网关组件见 [Tools · LLM 网关](../../tools/05-transport-gateway/14-llm-gateway.md)，路由见[第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.md)，超时和重试见[第 4 章](../02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md)。
+入口层验证用户与租户身份；**模型网关**管理模型供应商凭据、配额、路由和回退。两者不能替代工具服务对具体资源的授权。网关组件见 [Tools · LLM 网关](../../tools/05-transport-gateway/14-llm-gateway.zh.md)，路由见[第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.zh.md)，超时和重试见[第 4 章](../02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.zh.md)。
 
-入口网关之后是**编排层**——单次问答可能只是一次模型调用，但 Agent 需要多轮工具调用与规划（见 [Agent](../../agent/README.md)），知识密集型任务需要先检索再生成（见 [RAG](../../rag/README.md)）。编排层通过模型网关访问具体的**模型供应商**：可能是托管 API，也可能是自研部署（部署细节见 [LLM · 推理与部署](../../llm/03-inference-serving/README.md)）。
+入口网关之后是**编排层**——单次问答可能只是一次模型调用，但 Agent 需要多轮工具调用与规划（见 [Agent](../../agent/README.zh.md)），知识密集型任务需要先检索再生成（见 [RAG](../../rag/README.zh.md)）。编排层通过模型网关访问具体的**模型供应商**：可能是托管 API，也可能是自研部署（部署细节见 [LLM · 推理与部署](../../llm/03-inference-serving/README.zh.md)）。
 
 ## 2.3 输出侧：校验、降级
 
-模型返回的文本不能直接信任。**输出校验**检查它是否符合下游期望的结构化契约（[第 5 章](../03-output-safety/05-structured-output-contracts.md)），以及是否触发了安全护栏（[第 6 章](../03-output-safety/06-guardrails-degradation.md)）。校验不通过不代表直接报错给用户——降级路径可能是换用更保守的模型重试、返回缓存答案或模板化兜底回复,这也是第 6 章的核心内容。
+模型返回的文本不能直接信任。**输出校验**检查它是否符合下游期望的结构化契约（[第 5 章](../03-output-safety/05-structured-output-contracts.zh.md)），以及是否触发了安全护栏（[第 6 章](../03-output-safety/06-guardrails-degradation.zh.md)）。校验不通过不代表直接报错给用户——降级路径可能是换用更保守的模型重试、返回缓存答案或模板化兜底回复,这也是第 6 章的核心内容。
 
 ## 2.4 反馈支路：可观测性、评测、发布
 
-图中三条虚线（trace/metrics）汇入**可观测性**层——这是整条链路能不能被排查、被优化的前提,详见[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md)。可观测性积累的线上数据反过来喂给**离线评测**([第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)),评测通过与否决定**发布流水线**是否放行一次 Prompt/模型/路由变更([第 9](../05-release-pipeline/09-prompt-model-data-versioning.md)、[10 章](../05-release-pipeline/10-llm-cicd-canary-ab.md))。
+图中三条虚线（trace/metrics）汇入**可观测性**层——这是整条链路能不能被排查、被优化的前提,详见[第 8 章](../04-evaluation-observability/08-online-observability-tracing.zh.md)。可观测性积累的线上数据反过来喂给**离线评测**([第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.zh.md)),评测通过与否决定**发布流水线**是否放行一次 Prompt/模型/路由变更([第 9](../05-release-pipeline/09-prompt-model-data-versioning.zh.md)、[10 章](../05-release-pipeline/10-llm-cicd-canary-ab.zh.md))。
 
-最外层的**反馈闭环**把用户的显式反馈(点赞/纠正)和隐式行为(重试、放弃)重新汇入评测数据集,长期看甚至会成为微调数据的来源,这是[第 13 章](../06-performance-operations/13-feedback-loop-data-flywheel.md)的主题。
+最外层的**反馈闭环**把用户的显式反馈(点赞/纠正)和隐式行为(重试、放弃)重新汇入评测数据集,长期看甚至会成为微调数据的来源,这是[第 13 章](../06-performance-operations/13-feedback-loop-data-flywheel.zh.md)的主题。
 
 ## 2.5 贯穿全图的两条隐藏关注点
 
@@ -66,8 +66,8 @@ flowchart TB
 
 | 关注点 | 体现在哪些方框 | 对应章节 |
 |---|---|---|
-| **性能与成本** | 网关路由决策、编排层的批处理、缓存 | [第 11 章](../06-performance-operations/11-caching-batching-throughput-cost.md) |
-| **稳定性运营** | 整条链路的 SLO、容量规划、事故响应 | [第 12 章](../06-performance-operations/12-slo-capacity-incident-response.md) |
+| **性能与成本** | 网关路由决策、编排层的批处理、缓存 | [第 11 章](../06-performance-operations/11-caching-batching-throughput-cost.zh.md) |
+| **稳定性运营** | 整条链路的 SLO、容量规划、事故响应 | [第 12 章](../06-performance-operations/12-slo-capacity-incident-response.zh.md) |
 
 这两点解释了为什么本主题最后一个模块叫「性能、成本与运营」而不是挂在某一个具体方框下——它们是横切关注点,和请求路径上任何一环都有关。
 

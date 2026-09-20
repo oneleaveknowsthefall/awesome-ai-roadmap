@@ -6,7 +6,7 @@ description: "从四个开源项目整理 FDE 交付中的常见问题：需求�
 
 有些客户项目，代码并没有特别难写，却迟迟交不出去。客户以为买的是自动处理，工程师做的是辅助审核；测试已经通过，业务负责人却说还不能用；原开发者一走，接手的人连为什么禁用某个功能都不知道。
 
-本章从 FDEOps、FDEstack、OpenFDE 和 Applied AI Field Guide 四个公开项目中，整理值得借鉴的做法。下面沿用[第一章](../01-foundations/01-forward-deployed-engineering.md)的订单助手，重点看事情怎么处理，不要求安装这些工具。
+本章从 FDEOps、FDEstack、OpenFDE 和 Applied AI Field Guide 四个公开项目中，整理值得借鉴的做法。下面沿用[第一章](../01-foundations/01-forward-deployed-engineering.zh.md)的订单助手，重点看事情怎么处理，不要求安装这些工具。
 
 ## 2.1 到了现场才发现，原来的需求不能照做
 
@@ -173,6 +173,6 @@ OpenFDE 的[Claude 抽取实现](https://github.com/memovai/openfde/blob/e2dec16
 | [OpenFDE](https://github.com/memovai/openfde) | [架构说明](https://github.com/memovai/openfde/blob/e2dec1608f7cdebd8cfe587cd94fc0c346bff6bb/ARCHITECTURE.md)，看来源、事实、任务和上下文怎样连接 | `e2dec16` |
 | [FDEOps](https://github.com/suboss87/fdeops) | [项目总览](https://github.com/suboss87/fdeops/blob/cc96340955b8a1de1aac8d5f971f794c4f8e6d6c/README.md)、需求变更和交接技能 | `cc96340` |
 
-需要补技术实现时，可以继续读[重试与幂等](../../engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md)、[版本管理](../../engineering/05-release-pipeline/09-prompt-model-data-versioning.md)和[反馈数据处理](../../engineering/06-performance-operations/13-feedback-loop-data-flywheel.md)。
+需要补技术实现时，可以继续读[重试与幂等](../../engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.zh.md)、[版本管理](../../engineering/05-release-pipeline/09-prompt-model-data-versioning.zh.md)和[反馈数据处理](../../engineering/06-performance-operations/13-feedback-loop-data-flywheel.zh.md)。
 
-返回 [现场经验模块](README.md)。
+返回 [现场经验模块](README.zh.md)。

@@ -1,11 +1,11 @@
 ---
-description: 本书致谢，保留真实贡献者信息由作者在出版前补充。
+description: Acknowledgments, with space for the author to add confirmed contributors before publication.
 ---
 
-# 致谢
+# Acknowledgments
 
-一本讨论工程实践的书，离不开愿意把问题讲具体的人。认真提出一个反例，记录一次失败，或追问一个含糊的解释，都能让知识变得更可靠。
+A book about engineering practice depends on people willing to make a problem concrete. A careful counterexample, a record of a failure, or a question about a vague explanation can all make the work more reliable.
 
-也感谢读者花时间核对书中的论证。阅读中发现的不一致、没有讲清的前提，以及与实际系统不符的地方，都是继续修订的起点。
+Thank you also to readers who take the time to examine the arguments. Inconsistencies, unstated assumptions, and differences between an example and a real system provide the starting points for further revision.
 
-<!-- 出版前由作者确认并补充真实贡献者姓名、具体贡献与署名许可；不要填入未经确认的人名或机构背书。 -->
+<!-- Before publication, confirm contributor names, their actual contributions, and permission to credit them. Do not invent names or institutional endorsements. -->

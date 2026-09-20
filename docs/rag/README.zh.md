@@ -10,13 +10,13 @@ description: 从文档摄取、索引与检索重排到生成评测、更新与�
 
 ## 子模块
 
-1. [基础与选型（第 1–2 章）](01-foundations/README.md)
-2. [摄取与索引（第 3–9 章）](02-ingestion-indexing/README.md)
-3. [在线检索（第 10–14 章）](03-retrieval/README.md)
-4. [高级与多模态（第 15–16、21 章）](04-advanced/README.md)
-5. [生成与评估（第 17–18 章）](05-generation-evaluation/README.md)
-6. [运维与安全（第 19–20 章）](06-operations-security/README.md)
-7. [结构化查询（第 22 章）](07-structured-queries/README.md)
+1. [基础与选型（第 1–2 章）](01-foundations/README.zh.md)
+2. [摄取与索引（第 3–9 章）](02-ingestion-indexing/README.zh.md)
+3. [在线检索（第 10–14 章）](03-retrieval/README.zh.md)
+4. [高级与多模态（第 15–16、21 章）](04-advanced/README.zh.md)
+5. [生成与评估（第 17–18 章）](05-generation-evaluation/README.zh.md)
+6. [运维与安全（第 19–20 章）](06-operations-security/README.zh.md)
+7. [结构化查询（第 22 章）](07-structured-queries/README.zh.md)
 
 ## 模块关系
 
@@ -57,4 +57,4 @@ flowchart TB
 
 不一定。小 Chunk 可提供更细的定位，但可能丢失上下文；大 Chunk 可保留更多语境，却也可能引入噪声并增加 Token 成本。应根据文档结构、问题粒度和重排能力，在相同上下文预算下评测块大小与重叠率。
 
-返回[文档主题索引](../README.md)。
+返回[文档主题索引](../README.zh.md)。

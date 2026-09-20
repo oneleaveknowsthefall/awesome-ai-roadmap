@@ -10,7 +10,7 @@ description: 区分 LangChain 高层 Agent 与 LangGraph 图编排的依赖和�
 
 > **LangChain 提供高层 Agent API，LangGraph 提供更低层的编排框架与运行时。**
 
-> 本章聚焦层次、选型和组合边界；`interrupt` 审批协议、节点容错版本、流式脱敏和持久化实现放在[第十章](10-langgraph-advantages.md)展开。
+> 本章聚焦层次、选型和组合边界；`interrupt` 审批协议、节点容错版本、流式脱敏和持久化实现放在[第十章](10-langgraph-advantages.zh.md)展开。
 
 | 框架 | 官方定位 |
 |---|---|
@@ -64,7 +64,7 @@ flowchart TB
 
 ### 9.3.1 传统 Chain 也不只能顺序执行
 
-**LCEL 除了 `RunnableSequence`，也能通过并行和分支 Runnable 表达并发与条件选择**（见 [第二章](../01-foundations/02-chain-and-lcel.md)）。
+**LCEL 除了 `RunnableSequence`，也能通过并行和分支 Runnable 表达并发与条件选择**（见 [第二章](../01-foundations/02-chain-and-lcel.zh.md)）。
 
 > 固定的 Prompt、模型、解析器流水线**常写成线性形式，但那是用法选择，不是框架能力上限**。
 
@@ -194,13 +194,13 @@ Agent 需要状态，是因为模型调用、工具结果、人工意见和中�
 | **Checkpointer** | 按 `thread_id` 保存图状态快照 | 线程内短期记忆、人工介入、时间旅行、故障恢复 |
 | **Store** | 图状态之外、**跨线程**可读取的业务数据 | 用户偏好、事实、共享知识等长期记忆 |
 
-**`create_agent` 会把 checkpointer 和 store 交给底层图**，因此 LangChain Agent 同样可以获得短期记忆、长期记忆和恢复能力（见 [第六章](../02-agent-building/06-memory.md)）。
+**`create_agent` 会把 checkpointer 和 store 交给底层图**，因此 LangChain Agent 同样可以获得短期记忆、长期记忆和恢复能力（见 [第六章](../02-agent-building/06-memory.zh.md)）。
 
 > **真正的差异在控制粒度**：LangChain 给标准 Agent 暴露便利入口，**LangGraph 让开发者在任意节点和子图层面设计状态保存与恢复边界**。
 
 ### 9.6.2 durable execution 的选型含义
 
-Checkpointer 能恢复状态，不会替业务保证副作用安全；复杂流程需要显式设计任务边界与幂等。这正是业务需要下沉 LangGraph 的信号之一。**恢复语义、审批协议和容错实现见[第十章](10-langgraph-advantages.md)。**
+Checkpointer 能恢复状态，不会替业务保证副作用安全；复杂流程需要显式设计任务边界与幂等。这正是业务需要下沉 LangGraph 的信号之一。**恢复语义、审批协议和容错实现见[第十章](10-langgraph-advantages.zh.md)。**
 
 ## 9.7 人工介入有什么区别
 
@@ -213,7 +213,7 @@ Checkpointer 能恢复状态，不会替业务保证副作用安全；复杂流�
 >
 > **准确说法是**：LangChain 提供了围绕 Agent 工具调用的**高层审批体验**，LangGraph 提供了**更通用的中断与恢复原语**。前者省事，后者表达范围更广。
 >
-> 审批载荷的严格 schema、身份边界、任务/版本绑定和一次性幂等决策属于实现要求，见[第十章](10-langgraph-advantages.md)，不要仅把它当成一个布尔确认框。
+> 审批载荷的严格 schema、身份边界、任务/版本绑定和一次性幂等决策属于实现要求，见[第十章](10-langgraph-advantages.zh.md)，不要仅把它当成一个布尔确认框。
 
 ## 9.8 流式输出能看到多深
 
@@ -229,7 +229,7 @@ Checkpointer 能恢复状态，不会替业务保证副作用安全；复杂流�
 
 > **两者都能流式输出**——LangChain 优先给常见 Agent 体验，LangGraph 允许观察完整执行引擎。
 
-`stream_events(..., version="v3")` 的类型化投影和前端状态白名单属于具体实现，见[第十章](10-langgraph-advantages.md)。此接口有版本要求：LangChain 在 v1.3 引入类型化事件流，而 LangGraph 1.2.0 的实现将 v3 标为实验性；两个包的区别见 10.8 节。
+`stream_events(..., version="v3")` 的类型化投影和前端状态白名单属于具体实现，见[第十章](10-langgraph-advantages.zh.md)。此接口有版本要求：LangChain 在 v1.3 引入类型化事件流，而 LangGraph 1.2.0 的实现将 v3 标为实验性；两个包的区别见 10.8 节。
 
 ## 9.9 部署与调试如何分工
 

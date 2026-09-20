@@ -6,7 +6,7 @@ description: 将概率性内容护栏与确定性授权分离，按拦截原因�
 
 ## 6.1 Guardrails 解决的是契约校验管不到的问题
 
-[第 5 章](05-structured-output-contracts.md)的契约校验回答"输出格式对不对",Guardrails 回答的是另一件事:**输出内容是否安全、是否符合业务允许的边界**——即使一段文本完全符合 JSON Schema,它仍然可能包含泄露的隐私信息、越权的操作指令,或者只是单纯地跑题了。
+[第 5 章](05-structured-output-contracts.zh.md)的契约校验回答"输出格式对不对",Guardrails 回答的是另一件事:**输出内容是否安全、是否符合业务允许的边界**——即使一段文本完全符合 JSON Schema,它仍然可能包含泄露的隐私信息、越权的操作指令,或者只是单纯地跑题了。
 
 ```mermaid
 flowchart TB
@@ -40,7 +40,7 @@ flowchart TB
 | PII 检测与脱敏 | 模型在回答中意外复述了输入上下文里的身份证号、手机号等敏感信息 |
 | 内容安全审核 | 生成内容本身违规或有害 |
 | 事实边界检查 | 涉及金额、日期等强事实性字段时,与结构化数据源做交叉校验而非只信任模型输出 |
-| 引用完整性(RAG 场景) | 生成内容中的引用是否能在检索到的原文中找到依据,这部分详细展开见 [RAG · 生成与评估](../../rag/05-generation-evaluation/README.md) |
+| 引用完整性(RAG 场景) | 生成内容中的引用是否能在检索到的原文中找到依据,这部分详细展开见 [RAG · 生成与评估](../../rag/05-generation-evaluation/README.zh.md) |
 
 ```python
 def output_guardrail(text: str, context: dict) -> GuardrailResult:

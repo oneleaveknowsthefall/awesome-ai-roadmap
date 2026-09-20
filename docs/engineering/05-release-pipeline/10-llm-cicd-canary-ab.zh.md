@@ -6,7 +6,7 @@ description: 将离线评测加入现有 CI，隔离影子流量的副作用，�
 
 ## 10.1 LLM CI/CD 流水线长什么样
 
-LLM CI/CD 在单元测试、集成测试、授权和契约测试之外，**新增**[离线评测门禁](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)，不是替换这些测试。质量退化可能不触发异常，因此发布还需观察业务质量信号，不能只看进程存活。
+LLM CI/CD 在单元测试、集成测试、授权和契约测试之外，**新增**[离线评测门禁](../04-evaluation-observability/07-offline-eval-eval-driven-development.zh.md)，不是替换这些测试。质量退化可能不触发异常，因此发布还需观察业务质量信号，不能只看进程存活。
 
 ```mermaid
 flowchart LR
@@ -61,7 +61,7 @@ rollout_plan:
     guard_metrics: *guards
 ```
 
-数值和时长仅为示例，不是推荐阈值。每一阶段都设置**护栏指标(guard metrics)**,这些指标来自[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md)的可观测性聚合数据。任意护栏指标越界,自动暂停放量或回滚到上一阶段,而不是等人工发现问题。
+数值和时长仅为示例，不是推荐阈值。每一阶段都设置**护栏指标(guard metrics)**,这些指标来自[第 8 章](../04-evaluation-observability/08-online-observability-tracing.zh.md)的可观测性聚合数据。任意护栏指标越界,自动暂停放量或回滚到上一阶段,而不是等人工发现问题。
 
 ## 10.4 A/B 测试:回答"哪个版本更好",而不只是"新版本有没有崩"
 
@@ -113,7 +113,7 @@ def check_rollout_health(current_metrics: dict, guard_metrics: dict) -> bool:
     return True
 ```
 
-示例配置的值都是上界，键与指标同名；真实发布系统还需检查数据类型、窗口、分母和采集新鲜度，不能把缺失或过期指标当作正常。回滚按[第 9 章](09-prompt-model-data-versioning.md)的已验证组合恢复 Prompt、模型、路由、工具和兼容的数据版本。正在执行的任务需要版本粘性或排空；已发邮件、已扣款等副作用不会被配置回滚撤销。安全补丁、删除标记和权限撤销不能跟着回滚失效。
+示例配置的值都是上界，键与指标同名；真实发布系统还需检查数据类型、窗口、分母和采集新鲜度，不能把缺失或过期指标当作正常。回滚按[第 9 章](09-prompt-model-data-versioning.zh.md)的已验证组合恢复 Prompt、模型、路由、工具和兼容的数据版本。正在执行的任务需要版本粘性或排空；已发邮件、已扣款等副作用不会被配置回滚撤销。安全补丁、删除标记和权限撤销不能跟着回滚失效。
 
 ## 10.6 常见错误
 

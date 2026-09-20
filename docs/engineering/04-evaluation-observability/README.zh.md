@@ -4,7 +4,7 @@
 
 ## 章节
 
-1. [第七章：离线评测与 Eval-Driven Development](07-offline-eval-eval-driven-development.md)
-2. [第八章：在线可观测性与 Tracing](08-online-observability-tracing.md)
+1. [第七章：离线评测与 Eval-Driven Development](07-offline-eval-eval-driven-development.zh.md)
+2. [第八章：在线可观测性与 Tracing](08-online-observability-tracing.zh.md)
 
-返回 [AI Engineering / LLMOps 相关知识点](../README.md)。
+返回 [AI Engineering / LLMOps 相关知识点](../README.zh.md)。

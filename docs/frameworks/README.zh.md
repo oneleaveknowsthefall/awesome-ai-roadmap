@@ -4,20 +4,20 @@ description: 比较 LangChain、LangGraph、LlamaIndex、DSPy 与微软等 Agent
 
 # AI 框架与编排
 
-本主题聚焦「框架实现层」：[Agent](../agent/README.md) 与 [RAG](../rag/README.md) 主题讨论原理与取舍，[Tools](../tools/README.md) 主题单独说明协议；这里关注这些原理和协议在不同框架中的落地方式，以及框架不再适合项目时的迁移成本和路径。
+本主题聚焦「框架实现层」：[Agent](../agent/README.zh.md) 与 [RAG](../rag/README.zh.md) 主题讨论原理与取舍，[Tools](../tools/README.zh.md) 主题单独说明协议；这里关注这些原理和协议在不同框架中的落地方式，以及框架不再适合项目时的迁移成本和路径。
 
-当前内容按六个子模块组织。[LangChain 生态](01-langchain/README.md) 沿用原有 LangChain/LangGraph 路径，其余模块分别展开 LlamaIndex、DSPy、Semantic Kernel、轻量级 Agent 框架，以及跨框架的选型与可移植架构。
+当前内容按六个子模块组织。[LangChain 生态](01-langchain/README.zh.md) 沿用原有 LangChain/LangGraph 路径，其余模块分别展开 LlamaIndex、DSPy、Semantic Kernel、轻量级 Agent 框架，以及跨框架的选型与可移植架构。
 
 目录中的「轻量级」是阅读分组，不表示 AutoGen、CrewAI 的运行时、依赖或运维成本一定更小。选型应比较同一任务的工具正确率、恢复语义、延迟与费用，而不是把框架名称当作能力保证。
 
 ## 子模块
 
-1. [LangChain 生态（第 1–13 章）](01-langchain/README.md)——Chain/LCEL、Agent 构建、LangGraph 状态编排、LangSmith 生产闭环
-2. [LlamaIndex 生态（第 14–15 章）](02-llamaindex/README.md)——数据与索引抽象、查询引擎与事件驱动 Workflows
-3. [DSPy 声明式优化（第 16–17 章）](03-dspy/README.md)——Signature/Module 声明式编程、编译器与优化器
-4. [Semantic Kernel 企业级编排（第 18–19 章）](04-semantic-kernel/README.md)——Kernel/Plugin/Planner、Process Framework 与 Agent Framework
-5. [轻量级 Agent 框架（第 20–21 章）](05-lightweight-agent-frameworks/README.md)——AutoGen、CrewAI 的多智能体抽象、PydanticAI 的类型安全范式
-6. [框架选型与可移植架构（第 22–23 章）](06-selection-portability/README.md)——跨框架技术解构、Lock-in 识别与迁移策略
+1. [LangChain 生态（第 1–13 章）](01-langchain/README.zh.md)——Chain/LCEL、Agent 构建、LangGraph 状态编排、LangSmith 生产闭环
+2. [LlamaIndex 生态（第 14–15 章）](02-llamaindex/README.zh.md)——数据与索引抽象、查询引擎与事件驱动 Workflows
+3. [DSPy 声明式优化（第 16–17 章）](03-dspy/README.zh.md)——Signature/Module 声明式编程、编译器与优化器
+4. [Semantic Kernel 企业级编排（第 18–19 章）](04-semantic-kernel/README.zh.md)——Kernel/Plugin/Planner、Process Framework 与 Agent Framework
+5. [轻量级 Agent 框架（第 20–21 章）](05-lightweight-agent-frameworks/README.zh.md)——AutoGen、CrewAI 的多智能体抽象、PydanticAI 的类型安全范式
+6. [框架选型与可移植架构（第 22–23 章）](06-selection-portability/README.zh.md)——跨框架技术解构、Lock-in 识别与迁移策略
 
 ## 主题定位
 
@@ -64,11 +64,11 @@ flowchart TB
 
 首次通读可按第 1–23 章顺序前进。LangChain 目录按主题分组，第 8 章之后先读第 9–10 章，再回到第 11 章理解版本演进，不必把目录分组误当成章号顺序。
 
-- **只关心 LangChain/LangGraph 生态**：直接进入 [LangChain 生态](01-langchain/README.md)；
-- **做 RAG / 知识库类项目的技术选型**：[LlamaIndex 生态](02-llamaindex/README.md) → [LangChain 生态 · 生态与演进](01-langchain/03-ecosystem/README.md) → [框架选型与可移植架构](06-selection-portability/README.md)；
-- **需要系统化提升 Prompt 质量、而不是手工调参**：[DSPy 声明式优化](03-dspy/README.md)；
-- **.NET 技术栈与存量 SK 维护**：[Semantic Kernel 企业级编排](04-semantic-kernel/README.md)；**Java 技术栈**可先读[第八章 LangChain4j](01-langchain/03-ecosystem/08-langchain4j.md)；
-- **需要多智能体协作或强调类型安全**：[轻量级 Agent 框架](05-lightweight-agent-frameworks/README.md)；
-- **正在做框架选型或迁移决策**：直接从[框架选型与可移植架构](06-selection-portability/README.md)开始，按需回查具体框架章节。
+- **只关心 LangChain/LangGraph 生态**：直接进入 [LangChain 生态](01-langchain/README.zh.md)；
+- **做 RAG / 知识库类项目的技术选型**：[LlamaIndex 生态](02-llamaindex/README.zh.md) → [LangChain 生态 · 生态与演进](01-langchain/03-ecosystem/README.zh.md) → [框架选型与可移植架构](06-selection-portability/README.zh.md)；
+- **需要系统化提升 Prompt 质量、而不是手工调参**：[DSPy 声明式优化](03-dspy/README.zh.md)；
+- **.NET 技术栈与存量 SK 维护**：[Semantic Kernel 企业级编排](04-semantic-kernel/README.zh.md)；**Java 技术栈**可先读[第八章 LangChain4j](01-langchain/03-ecosystem/08-langchain4j.zh.md)；
+- **需要多智能体协作或强调类型安全**：[轻量级 Agent 框架](05-lightweight-agent-frameworks/README.zh.md)；
+- **正在做框架选型或迁移决策**：直接从[框架选型与可移植架构](06-selection-portability/README.zh.md)开始，按需回查具体框架章节。
 
-返回[文档主题索引](../README.md)。
+返回[文档主题索引](../README.zh.md)。
