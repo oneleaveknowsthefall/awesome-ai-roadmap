@@ -1,152 +1,152 @@
 ---
-description: "拆解 Agent 框架锁定来源，以业务契约、状态所有权、影子运行和灰度排空设计可回滚迁移，纳入 MAF 的生态变化。"
+description: "Identify agent-framework lock-in and design reversible migrations with business contracts, state ownership, shadow runs, and staged task draining, accounting for the shift to MAF."
 ---
 
-# 第二十三章：Lock-in 识别、可移植架构与迁移策略
+# Chapter 23: Identifying Lock-in, Designing Portable Architectures, and Planning Migrations
 
-## 23.1 Lock-in 的三个主要来源
+## 23.1 Three major sources of lock-in
 
-「框架锁定」经常被当作模糊风险，下面先拆三个常见技术来源；它们不穷尽全部成本，团队技能、云服务计费和模型特性也可能形成绑定：
+Framework lock-in is often described as a vague risk. Start by separating three common technical sources. They do not account for every cost: team skills, cloud-service pricing, and model-specific capabilities can also create dependencies.
 
-1. **状态格式锁定**：中间状态使用运行时特定格式（如 LangGraph 检查点、Workflows Context），新框架通常不能直接读取；即使能解析字段，也不代表能重建待执行任务语义；
-2. **工具契约与编排逻辑锁定**：工具定义本身通常可移植（见 [第二十二章 22.4 节](22-cross-framework-technical-taxonomy.md)），但「谁来决定调用哪个工具、调用失败怎么办」这类编排逻辑往往深度耦合在框架的执行引擎里；
-3. **可观测性与运维锁定**：Trace 数据格式、告警规则、评测 Dataset 如果绑定在框架自带的私有工具链上（而不是开放标准），换框架意味着这套运维资产需要重建。
+1. **State-format lock-in**: intermediate state uses runtime-specific formats, such as LangGraph checkpoints or a Workflows Context, that a new framework usually cannot read directly. Even parsing the fields does not establish that pending-task semantics can be reconstructed.
+2. **Tool-contract and orchestration lock-in**: tool definitions are often portable (see [Chapter 22, Section 22.4](22-cross-framework-technical-taxonomy.md)), but decisions such as which tool to call and what to do when it fails are frequently coupled to the framework's execution engine.
+3. **Observability and operational lock-in**: if trace formats, alert rules, and evaluation datasets depend on the framework's proprietary toolchain rather than open standards, switching frameworks means rebuilding those operational assets.
 
 ```mermaid
 flowchart TB
-    L["Lock-in 风险"] --> L1["状态格式锁定<br/>私有序列化结构"]
-    L --> L2["编排逻辑锁定<br/>调用顺序/失败处理耦合执行引擎"]
-    L --> L3["运维资产锁定<br/>私有 Trace 格式、私有评测工具链"]
+    L["Lock-in risks"] --> L1["State-format lock-in<br/>Proprietary serialization"]
+    L --> L2["Orchestration lock-in<br/>Call ordering and failure handling<br/>coupled to the execution engine"]
+    L --> L3["Operational lock-in<br/>Proprietary trace formats<br/>and evaluation tools"]
 ```
 
-识别 lock-in 时，先要判断「如果今天切换框架，这三类资产里哪一类迁移成本最高」。很多团队直觉上担心的是「代码要重写」，但实践中真正昂贵的往往是**历史状态数据**和**运维资产**的迁移，而不是业务逻辑代码本身。
+Begin with a concrete question: "If we switched frameworks today, which of these three asset groups would cost the most to migrate?" Teams instinctively worry about rewriting code. In practice, moving **historical state data** and **operational assets** is often more expensive than rewriting the business logic itself.
 
-## 23.2 可移植架构：用适配器分离业务逻辑和框架细节
+## 23.2 Portable architecture: isolate framework details behind adapters
 
-解决 lock-in 的通用架构模式借用了软件工程里熟悉的**六边形架构（Hexagonal Architecture）/端口适配器模式**：把业务核心逻辑放在一个不依赖任何具体框架的内核里，框架特定的代码全部收缩到「适配器」层。
+A common architectural response borrows from **hexagonal architecture, or ports and adapters**: put the business logic in a core that does not depend on a particular framework, and confine framework-specific code to adapters.
 
 ```mermaid
 flowchart TB
-    subgraph Core["业务核心（框架无关）"]
-        BL["领域逻辑：任务定义、业务规则、评测标准"]
+    subgraph Core["Business core: framework-independent"]
+        BL["Domain logic: task definitions,<br/>business rules, evaluation criteria"]
     end
-    subgraph Adapters["适配器层"]
-        A1["LangGraph 适配器"]
-        A2["SK / MAF 适配器"]
-        A3["其他 Agent 运行时适配器"]
+    subgraph Adapters["Adapter layer"]
+        A1["LangGraph adapter"]
+        A2["SK / MAF adapter"]
+        A3["Other agent-runtime adapters"]
     end
-    A1 -->|依赖领域接口| BL
-    A2 -->|依赖领域接口| BL
-    A3 -->|依赖领域接口| BL
-    A1 --> R1["运行时 1"]
-    A2 --> R2["运行时 2"]
-    A3 --> R3["运行时 3"]
+    A1 -->|Depends on domain interfaces| BL
+    A2 -->|Depends on domain interfaces| BL
+    A3 -->|Depends on domain interfaces| BL
+    A1 --> R1["Runtime 1"]
+    A2 --> R2["Runtime 2"]
+    A3 --> R3["Runtime 3"]
 ```
 
-图中箭头表示代码依赖：适配器依赖领域接口和具体运行时，领域核心不反向导入框架。具体到 Agent 系统，这意味着：
+The arrows represent code dependencies. Adapters depend on domain interfaces and concrete runtimes; the domain core does not import a framework in return. For an agent system, this means:
 
-- **业务工具实现放在核心层**：保留领域输入输出、授权规则和幂等语义；适配器处理框架注册、调用上下文、错误映射和取消，不只是换装饰器；
-- **评测标准放在核心层**：评测指标、Golden Dataset 应该独立于任何框架的 Trace 格式存在（比如用普通的输入输出对存成结构化文件），这样即使换了编排框架，历史积累的评测能力依然可以复用；
-- **编排逻辑允许适配器层有差异**：不强求「一套编排代码到处跑」，而是明确接受「编排细节是框架特定的，核心业务规则和评测标准才是需要跨框架保护的资产」。
+- **Keep business tool implementations in the core.** Preserve domain inputs and outputs, authorization rules, and idempotency semantics. Adapters handle framework registration, invocation context, error mapping, and cancellation—not merely a different decorator.
+- **Keep evaluation criteria in the core.** Metrics and golden datasets should exist independently of a framework's trace format, for example as ordinary input/output pairs in structured files. That preserves accumulated evaluation capability even when the orchestration framework changes.
+- **Allow orchestration to differ between adapters.** Do not demand one orchestration implementation that runs everywhere. Accept that orchestration details are framework-specific, while core business rules and evaluation criteria are the assets worth protecting across frameworks.
 
-这并不意味着所有项目都该从一开始就搭完整的适配器层。对于短生命周期、试验性质的项目，直接绑定单一框架通常更高效。适配器架构的投入应该和系统预期生命周期、未来更换框架的概率一起评估，过度设计同样是一种成本。
+Not every project should start with a complete adapter layer. A short-lived experiment is often more efficient when tied directly to one framework. Weigh the investment against the system's expected lifetime and the likelihood of replacing its framework. Overengineering has a cost too.
 
-一个值得保留的最小契约通常包含：业务请求/操作 ID、租户与授权上下文、输入版本、截止时间、幂等键、结构化结果及可重试错误类别。不要把某个框架的 Message 或 Context 直接作为领域服务参数，也不要为了「通用」而抹掉流式输出、审批和取消等必需语义。
+A useful minimum contract generally includes a business request/operation ID, tenant and authorization context, input version, deadline, idempotency key, structured result, and retryable error categories. Do not pass a framework's Message or Context directly into domain services. Equally, do not erase required semantics such as streaming, approval, and cancellation in pursuit of a supposedly universal interface.
 
-## 23.3 框架选型决策流程
+## 23.3 A framework-selection decision process
 
-结合前面的分析，选型可以归纳成一个决策流程：
+The preceding analysis can be organized into a decision process:
 
 ```mermaid
 flowchart TB
-    Q1{"团队主要使用哪种技术栈？"}
-    Q1 -->|".NET"| SK["新 Agent 评估 MAF<br/>存量 SK 核对迁移与支持"]
-    Q1 -->|"JVM"| JV["评估 LangChain4j / Spring AI<br/>沿用现有服务框架"]
-    Q1 -->|"Python 或无强制约束"| Q2{"核心难题是私有数据质量<br/>还是模型/工具编排？"}
-    Q2 -->|"数据质量"| LI["优先评估 LlamaIndex"]
-    Q2 -->|"模型/工具编排"| Q3{"是否需要长时间运行、<br/>人工审批、精细状态恢复？"}
-    Q3 -->|"是"| LG["评估 LangGraph / MAF<br/>或已集成的持久工作流引擎"]
-    Q3 -->|"否"| Q4{"是否需要多个专精 Agent 协作？"}
-    Q4 -->|"是，且有分布式需求"| AG["比较运行时与消息边界<br/>AutoGen 仅作存量维护候选"]
-    Q4 -->|"是，且需要快速搭建角色化协作"| CR["评估 CrewAI"]
-    Q4 -->|"否，重视类型与可测试性"| PA["评估 PydanticAI"]
-    Q4 -->|"否，标准工具循环"| LC["LangChain create_agent<br/>或原生 SDK"]
-    Q5{"Prompt 有明确评估指标，<br/>且需要跨模型迁移？"}
-    LC -.可选叠加.-> Q5
-    LI -.也可优化子任务.-> Q5
-    LG -.也可优化子任务.-> Q5
-    Q5 -->|"是"| DS["叠加评估 DSPy 做子任务编译优化"]
+    Q1{"What is the team's primary stack?"}
+    Q1 -->|".NET"| SK["Evaluate MAF for new agents<br/>Check migration and support<br/>for existing SK systems"]
+    Q1 -->|"JVM"| JV["Evaluate LangChain4j / Spring AI<br/>Keep the existing service framework"]
+    Q1 -->|"Python or no mandated stack"| Q2{"Is the main difficulty private-data quality<br/>or model/tool orchestration?"}
+    Q2 -->|"Data quality"| LI["Evaluate LlamaIndex first"]
+    Q2 -->|"Model/tool orchestration"| Q3{"Need long-running execution,<br/>human approval, or fine-grained<br/>state recovery?"}
+    Q3 -->|"Yes"| LG["Evaluate LangGraph / MAF<br/>or an already-integrated<br/>durable workflow engine"]
+    Q3 -->|"No"| Q4{"Need several specialist agents<br/>to collaborate?"}
+    Q4 -->|"Yes, with distributed execution"| AG["Compare runtime and message boundaries<br/>Consider AutoGen only for<br/>maintaining existing systems"]
+    Q4 -->|"Yes, with rapid role-based setup"| CR["Evaluate CrewAI"]
+    Q4 -->|"No; prioritize types and testability"| PA["Evaluate PydanticAI"]
+    Q4 -->|"No; standard tool loop"| LC["LangChain create_agent<br/>or a native SDK"]
+    Q5{"Do prompts have explicit evaluation metrics<br/>and need to transfer across models?"}
+    LC -.Optional addition.-> Q5
+    LI -.Can also optimize subtasks.-> Q5
+    LG -.Can also optimize subtasks.-> Q5
+    Q5 -->|"Yes"| DS["Also evaluate DSPy<br/>for compiling and optimizing subtasks"]
 ```
 
-这张图用于缩小候选范围，不是品牌推荐算法。语言只约束接入成本，任何分支都还需检查状态、恢复和权限要求。MAF 是 SK/AutoGen 后继，AutoGen 已进入维护模式；PydanticAI 已有持久执行集成，Workflows、CrewAI Flow 也应按运行时需求参与评估。
+This diagram narrows the candidate set; it is not a brand-recommendation algorithm. Language affects integration cost, but every branch must still satisfy state, recovery, and permission requirements. MAF succeeds SK and AutoGen, and AutoGen is in maintenance mode. PydanticAI already has durable-execution integrations; Workflows and CrewAI Flow also deserve consideration when their runtimes fit the requirements.
 
-组合框架是可选方案，不是复杂项目的必然答案。若一个运行时能满足要求，少一层往往更容易管理。确需嵌套时，指定一个顶层状态所有者，让子流程以有界请求返回；明确谁负责重试、取消和审批，避免两层同时重放同一个写工具。
+Combining frameworks is an option, not an inevitable answer to complexity. If one runtime meets the requirements, one fewer layer is usually easier to manage. When nesting is necessary, designate a single top-level state owner and have subprocesses return through bounded requests. Assign responsibility for retries, cancellation, and approvals so two layers do not both replay the same write tool.
 
-## 23.4 迁移策略：从单一框架到可移植架构
+## 23.4 Migration strategy: from a single framework to a portable architecture
 
-如果现有系统已经深度绑定某个框架，想要降低 lock-in 或迁移到另一个框架，直接「推倒重写」风险很高。更稳妥的路径借鉴了传统系统迁移里的成熟模式：
+If an existing system is deeply tied to one framework, a wholesale rewrite is a risky way to reduce lock-in or switch frameworks. A safer approach draws on established system-migration patterns:
 
-1. **契约测试先行**：在动手迁移代码之前，先把现有系统的输入输出行为固化成一套与框架无关的测试用例（沿用 23.2 节提到的、框架无关的评测 Dataset），确保迁移前后行为可对比；
-2. **Strangler Fig（绞杀者模式）**：不追求一次性整体切换，而是先把新流量中的一小部分路由到新框架实现的等价功能，旧实现继续处理其余流量，通过灰度比例的逐步提升完成迁移，而不是设置一个「大爆炸」式的切换时间点；
-3. **双运行期的可观测性对齐**：用相同数据、模型配置及评测指标比较质量、成本、延迟与错误；影子运行默认只读、录制回放或模拟工具，不能让新旧两边同时发邮件、扣款或创建订单；
-4. **状态迁移单独设计**：先区分已完成历史、活跃任务和外部托管会话。活跃任务通常可留在旧运行时排空；必须迁移时，从已确认的业务状态重新入场并核对审批、幂等键与待处理事件，不默认写个格式转换脚本就安全。
+1. **Write contract tests first.** Before migrating code, capture the existing system's input/output behavior in framework-independent tests, reusing the evaluation dataset described in Section 23.2. Make behavior before and after migration comparable.
+2. **Use the Strangler Fig pattern.** Rather than switching the entire system at once, route a small share of new traffic to equivalent functionality implemented in the new framework while the old implementation handles the rest. Increase that share gradually instead of scheduling a big-bang cutover.
+3. **Align observability while both implementations run.** Compare quality, cost, latency, and errors using the same data, model configuration, and metrics. Shadow runs should default to read-only operations, recorded replay, or simulated tools; the old and new implementations must not both send emails, charge accounts, or create orders.
+4. **Design state migration separately.** Distinguish completed history, active tasks, and externally hosted sessions. Active tasks can often finish on the old runtime. If they must move, re-enter from confirmed business state and check approvals, idempotency keys, and pending events. A format-conversion script alone does not make migration safe.
 
 ```mermaid
 flowchart LR
-    A["旧框架实现<br/>处理全部流量"] --> B["契约测试固化行为基线"]
-    B --> C["新框架实现<br/>灰度处理一小部分流量"]
-    C --> D["双运行期用统一评测标准对比"]
-    D --> E["逐步提升灰度比例"]
-    E --> F["活跃任务排空或受控迁移<br/>满足回滚条件后下线"]
+    A["Old implementation<br/>Handles all traffic"] --> B["Capture the behavior baseline<br/>in contract tests"]
+    B --> C["New implementation<br/>Handles a small traffic share"]
+    C --> D["Compare both implementations<br/>using the same evaluation criteria"]
+    D --> E["Gradually increase the new traffic share"]
+    E --> F["Drain or migrate active tasks under control<br/>Retire the old system only after<br/>rollback conditions are satisfied"]
 ```
 
-## 23.5 常见错误
+## 23.5 Common mistakes
 
-### 23.5.1 把「框架无关的适配器架构」当成所有项目的默认起点
+### 23.5.1 Making a framework-independent adapter architecture the default
 
-对生命周期短、需求不确定的试验性项目，提前搭建完整的适配器层是过度设计，会拖慢原型验证速度，应该先绑定单一框架快速验证，等系统证明有长期价值后再考虑投入可移植性建设。
+For short-lived experiments with uncertain requirements, building a complete adapter layer upfront is overengineering that slows prototype validation. Start with one framework, learn quickly, and invest in portability once the system demonstrates lasting value.
 
-### 23.5.2 迁移时只关注代码，忽视历史状态数据
+### 23.5.2 Migrating code while overlooking historical state
 
-代码逻辑可以重写，但线上还在运行的长时间任务、审批流程的历史状态，往往是迁移成本里最容易被低估的部分。
+Code can be rewritten. Long-running tasks still active in production and the historical state of approval processes are often the most underestimated migration costs.
 
-### 23.5.3 双运行期用两套不同的评测标准比较新旧实现
+### 23.5.3 Comparing the two implementations with different evaluation criteria
 
-如果新旧实现分别用各自框架自带的评测工具打分，得到的分数不可比较，必须统一到一套框架无关的评测标准上才有意义。
+Scores are not comparable when the old and new implementations each use their framework's own evaluation criteria. A meaningful comparison requires one framework-independent set of criteria.
 
-### 23.5.4 只保留旧代码，没有保留回滚路径
+### 23.5.4 Keeping the old code without preserving a rollback path
 
-灰度也可能不可回滚：新系统写入旧版本无法读的状态，或完成了不可逆外部操作，切回流量并不能还原业务。应定义版本兼容窗口、任务粘性路由和补偿策略；对可停机的小系统也可以选受控切换，而不是机械要求双跑。
+A staged rollout can still be irreversible. If the new system writes state that the old version cannot read, or completes an irreversible external operation, routing traffic back does not restore the business state. Define version-compatibility windows, sticky routing for tasks, and compensation strategies. A small system that can tolerate downtime may use a controlled cutover rather than running both implementations merely to follow a pattern.
 
-## 23.6 迁移验收与成本边界
+## 23.6 Migration acceptance criteria and cost boundaries
 
-评审迁移方案时，至少给出四份证据：
+A migration review should include at least four kinds of evidence:
 
-- **行为差异**：工具参数、错误类别、超时/取消传播、结构化输出和引用的契约测试；随机生成结果不能只做字符串相等比较。
-- **质量与费用**：代表性数据上的任务成功率、拒答率、p95 延迟、每成功任务成本；记录模型版本，避免把换模型收益记成换框架收益。
-- **故障恢复**：在写工具提交前后、检查点写入前后分别中断，证明不会重复执行不可逆操作；审批等待中的任务单独演练。
-- **退出条件**：灰度提高和回退的阈值、旧任务排空时间、历史数据保留期、最终关闭旧依赖的负责人。
+- **Behavioral differences**: contract tests for tool arguments, error categories, timeout/cancellation propagation, structured outputs, and citations. String equality alone is not a sufficient comparison for stochastic outputs.
+- **Quality and cost**: task success rate, refusal rate, p95 latency, and cost per successful task on representative data. Record model versions so a benefit from changing models is not misattributed to changing frameworks.
+- **Failure recovery**: interrupt before and after write-tool commits and checkpoint writes to establish that irreversible operations are not repeated. Exercise tasks awaiting approval separately.
+- **Exit criteria**: thresholds for increasing or rolling back the new traffic share, time to drain old tasks, historical-data retention, and a named owner for retiring the old dependencies.
 
-如果被追问「用 MCP 暴露所有工具是否就没有 lock-in」，应区分协议互操作与业务可移植性：传输和发现可统一，授权、会话、错误、重试和执行状态仍需适配。适配层本身还会增加维护矩阵，应优先保护预计昂贵的资产，而非提前支持所有框架。
+If asked, "Does exposing every tool through MCP eliminate lock-in?", distinguish protocol interoperability from business portability. Transport and discovery can be standardized, while authorization, sessions, errors, retries, and execution state still need adaptation. The adapter layer also adds combinations to maintain. Protect the assets expected to be expensive to move rather than supporting every framework in advance.
 
-## 23.7 本章总结
+## 23.7 Chapter summary
 
-1. **常见技术 lock-in 可拆三组**：状态格式、编排契约、运维资产；还应计入服务依赖和团队迁移成本；
-2. **可移植架构的核心是把业务核心（工具定义、评测标准）和框架细节（编排执行引擎）分层**，用适配器隔离框架特定代码，但这层投入应该和系统预期生命周期成正比，不是所有项目都需要；
-3. **先按业务约束筛选，再按维护状态和实际运行时验证**，组合多个框架也要说明额外收益；
-4. **契约测试应先于迁移**；能按流量拆分时可采用 Strangler Fig 灰度切换，小系统也可受控停机切换，历史状态与回滚仍需单独设计；
-5. **选型时最终仍要回到同一组技术维度**：不要按框架名字和功能清单做决策，而要按状态模型、持久化粒度、工具契约可移植性、评测与可观测性这些维度，结合项目自身的生命周期和团队约束做判断。
+1. **Common technical lock-in falls into three groups**: state formats, orchestration contracts, and operational assets. Include service dependencies and the team's migration costs as well.
+2. **Portable architecture separates the business core—tool definitions and evaluation criteria—from framework details such as the orchestration engine.** Adapters isolate framework-specific code, but the investment should be proportionate to the system's expected lifetime; not every project needs it.
+3. **Filter by business constraints, then verify maintenance status and actual runtime behavior.** Combining frameworks also needs a clear additional benefit.
+4. **Contract tests should precede migration.** Use staged Strangler Fig migration when traffic can be split, or a controlled downtime-based cutover for small systems. Historical state and rollback still need separate designs.
+5. **Selection ultimately returns to the same engineering dimensions.** Decide from state models, persistence granularity, tool-contract portability, evaluation, and observability—together with project lifetime and team constraints—not framework names and feature lists.
 
-> 长期可移植性依赖于资产分层管理：把工具定义、评测标准和业务规则独立出来，用灰度迁移替代大爆炸式重写，这样更换框架才会是一项可控的工程工作。
+> Long-term portability depends on managing assets separately: keep tool definitions, evaluation criteria, and business rules independent, and prefer staged migration to a big-bang rewrite. That makes switching frameworks a controllable engineering task.
 
-## 参考资料
+## References
 
-- [LangGraph: Persistence 概念](https://docs.langchain.com/oss/python/langgraph/persistence)
+- [LangGraph: Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)
 - [Semantic Kernel: Process Framework](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/process/process-framework)
-- [Microsoft Agent Framework 概览与后继关系](https://learn.microsoft.com/en-us/agent-framework/overview/)
-- [SK → MAF 迁移指南](https://learn.microsoft.com/en-us/agent-framework/migration-guide/from-semantic-kernel/)
-- [AutoGen 官方维护模式说明](https://github.com/microsoft/autogen)
+- [Microsoft Agent Framework overview and successor relationship](https://learn.microsoft.com/en-us/agent-framework/overview/)
+- [SK → MAF migration guide](https://learn.microsoft.com/en-us/agent-framework/migration-guide/from-semantic-kernel/)
+- [AutoGen official maintenance-mode notice](https://github.com/microsoft/autogen)
 - [PydanticAI: Durable Execution](https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/)
-- [OpenTelemetry Generative AI 语义约定仓库](https://github.com/open-telemetry/semantic-conventions-genai)
+- [OpenTelemetry Generative AI semantic-conventions repository](https://github.com/open-telemetry/semantic-conventions-genai)
 - [Martin Fowler: StranglerFigApplication](https://martinfowler.com/bliki/StranglerFigApplication.html)
 - [Alistair Cockburn: Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/)

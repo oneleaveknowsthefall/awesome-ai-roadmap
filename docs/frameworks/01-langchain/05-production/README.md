@@ -1,14 +1,14 @@
 ---
-description: 通过 Deep Research 的证据与预算管理、Deep Agents 执行边界和 LangSmith 评测闭环讨论生产可靠性。
+description: "Explore production reliability through Deep Research evidence and budget management, Deep Agents execution boundaries, and LangSmith evaluation feedback loops."
 ---
 
-# LangChain · 生产闭环
+# LangChain · Production Feedback Loops
 
-覆盖 Deep Research、Deep Agents 与 LangSmith 质量闭环。
+Covers Deep Research, Deep Agents, and quality feedback loops with LangSmith.
 
-## 章节
+## Chapters
 
-1. [第十二章：Deep Research 的实现逻辑](12-deep-research.md)
-2. [第十三章：用 LangSmith 建立生产质量闭环](13-langsmith-production-loop.md)
+1. [Chapter 12: How Deep Research Works](12-deep-research.md)
+2. [Chapter 13: Building a Production Quality Feedback Loop with LangSmith](13-langsmith-production-loop.md)
 
-返回 [LangChain 生态](../README.md)。
+Back to the [LangChain Ecosystem](../README.md).

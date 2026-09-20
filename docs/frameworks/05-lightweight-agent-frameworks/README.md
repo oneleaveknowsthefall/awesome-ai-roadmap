@@ -1,31 +1,31 @@
 ---
-description: "比较 AutoGen 消息运行时、CrewAI 任务与流程、PydanticAI 类型化 Agent，结合维护状态、持久执行和成本划定适用边界。"
+description: "Compares AutoGen's messaging runtime, CrewAI's tasks and Flows, and PydanticAI's typed agents through maintenance status, durable execution, and cost."
 ---
 
-# 框架与编排 · 轻量级 Agent 框架：AutoGen、CrewAI 与 PydanticAI
+# Frameworks and Orchestration · Lightweight Agent Frameworks: AutoGen, CrewAI, and PydanticAI
 
-「轻量级」是阅读分组，不是严格的技术分类：AutoGen 有消息运行时，CrewAI 有 Crew 与 Flow，PydanticAI 也有多 Agent 和持久执行集成，不能据此断言只适合原型或单次调用。
+"Lightweight" is a reading group, not a strict technical category. AutoGen has a messaging runtime, CrewAI has Crews and Flows, and PydanticAI also has multi-agent and durable-execution integrations. The label does not imply that these frameworks are suitable only for prototypes or individual calls.
 
-AutoGen 已进入维护模式，官方建议新用户采用 Microsoft Agent Framework，版本来源见第二十章参考资料。本模块同时讨论存量抽象与新项目选型；角色数量、类型校验与运行可靠性应分别评估。
+AutoGen is now in maintenance mode, and its official recommendation is for new users to adopt Microsoft Agent Framework; version sources appear in Chapter 20's references. This module discusses both existing abstractions and choices for new projects. The number of roles, type validation, and runtime reliability should be evaluated separately.
 
-## 章节
+## Chapters
 
-1. [第二十章：AutoGen 与 CrewAI 的多智能体抽象](20-autogen-and-crewai.md)
-2. [第二十一章：PydanticAI 的类型安全范式与三者适用边界](21-pydanticai-and-decision-matrix.md)
+1. [Chapter 20: Multi-Agent Abstractions in AutoGen and CrewAI](20-autogen-and-crewai.md)
+2. [Chapter 21: PydanticAI's Type-Safe Approach and Where the Three Frameworks Fit](21-pydanticai-and-decision-matrix.md)
 
-## 模块关系
+## How the pieces fit together
 
 ```mermaid
 flowchart LR
-    A["AutoGen（维护模式）<br/>Core / AgentChat"] -.对话式多智能体.-> D["适用边界对照<br/>（第二十一章）"]
-    C["CrewAI<br/>角色化 Crew / Process / Flow"] -.角色化多智能体.-> D
-    P["PydanticAI<br/>类型 / 历史 / 持久执行集成"] -.可测试性与运行边界.-> D
+    A["AutoGen in maintenance mode<br/>Core / AgentChat"] -.Conversational multi-agent systems.-> D["Comparing where each fits<br/>Chapter 21"]
+    C["CrewAI<br/>Role-based Crew / Process / Flow"] -.Role-based multi-agent systems.-> D
+    P["PydanticAI<br/>Types / history / durable-execution integrations"] -.Testability and runtime boundaries.-> D
 ```
 
-## 阅读建议
+## Reading suggestions
 
-- 如果需要多个 Agent 协作，可读第二十章，对比消息策略、任务顺序和 Flow 控制，并用单 Agent 基线核对收益；
-- 如果更关心单 Agent 的工程正确性（类型、校验、依赖注入），可直接读第二十一章前半部分；
-- 如果正在选型、不确定用哪个，可直接看第二十一章的决策矩阵，再跳转 [框架选型与可移植架构](../06-selection-portability/README.md) 看跨全部框架的统一对照。
+- If you need multiple agents to collaborate, read Chapter 20 to compare messaging strategies, task ordering, and Flow control, then check the benefits against a single-agent baseline.
+- If your focus is engineering correctness for one agent—types, validation, and dependency injection—go directly to the first half of Chapter 21.
+- If you are choosing a framework and are unsure which to use, start with Chapter 21's decision matrix, then consult [Framework Selection and Portable Architectures](../06-selection-portability/README.md) for a unified comparison across all frameworks.
 
-返回 [AI 框架与编排 相关知识点](../README.md)。
+Return to [AI Frameworks and Orchestration topics](../README.md).

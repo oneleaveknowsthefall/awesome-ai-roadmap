@@ -1,263 +1,263 @@
 ---
-description: 分析研究型 Agent 的证据链、串并行规划、停止预算与 Deep Agents backend 边界，区分引用质量和报告长度。
+description: "Examine evidence chains, sequential and parallel planning, stopping budgets, and Deep Agents backend boundaries without confusing citation quality with report length."
 ---
 
-# 第十二章：Deep Research 的实现逻辑
+# Chapter 12: How Deep Research Works
 
-## 12.1 Deep Research 是什么
+## 12.1 What is Deep Research?
 
-简单事实问答可能一次检索就能得到答案；开放研究任务往往一开始就没有固定路径。需要多跳检索的普通问答与 Deep Research 并无严格次数分界。
+One retrieval may answer a simple factual question; an open-ended research task often has no predetermined path. There is no strict number of retrieval steps that separates ordinary multi-hop question answering from Deep Research.
 
-例如比较三家云厂商的 Agent 托管能力，需要分别查产品定位、价格、限制和区域差异，还要处理**产品改名、资料过期和来源矛盾**。
+For example, comparing the agent-hosting capabilities of three cloud providers requires investigating product positioning, pricing, limitations, and regional differences, while handling **renamed products, outdated material, and conflicting sources**.
 
-> Deep Research 关注的是一套研究流程：系统要围绕研究目标决定下一步搜什么、哪些问题可以并行、证据是否充分，以及何时停止。
+> Deep Research is about a research process: the system must use the research objective to decide what to search for next, which questions can be explored in parallel, whether the evidence is sufficient, and when to stop.
 
-### 12.1.1 生态里几个名字的区别
+### 12.1.1 Distinguishing the names in the ecosystem
 
-| 名字 | 定位 |
+| Name | Role |
 |---|---|
-| **LangChain** | 提供模型、工具和 Agent 等**高层积木** |
-| **LangGraph** | 负责**有状态流程如何编排和运行** |
-| **open_deep_research** | 展示一套**具体研究流程** |
-| **Deep Agents** | 构建在 LangGraph 上的 Python **agent harness**：提供规划、子 Agent、上下文管理和文件系统工具；不是一个保证研究正确性的托管研究产品 |
+| **LangChain** | Provides **high-level building blocks** such as models, tools, and agents |
+| **LangGraph** | Handles **orchestration and execution of stateful workflows** |
+| **open_deep_research** | Demonstrates **a specific research workflow** |
+| **Deep Agents** | A Python **agent harness** built on LangGraph, providing planning, subagents, context management, and filesystem tools; not a hosted research product that guarantees correct research |
 
-> 边界需要明确：Deep Agents 是单独安装的 `deepagents` SDK/harness，不是 LangChain 核心包的开关，也不替你提供模型、身份系统、业务授权、数据治理或安全隔离。`task` 子 Agent 默认是一次性、隔离上下文后只回传最终报告；任务清单从 v0.7 起是 opt-in，不应假设每个 Deep Agent 都会规划或长期记忆。
+> Keep the boundaries clear: Deep Agents is the separately installed `deepagents` SDK/harness, not a switch in the core LangChain package. It does not supply your model, identity system, business authorization, data governance, or security isolation. By default, a `task` subagent is a one-shot invocation with an isolated context that returns only its final report. Task lists are opt-in from v0.7 onward; do not assume that every Deep Agent plans or has long-term memory.
 
-这里的 `task` 指同步子 Agent：主调用等待它完成，不代表所有委派都能后台运行。官方另有 async subagents，用于长任务、运行中追加指令和取消；该页面仍标注为 preview，依赖实现 Agent Protocol 的服务端，可以是 LangSmith Deployment，也可以自行托管兼容服务。不能把同步子任务包装成线程就宣称已经具备持久化后台调度。可选任务清单也不等于模型一定产生有效研究计划。
+Here, `task` refers to a synchronous subagent: the parent call waits for it to finish, so delegation does not always mean background execution. The official async subagents feature supports long-running tasks, mid-task instructions, and cancellation. It depends on a server implementing the Agent Protocol, either LangSmith Deployment or a self-hosted compatible service. Wrapping a synchronous subtask in a thread does not amount to durable background scheduling. An optional task list does not guarantee that the model will produce an effective research plan, either.
 
-## 12.2 核心流程
+## 12.2 The core workflow
 
 ```mermaid
 flowchart TB
-    S1["① 澄清问题并确定范围"] --> S2["② 生成 Research Brief"]
-    S2 --> S3["③ Supervisor 拆分子课题"]
-    S3 --> S4["④ Researcher 并行检索与核验"]
-    S4 --> S5["⑤ 压缩证据并检查研究缺口"]
-    S5 -->|发现缺口或冲突| S3
-    S5 -->|覆盖充分| S6["⑥ 统一生成最终报告"]
+    S1["① Clarify the question and scope"] --> S2["② Create a research brief"]
+    S2 --> S3["③ Supervisor divides the research into subtopics"]
+    S3 --> S4["④ Researchers retrieve and verify in parallel"]
+    S4 --> S5["⑤ Compress evidence and check research gaps"]
+    S5 -->|Gaps or conflicts found| S3
+    S5 -->|Sufficient coverage| S6["⑥ Write a unified final report"]
 
     style S2 fill:#e8f0fe
     style S6 fill:#e6f4ea
 ```
 
-| 步骤 | 关键点 |
+| Step | Key point |
 |---|---|
-| **① 范围澄清** | 用户只说「研究某家公司」时，要确认是关注**投资价值、技术路线还是就业风险**，否则后续搜索很容易跑偏 |
-| **② Research Brief** | 把用户目标、研究维度、时间范围、来源要求和交付形式整理成**稳定的成功标准** |
-| **③ 拆分子课题** | **只有相对独立的问题才适合并行**（如分别研究三家公司的定价）；后一个问题依赖前一个结论就应该串行 |
-| **④ 多轮检索** | 每个研究员**只处理一个主题**，并**保留来源信息** |
-| **⑤ 压缩与查缺** | **不是把所有网页原文塞回 Supervisor**，而是压缩成**带出处的关键证据**；再检查 Brief 是否被覆盖 |
-| **⑥ 统一写作** | 组织论证、处理重复内容，**将事实、推断和不确定性分开表达** |
+| **① Clarify scope** | When a user only says “research this company,” establish whether the focus is **investment value, technical direction, or employment risk**; otherwise, subsequent searches can easily drift |
+| **② Research brief** | Turn the user's objective, research dimensions, time range, source requirements, and deliverable format into **stable success criteria** |
+| **③ Divide into subtopics** | **Only relatively independent questions suit parallel execution**, such as researching three companies' pricing separately; if one question depends on another's conclusion, handle them sequentially |
+| **④ Retrieve over multiple rounds** | Each researcher **handles only one topic** and **retains source information** |
+| **⑤ Compress and identify gaps** | **Do not send every full web page back to the supervisor**; compress the material into **key evidence with provenance**, then check whether it covers the brief |
+| **⑥ Write a unified report** | Organize the argument, remove duplication, and **distinguish facts, inferences, and uncertainty** |
 
-## 12.3 为什么需要子 Agent
+## 12.3 Why use subagents?
 
-**如果一个 Agent 同时研究多个主题**，搜索结果会不断占用同一个上下文——A 公司的价格、B 公司的安全文档和 C 公司的失败请求混在一起，**模型反而更难关注当前证据**。
+**If one agent researches several topics at once**, search results keep filling the same context. Company A's pricing, company B's security documentation, and failed requests for company C become mixed together, **making it harder for the model to focus on the evidence at hand**.
 
-### 12.3.1 第一目的是隔离上下文
+### 12.3.1 The primary purpose is context isolation
 
-> **每个 Researcher 只处理一个子课题，最终只返回压缩后的结论和来源，主 Agent 不必背着全部搜索过程继续思考。**
+> **Each researcher handles one subtopic and returns only compressed findings and sources. The main agent can continue reasoning without carrying the entire search history.**
 
-这里隔离的是消息上下文，不是操作系统权限或所有存储。Deep Agents 的默认 State backend 文件可由主 Agent 与子 Agent 共享；需要保密隔离时，还要分别配置工具权限和存储边界，不能只靠委派。
+This isolates the message context, not operating-system permissions or all storage. Files in the default Deep Agents State backend can be shared by the main agent and subagents. Confidentiality requires separate tool permissions and storage boundaries; delegation alone does not provide them.
 
-### 12.3.2 并行是隔离之后的自然结果
+### 12.3.2 Parallelism follows naturally from isolation
 
-- 相互独立的研究任务可以同时执行，**整体等待时间下降**；
-- **彼此依赖的任务却仍要按顺序完成**。
+- Independent research tasks can run at the same time, **reducing overall wait time**.
+- **Tasks that depend on each other still have to run in order**.
 
-> **Agent 数量越多，模型调用、搜索费用、限流和协调成本也越高。不能为了并行而并行，关键仍是子课题能否独立推进。**
+> **More agents also mean more model calls, search spending, rate-limit pressure, and coordination overhead. Parallelism is not an end in itself; the question is whether the subtopics can progress independently.**
 
-### 12.3.3 为什么不让子 Agent 分别写报告章节
+### 12.3.3 Why not let each subagent write a report section?
 
-> **因为各章节可能重复背景、使用不同口径，甚至得出相互冲突的结论。**
+> **Sections may repeat background material, use inconsistent definitions or measurement methods, or even reach conflicting conclusions.**
 >
-> **并行搜证据、统一写报告**，更容易保持全文一致性。
+> **Collect evidence in parallel, then write a unified report** to make consistency easier to maintain.
 
-## 12.4 如何保证研究质量
+## 12.4 How do you ensure research quality?
 
-**研究报告很长、链接很多，并不代表质量高。**
+**A long research report with many links is not necessarily a good one.**
 
-判断质量时，可以沿着「来源 → 证据 → 结论」反向追查：
+To assess quality, work backward through the chain of “source → evidence → conclusion”:
 
 ```mermaid
 flowchart TB
-    A["① 来源是否值得信<br/>官方文档、论文、监管文件、一手资料更接近原始事实<br/>多篇转载可能都来自同一篇文章<br/>不能因为链接数量多就当成交叉验证"]
-    A --> B["② 来源是否真的支持当前结论<br/>报告应把事实、推断和不确定性分开<br/>遇到冲突时追查发布时间、统计口径和原始出处<br/>而不是挑一个最符合预期的答案"]
-    B --> C["③ 结论仍不稳就回到研究过程<br/>搜索词是否漏掉关键限定<br/>子课题是否重复<br/>停止条件是否过早<br/>工具失败后有没有换用有效来源"]
+    A["① Is the source trustworthy?<br/>Official docs, papers, regulatory documents, and primary sources are closer to the original facts<br/>Several reposts may all come from one article<br/>Many links do not establish independent corroboration"]
+    A --> B["② Does the source actually support this conclusion?<br/>Separate facts, inferences, and uncertainty<br/>When sources conflict, check publication dates, measurement definitions, and original sources<br/>Do not simply choose the answer that best fits expectations"]
+    B --> C["③ If the conclusion remains uncertain, revisit the research process<br/>Did search terms omit important qualifiers?<br/>Do subtopics overlap?<br/>Did the stopping rule end research too early?<br/>After tool failures, were valid alternative sources used?"]
 
     style A fill:#e8f0fe
     style C fill:#fff3cd
 ```
 
-### 12.4.1 评测既看答案也看轨迹
+### 12.4.1 Evaluate both the answer and the trace
 
-| 维度 | 检查 |
+| Dimension | Check |
 |---|---|
-| 最终答案 | 是否覆盖 Brief |
-| **研究轨迹** | 搜索路径是否合理 |
-| **来源覆盖率** | 关键维度是否都有证据 |
-| **引用正确性** | 引用是否真的支持结论 |
-| 耗时与成本 | 是否在预算内 |
+| Final answer | Does it cover the brief? |
+| **Research trace** | Was the search path reasonable? |
+| **Source coverage** | Is there evidence for every key dimension? |
+| **Citation correctness** | Do citations actually support the conclusions? |
+| Time and cost | Did the task stay within budget? |
 
-> **通用 Benchmark 可以用于版本比较，但不能代替企业自己的业务数据集。**
+> **General-purpose benchmarks can compare versions, but cannot replace an organization's own business datasets.**
 
-证据压缩后至少保留「主张、原文片段、URL/文档 ID、页码或段落位置、来源版本与抓取时间」。写作模型使用这些证据 ID，而不是凭记忆重新生成链接；最后逐项验证引用是否支持相邻主张，并统计需要引用却缺少证据的主张。一个链接真实存在只能证明可访问，不能证明结论正确；多篇转载也不构成多个独立来源。
+Compressed evidence should retain at least the claim, original excerpt, URL/document ID, page or paragraph location, source version, and retrieval time. The writing model should use these evidence IDs rather than regenerate links from memory. Finally, verify each citation against its adjacent claim and count claims that need citations but lack evidence. A working link proves accessibility, not the correctness of a conclusion; several reposts do not constitute several independent sources.
 
-停止条件不宜只写「继续直到充分」：设定必须覆盖的研究维度、未解决冲突清单、连续补搜的新增有效证据量，以及硬性时间/费用上限。预算耗尽时应交付部分结论并标明缺口，而不是让总结模型把未查到的内容补成肯定事实。
+“Keep going until there is enough evidence” is not a useful stopping rule. Define required research dimensions, a list of unresolved conflicts, the amount of new useful evidence found over successive follow-up searches, and hard time/cost limits. When the budget runs out, deliver partial findings with explicit gaps rather than letting the summarizing model turn missing information into asserted facts.
 
-## 12.5 如何控制成本和安全
+## 12.5 How do you control cost and security?
 
-### 12.5.1 成本受「宽度」和「深度」双重影响
+### 12.5.1 Both breadth and depth affect cost
 
-| 维度 | 含义 | 控制手段 |
+| Dimension | Meaning | Control |
 |---|---|---|
-| **宽度** | 并行研究单元数量 | **限制同时运行的研究单元** |
-| **深度** | 每个 Researcher 和 Supervisor 最多迭代多少轮 | **限制工具调用次数和补搜轮数** |
+| **Breadth** | Number of parallel research units | **Limit concurrently running research units** |
+| **Depth** | Maximum iterations for each researcher and the supervisor | **Limit tool calls and follow-up search rounds** |
 
-**单个分支有上限还不够**——整项任务还要设置**总 Token、搜索费用和超时预算**，再补上失败重试、缓存、限流和取消策略。
+**A limit on each branch is not enough**. Set **total token, search-cost, and timeout budgets** for the entire task, along with policies for retries, caching, rate limiting, and cancellation.
 
-> 这样才能明确继续、降级或停止的条件。
+> These controls make it clear when to continue, reduce functionality, or stop.
 
-### 12.5.2 网页和外部文档都是不可信输入
+### 12.5.2 Web pages and external documents are untrusted input
 
-> **它们可能包含诱导 Agent 泄露密钥或执行危险操作的提示词注入。**
+> **They may contain prompt injections that try to make the agent disclose secrets or perform dangerous actions.**
 
-| 措施 |
+| Measure |
 |---|
-| 研究工具**优先只读** |
-| 内部数据遵循**最小权限** |
-| **密钥不要暴露给搜索或沙箱环境** |
-| 高风险操作**必须人工审批并保留 Trace** |
+| Prefer **read-only research tools** |
+| Apply **least privilege** to internal data |
+| **Do not expose secrets to search or sandbox environments** |
+| High-risk actions **require human approval and retained traces** |
 
-> **对于金融、医疗、法律和安全决策，Deep Research 只能辅助资料整理，不能因为报告带有引用就取消专家复核。**
+> **For financial, medical, legal, and security decisions, Deep Research can only assist with organizing information. Citations in a report are not a reason to remove expert review.**
 
-### 12.5.3 Deep Agents 的文件系统与沙箱边界
+### 12.5.3 Filesystem and sandbox boundaries in Deep Agents
 
-Deep Agents 向模型提供的是**可插拔 backend 后面的文件系统工具面**：`ls`、`read_file`、`write_file`、`edit_file`、`delete`、`glob`、`grep`。这不是抽象概念——给错 backend 就可能让模型读写真实文件。
+Deep Agents exposes a **filesystem tool surface backed by pluggable backends**: `ls`, `read_file`, `write_file`, `edit_file`, `delete`, `glob`, and `grep`. This is not merely an abstraction: choosing the wrong backend can give the model access to read and write real files.
 
-| Backend / 场景 | 数据与能力 | 安全边界 |
+| Backend / scenario | Data and capabilities | Security boundary |
 |---|---|---|
-| 默认 State backend | 文件随 LangGraph state/checkpointer 在**同一 thread**内保存 | 适合临时工作区；不跨 thread 共享 |
-| `StoreBackend` | 文件跨 thread 持久化 | namespace、租户隔离、保留与删除策略由应用负责 |
-| `FilesystemBackend` | 读写真实本地文件 | `root_dir` 本身不是访问限制；需配合 `virtual_mode=True` 约束文件工具路径，仍不等于进程沙箱 |
-| `LocalShellBackend` | 本机文件系统，另有 `execute` | **没有隔离**；仅限受控开发环境 |
-| Sandbox backend | 隔离的文件系统和 `execute` | 适合不可信代码与自主 Agent；仍须限制网络、凭证、挂载目录、资源和生命周期 |
+| Default State backend | Files are retained within **the same thread** through LangGraph state/checkpointer | Suitable for a temporary workspace; not shared across threads |
+| `StoreBackend` | Files persist across threads | The application owns namespaces, tenant isolation, retention, and deletion policies |
+| `FilesystemBackend` | Reads and writes real local files | `root_dir` alone is not an access restriction; use `virtual_mode=True` to constrain filesystem tool paths, which still does not provide a process sandbox |
+| `LocalShellBackend` | Host filesystem plus `execute` | **No isolation**; only for controlled development environments |
+| Sandbox backend | Isolated filesystem and `execute` | Suitable for untrusted code and autonomous agents; still requires restrictions on networking, credentials, mounts, resources, and lifetime |
 
-> 上表中 Sandbox 和 LocalShell backend 提供 shell `execute`，自定义 backend 或工具还可能扩展能力。Sandbox 是隔离边界，不是「默认安全」的同义词：把最小权限凭证按需注入，使用只读/受限网络与 CPU、内存、时间配额，并在删除、外发、付费调用等动作前启用 `interrupt_on` 审批。不要把宿主机的环境变量或云凭证直接暴露给 Agent。
+> The Sandbox and LocalShell backends above provide shell `execute`; custom backends or tools may add further capabilities. A sandbox is an isolation boundary, not a synonym for “secure by default.” Inject least-privilege credentials only when needed, use read-only access/restricted networking and CPU, memory, and time quotas, and enable `interrupt_on` approval before actions such as deletion, outbound transmission, or paid calls. Do not directly expose host environment variables or cloud credentials to the agent.
 
-官方说明 `FilesystemBackend` 默认 `virtual_mode=False`，即使设置 `root_dir` 也不提供路径安全边界。启用虚拟路径后仍应只暴露专用最小目录；若同时开放本机 shell，命令可以绕过文件工具的路径约束，必须另用受限执行环境。
+The official documentation states that `FilesystemBackend` defaults to `virtual_mode=False`, which provides no path security boundary even when `root_dir` is set. Even with virtual paths enabled, expose only a minimal, dedicated directory. If host shell access is also available, commands can bypass the filesystem tools' path restrictions; a separately restricted execution environment is required.
 
-**推荐组合**：临时中间产物放 thread-scoped State backend；经审核、需要跨会话保留的资料放带租户 namespace 的 Store backend；代码执行放一次性 sandbox。需要同时使用时用 Composite backend 按路径路由，而不是把所有数据和权限放进一个可写本地目录。
+**A recommended combination**: put temporary intermediate artifacts in a thread-scoped State backend; put reviewed material that must persist across sessions in a Store backend with tenant namespaces; execute code in a disposable sandbox. When combining these, use a Composite backend to route by path rather than placing all data and permissions in one writable local directory.
 
-## 12.6 哪些场景适合
+## 12.6 Which scenarios are a good fit?
 
-先判断是否需要动态、多轮的证据收集，再判断是否值得使用并行研究员。能否拆成独立子课题只影响并行方案，不是 Deep Research 的必要条件：
+First decide whether dynamic, multi-round evidence gathering is necessary, then whether parallel researchers are worthwhile. The ability to split a task into independent subtopics determines the parallelization strategy; it is not a prerequisite for Deep Research:
 
 ```mermaid
 flowchart TB
-    Q1{"问题是否开放到<br/>需要多轮搜索和动态调整方向?"}
-    Q1 -->|一次权威检索就能回答| N1["不用<br/>复杂研究流程只会增加成本"]
-    Q1 -->|是| Q2{"能否拆出相对独立的子课题?"}
-    Q2 -->|不能| N2["使用串行研究<br/>避免强行并行"]
+    Q1{"Is the question open-ended enough<br/>to need repeated searches and changes of direction?"}
+    Q1 -->|One authoritative retrieval can answer it| N1["Do not use it<br/>A complex research workflow only adds cost"]
+    Q1 -->|Yes| Q2{"Can it be split into relatively independent subtopics?"}
+    Q2 -->|No| N2["Use sequential research<br/>Do not force parallelism"]
     N2 --> Q3
-    Q2 -->|能| Q3{"报告价值能否覆盖<br/>多轮模型与搜索成本?"}
-    Q3 -->|不能| N3["不用"]
-    Q3 -->|能| Y["适合 Deep Research"]
+    Q2 -->|Yes| Q3{"Does the report's value justify<br/>multiple rounds of model and search costs?"}
+    Q3 -->|No| N3["Do not use it"]
+    Q3 -->|Yes| Y["A good fit for Deep Research"]
 
     style Y fill:#e6f4ea
 ```
 
-**典型场景**：竞品分析、技术路线调研、文献综述、供应商尽调、政策影响研究，以及企业内部资料与公开信息的联合分析。
+**Typical scenarios** include competitive analysis, research into technical directions, literature reviews, vendor due diligence, policy-impact studies, and analysis that combines internal company material with public information.
 
-**不适合的情形**：
+**Poor fits**:
 
-| 情形 | 原因 |
+| Situation | Reason |
 |---|---|
-| 只查一个容易核验的实时事实 | **一次权威搜索更快、更便宜** |
-| 多个子任务必须严格共享中间状态 | 不适合强行并行；可采用串行研究或显式依赖工作流 |
-| 数据源本身不可靠或没有访问权限 | **研究 Agent 也无法凭空得到正确答案** |
+| Looking up one easily verified, current fact | **One authoritative search is faster and cheaper** |
+| Several subtasks must strictly share intermediate state | Do not force parallelism; use sequential research or a workflow with explicit dependencies |
+| Sources are unreliable or inaccessible due to permissions | **A research agent cannot produce a correct answer out of nothing** |
 
-## 12.7 常见错误
+## 12.7 Common mistakes
 
-### 12.7.1 把 Deep Research 理解成「搜索很多次」
+### 12.7.1 Treating Deep Research as “searching many times”
 
-重点在于动态决定搜什么、能否并行、证据够不够、何时停止。
+The point is to decide dynamically what to search for, whether work can run in parallel, whether the evidence is sufficient, and when to stop.
 
-### 12.7.2 把它当成 LangChain 核心包里的一个开关
+### 12.7.2 Treating it as a switch in the core LangChain package
 
-**它是一类研究型 Agent 架构**，参考实现和通用框架定位不同。
+**It is a class of research-agent architectures**. A reference implementation and a general-purpose framework have different roles.
 
-### 12.7.3 跳过范围澄清直接开搜
+### 12.7.3 Searching before clarifying the scope
 
-**Brief 不明确，后续所有搜索都可能跑偏。**
+**An unclear brief can send every subsequent search in the wrong direction.**
 
-### 12.7.4 把有依赖关系的子课题也并行
+### 12.7.4 Running dependent subtopics in parallel
 
-**后一个依赖前一个结论时必须串行。**
+**If one subtopic depends on another's conclusion, they must run sequentially.**
 
-### 12.7.5 把网页原文全部塞回 Supervisor
+### 12.7.5 Sending every full web page back to the supervisor
 
-**应该压缩成带出处的关键证据**，否则上下文很快被占满。
+**Compress the material into key evidence with provenance**, or the context will quickly fill up.
 
-### 12.7.6 让子 Agent 分别写报告章节
+### 12.7.6 Letting subagents write separate report sections
 
-**会重复背景、口径不一、结论冲突**，应并行搜证据、统一写报告。
+**Background may be repeated, definitions may differ, and conclusions may conflict**. Collect evidence in parallel, then write a unified report.
 
-### 12.7.7 用链接数量当交叉验证
+### 12.7.7 Treating link count as independent corroboration
 
-**多篇转载可能都来自同一篇文章。**
+**Several reposts may all come from the same article.**
 
-### 12.7.8 遇到冲突挑一个最符合预期的答案
+### 12.7.8 Resolving conflicts by choosing the answer that fits expectations
 
-**要追查发布时间、统计口径和原始出处。**
+**Investigate publication dates, measurement definitions, and original sources.**
 
-### 12.7.9 只控制单分支迭代不设总预算
+### 12.7.9 Limiting branch iterations without a total budget
 
-**整项任务还要有总 Token、搜索费用和超时上限。**
+**The entire task also needs total token, search-cost, and timeout limits.**
 
-### 12.7.10 把网页内容当可信输入
+### 12.7.10 Treating web content as trusted input
 
-**提示词注入可能诱导泄露密钥或执行危险操作**，研究工具应优先只读。
+**Prompt injection may induce secret disclosure or dangerous actions**. Prefer read-only research tools.
 
-### 12.7.11 因为报告有引用就取消专家复核
+### 12.7.11 Removing expert review because a report has citations
 
-**金融、医疗、法律和安全决策它只能辅助。**
+**It can only assist with financial, medical, legal, and security decisions.**
 
-### 12.7.12 只用通用 Benchmark 评测
+### 12.7.12 Evaluating only with general-purpose benchmarks
 
-**不能代替企业自己的业务数据集。**
+**They cannot replace the organization's own business datasets.**
 
-### 12.7.13 把 Deep Agents 当成默认隔离环境
+### 12.7.13 Assuming Deep Agents provides isolation by default
 
-文件工具和 `execute` 的权限由 backend 决定；`LocalShellBackend` 直接操作宿主机。对不可信输入或自主代码执行，应选 sandbox，并单独约束凭证、网络、挂载和资源。
+The backend determines the permissions of filesystem tools and `execute`; `LocalShellBackend` operates directly on the host. For untrusted input or autonomous code execution, use a sandbox and separately restrict credentials, networking, mounts, and resources.
 
-## 12.8 本章总结
+## 12.8 Chapter summary
 
-1. **Deep Research 是一类研究型 Agent 架构**，不是核心包中的一个开关；
-2. **本章参考实现使用 LangChain 与 LangGraph**，研究型 Agent 的一般方法并不依赖这套框架；
-3. **六步流程**：明确范围 → 生成 Brief → 拆分子课题 → 并行检索核验 → 压缩证据查缺 → 统一写作；
-4. **Research Brief 明确成功标准**，可以降低搜索偏离目标的风险；
-5. **只有独立子课题适合并行**，有依赖就串行；
-6. **子 Agent 的第一目的是隔离上下文**，并行是隔离之后的自然结果；
-7. **并行搜证据、统一写报告**，避免章节重复与结论冲突；
-8. **质量沿「来源 → 证据 → 结论」反向追查**，链接多不等于交叉验证；
-9. **评测既看答案也看轨迹、覆盖率、引用正确性、耗时和成本**；
-10. **成本受宽度和深度双重影响**，单分支上限之外还要有总预算和取消策略；
-11. **外部文档是不可信输入**：工具只读、最小权限、密钥隔离、高风险人工审批；
-12. **开放程度和报告价值决定是否研究，子课题独立性决定是否并行**；串行研究同样可以是 Deep Research；
-13. **Deep Agents 是 SDK/harness 而非安全或正确性承诺**：文件、持久化和 shell 权限取决于 backend；不可信代码要在受限 sandbox 中执行。
+1. **Deep Research is a class of research-agent architectures**, not a switch in a core package.
+2. **The reference implementation in this chapter uses LangChain and LangGraph**, but the general approach to research agents does not depend on these frameworks.
+3. **The six-step workflow**: clarify scope → create a brief → divide into subtopics → retrieve and verify in parallel → compress evidence and identify gaps → write a unified report.
+4. **A research brief defines success criteria**, reducing the risk of searches drifting away from the objective.
+5. **Only independent subtopics suit parallel execution**; handle dependencies sequentially.
+6. **Context isolation is the primary purpose of subagents**; parallelism follows naturally from that isolation.
+7. **Collect evidence in parallel, then write a unified report** to avoid duplicate sections and conflicting conclusions.
+8. **Assess quality by tracing backward through “source → evidence → conclusion”**; many links do not establish independent corroboration.
+9. **Evaluate the answer, trace, coverage, citation correctness, time, and cost**.
+10. **Both breadth and depth affect cost**; branch-level limits need an overall budget and cancellation policy.
+11. **External documents are untrusted input**: use read-only tools, least privilege, secret isolation, and human approval for high-risk actions.
+12. **How open-ended the question is and the report's value determine whether research is worthwhile; subtopic independence determines whether to parallelize**. Sequential research can also be Deep Research.
+13. **Deep Agents is an SDK/harness, not a promise of security or correctness**: filesystem, persistence, and shell permissions depend on the backend; untrusted code belongs in a restricted sandbox.
 
-> 可以把它理解为：把一个没有固定路径的研究任务，拆成「Supervisor 规划补缺 + Researcher 隔离上下文并行搜证 + 统一写作」的有状态流程；能否上线，还取决于宽度、深度、预算、来源可信度和提示词注入风险是否被一起控制。
+> Think of it as turning a research task with no fixed path into a stateful workflow: the supervisor plans and fills gaps, researchers gather evidence in parallel with isolated contexts, and a final writing step unifies the report. Production readiness also depends on controlling breadth, depth, budget, source trustworthiness, and prompt-injection risk together.
 
-## 参考资料
+## References
 
-- [LangChain 官方博客：Open Deep Research](https://blog.langchain.com/open-deep-research/)
-- [open_deep_research 官方仓库](https://github.com/langchain-ai/open_deep_research)
-- [Deep Agents 概览](https://docs.langchain.com/oss/python/deepagents/overview)
+- [LangChain official blog: Open Deep Research](https://blog.langchain.com/open-deep-research/)
+- [Official open_deep_research repository](https://github.com/langchain-ai/open_deep_research)
+- [Deep Agents overview](https://docs.langchain.com/oss/python/deepagents/overview)
 - [Deep Agents Backends](https://docs.langchain.com/oss/python/deepagents/backends)
 - [Deep Agents Sandboxes](https://docs.langchain.com/oss/python/deepagents/sandboxes)
-- [Deep Agents 同步子 Agent](https://docs.langchain.com/oss/python/deepagents/subagents)
-- [Deep Agents 异步子 Agent](https://docs.langchain.com/oss/python/deepagents/async-subagents)
-- [deepagents 官方仓库](https://github.com/langchain-ai/deepagents)
-- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
-- [LangSmith Evaluation 文档](https://docs.langchain.com/langsmith/evaluation)
+- [Deep Agents synchronous subagents](https://docs.langchain.com/oss/python/deepagents/subagents)
+- [Deep Agents async subagents](https://docs.langchain.com/oss/python/deepagents/async-subagents)
+- [Official deepagents repository](https://github.com/langchain-ai/deepagents)
+- [Official LangGraph documentation](https://docs.langchain.com/oss/python/langgraph/overview)
+- [LangSmith Evaluation documentation](https://docs.langchain.com/langsmith/evaluation)
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)

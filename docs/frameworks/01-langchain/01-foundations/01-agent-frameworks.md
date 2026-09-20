@@ -1,231 +1,231 @@
 ---
-description: 按模型接入、数据链路、状态恢复和生产约束比较 Agent 框架，说明高层 Agent 与底层编排的组合边界。
+description: Compare agent frameworks by model integration, data pipelines, state recovery, and production constraints, and understand how high-level agents fit with lower-level orchestration.
 ---
 
-# 第一章：主流 AI Agent 开发框架概览
+# Chapter 1: An Overview of Major AI Agent Development Frameworks
 
-## 1.1 Agent 框架解决什么问题
+## 1.1 What problems do agent frameworks solve?
 
-不依赖任何框架时，要实现一个能查资料、调接口、记上下文的 Agent，通常至少要处理两类事情：
+Without a framework, building an agent that can look up information, call APIs, and retain context usually requires at least two kinds of work:
 
-- 基础接入：接入模型、定义工具协议、实现 Agent 循环、把工具结果重新交回模型；
-- 工程能力：状态管理、重试、超时、流式输出、人工确认、运行追踪。
+- Basic integration: connect to a model, define the tool protocol, implement the agent loop, and return tool results to the model.
+- Engineering capabilities: state management, retries, timeouts, streaming output, human confirmation, and execution tracing.
 
-一次演示能跑通并不难，难点在于系统执行十几步后还能恢复，并且出错时能快速定位。
+Getting a demo to work once is not particularly difficult. The harder part is recovering after a dozen or so steps and quickly identifying what went wrong.
 
-Agent 框架就是把这些重复工程抽象成可复用组件。**但不同框架选择的重点并不相同**：
+Agent frameworks turn this recurring engineering work into reusable components. **Different frameworks, however, emphasize different things**:
 
-| 框架 | 重点 |
+| Framework | Focus |
 |---|---|
-| **LangChain** | 通用组件和快速集成 |
-| **LangGraph** | 状态与流程控制 |
-| **LlamaIndex** | 数据与检索 |
+| **LangChain** | General-purpose components and rapid integration |
+| **LangGraph** | State and flow control |
+| **LlamaIndex** | Data and retrieval |
 
-比较框架时，更有用的问题是：在当前业务约束下，哪个框架更贴近项目的主要难点。
+A more useful question when comparing frameworks is: given the business constraints, which framework best addresses the project's main difficulty?
 
-## 1.2 LangChain 的定位
+## 1.2 Where LangChain fits
 
-LangChain 已经不只是早期那个「把多个 Prompt 串成 Chain」的库。它提供**模型、消息、Prompt、工具、结构化输出、中间件和 Agent** 等通用抽象，并集成了大量模型供应商、向量数据库和外部工具。
+LangChain is no longer just the early library for "connecting several prompts into a chain." It provides general-purpose abstractions for **models, messages, prompts, tools, structured output, middleware, and agents**, with integrations for many model providers, vector databases, and external tools.
 
-### 1.2.1 主要价值：集成范围广、开发速度快
+### 1.2.1 Main value: broad integrations and faster development
 
-需要切换不同模型，接入搜索、数据库或 MCP 工具，快速实现 RAG Agent、SQL Agent 或客服助手时，**LangChain 能省掉大量协议适配和样板代码**。
+When you need to switch models, connect search, databases, or MCP tools, or quickly build a RAG agent, SQL agent, or customer-support assistant, **LangChain can eliminate much of the protocol adaptation and boilerplate**.
 
-### 1.2.2 边界
+### 1.2.2 Boundaries
 
-**高层抽象更适合常见 Agent 模式。** 标准 Agent 可以直接配置 checkpointer 和人工审批中间件，不必为了暂停恢复重写图。只有当业务拓扑、状态字段或恢复边界超出标准循环与中间件的表达范围时，才需要下沉到 LangGraph。
+**High-level abstractions work best for common agent patterns.** A standard agent can be configured with a checkpointer and human-approval middleware; pausing and resuming alone do not require rewriting it as a graph. Move down to LangGraph only when the business topology, state fields, or recovery boundaries exceed what the standard loop and middleware can express.
 
-## 1.3 LangGraph 与 LangChain 是什么关系
+## 1.3 How are LangGraph and LangChain related?
 
-LangGraph 用 **State + Node + Edge** 表达 Agent 工作流：
+LangGraph expresses agent workflows through **State + Node + Edge**:
 
-| 概念 | 职责 |
+| Concept | Responsibility |
 |---|---|
-| **State** | 保存共享状态 |
-| **Node** | 执行模型或工具 |
-| **Edge** | 决定下一步运行哪个节点 |
+| **State** | Hold shared state |
+| **Node** | Execute a model or tool |
+| **Edge** | Determine which node runs next |
 
-LangGraph 主要处理循环、条件分支、并行执行、持久化、暂停恢复和人工介入。
+LangGraph primarily handles loops, conditional branches, parallel execution, persistence, pausing and resuming, and human intervention.
 
-### 1.3.1 一个具体例子
+### 1.3.1 A concrete example
 
 ```mermaid
 flowchart TB
-    A["读取单据"] --> B["合规检查"]
-    B --> C{"金额超过限制?"}
-    C -->|是| D["暂停<br/>等待主管审批"]
-    D --> E{"审批通过?"}
-    E -->|是| F["调用付款工具"]
-    E -->|否| G["驳回"]
-    C -->|否| F
+    A["Read the payment document"] --> B["Compliance check"]
+    B --> C{"Amount exceeds the limit?"}
+    C -->|Yes| D["Pause<br/>Wait for manager approval"]
+    D --> E{"Approved?"}
+    E -->|Yes| F["Call the payment tool"]
+    E -->|No| G["Reject"]
+    C -->|No| F
 
     style D fill:#fff3cd
 ```
 
-这类流程通常更适合用图结构表达，而不是继续塞进单一 Agent 循环。
+This kind of process is usually easier to express as a graph than to squeeze into a single agent loop.
 
-### 1.3.2 更准确的关系
+### 1.3.2 A more precise relationship
 
-**LangChain 的 Agent 高层接口现在运行在 LangGraph 之上。**
+**LangChain's high-level agent interface now runs on LangGraph.**
 
-LangChain 提供常用组件和高层入口，LangGraph 提供底层执行、状态管理和恢复能力。简单 Agent 通常直接从 LangChain 入手；需要精细控制时，再下沉到 LangGraph。
+LangChain provides common components and a high-level entry point; LangGraph supplies the underlying execution, state management, and recovery capabilities. Start with LangChain for a simple agent, then move down to LangGraph when finer control is necessary.
 
-**不要把两者说成互相替代的框架**——它们既有职责差异，也经常组合使用。
+**Do not describe them as mutually exclusive alternatives**: they have different responsibilities and are often used together.
 
-## 1.4 LlamaIndex 强在哪里
+## 1.4 Where does LlamaIndex excel?
 
-如果把 LlamaIndex 当成「另一个 LangChain」，很容易忽略它在私有数据链路上的侧重。**LlamaIndex 更强调在私有数据之上构建 AI 应用**：数据连接、文档解析、切分、索引、检索、重排、Query Engine、结构化数据访问，也可以把 RAG Pipeline 封装成 Agent 使用的工具。
+Treating LlamaIndex as "another LangChain" obscures its emphasis on private-data pipelines. **LlamaIndex focuses on building AI applications over private data**: data connectors, document parsing, splitting, indexing, retrieval, reranking, Query Engines, and structured-data access. It can also package a RAG pipeline as a tool for an agent.
 
-### 1.4.1 企业知识库场景的难点不只在工具调用
+### 1.4.1 Enterprise knowledge bases involve more than tool calls
 
 ```mermaid
 flowchart LR
-    subgraph IN["资料进入系统时"]
-        I1["PDF 表格要正确解析"]
-        I2["多种数据源要统一接入"]
-        I3["文档要切分并建立索引"]
+    subgraph IN["When documents enter the system"]
+        I1["Parse PDF tables correctly"]
+        I2["Connect diverse data sources consistently"]
+        I3["Split and index documents"]
     end
-    subgraph Q["用户开始提问后"]
-        Q1["过滤和重排召回结果"]
-        Q2["确保不同用户只看到<br/>自己有权访问的数据"]
+    subgraph Q["When users start asking questions"]
+        Q1["Filter and rerank retrieved results"]
+        Q2["Ensure each user sees only<br/>data they are authorized to access"]
     end
     IN --> Q
 
     style IN fill:#e8f0fe
 ```
 
-企业知识库的问题会沿整条数据链路出现，不是多注册一个搜索工具就能解决。
+Problems in enterprise knowledge bases arise throughout the data pipeline. Registering one more search tool does not solve them.
 
-这些需求使 LlamaIndex 成为企业知识库、文档 Agent、研究助手和复杂 RAG 系统的常见候选。不过，元数据过滤只是接入权限规则的手段，框架不会替应用识别登录身份或自动完成租户授权。
+These requirements make LlamaIndex a common candidate for enterprise knowledge bases, document agents, research assistants, and complex RAG systems. Metadata filtering, however, is only a way to apply access rules: the framework does not authenticate the signed-in user or automatically enforce tenant authorization for the application.
 
-### 1.4.2 它也不只用于 RAG
+### 1.4.2 It is not limited to RAG
 
-LlamaIndex 同样提供 Agent、Memory、多 Agent Pattern 和 Workflow。
+LlamaIndex also provides agents, memory, multi-agent patterns, and workflows.
 
-**从选型角度看**：LangChain 的入口更偏**通用 Agent 组装**，LlamaIndex 的优势更集中在**数据密集型应用**。
+**For framework selection**, LangChain offers an entry point oriented toward **general-purpose agent assembly**, while LlamaIndex's strengths are concentrated in **data-intensive applications**.
 
-## 1.5 三个框架怎么配合
+## 1.5 How can the three frameworks work together?
 
-**它们不一定三选一。**
+**You do not necessarily have to choose just one.**
 
 ```mermaid
 flowchart LR
-    A["LlamaIndex<br/>处理文档、建索引<br/>提供检索结果"] --> B["包装成 Tool"]
-    B --> C["LangChain Agent<br/>决定何时调用"]
-    C --> D["LangGraph<br/>负责查询改写、答案校验<br/>人工审核、失败恢复<br/>这些步骤如何衔接"]
+    A["LlamaIndex<br/>Process documents and build indexes<br/>Return retrieval results"] --> B["Wrap as a Tool"]
+    B --> C["LangChain agent<br/>Decide when to call it"]
+    C --> D["LangGraph<br/>Coordinate query rewriting, answer validation,<br/>human review, and failure recovery"]
 
     style A fill:#e8f0fe
     style C fill:#e6f4ea
     style D fill:#fff3cd
 ```
 
-**这是一种可选分工，不是互不重叠的能力划分。** LlamaIndex 也有工作流，LangChain 也有检索组件；同时引入三者时，应避免两套记忆、重试和追踪机制重复管理同一次请求。
+**This is one possible division of work, not a set of nonoverlapping capabilities.** LlamaIndex also has workflows, and LangChain also has retrieval components. If you introduce all three, avoid having duplicate memory, retry, and tracing mechanisms manage the same request.
 
-> **但是否需要同时引入三者，取决于项目复杂度。** 只是简单工具调用，不必为了技术栈完整而引入 LlamaIndex；只是普通知识库问答，也不一定需要复杂的 LangGraph 工作流。
+> **Whether all three are needed depends on the project's complexity.** Simple tool calling does not justify adding LlamaIndex merely to complete a technology stack; ordinary knowledge-base question answering does not necessarily need a complex LangGraph workflow either.
 
-## 1.6 其他框架要了解到什么程度
+## 1.6 How much should you know about other frameworks?
 
-| 框架 | 定位 | 适合 |
+| Framework | Positioning | Suitable uses |
 |---|---|---|
-| **OpenAI Agents SDK** | 围绕 Agent、Runner、Tools、Handoffs、Guardrails、Sessions、Tracing 的**轻量开发方式** | 以 OpenAI 模型和接口为主，快速实现客服分流、语音助手、工具 Agent |
-| **CrewAI** | 用**角色、目标、任务、团队**表达多 Agent 协作，通过 Flow 管理状态、条件和事件 | 研究报告、内容生产、多角色审核等**容易映射为团队分工**的场景。**但角色越多，调用成本和协作不确定性也越高** |
-| **AutoGen / Semantic Kernel / Microsoft Agent Framework** | 微软生态中的不同代际与抽象；不能当作同一个产品 | 存量系统要审查迁移指南与支持状态，见 [第 19 章](../../04-semantic-kernel/19-process-and-agent-framework.md)和[第 20 章](../../05-lightweight-agent-frameworks/20-autogen-and-crewai.md) |
-| **Dify** | **更接近低代码 AI 应用开发平台** | **不宜和 Python Agent 框架放在同一层面比较** |
+| **OpenAI Agents SDK** | A **lightweight development approach** built around Agent, Runner, Tools, Handoffs, Guardrails, Sessions, and Tracing | Quickly building customer-support routing, voice assistants, and tool-using agents, primarily with OpenAI models and APIs |
+| **CrewAI** | Expresses multi-agent collaboration through **roles, goals, tasks, and crews**, with Flows managing state, conditions, and events | Research reports, content production, and multi-role reviews that **map naturally to a division of work within a team**. **More roles also mean higher call costs and greater uncertainty in coordination** |
+| **AutoGen / Semantic Kernel / Microsoft Agent Framework** | Different generations and abstractions in the Microsoft ecosystem; they are not one product | For existing systems, review migration guides and support status; see [Chapter 19](../../04-semantic-kernel/19-process-and-agent-framework.md) and [Chapter 20](../../05-lightweight-agent-frameworks/20-autogen-and-crewai.md) |
+| **Dify** | **Closer to a low-code AI application development platform** | **Should not be compared with Python agent frameworks as if they operated at the same level** |
 
-## 1.7 选型顺序：从外到内收窄
+## 1.7 A selection process: narrow the question step by step
 
 ```mermaid
 flowchart TB
-    Q1{"① 这个任务<br/>真的需要 Agent 吗?"}
-    Q1 -->|步骤固定、规则明确| N["用普通函数或工作流<br/>更便宜、更稳定<br/>本来能写成 if/else 的流程<br/>交给模型只会增加不确定性"]
-    Q1 -->|需要| Q2{"② 项目真正困难的<br/>是哪一层?"}
-    Q2 -->|模型和工具接入最费力| A["LangChain 更自然"]
-    Q2 -->|私有数据、文档解析、检索质量| B["LlamaIndex 更贴近问题"]
-    Q2 -->|复杂分支、循环、状态恢复| C["LangGraph 发挥优势"]
+    Q1{"① Does this task<br/>really need an agent?"}
+    Q1 -->|Fixed steps and clear rules| N["Use ordinary functions or workflows<br/>Cheaper and more stable<br/>Handing an if/else process to a model<br/>only adds uncertainty"]
+    Q1 -->|Yes| Q2{"② Which layer is actually<br/>the hardest part of the project?"}
+    Q2 -->|Model and tool integration| A["LangChain is a natural fit"]
+    Q2 -->|Private data, document parsing, retrieval quality| B["LlamaIndex addresses the core problem"]
+    Q2 -->|Complex branches, loops, state recovery| C["LangGraph plays to its strengths"]
     A --> Q3
     B --> Q3
     C --> Q3
-    Q3["③ 追问生产约束"]
+    Q3["③ Examine production constraints"]
 
     style N fill:#fdecea
     style Q3 fill:#fff3cd
 ```
 
-### 1.7.1 第三步：Demo 能跑和系统能上线是两回事
+### 1.7.1 Step three: a working demo is not a production-ready system
 
-流程越长，越需要补齐这些生产约束：
+The longer the workflow, the more important these production constraints become:
 
-- 中断后能否恢复？
-- 敏感动作是否需要审批？
-- 重复执行会不会产生副作用？
-- 不同用户的数据能否隔离？
-- 出错后是否留有完整轨迹？
+- Can execution resume after an interruption?
+- Do sensitive actions require approval?
+- Could repeated execution produce side effects?
+- Can different users' data be isolated?
+- Is a complete trace available when something goes wrong?
 
-很多决定因素都在这些生产约束里，原型阶段往往还看不出来。
+Many decisive factors lie in these constraints and are not yet visible during prototyping.
 
-比较两个方案时，可以让它们完成同一批任务，并故意在「外部写入成功、返回结果前」制造超时。此时更值得讨论的是能否靠业务幂等键确认结果、恢复后会重复哪些步骤，以及代价增加在哪里。并行通常缩短关键路径等待，但所有分支仍会计费；多一层 Agent 还会增加上下文交接与模型调用，不应仅凭一次演示的响应速度选型。
+To compare two designs, give them the same set of tasks and deliberately introduce a timeout **after an external write succeeds but before its result is returned**. The more useful questions are whether a business-level idempotency key can confirm the outcome, which steps will repeat after recovery, and where extra costs arise. Parallelism usually reduces waiting along the critical path, but every branch still incurs charges. Adding another agent layer also adds context handoffs and model calls. Do not choose a framework solely on the response time of one demo.
 
-### 1.7.2 掌握程度建议
+### 1.7.2 Recommended depth of knowledge
 
-| 框架 | 核心定位 | 更适合的场景 | 掌握程度 |
+| Framework | Core focus | Better-suited scenarios | Depth of knowledge |
 |---|---|---|---|
-| **LangChain** | 通用模型、工具和 Agent 抽象 | 工具型 Agent、RAG Agent、SQL Agent | **重点掌握** |
-| **LangGraph** | 有状态的图式流程编排 | 循环分支、暂停恢复、人工审批 | **重点掌握** |
-| **LlamaIndex** | 数据接入、索引和检索 | 企业知识库、文档 Agent、复杂 RAG | **重点掌握** |
-| **OpenAI Agents SDK** | OpenAI 技术栈下的轻量 SDK | 客服分流、语音助手、工具 Agent | 了解并按需深入 |
-| **CrewAI** | 角色化多 Agent 协作 | 研究、内容生产、多角色审核 | 了解并按需深入 |
+| **LangChain** | General-purpose model, tool, and agent abstractions | Tool-using agents, RAG agents, SQL agents | **Study in depth** |
+| **LangGraph** | Stateful graph-based orchestration | Loops and branches, pausing and resuming, human approval | **Study in depth** |
+| **LlamaIndex** | Data ingestion, indexing, and retrieval | Enterprise knowledge bases, document agents, complex RAG | **Study in depth** |
+| **OpenAI Agents SDK** | Lightweight SDK for the OpenAI stack | Customer-support routing, voice assistants, tool-using agents | Understand the basics; go deeper as needed |
+| **CrewAI** | Role-based multi-agent collaboration | Research, content production, multi-role review | Understand the basics; go deeper as needed |
 
-## 1.8 常见错误
+## 1.8 Common mistakes
 
-### 1.8.1 一口气罗列十几个框架
+### 1.8.1 Listing a dozen frameworks at once
 
-如果一口气罗列十几个框架，后续讨论很容易退回到「只听过名字」的层面。围绕三个主力框架展开更稳。
+Listing a dozen frameworks can easily reduce the discussion to name recognition. A stronger approach is to center it on the three main frameworks.
 
-### 1.8.2 把 LangChain 和 LangGraph 说成互相替代
+### 1.8.2 Describing LangChain and LangGraph as alternatives
 
-**LangChain 的 Agent 高层接口就跑在 LangGraph 之上**，两者是分层关系。
+**LangChain's high-level agent interface runs on LangGraph.** Their relationship is layered.
 
-### 1.8.3 把 LlamaIndex 当成「另一个 LangChain」
+### 1.8.3 Treating LlamaIndex as "another LangChain"
 
-它的辨识度在整条数据链路：解析、切分、索引、重排、权限过滤。
+Its distinguishing emphasis is the whole data pipeline: parsing, splitting, indexing, reranking, and permission-based filtering.
 
-### 1.8.4 跳过「这个任务真的需要 Agent 吗」这一步
+### 1.8.4 Skipping the question "Does this task really need an agent?"
 
-**步骤固定、规则明确的流程用普通函数更便宜更稳定。**
+**Ordinary functions are cheaper and more stable for processes with fixed steps and clear rules.**
 
-### 1.8.5 只比功能数量不看业务约束
+### 1.8.5 Counting features instead of examining business constraints
 
-更关键的问题是「项目真正困难的是哪一层」。
+The more important question is: "Which layer is actually the hardest part of the project?"
 
-### 1.8.6 只看 Demo 能不能跑
+### 1.8.6 Looking only at whether the demo works
 
-中断恢复、审批、幂等、数据隔离、可追溯这些生产约束才是决定项。
+Recovery from interruptions, approvals, idempotency, data isolation, and traceability are the production constraints that determine the choice.
 
-### 1.8.7 把 Dify 和 Python Agent 框架平级比较
+### 1.8.7 Comparing Dify directly with Python agent frameworks
 
-它是低代码平台，不在同一层面。
+It is a low-code platform, operating at a different level.
 
-## 1.9 本章总结
+## 1.9 Chapter summary
 
-1. **框架解决的是重复工程**：模型接入、工具协议、Agent 循环，以及状态、重试、超时、流式、审批、追踪；
-2. **难的不是跑通一次演示，是十几步之后能否恢复、出错能否定位**；
-3. **三个主力框架各有侧重**：LangChain 偏通用组件与集成，LangGraph 偏有状态流程编排，LlamaIndex 偏数据与检索；
-4. **LangChain 的价值是集成与高层入口**；标准暂停恢复可直接配置，复杂业务拓扑才需要显式图编排；
-5. **LangGraph 用 State + Node + Edge 表达工作流**，解决循环、分支、并行、持久化、人工介入；
-6. **两者是分层关系不是替代关系**——LangChain 提供高层组件与入口，LangGraph 提供底层执行与状态能力；
-7. **LlamaIndex 的辨识度在整条数据链路**，而不是工具调用循环；
-8. **三者可以组合**：LlamaIndex 供检索能力 → 包装成 Tool → LangChain Agent 决定调用 → LangGraph 编排外围流程；
-9. **但不要为了技术栈完整而堆框架**；
-10. **选型顺序是从外到内**：先问是否真的需要 Agent，再找项目最难的那一层，最后用生产约束做最终判断。
+1. **Frameworks address recurring engineering work**: model integration, tool protocols, agent loops, and state, retries, timeouts, streaming, approvals, and tracing.
+2. **The hard part is not making a demo work once, but recovering after a dozen or so steps and diagnosing failures.**
+3. **The three main frameworks have different priorities**: LangChain emphasizes general-purpose components and integrations; LangGraph, stateful orchestration; and LlamaIndex, data and retrieval.
+4. **LangChain's value lies in its integrations and high-level entry point**. Standard pause-and-resume behavior can be configured directly; complex business topologies call for explicit graph orchestration.
+5. **LangGraph models workflows through State + Node + Edge**, handling loops, branches, parallelism, persistence, and human intervention.
+6. **Their relationship is layered, not substitutive**: LangChain supplies high-level components and entry points; LangGraph supplies underlying execution and state capabilities.
+7. **LlamaIndex stands out for its end-to-end data pipeline**, not its tool-calling loop.
+8. **The three can be combined**: LlamaIndex supplies retrieval → wrap it as a Tool → a LangChain agent decides when to call it → LangGraph orchestrates the surrounding workflow.
+9. **Do not pile up frameworks just to complete a technology stack.**
+10. **Narrow the choice step by step**: first ask whether an agent is necessary, then identify the project's hardest layer, and finally judge the options against production constraints.
 
-选框架时，更关键的是先判断项目最难的是模型接入、数据链路还是流程控制，再据此决定从哪个框架切入。
+The key to choosing a framework is to establish whether the project's main difficulty lies in model integration, the data pipeline, or flow control, and choose your starting point accordingly.
 
-## 参考资料
+## References
 
-- [LangChain 官方文档](https://docs.langchain.com/oss/python/langchain/overview)
-- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
-- [LlamaIndex 官方文档](https://docs.llamaindex.ai/)
+- [LangChain documentation](https://docs.langchain.com/oss/python/langchain/overview)
+- [LangGraph documentation](https://docs.langchain.com/oss/python/langgraph/overview)
+- [LlamaIndex documentation](https://docs.llamaindex.ai/)
 - [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/)
-- [CrewAI 官方文档](https://docs.crewai.com/)
-- [AutoGen 仓库](https://github.com/microsoft/autogen)
+- [CrewAI documentation](https://docs.crewai.com/)
+- [AutoGen repository](https://github.com/microsoft/autogen)
 - [Anthropic: Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)

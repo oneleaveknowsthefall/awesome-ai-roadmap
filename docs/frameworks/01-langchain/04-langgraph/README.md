@@ -1,14 +1,14 @@
 ---
-description: 理解 LangGraph 与高层 Agent 的关系，以及并发状态合并、检查点、中断恢复、子图和节点容错。
+description: Understand how LangGraph relates to high-level agents, including concurrent state merging, checkpoints, interrupt recovery, subgraphs, and node fault tolerance.
 ---
 
 # LangChain · LangGraph
 
-理解 LangChain 与 LangGraph 的边界及图运行时核心能力。
+Understand the boundary between LangChain and LangGraph and the core capabilities of the graph runtime.
 
-## 章节
+## Chapters
 
-1. [第九章：LangChain 与 LangGraph 的层次关系](09-langchain-vs-langgraph.md)
-2. [第十章：LangGraph 的核心优势](10-langgraph-advantages.md)
+1. [Chapter 9: The Layered Relationship Between LangChain and LangGraph](09-langchain-vs-langgraph.md)
+2. [Chapter 10: LangGraph's Core Advantages](10-langgraph-advantages.md)
 
-返回 [LangChain 生态](../README.md)。
+Back to the [LangChain ecosystem](../README.md).

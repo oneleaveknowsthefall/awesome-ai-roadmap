@@ -1,34 +1,34 @@
 ---
-description: "梳理 Semantic Kernel 的 Kernel、Plugin 和实验性编排能力，并区分独立 Microsoft Agent Framework 的后继关系与迁移边界。"
+description: "Covers Semantic Kernel's Kernel, Plugins, and experimental orchestration, distinguishing the standalone Microsoft Agent Framework successor and its migration boundaries."
 ---
 
-# 框架与编排 · Semantic Kernel 企业级编排
+# Frameworks and Orchestration · Semantic Kernel Enterprise Orchestration
 
-本模块保留 Semantic Kernel（SK）的核心概念，帮助维护已有系统。**Microsoft Agent Framework（MAF）是其独立后继，官方已将 MAF 1.0 列为生产可用发布。** SK 旧文档里的 “Agent Framework” 指包内抽象，不等于 MAF；版本来源见第十九章参考资料。
+This module retains Semantic Kernel's (SK) core concepts to support maintenance of existing systems. **Microsoft Agent Framework (MAF) is its standalone successor, and the official project now describes MAF 1.0 as production-ready.** The "Agent Framework" in older SK documentation means abstractions within its packages, not MAF. Version sources are listed in Chapter 19's references.
 
-SK Process 与 Agent Orchestration 相关概览仍标为实验性，不能用核心包 1.x 版本给所有功能作稳定性保证；语言 SDK 和集成包也不完全对等。第十九章结合 [官方迁移指南](https://learn.microsoft.com/en-us/agent-framework/migration-guide/from-semantic-kernel/) 与支持公告讨论存量维护和新项目选型。
+The SK Process and Agent Orchestration overviews still mark those features as experimental. A 1.x core package cannot guarantee stability for every feature, and language SDKs and integration packages do not have complete parity. Chapter 19 uses the [official migration guide](https://learn.microsoft.com/en-us/agent-framework/migration-guide/from-semantic-kernel/) and support announcements to discuss maintenance of existing systems and selection for new projects.
 
-## 章节
+## Chapters
 
-1. [第十八章：Semantic Kernel 的核心抽象：Kernel、Plugin 与 Planner](18-kernel-plugin-planner.md)
-2. [第十九章：Semantic Kernel 的 Process Framework 与 Agent Framework](19-process-and-agent-framework.md)
+1. [Chapter 18: Semantic Kernel's Core Abstractions: Kernel, Plugin, and Planner](18-kernel-plugin-planner.md)
+2. [Chapter 19: Semantic Kernel's Process Framework and Agent Framework](19-process-and-agent-framework.md)
 
-## 模块关系
+## How the pieces fit together
 
 ```mermaid
 flowchart LR
-    K["Kernel<br/>服务管理 + 调用链"] --> P["Plugin<br/>Prompt / Native 函数"]
-    P --> PL["自动函数调用"]
-    PL --> PF["SK Process<br/>实验性流程"]
-    PL --> AF["SK Agent Orchestration<br/>实验性协作"]
-    PF -.核对迁移.-> M["独立 MAF<br/>Agents / Workflows"]
-    AF -.官方迁移指南.-> M
+    K["Kernel<br/>Service management + invocation pipeline"] --> P["Plugin<br/>Prompt / Native functions"]
+    P --> PL["Automatic function calling"]
+    PL --> PF["SK Process<br/>Experimental processes"]
+    PL --> AF["SK Agent Orchestration<br/>Experimental collaboration"]
+    PF -.Check migration requirements.-> M["Standalone MAF<br/>Agents / Workflows"]
+    AF -.Official migration guide.-> M
 ```
 
-## 阅读建议
+## Reading suggestions
 
-- 如果来自 .NET 或其他企业技术栈，可先看第十八章，理解 Kernel 调用链、transient 建议与可变 Plugin 的请求隔离；
-- 如果主要想和 LangGraph、AutoGen 对比编排模型，可直接看第十九章 19.3 节；
-- 如果重点在企业采购或合规风险，两章的「常见错误」和「本章总结」都包含治理与 lock-in 判断，适合配合 [框架选型与可移植架构](../06-selection-portability/README.md) 一起读。
+- If you come from .NET or another enterprise stack, start with Chapter 18 to understand the Kernel invocation pipeline, the transient-lifetime recommendation, and request isolation for mutable Plugins.
+- To compare orchestration models with LangGraph and AutoGen, go directly to Section 19.3.
+- If enterprise procurement or compliance risk is your focus, both chapters discuss governance and lock-in in their common-mistakes and summary sections. Read them alongside [Framework Selection and Portable Architectures](../06-selection-portability/README.md).
 
-返回 [AI 框架与编排 相关知识点](../README.md)。
+Return to [AI Frameworks and Orchestration topics](../README.md).

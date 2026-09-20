@@ -1,0 +1,1633 @@
+{
+  "schema_version": 1,
+  "scope": "frameworks",
+  "source_commit": "be53fedaedfb28da181db8e95f41bf91100621c4",
+  "reviewed_on": "2026-09-20",
+  "pages": [
+    {
+      "path": "docs/frameworks/01-langchain/01-foundations/01-agent-frameworks.md",
+      "zh_path": "docs/frameworks/01-langchain/01-foundations/01-agent-frameworks.zh.md",
+      "kind": "chapter",
+      "source_sha256": "336bd9289918e20de8df5748b83ae6eab0c2b65acfec63550549e67bdc80388c",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/overview",
+          "scope": "Opening framework positioning, create_agent examples, and core benefits including LangGraph layering and standard interfaces; first 11000 characters.",
+          "access": "Fetched successfully on 2026-09-20; response truncated near the source-links footer. Current mutable documentation, not a version-pinned historical snapshot."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/overview",
+          "scope": "Overview, deterministic and agentic steps, installation example, core benefits, ecosystem, and acknowledgements.",
+          "access": "Fetched successfully on 2026-09-20; returned page text was not truncated."
+        },
+        {
+          "url": "https://docs.llamaindex.ai/",
+          "scope": "Framework introduction, agents and workflows, private-data context augmentation, connectors, indexes, engines, retrieval/reranking customization, and LlamaCloud positioning.",
+          "access": "Fetched successfully on 2026-09-20; redirected to https://developers.llamaindex.ai/python/framework/. Returned page text was not truncated; no linked feature pages were reviewed."
+        },
+        {
+          "url": "https://openai.github.io/openai-agents-python/",
+          "scope": "Overview, primitives, main features including sessions, tracing and voice, SDK versus Responses API, and introductory Runner example.",
+          "access": "Fetched successfully on 2026-09-20; returned page text was not truncated. HTML conversion compressed formatting in code examples; no SDK execution was performed."
+        },
+        {
+          "url": "https://docs.crewai.com/",
+          "scope": "Landing-page descriptions of agents, crews, flows, state, persistence, and tasks/processes; not the linked detailed concepts pages.",
+          "access": "Fetched successfully on 2026-09-20; returned page text was not truncated. Embedded setup instructions were treated as source-page content, not executed."
+        },
+        {
+          "url": "https://github.com/microsoft/autogen",
+          "scope": "README maintenance-mode notice, Microsoft Agent Framework migration recommendation, basic examples, and layered Core/AgentChat/Extensions architecture; first 8500 characters.",
+          "access": "Fetched successfully on 2026-09-20; excerpt truncated in the later README. Current repository README, not a pinned release."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "scope": "Workflow/agent distinction, when to use agents and frameworks, composable workflow patterns, agent loops, summary, and Appendix 1; first 16000 characters.",
+          "access": "Fetched successfully on 2026-09-20; truncated at the start of Appendix 2. The page explicitly notes tooling changes since December 2024; it was used for architectural distinctions, not current product-version claims."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/middleware",
+          "scope": "Middleware purpose, agent-loop hooks, use inside a compiled LangGraph workflow, and human-in-the-loop composition.",
+          "access": "Fetched successfully on 2026-09-20; redirected to https://docs.langchain.com/oss/python/langchain/middleware/overview.md. Returned page text was not truncated."
+        }
+      ],
+      "notes": [
+        "Read the entire 231-line original before translation and copied it byte-for-byte to the Chinese companion before editing English. Local comparison against baseline be53fedaedfb28da181db8e95f41bf91100621c4 passed.",
+        "Translated every section, paragraph, table, diagram label, summary item, metadata description, and reference label. All 24 numbered H2/H3 sections, 4 Mermaid fences, graph topology, table dimensions, list structure, and link destinations were preserved.",
+        "No executable code blocks or executable strings were modified. There are no math expressions in this page. No fictional example was converted into a claim of author experience.",
+        "All source accesses succeeded; excerpt limits and redirects are recorded above. Landing pages were not treated as full verification of every integration, authorization implementation, or framework capability.",
+        "No confirmed factual conflict requiring a translation correction was found. The AutoGen row retains its cautious request to check support/migration status rather than adding a new release claim.",
+        "Module-local structure checks and git diff --check passed. The local Mermaid runner initially failed because jsdom was missing; the byte-identical runner in the read-only shared solid-doodle worktree used its existing dependencies and parsed all 20 English/Chinese module diagrams with zero failures. No dependencies were installed and no files outside the module and this evidence file were changed.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/01-foundations/02-chain-and-lcel.md",
+      "zh_path": "docs/frameworks/01-langchain/01-foundations/02-chain-and-lcel.zh.md",
+      "kind": "chapter",
+      "source_sha256": "31af55da297944f5b347a2ca4ba9a4a487d5e6e04eda643f5d5ccea8d8f0b5bb",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/overview",
+          "scope": "Framework positioning, standard interfaces, provider integrations, and LangGraph layering; first 11000 characters.",
+          "access": "Fetched successfully on 2026-09-20; truncated near the footer. Current documentation, not a historical package snapshot."
+        },
+        {
+          "url": "https://reference.langchain.com/python/langchain-core/runnables/base/RunnableSequence",
+          "scope": "Sequence composition and pipe operator, sync/async/batch behavior, thread pools and asyncio gather, transform-based streaming, blocking components, RunnableLambda caveat, examples and API listing.",
+          "access": "Fetched successfully on 2026-09-20; returned class page was not truncated. The page linked source commit 348c9dc572599947d2d7d33d6a5b8b936e92a1d4, but that source file was not separately fetched."
+        },
+        {
+          "url": "https://reference.langchain.com/python/langchain-core/runnables/base/Runnable",
+          "scope": "Invocation methods, default client-side batch and async behavior, config/tags/metadata, schemas, Sequence/Parallel composition, dictionary coercion, retry attachment, tracing, and API listing.",
+          "access": "Fetched successfully on 2026-09-20; returned class page was not truncated. Linked method implementations were not separately reviewed."
+        },
+        {
+          "url": "https://reference.langchain.com/python/langchain-core/runnables/",
+          "scope": "First 6000 characters of the generated API class index only; detailed Runnable behavior was checked on the separate Runnable and RunnableSequence pages.",
+          "access": "Fetched successfully on 2026-09-20; redirected to the same URL without the trailing slash and was truncated. Not treated as a full review of the API index."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/migrate/langchain-v1",
+          "scope": "Migration summary, simplified namespace, langchain-classic relocation, create_agent migration table and imports, and static/dynamic prompt migration up to the excerpt boundary; first 15000 characters.",
+          "access": "Fetched successfully on 2026-09-20; excerpt truncated during dynamic-prompt examples. The remainder of the migration guide was not reviewed."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/overview",
+          "scope": "Low-level stateful orchestration, mixing deterministic and agentic steps, persistence, human-in-the-loop, and high-level LangChain relationship.",
+          "access": "Fetched successfully on 2026-09-20; returned page text was not truncated."
+        }
+      ],
+      "notes": [
+        "Read the entire 307-line original before translation and copied it byte-for-byte to the Chinese companion before editing English. Local comparison against baseline be53fedaedfb28da181db8e95f41bf91100621c4 passed.",
+        "Preserved all 30 numbered H2/H3 sections, 7 code fences (2 plain-text flow illustrations, 2 Python examples, 3 Mermaid diagrams), tables, lists, link destinations, numeric examples, and diagram topology. The page contains no math formulas.",
+        "Python AST equality passed for both examples, including every executable string, import, API identifier, field, parameter, and literal. Intentional executable string modifications: none. Code comments were translated.",
+        "Retained the Chinese classification system prompt, product/review template, mechanical-keyboard review, summary/title templates, and article placeholder as executable example data. Added English explanations immediately after the corresponding examples, including the two-sentence instruction and positive/neutral/negative output contract.",
+        "Preserved the historical v1/legacy-chain distinction and did not upgrade APIs. Streaming-transform caveats and default client-side batch semantics agree with the checked class references; no model calls or performance experiments were run.",
+        "Module-local structural checks, byte comparisons, Python AST checks, absence of Chinese prose outside code, and git diff --check passed. All 20 English/Chinese module diagrams passed the identical shared Mermaid runner after the local runner reported missing jsdom. Full repository docs and site checks remain for parent integration because this task is confined to one module.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/01-foundations/03-langchain-architecture.md",
+      "zh_path": "docs/frameworks/01-langchain/01-foundations/03-langchain-architecture.zh.md",
+      "kind": "chapter",
+      "source_sha256": "abfae8dda770243c2b50839b7b84e6ceb03608cc441abeaa6cc021497be92b7a",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/overview",
+          "scope": "Common model interface, configurable agent harness, provider integrations, observability, and LangGraph layering; first 11000 characters.",
+          "access": "Fetched successfully on 2026-09-20; truncated near the footer. Current mutable documentation."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/agents",
+          "scope": "Agent-loop definition, harness definition, create_agent parameters, model and tool core components, and the start of system-prompt examples; first 9000 characters.",
+          "access": "Fetched successfully on 2026-09-20; excerpt truncated within system-prompt examples. Not a review of the complete Agents page."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/messages",
+          "scope": "Message roles, content and metadata, HumanMessage, AIMessage, tool_calls, streaming chunks, ToolMessage, and the requirement to match tool_call_id; first 14000 characters.",
+          "access": "Fetched successfully on 2026-09-20; truncated in the ToolMessage artifact example. Later message-content sections were not reviewed."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/tools",
+          "scope": "Tool schemas, tool definitions, server-side-tool caveat, reserved arguments, ToolRuntime injection, State/Context/Store access, per-run context, namespaces, and streaming writer; first 19000 characters.",
+          "access": "Fetched successfully on 2026-09-20; truncated in Execution info. The later dedicated server-side-tool section was not read; its introductory caveat was read."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/middleware",
+          "scope": "Middleware extension points, agent loop, compiled LangGraph execution, subgraph composition, and human-in-the-loop integration.",
+          "access": "Fetched successfully on 2026-09-20; redirected to https://docs.langchain.com/oss/python/langchain/middleware/overview.md. Returned page text was not truncated."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/migrate/langchain-v1",
+          "scope": "v1 namespace, langchain-classic relocation, middleware migration, runtime-context change, and create_agent migration; first 15000 characters.",
+          "access": "Fetched successfully on 2026-09-20; truncated during dynamic-prompt examples. No historical APIs were replaced with current examples."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/overview",
+          "scope": "Stateful orchestration and runtime, deterministic/agentic composition, persistence, human intervention, and LangChain relationship.",
+          "access": "Fetched successfully on 2026-09-20; returned page text was not truncated."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/checkpointers",
+          "scope": "Why use checkpointers, pending writes, thread_id, super-step boundaries, task-level writes versus full snapshots, checkpoint namespaces, state/history, and replay; first 17000 characters.",
+          "access": "Fetched successfully on 2026-09-20; truncated near the replay illustration. Later sections were not reviewed."
+        }
+      ],
+      "notes": [
+        "Read the entire 229-line original before translation and copied it byte-for-byte to the Chinese companion before editing English. Local comparison against baseline be53fedaedfb28da181db8e95f41bf91100621c4 passed.",
+        "Preserved all 24 numbered H2/H3 sections, 4 code fences (1 Python example and 3 Mermaid diagrams), tables, lists, numeric/version identifiers, API identifiers, links, and graph topology. There are no math formulas.",
+        "Python AST equality passed, including the Chinese question input and all executable strings. Intentional executable string modifications: none. Translated both code comments and added the English meaning of the retained question after the example.",
+        "Preserved application-side authorization responsibility, trust-boundary qualifications for Context/State, namespace limitations, checkpoint/thread_id configuration, super-step/pending-write distinctions, and lack of automatic transactions spanning external writes and checkpoints.",
+        "Parent-approved semantic scope clarification applied to both languages in sections 3.3.2 and 3.9.2: these passages describe application-supplied, client-side custom tools; provider-hosted built-in tools may execute on provider servers. Section 3.3.2 adds that distinction, and section 3.9.2 qualifies its heading and explanation accordingly. Source: https://docs.langchain.com/oss/python/langchain/tools, Basic tool definition and its Server-side tool use note; coordinator independently read the first 4800 characters on 2026-09-20. Examples, code, and section numbers are unchanged.",
+        "The source_sha256 still identifies the original Chinese manuscript at be53fedaedfb28da181db8e95f41bf91100621c4, not the approved amended companion. Initial byte equality was established before this clarification. Final fidelity checks allow exactly this approved addition and two corresponding wording changes; all other Chinese bytes, including internal links, must match the baseline.",
+        "Module-local byte, heading, fence, link, table, list, Python AST/string, Mermaid-topology, and untranslated-prose checks passed, as did git diff --check. All 20 English/Chinese module diagrams parsed successfully using the byte-identical shared runner and existing shared dependencies after missing jsdom blocked the local runner. No live provider APIs were called.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/01-foundations/README.md",
+      "zh_path": "docs/frameworks/01-langchain/01-foundations/README.zh.md",
+      "kind": "index",
+      "source_sha256": "9d514810430a44e6be5830b882c2a3876cf8d0aaf66eacadeb25db811d5d743a",
+      "references_checked": [],
+      "notes": [
+        "Read the entire 15-line original before translation and copied it byte-for-byte to README.zh.md before editing English. Local comparison against baseline be53fedaedfb28da181db8e95f41bf91100621c4 passed.",
+        "Translated the description, title, overview, chapter list, and parent-index label. All four Markdown link destinations and their ordering remain unchanged; chapter labels match the translated chapter H1 titles.",
+        "The index has no external citations, executable code, diagrams, or math. Its wording was reviewed against the three complete translated chapters rather than claimed as an independent source review.",
+        "Intentional executable string modifications: none. Page pairing, heading levels, ordered-list structure, internal link destinations, and absence of untranslated prose passed local checks.",
+        "Chinese companion links intentionally remain byte-identical to the originals for the parent's shared link-migration tool. No root/topic navigation, manifests, review registry, branch, commit, push, or pull request was changed.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/02-agent-building/04-build-agent.md",
+      "zh_path": "docs/frameworks/01-langchain/02-agent-building/04-build-agent.zh.md",
+      "kind": "chapter",
+      "source_sha256": "04717b43fe651551b385199258c7194db978c24208ad53a201de20128dfef519",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/agents",
+          "scope": "First 13000 characters: create_agent, model identifiers, Python callable/tool/dictionary inputs, system_prompt, and the start of structured-output examples.",
+          "access": "Successful; partial page read."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/tools",
+          "scope": "First 20000 characters: decorator/schema definition, injected ToolRuntime, state/context/store access, Command updates with ToolMessage, and concurrent-update reducers.",
+          "access": "Successful; partial page read."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/structured-output",
+          "scope": "First 14000 characters: response_format strategy selection, explicit strategy requirement for JSON Schema dictionaries, simultaneous tool/structured-output support, Pydantic validation, and structured_response.",
+          "access": "Successful; partial page read. No provider-specific refusal or truncation experiment was run."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/human-in-the-loop",
+          "scope": "First 15000 characters: interrupt_on, allowed_decisions, persistent checkpointer requirement, same-thread Command(resume=...) usage, and decisions matching interrupt action order.",
+          "access": "Successful; partial page read. Newer respond/when/version=v2 features in the live documentation were not added to the manuscript."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/middleware",
+          "scope": "Returned overview in full: retries, limits, middleware hooks, graph integration, and tool-name matching.",
+          "access": "Successful; redirected to https://docs.langchain.com/oss/python/langchain/middleware/overview.md."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/short-term-memory",
+          "scope": "First 18000 characters: per-thread persistence, InMemorySaver, production persistence, AgentState.messages, custom state, trimming/deletion, and tool-request/result integrity.",
+          "access": "Successful; partial page read."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/long-term-memory",
+          "scope": "First 15000 characters: cross-thread JSON storage, namespace/key, store injection into create_agent, semantic indexing, and ToolRuntime store-read examples.",
+          "access": "Successful; partial page read, ending within repeated provider examples."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/streaming",
+          "scope": "First 6500 characters: responsiveness, progress/token/custom updates, stream and astream modes, and the beginning of examples.",
+          "access": "Successful; partial page read. Did not modernize the original invocation discussion to newer event-streaming APIs."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+          "scope": "Returned page in full: thread-scoped state snapshots versus cross-thread stores, stable thread_id, process-local memory loss, and retention concerns.",
+          "access": "Successful."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/graph-api#recursion-limit",
+          "scope": "Characters 0-5000 and 30000-46000: super-step semantics, graph structure, and portions of node/edge/Command documentation. The fragment did not focus the fetch on recursion limits, so the Markdown endpoint was read separately.",
+          "access": "Successful; partial page reads."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/graph-api.md",
+          "scope": "Extracted and read the Recursion limit and Accessing and handling the recursion counter sections through Other available metadata; confirms super-step budget rather than Python recursion depth or model-token budget.",
+          "access": "Successful via urllib; only the extracted sections were reviewed."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/migrate/langchain-v1",
+          "scope": "First 10000 characters: reduced package namespace, langchain-classic, create_agent migration, middleware, and context wiring.",
+          "access": "Successful; partial page read."
+        }
+      ],
+      "notes": [
+        "Read the entire original Chinese chapter in ranges 1-160 and 161-340 before editing. Copied it byte-for-byte to 04-build-agent.zh.md; verified against baseline be53fedaedfb28da181db8e95f41bf91100621c4 before and after translation.",
+        "Preserved all 27 numbered headings, seven fences (four Python and three Mermaid), table row counts, external URLs, local chapter links, API identifiers, and diagram structure. No mathematical expressions occur in either edition.",
+        "Preserved the fictional order-support framing, separate human-approved refund-request scope, read-only boundary, approval order, trusted authorization, same-thread resumption, idempotency, independent budgets, and recursion-limit distinction.",
+        "Intentional code-string localization only: lookup_order and request_refund docstrings; SupportReply Field(description=...) for answer, order_status, and needs_human. Comments translated. These model-facing descriptions retain their meanings but may affect model behavior; no model comparison was run.",
+        "All other executable strings, including the Chinese system_prompt, order-status fixture, refund demo response, user question, provider placeholder, field names, and decision literals, remain unchanged; English explanations accompany the Chinese example strings.",
+        "AST comparison passes after ignoring docstrings and Field description metadata. Local isolated function-body checks pass for lookup_order and request_refund. Framework/provider execution was not tested; system Python lacks LangChain and Pydantic, and no dependencies or paid API calls were introduced.",
+        "All module Mermaid diagrams were parsed using the existing scripts/check_mermaid.mjs from the module directory: 16 bilingual diagrams, zero failures. git diff --check passed.",
+        "No confirmed original factual error found in the reviewed claims. Live documentation is not a version-pinned runtime verification. No amount_minor or approval_version occurs in this assigned module; no procurement code was changed.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/02-agent-building/05-tool-registration.md",
+      "zh_path": "docs/frameworks/01-langchain/02-agent-building/05-tool-registration.zh.md",
+      "kind": "chapter",
+      "source_sha256": "0c2011a72608e297d85d0a66d3ce8e6583ae6fa6bc880c4f499658a882c68d8c",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/tools",
+          "scope": "First 20000 characters: @tool, type hints and docstrings, Pydantic schemas, hidden ToolRuntime injection, context_schema/context, runtime.state/runtime.store, Command updates, ToolMessage correlation, and reducers.",
+          "access": "Successful; partial page read."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/agents",
+          "scope": "First 13000 characters: create_agent accepts Python callables, LangChain tools, and tool dictionaries, with separate model/system_prompt configuration.",
+          "access": "Successful; partial page read."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/middleware",
+          "scope": "Returned overview in full: selection, retries, rate limits, hooks, and graph integration.",
+          "access": "Successful; redirected to https://docs.langchain.com/oss/python/langchain/middleware/overview.md."
+        },
+        {
+          "url": "https://reference.langchain.com/python/langchain-core/tools/",
+          "scope": "Returned module overview in full, including tool methods and the linked source revision.",
+          "access": "Successful; redirected to the same URL without its trailing slash."
+        },
+        {
+          "url": "https://reference.langchain.com/python/langchain-core/tools/convert/tool",
+          "scope": "Returned API entry in full: signature, description precedence, args_schema, infer_schema, parse_docstring=False, supported Google-style parsing, and validation-error settings.",
+          "access": "Successful. The entry links source revision 348c9dc572599947d2d7d33d6a5b8b936e92a1d4; that linked source file was not separately fetched."
+        },
+        {
+          "url": "https://reference.langchain.com/python/langchain-core/tools/structured/StructuredTool/from_function",
+          "scope": "Returned API entry in full: func/coroutine/name/description/args_schema parameters, schema inference, and docstring parsing.",
+          "access": "Successful. Read the API entry, not the separately linked implementation."
+        },
+        {
+          "url": "https://reference.langchain.com/python/langchain-core/tools/base/BaseTool",
+          "scope": "Returned class overview in full: base interface, args_schema, callbacks/tags/metadata, invoke/ainvoke/run/arun. This overview is not a complete implementation audit of resource lifecycle behavior.",
+          "access": "Successful."
+        },
+        {
+          "url": "https://docs.pydantic.dev/latest/",
+          "scope": "First 5500 characters: type-hint validation, generated JSON Schema, strict/lax behavior, and the introductory BaseModel example.",
+          "access": "Successful; redirected to https://pydantic.dev/docs/validation/latest/get-started/. Partial page read. No Pydantic runtime validation was executed."
+        }
+      ],
+      "notes": [
+        "Read the entire original Chinese chapter in ranges 1-160 and 161-340. The untouched 05-tool-registration.zh.md is byte-identical to baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Preserved all 26 numbered headings, seven fences (four Python and three Mermaid), table rows, links, all four definition methods, async caveats, all error classes, runtime scopes, authorization requirements, Command/ToolMessage update semantics, and business idempotency versus tool_call_id.",
+        "Intentional code-string localization only: query_order, UserContext, save_locale, and get_locale docstrings; OrderQuery Field descriptions for order_id and detail. All explanatory comments translated. These metadata strings can influence the model, but no task/validation semantics were intentionally changed.",
+        "Chinese return values and the user-language request remain exact, with English explanations. Preserved zh-CN default, en-US option, profile:write permission literal, tenant/user namespace order, profile and locale keys, summary/full literals, function signatures, and provider placeholder.",
+        "AST equivalence passes after ignoring docstrings and Field descriptions. Isolated function-body checks pass for query_order summary/full output, unsupported locale, denied profile write, absent-locale default, save/read, and tenant/user namespace separation using an in-memory test double. This does not assert framework injection or Pydantic validation was executed.",
+        "All three English diagrams have the same graph topology and styles as their originals; both language editions pass the existing Mermaid parser. No formulas occur in this chapter.",
+        "No confirmed original factual error found. Official documentation was reviewed only within the stated scopes; no broad assertion of complete framework verification is made.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/02-agent-building/06-memory.md",
+      "zh_path": "docs/frameworks/01-langchain/02-agent-building/06-memory.zh.md",
+      "kind": "chapter",
+      "source_sha256": "18d92e0a79b621e65436a3163357bb3e4077d593feae77f503714423f5f09c7e",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/short-term-memory",
+          "scope": "First 18000 characters: thread-scoped persistence, stable thread_id reuse, InMemorySaver, durable backends, AgentState.messages, custom fields, RemoveMessage, and tool-call/result integrity.",
+          "access": "Successful; partial page read."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/long-term-memory",
+          "scope": "First 15000 characters: cross-thread stores, JSON values, namespace/key, embedding-index requirements, create_agent store/context_schema wiring, and ToolRuntime read examples.",
+          "access": "Successful; partial page read."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+          "scope": "Returned page in full: state snapshots, thread-scoped checkpointers, cross-thread stores, lost in-memory state, and growing checkpoints.",
+          "access": "Successful."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/stores",
+          "scope": "First 12000 characters: namespace/key/value structure, put/get-style storage concepts, listing/search behavior, semantic index setup, and state/store integration.",
+          "access": "Successful; partial page read. Provider-specific backends and physical retention behavior were not tested."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/middleware",
+          "scope": "Returned overview in full: summarization and other execution hooks within create_agent's compiled graph.",
+          "access": "Successful; redirected to https://docs.langchain.com/oss/python/langchain/middleware/overview.md."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/migrate/langchain-v1",
+          "scope": "First 10000 characters: langchain-classic split, create_agent migration, state and context changes, and middleware replacement of older hooks.",
+          "access": "Successful; partial page read."
+        },
+        {
+          "url": "https://reference.langchain.com/python/langchain-classic/memory/buffer/ConversationBufferMemory",
+          "scope": "Returned class entry in full: namespace, stored history, methods, deprecation, and recommendation of create_agent checkpointing or Store.",
+          "access": "Successful."
+        },
+        {
+          "url": "https://reference.langchain.com/python/langchain-classic/memory/summary/ConversationSummaryMemory",
+          "scope": "Returned class entry in full: namespace, incremental summaries, methods, deprecation, and recommended checkpoint/store alternatives.",
+          "access": "Successful."
+        }
+      ],
+      "notes": [
+        "Read the entire original Chinese chapter in ranges 1-150 and 151-300. The untouched 06-memory.zh.md is byte-identical to baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Preserved all 27 numbered headings, five fences (two Python, two Mermaid, one non-executable namespace/key/value sketch), table rows, external URLs, and normal .md links.",
+        "Preserved the Hangzhou trip example, preferences versus authoritative policy distinction, request trimming versus state deletion versus historical-checkpoint cleanup, compliance retention across stores/traces/backups, explicit versus inferred memory write timing, and writing/retrieval/use evaluation.",
+        "Intentional code-string localization only: remember_preference docstring. Comments and the non-executable namespace/key/value sketch were translated. Chinese conversation test data and the saved-preference response remain exact, with English explanations.",
+        "Preserved chat-1001, all message fields, tenant/user/preferences namespace order, main overwrite key, text field, UserContext fields, and provider placeholder. No formulas or monetary calculations occur in this chapter.",
+        "AST equivalence passes after ignoring docstrings. Isolated remember_preference function-body tests verify the unchanged response and replacement of the single main preference record. No live Store/checkpointer/provider call was made.",
+        "All English diagrams retain original structure and styles and parse successfully. No confirmed original factual error found; live reference pages were checked only as described, not as a version-pinned runtime guarantee.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/02-agent-building/README.md",
+      "zh_path": "docs/frameworks/01-langchain/02-agent-building/README.zh.md",
+      "kind": "index",
+      "source_sha256": "babb797aeea7e2eec7f6379ae359dbaa20551fa79f8cefca626e381018aeff7c",
+      "references_checked": [],
+      "notes": [
+        "Read the complete 15-line original. Copied README.zh.md byte-for-byte and verified against baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Translated front matter, H1, module introduction, chapter labels, and return link text. Preserved all four original local .md destinations and chapter order 4, 5, 6. No external citations, code blocks, diagrams, or formulas occur here.",
+        "Checked the index labels against all three translated chapter H1 titles and verified that every local target exists. Chinese companion links intentionally remain untouched for the parent's central rewrite.",
+        "Module validation totals: four complete page pairs, 80 identical numbered section identifiers, 10 AST-checked Python blocks, eight topology-preserved English diagrams, 16 parsed bilingual diagrams, zero math expressions, unchanged external URL sets, and unchanged table row counts.",
+        "Scope remained limited to this module plus this evidence file. No branch rename, commit, push, PR, root-navigation change, or review-record edit was performed. Repository-wide publication validation remains for the parent after integration.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/03-ecosystem/07-langchain-vs-llamaindex.md",
+      "zh_path": "docs/frameworks/01-langchain/03-ecosystem/07-langchain-vs-llamaindex.zh.md",
+      "kind": "chapter",
+      "source_sha256": "67398c0643dc9eff98a4ab7c1c0f54d96b1a08710fc9d87b3243346045cd8448",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/overview",
+          "scope": "First 7,000 characters: create_agent, model/tool/middleware composition, and the LangChain versus LangGraph abstraction boundary.",
+          "access": "success; official live documentation fetched on 2026-09-20; partial page, not a version-pinned source"
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/agents",
+          "scope": "First 11,000 characters: agent loop, model and tools parameters, callables, and core create_agent interface.",
+          "access": "success; official live documentation fetched on 2026-09-20; partial page"
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/overview",
+          "scope": "First 7,000 characters: low-level orchestration/runtime role, stateful execution, persistence, human intervention, and independence from LangChain.",
+          "access": "success; official live documentation fetched on 2026-09-20; partial page"
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/human-in-the-loop",
+          "scope": "First 6,500 characters: HumanInTheLoopMiddleware, interrupt policy, LangGraph persistence, configuring a checkpointer and thread ID through create_agent.",
+          "access": "success; official live documentation fetched on 2026-09-20; partial page"
+        },
+        {
+          "url": "https://docs.llamaindex.ai/",
+          "scope": "Returned framework overview: private data/context augmentation, connectors, indexes, query engines, agents, retrieval, and workflows.",
+          "access": "success; redirected to https://developers.llamaindex.ai/python/framework/; returned page read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.llamaindex.ai/en/stable/understanding/agent/",
+          "scope": "Returned Building an Agent tutorial: iterative tool selection, query engines as tools, FunctionAgent and AgentWorkflow, and tool description/type-hint roles.",
+          "access": "success; redirected to https://developers.llamaindex.ai/python/framework/understanding/agent/; returned page read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.llamaindex.ai/en/stable/understanding/workflows/",
+          "scope": "First 10,000 characters: event-driven steps, branching/loops, typed input and output events, state and validation; not all linked examples.",
+          "access": "success; redirected to https://developers.llamaindex.ai/python/llamaagents/workflows/; partial page read on 2026-09-20"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/run-llama/llama_index/main/llama-index-core/llama_index/core/base/response/schema.py",
+          "scope": "Response and PydanticResponse declarations, source_nodes and metadata fields, and __str__ implementations; Response.__str__ returns the answer text without source_nodes.",
+          "access": "HTTP 200; targeted source excerpt read on 2026-09-20; main branch, not a historical release pin"
+        }
+      ],
+      "notes": [
+        "Read the complete 171-line Chinese source. Companion bytes verified against be53fedaedfb28da181db8e95f41bf91100621c4 before parent-owned link rewriting.",
+        "Translated every original section, paragraph, comparison table, common mistake, existing summary, and both Mermaid diagrams. Preserved all numbered headings and the data/context versus agent/orchestration distinction.",
+        "Preserved the query_engine.query wrapper, source_nodes caveat, two-generation cost/factual-drift warning, same-document/chunk/question evaluation, P95 metric, and three-attempts-per-layer to nine-request example.",
+        "Intentional model-visible string change: the @tool function docstring changed from 查询企业知识库。 to Query the company knowledge base. Comments translated; function names, parameters, calls, and return behavior unchanged. No other executable strings changed.",
+        "Python snippet parses with ast.parse; AST matches the Chinese snippet after excluding the translated docstring. It is an assembly example with pre-existing tool, create_agent, query_engine, chat_model, and lookup_order dependencies, not an end-to-end executable demo.",
+        "Both English Mermaid diagrams preserve the original node IDs, edges, orientation, and styles. Module-wide existing Mermaid checker passed all 16 diagrams across both editions.",
+        "All external URLs unchanged, English relative links use normal .md paths, table shapes and fence languages match. No equations existed. No factual correction to the Chinese source was required by the sources checked; no paid calls or retrieval benchmark was run.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/03-ecosystem/08-langchain4j.md",
+      "zh_path": "docs/frameworks/01-langchain/03-ecosystem/08-langchain4j.zh.md",
+      "kind": "chapter",
+      "source_sha256": "f3a2881726e0d33e432c84448996ac00b50a6b81037a8a6c696aba3d995b1223",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain4j.dev/",
+          "scope": "Returned homepage extract only: agents, tools, RAG, and low-/high-level toolbox positioning; this short extract alone is not treated as verification of the entire chapter.",
+          "access": "success; official live homepage fetched on 2026-09-20; very limited extracted content"
+        },
+        {
+          "url": "https://docs.langchain4j.dev/tutorials/ai-services",
+          "scope": "First 36,000 characters across two fetches: low-/high-level abstractions, Chains (legacy), interface proxy, annotations, return types, structured output, JSON mode, ChatMemoryProvider/@MemoryId concurrency warning, tools, ContentRetriever and RetrievalAugmentor.",
+          "access": "success; redirected to trailing-slash canonical URL; partial official page read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain4j.dev/tutorials/structured-outputs",
+          "scope": "First 24,000 characters across two fetches: record/POJO outputs, JSON Schema capabilities, AI Service automatic schema generation, explicit capability enabling, descriptions, and validation limits. Not all remaining supported-types/format-prompt sections were read.",
+          "access": "success; redirected to trailing-slash canonical URL; partial official page read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain4j.dev/tutorials/tools",
+          "scope": "First 13,000 characters: model proposes action versus application execution, tool names/descriptions/parameter schemas, low-level messages, and the opening High Level Tool API section covering @Tool conversion and automatic execution.",
+          "access": "success; redirected to trailing-slash canonical URL; partial official page read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain4j.dev/tutorials/chat-memory",
+          "scope": "Returned tutorial: memory versus complete history, message/token windows, in-memory defaults, custom ChatMemoryStore, eviction from persisted memory, and memory IDs.",
+          "access": "success; redirected to trailing-slash canonical URL; returned page read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain4j.dev/tutorials/rag",
+          "scope": "First 10,000 characters: RAG definition, indexing/retrieval separation, full-text/vector/hybrid methods, RAG variants, and the offline ingestion plus AI Service composition example. Advanced-RAG APIs were additionally checked in the AI Services tutorial, not by claiming the entire RAG page was read.",
+          "access": "success; redirected to trailing-slash canonical URL; partial official page read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain4j.dev/tutorials/guardrails",
+          "scope": "First 19,000 characters: experimental status, AI-Services-only boundary, guardrail cost/order, input guardrails after RAG but before model invocation, input outcomes, and opening output-guardrail section.",
+          "access": "success; redirected to trailing-slash canonical URL; partial official page read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain4j.dev/tutorials/observability",
+          "scope": "First 17,000 characters: experimental AI Service observability, service-only boundary, event types and correlation context, and ChatModelListener request/response/error coverage.",
+          "access": "success; redirected to trailing-slash canonical URL; partial official page read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain4j.dev/get-started",
+          "scope": "Returned getting-started page: separate integration dependencies, langchain4j-bom module version alignment, beta-module caveat, and current JDK floor. No current release numbers or JDK floor were inserted into the source's intentionally version-qualified example.",
+          "access": "success; redirected to trailing-slash canonical URL; returned official page read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain4j.dev/tutorials/spring-boot-integration",
+          "scope": "First 9,000 characters: Spring Boot major-version-specific starter names, auto-configured beans, @AiService, component wiring, and ChatModelListener integration.",
+          "access": "success; redirected to trailing-slash canonical URL; partial official page read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.quarkiverse.io/quarkus-langchain4j/dev/",
+          "scope": "Returned overview: extension built on LangChain4j, declarative AI Services/CDI, configuration, build-time optimization, observability, Dev Services, and memory management.",
+          "access": "success; returned official overview read on 2026-09-20"
+        }
+      ],
+      "notes": [
+        "Read the complete 357-line Chinese original in two ranges. Companion bytes verified against be53fedaedfb28da181db8e95f41bf91100621c4 before parent-owned link rewriting.",
+        "Translated every original numbered section and subsection, all comparison/control tables, common mistakes, existing summary, and two Mermaid diagrams. Preserved Java-specific independent-framework positioning, low-level models versus AI Services, memory versus history, and model listeners versus service-wide observability.",
+        "All four Java snippets are identical to the original after removing line comments. API identifiers, annotations, builder methods, SupportReply fields, minScore(0.75), maxResults(5), maxMessages(20), conversation-1001, A1024, Chinese prompt/annotation descriptions, and the Chinese customer question remain unchanged.",
+        "Translated Java comments. Added short English explanations of all retained Chinese business strings rather than changing model-visible annotation/prompt data. No executable string changes in this chapter.",
+        "Retained snippet prerequisites, records/text-block JDK caveat, threshold calibration warning, server-side authorization/tenant checks, document ACL placement, and same-MemoryId concurrency responsibility. The example remains hypothetical, not a claim of author experience.",
+        "Preserved experimental guardrails/AI Service observability labels and the important lifecycle qualification that Input Guardrail follows RAG. The AI Service sequence diagram remains a conceptual flow, not a claim that memory is written only once at completion.",
+        "Java snippets are assembly fragments with application-defined dependencies and no provided build/dependency manifest. Verified unchanged non-comment code and strings; did not claim compilation, live tool execution, model behavior, or integration testing.",
+        "Both English diagram structures match the originals; existing module-scoped Mermaid check passed. Table shapes, fences, numbered headings, relative links, and external URLs verified. No equations existed.",
+        "All requested source accesses succeeded, but scopes above are explicitly partial where truncated. No source contradiction requiring a Chinese correction was identified. Live documentation and mainline integration descriptions are not historical release certification; no Helidon/Micronaut or Spring AI runtime integration was tested.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci.",
+        "Additional coordinator-owned syntax coverage: all 4 Java fragments in each edition parsed with javac 25.0.2 / JavacTask.parse(), with zero errors or warnings. Only statement fragments 3-4 were wrapped for parse context. No SDK symbol resolution, semantic compilation, or model execution is claimed; non-comment code matches the baseline."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/03-ecosystem/11-version-evolution.md",
+      "zh_path": "docs/frameworks/01-langchain/03-ecosystem/11-version-evolution.zh.md",
+      "kind": "chapter",
+      "source_sha256": "edeb0dab43a72570cbbdf31267693a6ffa52d9f65a5064ea0c25d32a0b35ce28",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/oss/python/migrate/langchain-v1",
+          "scope": "First 40,000 characters across two fetches: namespace reduction/classic imports, create_react_agent to create_agent, prompt/system_prompt, hooks to middleware, TypedDict state restriction, pre-bound models, tool and structured-output changes, agent/model streaming node rename, runtime context, and Python 3.10 minimum.",
+          "access": "success; partial official migration guide read on 2026-09-20; source examples are live, not a frozen release snapshot"
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/releases/langchain-v1",
+          "scope": "First 9,500 characters: v1 focus, create_agent, middleware extension hooks, classic namespace migration, LangGraph runtime capabilities, and main-loop structured output.",
+          "access": "success; partial official v1 release page read on 2026-09-20"
+        },
+        {
+          "url": "https://blog.langchain.com/announcing-langchain-v0-3/",
+          "scope": "Returned v0.3 announcement: Python packages moving internally to Pydantic 2, removal of Pydantic 1 support, independent integration packages, and historical LangGraph/AgentExecutor transition.",
+          "access": "success; redirected to https://www.langchain.com/blog/announcing-langchain-v0-3; returned release-specific announcement read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/structured-output",
+          "scope": "First 16,000 characters: model-profile capability detection requires langchain>=1.1, ProviderStrategy strict requires langchain>=1.2, and tool/provider strategy distinction.",
+          "access": "success; partial official live documentation read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/fault-tolerance",
+          "scope": "First 14,000 characters: per-node timeout/error_handler requires langgraph>=1.2, retry/timeout/error-handler composition, and async-only node timeout qualification.",
+          "access": "success; partial official live documentation read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/graph-api#graph-migrations",
+          "scope": "First 12,000 characters of Graph API overview for StateGraph/TypedDict/Pydantic distinctions, plus the targeted Graph migrations and Runtime context sections fetched from graph-api.md: interrupted-thread node rename/removal restrictions, saved-key changes, and runtime context.",
+          "access": "success; web fetch plus HTTP 200 for https://docs.langchain.com/oss/python/langgraph/graph-api.md; targeted sections read on 2026-09-20, not the full graph API"
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/migrate/langgraph-v1.md",
+          "scope": "Targeted Breaking changes / Dropped Python 3.9 support section confirming Python 3.10 minimum for v1.",
+          "access": "HTTP 200; targeted official markdown excerpt read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/event-streaming",
+          "scope": "First 10,000 characters: stream_events(..., version=\"v3\") run object, typed projections, state/output, nested streams, and asynchronous consumption. Confirms the newer surface without establishing its first release patch.",
+          "access": "success; partial official live documentation read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/overview",
+          "scope": "First 7,000 characters: low-level runtime versus higher-level LangChain interfaces, state, persistence, streaming, and human intervention.",
+          "access": "success; partial official live documentation read on 2026-09-20"
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/human-in-the-loop",
+          "scope": "First 6,500 characters: create_agent middleware, checkpointer requirements, and thread ID supplied in config.",
+          "access": "success; partial official live documentation read on 2026-09-20"
+        }
+      ],
+      "notes": [
+        "Read the full 237-line Chinese original in two ranges. Companion bytes verified against be53fedaedfb28da181db8e95f41bf91100621c4 before parent-owned link rewriting.",
+        "Fully translated all numbered hierarchy, four architectural milestones, compatibility table, checkpoint-migration caveat, common mistakes, existing summary, and all four Mermaid diagrams.",
+        "Preserved Python 3.9/3.10, Pydantic v1/2, v0.3/v1 historical distinctions and langgraph>=1.2, langchain>=1.1, langchain>=1.2 floors. Did not upgrade any historical API or invent a first v3 patch version.",
+        "Preserved create_agent versus StateGraph state-schema distinction, langgraph.prebuilt versus classic ReAct factory distinction, context= versus checkpoint configurable/thread_id, pre/post hooks versus middleware, and agent/model node-name change.",
+        "Kept the executable Chinese question 什么是 Agent？ unchanged, with its English meaning explained immediately below the snippet. Only comments translated; Python AST is identical and ast.parse succeeds.",
+        "Preserved side-effect idempotency, incremental migration, dependency pinning, and persisted-state rollback caveats. Diagram IDs, edges, styles, direction, and structure match; existing module-scoped Mermaid check passed.",
+        "All external URLs unchanged; English links retain normal .md paths; table shapes, fence languages, numbered headings, and math delimiter parity verified. No equations existed.",
+        "No confirmed factual error in the original was found in the checked scopes, so no Chinese factual edits or silent API corrections were made. Live migration docs contain qualifications beyond this chapter, such as dynamic model functions returning pre-bound models when structured output is not used; the chapter's narrower migration recommendation remains valid.",
+        "No framework dependency resolution, checkpoint migration execution, paid model call, or publication build was claimed. Full-repository bilingual navigation/build validation remains with the parent integration task.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/03-ecosystem/README.md",
+      "zh_path": "docs/frameworks/01-langchain/03-ecosystem/README.zh.md",
+      "kind": "index",
+      "source_sha256": "669fe79423510852287780eb0085ef559c3eafd7a7ff3fbf379810ed2e1a882e",
+      "references_checked": [],
+      "notes": [
+        "Read the full 15-line Chinese index and translated its description, display title, introductory sentence, chapter list, and return link text.",
+        "Companion bytes verified against be53fedaedfb28da181db8e95f41bf91100621c4 before parent-owned link rewriting.",
+        "Index wording checked against the three fully translated module chapters and their source checks recorded above; the index contains no independent external citation.",
+        "All three chapter entries and order 7, 8, 11 preserved. English links use original .md targets and resolve; Chinese links deliberately remain byte-for-byte original for parent-owned central rewriting.",
+        "Four bilingual page pairs validated in total: 75 numbered chapter headings unchanged, 2 English Python snippets parsed, 4 Java fragments unchanged apart from comments, 8 English Mermaid structures preserved and all 16 bilingual diagrams parsed successfully, and git diff --check passed for this module.",
+        "No files outside the assigned module were edited except this requested evidence file; no branch rename, commit, push, pull request, or publication performed.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/04-langgraph/09-langchain-vs-langgraph.md",
+      "zh_path": "docs/frameworks/01-langchain/04-langgraph/09-langchain-vs-langgraph.zh.md",
+      "kind": "chapter",
+      "source_sha256": "b3f3b1fbf71b496a6f533adfcf2d984644db3b2274a59aa516c02643827ac6e9",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/overview",
+          "scope": "Opening positioning and LangChain/LangGraph/Deep Agents selection guidance; first 6000 returned characters.",
+          "access": "Successfully read live official documentation on 2026-09-20; response truncated after the requested scope. Current product terminology was not used to modernize the original v1 discussion."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/agents",
+          "scope": "Agent model/tool loop, create_agent, core components, AgentState and custom state schemas; first 18000 returned characters.",
+          "access": "Successfully read live official documentation; response truncated. The page's simplified append-only wording was not substituted for the manuscript's more precise message-ID reducer explanation."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/middleware",
+          "scope": "Middleware responsibilities, agent lifecycle, and embedding an agent with middleware in StateGraph.",
+          "access": "Successfully read the complete returned page, redirected to https://docs.langchain.com/oss/python/langchain/middleware/overview.md."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/streaming",
+          "scope": "Opening event-streaming version note, supported stream modes, and agent-progress examples; first 7000 returned characters.",
+          "access": "Successfully read live official documentation; response truncated. The opening note identifies typed event streaming as introduced in LangChain v1.3."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/overview",
+          "scope": "Low-level orchestration/runtime positioning, independence from high-level LangChain, mixed deterministic/agentic workflows, and core benefits; first 6500 returned characters.",
+          "access": "Successfully read live official documentation; response truncated before the end of the ecosystem section."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/use-graph-api",
+          "scope": "Graph API introduction; define/update state; reducers; message-ID-aware add_messages; first 9500 returned characters.",
+          "access": "Successfully read live official documentation; response truncated after MessagesState examples."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+          "scope": "Checkpointer versus store, thread scope versus cross-thread application data, in-memory limitations, and production persistence.",
+          "access": "Successfully read the complete returned official documentation page."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/interrupts",
+          "scope": "Interrupt prerequisites, same-thread resumption, restart-from-node-start semantics, parallel interrupt ID mapping; first 18000 returned characters.",
+          "access": "Successfully read live official documentation; response truncated. No external service or model was invoked."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/human-in-the-loop",
+          "scope": "approve/edit/reject/respond semantics, checkpointer requirements, decisions and invocation; first 16000 returned characters.",
+          "access": "Successfully read live official documentation; response truncated. This supplementary source clarifies that respond supplies a successful synthetic tool result, particularly for ask-user tools."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/use-subgraphs",
+          "scope": "Shared-key direct composition versus explicit wrapper mapping and the persistence-mode table; first 18000 returned characters.",
+          "access": "Successfully read live official documentation; response truncated."
+        },
+        {
+          "url": "https://docs.langchain.com/langsmith/observability",
+          "scope": "Cross-framework tracing, monitoring, evaluation, and platform/deployment positioning.",
+          "access": "Successfully read the complete returned official documentation page; no LangSmith account or tracing endpoint was used."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE",
+          "scope": "Concurrent updates to a default single-value channel and the need for explicit reducer semantics.",
+          "access": "Successfully read the complete returned official documentation page."
+        },
+        {
+          "url": "https://github.com/langchain-ai/langgraph/blob/3614e88c58af63f597764218646e85c49952b2da/libs/langgraph/pyproject.toml",
+          "scope": "First 55 lines of the dependency declaration at tag 1.2.0, including langchain-core, checkpointer, prebuilt, SDK, and Pydantic dependencies.",
+          "access": "Read with gh from https://api.github.com/repos/langchain-ai/langgraph/contents/libs/langgraph/pyproject.toml?ref=3614e88c58af63f597764218646e85c49952b2da after resolving tag 1.2.0. The original moving-main reference URL remains unchanged in the translated chapter."
+        },
+        {
+          "url": "https://github.com/langchain-ai/langchain/blob/4a65e827f7d7fd8139a4232f408a005f704dc71b/libs/langchain_v1/langchain/agents/factory.py",
+          "scope": "Lines 514-549: create_agent signature and graph-loop description; lines 1375-1383: graph.compile forwarding checkpointer and store. Tag langchain==1.0.0.",
+          "access": "Read with gh from https://api.github.com/repos/langchain-ai/langchain/contents/libs/langchain_v1/langchain/agents/factory.py?ref=4a65e827f7d7fd8139a4232f408a005f704dc71b. An initial lookup under libs/langchain/langchain/agents/factory.py returned 404; the correct versioned path was then located through the Git tree API."
+        },
+        {
+          "url": "https://github.com/langchain-ai/langgraph/blob/3614e88c58af63f597764218646e85c49952b2da/libs/langgraph/langgraph/graph/message.py",
+          "scope": "Lines 50-94, especially add_messages updating existing messages by ID rather than unconditional concatenation.",
+          "access": "Read with gh from https://api.github.com/repos/langchain-ai/langgraph/contents/libs/langgraph/langgraph/graph/message.py?ref=3614e88c58af63f597764218646e85c49952b2da at tag 1.2.0."
+        }
+      ],
+      "notes": [
+        "Read the complete original 343-line page and shared i18n README/glossary before editing. Chinese companion was copied byte-for-byte from baseline be53fedaedfb28da181db8e95f41bf91100621c4; byte equality was verified with git show.",
+        "Translated every heading, paragraph, comparison table, summary point, comment, reference label, and Mermaid label. All numbered H2/H3 identifiers, tables, link targets, external URLs, and three diagram topologies are preserved. Long diagram labels use explicit line breaks.",
+        "Preserved the dependency-tree distinction between high-level langchain and langchain-core, standard agent loop versus business topology, reducers versus last-write-wins, checkpointer versus store, recovery versus side-effect idempotency, and authentication versus approval authorization.",
+        "No executable code or string changed: the Python snippet has an identical AST to the original. Chinese routing input and rejection output are retained, with their meanings explained in English prose.",
+        "Validated syntax for the single Python block and executed classify_request, choose_route, and reject_request with local values. The assembly example still requires research_model and search_tool; no provider or paid API was invoked.",
+        "Parent-approved paired-edition clarification applied only in section 9.8: typed event streaming is version-dependent, introduced in LangChain v1.3, while the fixed LangGraph 1.2.0 implementation marked v3 experimental; directs readers to section 10.8 for the separate-package qualification. Sources: https://docs.langchain.com/oss/python/langchain/streaming opening note and https://github.com/langchain-ai/langgraph/blob/3614e88c58af63f597764218646e85c49952b2da/libs/langgraph/langgraph/pregel/main.py lines 3582-3626 and 3687-3731, read during the shared Chapter 9/10 source review. No code/API or examples changed.",
+        "source_sha256 remains the original Chinese hash at be53fedaedfb28da181db8e95f41bf91100621c4. Initial byte equality preceded the approved qualification; final fidelity checks permit only that exact section 9.8 sentence addition, with every other Chinese byte and link unchanged.",
+        "No Chinese links were rewritten; the parent owns the common bilingual-link migration.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md",
+      "zh_path": "docs/frameworks/01-langchain/04-langgraph/10-langgraph-advantages.zh.md",
+      "kind": "chapter",
+      "source_sha256": "a90f4d0494fbf8930449be1b299932c7be7346077374a72465c5ea3690c9f3ec",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/overview",
+          "scope": "Low-level runtime positioning, deterministic/agentic composition, and core benefits; first 6500 returned characters.",
+          "access": "Successfully read live official documentation on 2026-09-20; partial page."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/use-graph-api",
+          "scope": "State updates and reducer semantics; first 9500 returned characters.",
+          "access": "Successfully read live official documentation; partial page."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/functional-api",
+          "scope": "Overview, Graph API comparison, entrypoint/task roles, checkpointed task reuse, and entrypoint definition; first 10000 returned characters.",
+          "access": "Successfully read live official documentation; partial page. Decorator APIs were not modernized."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+          "scope": "Complete returned page: checkpointer/store distinction, scope, and RAM versus durable persistence.",
+          "access": "Successfully read official documentation."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/checkpointers",
+          "scope": "Opening through durability modes: thread IDs, super-step checkpoints, per-task pending writes, state history, replay/fork, sync/async/exit; first 20000 returned characters.",
+          "access": "Successfully read live official documentation; response truncated in the subsequent checkpoint-storage optimization section."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/interrupts",
+          "scope": "First 18000 returned characters: interrupt/resume and ID mapping. Characters 31300-39800: interrupt ordering, serializable payloads, side effects before interrupts, and the opening subgraph-resumption discussion.",
+          "access": "Successfully read the specified official-documentation ranges; intervening and later sections were not fully read. Stronger manuscript idempotency caveats were retained rather than adopting oversimplified once-only comments from documentation examples."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/use-time-travel",
+          "scope": "Overview, replay, fork, as_node, repeated interrupts, and the opening subgraph discussion; first 10000 returned characters.",
+          "access": "Successfully read live official documentation; partial page. Confirmed that replay re-executes model/API calls and does not undo real-world operations."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/use-subgraphs",
+          "scope": "Characters 0-18000: composition and persistence-mode table. Characters 21800-29300: per-thread parallel-call conflicts, namespaces, and stateless mode.",
+          "access": "Successfully read the specified official-documentation ranges. Confirmed None/True/False checkpointer scope and parent-checkpointer prerequisites; other sections not claimed as read."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/fault-tolerance",
+          "scope": "First 19000 returned characters: retry defaults, max_attempts including first attempt, LangGraph >=1.2 requirement, async-only node timeouts, run/idle timeout behavior, NodeTimeoutError, and error_handler/Command examples.",
+          "access": "Successfully read live official documentation; truncated during the later interrupt/error-handler interaction section."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/event-streaming",
+          "scope": "Complete returned page: version='v3', typed state/message/tool projections, stream.values, raw protocol events, and output-redaction integration notes.",
+          "access": "Successfully read live official documentation. This was source inspection only, not a model or streaming service invocation."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/streaming",
+          "scope": "Opening LangChain v1.3 event-streaming introduction note and low-level mode overview; first 7000 returned characters.",
+          "access": "Successfully read live official documentation; partial page used to identify the omitted version qualification for parent review."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langchain/agents",
+          "scope": "Agent loop and state customization; first 18000 returned characters.",
+          "access": "Successfully read live official documentation; partial page."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE",
+          "scope": "Complete returned page: concurrent single-value updates and explicit reducers.",
+          "access": "Successfully read official documentation."
+        },
+        {
+          "url": "https://github.com/langchain-ai/langgraph/blob/3614e88c58af63f597764218646e85c49952b2da/libs/langgraph/langgraph/types.py",
+          "scope": "Tag 1.2.0: RetryPolicy lines 406-425, TimeoutPolicy lines 440-474, interrupt lines 801-846.",
+          "access": "Read via https://api.github.com/repos/langchain-ai/langgraph/contents/libs/langgraph/langgraph/types.py?ref=3614e88c58af63f597764218646e85c49952b2da. Initial https://raw.githubusercontent.com/langchain-ai/langgraph/3614e88c58af63f597764218646e85c49952b2da/libs/langgraph/types.py returned 404 because the package directory was missing; the corrected path was successfully read through gh."
+        },
+        {
+          "url": "https://github.com/langchain-ai/langgraph/blob/3614e88c58af63f597764218646e85c49952b2da/libs/langgraph/langgraph/graph/state.py",
+          "scope": "Tag 1.2.0, add_edge lines 915-943: multiple starting nodes wait for ALL prerequisites before the destination runs.",
+          "access": "Read via https://api.github.com/repos/langchain-ai/langgraph/contents/libs/langgraph/langgraph/graph/state.py?ref=3614e88c58af63f597764218646e85c49952b2da."
+        },
+        {
+          "url": "https://github.com/langchain-ai/langgraph/blob/3614e88c58af63f597764218646e85c49952b2da/libs/langgraph/langgraph/pregel/main.py",
+          "scope": "Tag 1.2.0, lines 3582-3626 and 3687-3731: synchronous/asynchronous stream_events overloads, typed GraphRunStream, and the experimental v3 warning.",
+          "access": "Read via https://api.github.com/repos/langchain-ai/langgraph/contents/libs/langgraph/langgraph/pregel/main.py?ref=3614e88c58af63f597764218646e85c49952b2da."
+        }
+      ],
+      "notes": [
+        "Read the complete original 555-line page before editing. Chinese companion was copied byte-for-byte from baseline be53fedaedfb28da181db8e95f41bf91100621c4 and verified unchanged.",
+        "All numbered headings, meaningful paragraphs, questions, example steps, tables, summary points, references, Python blocks, and two Mermaid topologies are preserved. Diagram labels and code comments are translated; long diagram labels are wrapped.",
+        "Preserved super-step snapshots versus per-task pending writes, runtime recovery versus historical replay, checkpointer versus store, interrupt replay from node start, same-thread identity versus authorization, and None/True/False subgraph persistence distinctions.",
+        "Preserved fixed interfaces and requirements: LangGraph >=1.2 node timeout/error_handler, async-only timeout, Python 3.11+ asyncio.timeout, max_attempts=3 including the first attempt, run_timeout=30, idle_timeout=10, and stream_events(version='v3').",
+        "All seven Python blocks parse and have ASTs identical to the Chinese originals: no executable strings, identifiers, values, control flow, API parameters, or schema fields changed. Chinese error/result strings remain unchanged with an English explanation immediately after the relevant examples.",
+        "Retained the fictional procurement setting, RMB fen units, RMB 100000 / 10000000-fen budget, placeholder services, and single-process serial in-memory ledger limitations. No fictional outcome is presented as an actual project result.",
+        "Pure-code execution passed for progress allowlisting, local-fake stream consumption, the budget boundary, compliance placeholder, all eight approval-routing combinations, result placeholders, duplicate/conflicting/versioned ledger decisions, and the async budget adapter with a local fake. No paid API or model call was made.",
+        "Runtime limitation: langgraph, langchain, and pydantic are absent from both this checkout's system interpreter and the parent's existing documentation venv. Framework integration and actual Pydantic strict-validation execution were not tested; syntax and AST preservation were verified, and pure functions were exercised separately.",
+        "Parent-approved paired-edition clarification applied only in section 10.8: pin compatible versions, distinguish the LangChain v1.3 introduction from the experimental label in the fixed LangGraph 1.2.0 implementation, and assess other LangGraph versions separately. Direct LangGraph use is explicitly not made dependent on LangChain v1.3. Sources are the official streaming opening note and the pinned pregel/main.py ranges listed above; coordinator also read the first 3000 streaming-page characters. No API/example/code changes.",
+        "source_sha256 identifies the original Chinese at be53fedaedfb28da181db8e95f41bf91100621c4. The sole final byte-fidelity exception is the parent-approved two-sentence paragraph in section 10.8; every other Chinese byte and internal link remains unchanged.",
+        "Across all three pairs: matching heading-number sequences, fence languages/counts, table-row counts, unchanged external URLs/internal targets, five unchanged diagram topologies, and zero formulas were verified. No Chinese prose remains outside preserved example strings.",
+        "Existing Mermaid checker passed all 10 diagrams across both language editions, run from the assigned module using the parent's already-installed checker/dependencies. Local npm run check:mermaid first failed because local jsdom was missing; no dependency or unrelated file was changed.",
+        "Repository-wide python3 scripts/check_docs.py was attempted and reported migration-wide failures (166 chapter files, 83 issues at that moment), including missing review records for .zh.md companions. The old checker is not yet bilingual-aware; the parent owns common checks, review evidence, navigation, and final strict site build.",
+        "No Chinese links were rewritten. No commit, branch rename, push, or PR was made.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/04-langgraph/README.md",
+      "zh_path": "docs/frameworks/01-langchain/04-langgraph/README.zh.md",
+      "kind": "index",
+      "source_sha256": "8b29024b35ccd4e7f4c907a72f9bcaf3176d6b7e6fc9ed6ebc1d6e9da9a5e1f5",
+      "references_checked": [],
+      "notes": [
+        "Read the complete original 14-line index and shared i18n README/glossary. Copied the Chinese index byte-for-byte from baseline be53fedaedfb28da181db8e95f41bf91100621c4; verified exact byte equality.",
+        "Translated description, introductory prose, chapter-list heading, both chapter display titles, and the return-link label. The existing LangChain / LangGraph H1 requires no localization.",
+        "Both English chapter labels match their actual translated H1 titles. Both chapter targets and the parent-index target exist; normal .md links are preserved. No fragment anchors occur in this module.",
+        "No code, math, diagrams, external references, fictional results, or attribution footers were added. The parent owns later safe rewriting of Chinese links.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/05-production/12-deep-research.md",
+      "zh_path": "docs/frameworks/01-langchain/05-production/12-deep-research.zh.md",
+      "kind": "chapter",
+      "source_sha256": "a00f8b8686d1bc5b350c815e68040ef775e05462dccc73e011d484c9603c762d",
+      "references_checked": [
+        {
+          "url": "https://blog.langchain.com/open-deep-research/",
+          "scope": "Read the returned article body: challenge, scope/brief generation, supervisor and research subagents, report writing, context isolation, parallelism lessons, token costs, and next steps.",
+          "access": "Success; redirected to https://www.langchain.com/blog/open-deep-research. Original manuscript URL retained."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/deepagents/backends",
+          "scope": "Read the first 20,000 returned characters, including quickstart table, StateBackend sharing, FilesystemBackend warnings and virtual_mode behavior, CompositeBackend recommendation, and LocalShellBackend isolation warning. Later sections were not fully read.",
+          "access": "Success with truncation after the opening LocalShellBackend examples."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/deepagents/async-subagents",
+          "scope": "Read the complete returned page body, including sync/async comparison, Agent Protocol server requirement, task lifecycle, state management, transports, deployment topology, and troubleshooting. No preview label appears in this returned page.",
+          "access": "Success; current page differs from the original manuscript's preview-status claim."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/deepagents/overview",
+          "scope": "Initial 18,000-character fetch mostly exposed embedded UI code, not the task-planning section; it was insufficient to verify v0.7 behavior.",
+          "access": "Success but truncated; used the Markdown representation below for targeted passages."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/deepagents/overview.md",
+          "scope": "Fetched in memory and read only extracted passages around v0.7, opt-in planning, the task tool's fresh context and single final report, filesystem access, and interrupt_on. Confirmed task planning is opt-in starting in v0.7. Did not read the entire 79,357-character response.",
+          "access": "Success through urllib; no SDK or model execution."
+        }
+      ],
+      "notes": [
+        "Read the complete original page and copied it before rewriting. The .zh.md file is byte-for-byte identical to baseline be53fedaedfb28da181db8e95f41bf91100621c4, including its original links.",
+        "Translated every section, table, diagram label, warning, example, and reference label. Preserved all 8 numbered H2s and 21 numbered H3s, the 3 Mermaid graph topologies, all link destinations, numerical/version literals, and the hypothetical cloud-provider comparison.",
+        "Preserved the separation of LangChain building blocks, LangGraph stateful execution, open_deep_research workflow, and the separately installed Deep Agents SDK/harness; message-context isolation does not imply data, storage, permission, or process isolation.",
+        "Preserved the critical warning: root_dir alone is NOT a security boundary; FilesystemBackend defaults to virtual_mode=False; virtual_mode=True constrains file-tool paths but is not a process sandbox and does not constrain host shell commands. Preserved shared StateBackend files, StoreBackend tenant namespaces, LocalShellBackend having no isolation, sandbox limitations, and Composite routing.",
+        "Parent-approved minimal paired-edition correction applied only in section 12.1.1: removed the claim that the async-subagents page still labels the feature preview. The full current page at https://docs.langchain.com/oss/python/deepagents/async-subagents contains no such label; coordinator independently read the full returned page on 2026-09-20. No claim of GA or stability replaces it. Agent Protocol server requirements and the synchronous/asynchronous distinction are unchanged.",
+        "source_sha256 still identifies the original Chinese text at be53fedaedfb28da181db8e95f41bf91100621c4. Initial byte equality was established before the approved deletion; final fidelity checks permit only that exact status-clause deletion and its joining punctuation, with all remaining Chinese text and links unchanged.",
+        "No executable code blocks or executable strings were modified. All external URLs and normal .md links remain unchanged; there were no Chinese link fragments to resolve.",
+        "Validation passed: baseline byte pairing, identical numbered heading identifiers, link targets and math, no remaining Chinese prose, unchanged graph topology, existing Mermaid parser for both editions, existing check_docs.py math checks, and scoped git diff --check. No paid API calls, publication, commits, or repository-wide configuration edits.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/05-production/13-langsmith-production-loop.md",
+      "zh_path": "docs/frameworks/01-langchain/05-production/13-langsmith-production-loop.zh.md",
+      "kind": "chapter",
+      "source_sha256": "ae659a57a6dbfb30f62c2a7816b504c91aa05df61bbb4b1d2d0a20aa546494a5",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/langsmith/mask-inputs-outputs",
+          "scope": "Read the first 20,000 returned characters: zero-retention conditional tracing note, hide-input/output environment variables and Client options, separate metadata controls, rule-based masking, and function-level input/output processing. Did not read the entire examples tail.",
+          "access": "Success with truncation in the advanced regex example."
+        },
+        {
+          "url": "https://docs.langchain.com/langsmith/experiment-configuration",
+          "scope": "Read the complete returned short page: num_repetitions reruns target and evaluators, evaluate/aevaluate concurrency semantics, and disk-cache behavior.",
+          "access": "Success."
+        },
+        {
+          "url": "https://docs.langchain.com/langsmith/online-evaluations-llm-as-judge",
+          "scope": "Read the complete returned page body: run-level evaluators, filters, sampling rates, backfill, spend limits, retention note, and attachment mapping. Used filters, sampling, and spend-limit sections to check chapter claims.",
+          "access": "Success."
+        }
+      ],
+      "notes": [
+        "Read the complete original page and copied it before rewriting. Chinese companion bytes match baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Preserved all 8 numbered H2s, 6 numbered H3s, 2 Mermaid diagrams and their topology, every table and reference, and all link destinations.",
+        "Kept trace minimization distinct from UI hiding, HMAC pseudonymization distinct from zero retention, and audit retention distinct from diagnostic and judge sampling. Preserved tenant isolation, raw-data exclusions, release-gate CI/CD integration, and pre-action authorization versus post-run judging.",
+        "Preserved dataset grouping and leakage cautions, repeated observations not being independent samples, paired candidate comparisons, the 0.01 score example, cache limitations, judge calibration, and targeted-sampling bias.",
+        "Only Python comments were translated, with one comment split into two lines. AST comparison confirms no executable strings, imports, parameters, fields, hash truncation, or behavior changed.",
+        "Executed the actual local trace_metadata and project_tool_log helpers with non-secret fixture values: deterministic 24-character tenant hash, distinct tenant hashes, retained prompt version, allowlisted output, and empty-result defaults all passed. No tracing client, external transmission, or paid model call was used.",
+        "Validation passed: byte pairing, numbered sections, all links, math/fences, Python syntax and AST equivalence, graph topology, existing Mermaid parser for both editions, existing check_docs.py math checks, and scoped git diff --check.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/05-production/README.md",
+      "zh_path": "docs/frameworks/01-langchain/05-production/README.zh.md",
+      "kind": "index",
+      "source_sha256": "8c99cc304100c5b4888261df4b33f0ce5ba9f4d9a9002a5bf6b9db71a80a7208",
+      "references_checked": [],
+      "notes": [
+        "Read the complete original index and copied it byte-for-byte before translation; Chinese companion matches baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Translated description, H1, scope sentence, chapter labels, and return link label. Preserved both chapter destinations and ../README.md unchanged.",
+        "This index has no external citations or executable strings. Its scope was checked against the two fully translated production chapters rather than claiming additional source review.",
+        "Validation passed: page pairing, one H1, all local link targets existing and unchanged, no untranslated Chinese, and scoped git diff --check. Chapter numbers and English titles match the destination pages.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/01-langchain/README.md",
+      "zh_path": "docs/frameworks/01-langchain/README.zh.md",
+      "kind": "index",
+      "source_sha256": "433f604aa7ed1a4f1b3ae2a3a99e68b11ff6832faa41c80aa11df768e5a0b521",
+      "references_checked": [],
+      "notes": [
+        "Read and translated the entire LangChain index, preserving all five submodule paths and the numeric reading order across the nested directory layout.",
+        "Retained LangChain v1, minimum Python 3.10, asyncio.timeout requiring Python 3.11, placeholder-provider setup, and the requirement to pin compatible framework/provider/checkpointer versions.",
+        "No executable snippet or direct external citation appears in this index; no claim of SDK runtime validation is made. Original Chinese content and links remain byte-for-byte unchanged.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/02-llamaindex/14-data-index-abstractions.md",
+      "zh_path": "docs/frameworks/02-llamaindex/14-data-index-abstractions.zh.md",
+      "kind": "chapter",
+      "source_sha256": "39408d5c5abe0396985f8187069111a5bc4778bb369ab54d7bcd8bb7510d607d",
+      "references_checked": [
+        {
+          "url": "https://developers.llamaindex.ai/python/framework/module_guides/loading/ingestion_pipeline/",
+          "scope": "Transformation pipelines, node/transformation caching, persisted caches, docstore-enabled document management, stable doc_id and changed/unchanged hashes.",
+          "access": "Retrieved and read the official page through web_fetch on 2026-09-20. Full returned prose was available; HTML-to-Markdown extraction loses some code formatting, so it was not treated as an executable example."
+        },
+        {
+          "url": "https://developers.llamaindex.ai/python/framework/module_guides/indexing/index_guide/",
+          "scope": "SummaryIndex default full-node synthesis and optional embedding/filter modes, vector top-k retrieval, TreeIndex branch traversal, keyword matching, and PropertyGraphIndex extraction/retrieval.",
+          "access": "Retrieved and read the full returned official index-guide prose on 2026-09-20; diagrams were not visually inspected."
+        },
+        {
+          "url": "https://developers.llamaindex.ai/python/framework/module_guides/storing/",
+          "scope": "Document, index, vector, and property graph storage responsibilities; StorageContext configuration and stores that persist text and vectors together.",
+          "access": "Retrieved and read the full returned official storage-overview prose on 2026-09-20. No database integration was executed."
+        }
+      ],
+      "notes": [
+        "Read the complete original; copied it byte-for-byte before editing. The .zh.md file and all its links remain unchanged from baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Preserved every numbered section, paragraph, index comparison row, code example, the 200-page example, ingestion/update failure progression, ACL and deletion caveats, and both Mermaid graph topologies.",
+        "Document/Node processing units, Index/Retriever retrieval assumptions, and StorageContext backend dependencies remain distinct from agent lifecycles and orchestration.",
+        "No executable string changes. Both Python snippets syntax-compiled locally; ASTs match the originals. Values 512, 64, 1536 and all identifiers, metadata fields, filenames, and database/table literals are unchanged. No paid model call or PostgreSQL connection was made.",
+        "All original external URLs and local .md destinations are unchanged; no Chinese anchors occurred. Numbered heading sequence, fences, table/list counts, and diagram topology match. No mathematical expressions occur.",
+        "No suspected source factual error identified in the checked scope. Current unversioned documentation may evolve; this pass does not certify every integration version.",
+        "Mermaid parser validation was attempted with the repository's dependencies but could not run because jsdom is absent. Topology preservation passed; central Mermaid/build validation remains necessary.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/02-llamaindex/15-query-engine-workflows.md",
+      "zh_path": "docs/frameworks/02-llamaindex/15-query-engine-workflows.zh.md",
+      "kind": "chapter",
+      "source_sha256": "19bb46373dccf5dd7dcdc6411702a710d3ab5a5b6c22bb020f4a89bf0960f7ca",
+      "references_checked": [
+        {
+          "url": "https://developers.llamaindex.ai/python/framework/module_guides/querying/router/",
+          "scope": "Single/multiple selection, LLM versus Pydantic selectors, metadata descriptions, and RouterQueryEngine composition.",
+          "access": "Retrieved and read the full returned official router-guide prose on 2026-09-20."
+        },
+        {
+          "url": "https://developers.llamaindex.ai/python/llamaagents/workflows/",
+          "scope": "workflows imports, Event input/output signatures, step validation, StartEvent/StopEvent, WorkflowHandler, Context dispatch and manual collect_events.",
+          "access": "Retrieved the first 9,000 returned characters on 2026-09-20; inspected these concepts and examples, not the rest of the page."
+        },
+        {
+          "url": "https://developers.llamaindex.ai/python/llamaagents/workflows/managing_state/",
+          "scope": "Per-run Context, ctx.store, typed Pydantic state, atomic edit_state scope, context reuse, and keeping resources out of serializable state.",
+          "access": "Retrieved and read the full returned official shared-state guide on 2026-09-20."
+        },
+        {
+          "url": "https://developers.llamaindex.ai/python/llamaagents/workflows/durable_workflows/",
+          "scope": "Context.to_dict/from_dict, user-managed snapshots versus runtime persistence, pending-event redispatch, repeated in-flight steps, at-least-once side effects, and Resource dependencies.",
+          "access": "Retrieved and read the full returned official durability-guide prose on 2026-09-20; recovery behavior was documented, not exercised against a live runtime."
+        },
+        {
+          "url": "https://github.com/run-llama/llama_index/blob/main/llama-index-core/llama_index/core/response_synthesizers/base.py",
+          "scope": "BaseSynthesizer.asynthesize signature requires both query and nodes; NodeWithScore list handling and response source-node assembly.",
+          "access": "The GitHub HTML extraction returned only file size/line-count metadata. Read the full raw source instead at https://raw.githubusercontent.com/run-llama/llama_index/main/llama-index-core/llama_index/core/response_synthesizers/base.py on 2026-09-20. This is an unpinned main-branch read, not a package-version guarantee."
+        }
+      ],
+      "notes": [
+        "Original Chinese copied byte-for-byte; Chinese prose and links remain unchanged from the stated baseline.",
+        "Preserved all numbered sections, router selector costs, citation caveat, reranking event dependency warning, LangGraph comparison rows, tool-versus-runtime ownership alternatives, reimbursement crash example, and two Mermaid topologies.",
+        "Preserved the standalone workflows namespace and the historical llama_index.core.workflow compatibility warning. Did not replace existing API examples with a newer orchestration API.",
+        "No executable string changes. Both Chinese travel-reimbursement questions are retained as input data and explained in English. Two Python snippets syntax-compiled, including top-level await; ASTs match the originals. retriever/synthesizer remain application-provided dependencies and no model call was executed.",
+        "At-least-once recovery is explicitly separate from exactly-once external effects, and shared Context state is not described as stateless execution.",
+        "All source URLs, local .md links, heading numbers, fences, table/list counts, and diagram topology preserved; no Chinese anchor or mathematical expression occurred.",
+        "No source factual conflict identified in the checked scope. The WorkflowServer deployment page and LangGraph reference were retained but not independently reread in this scope.",
+        "Mermaid parsing was unavailable because jsdom is missing; static topology checks passed. Central parser/build validation is still required.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/02-llamaindex/README.md",
+      "zh_path": "docs/frameworks/02-llamaindex/README.zh.md",
+      "kind": "index",
+      "source_sha256": "a1af35a2563f160055f105a9bc212f791a5bff2dff969b6cf484470f2a282f99",
+      "references_checked": [
+        {
+          "url": "https://developers.llamaindex.ai/python/llamaagents/workflows/",
+          "scope": "Independent workflows namespace, Event/step model, Context state and dispatch.",
+          "access": "Read the first 9,000 returned characters of the official guide on 2026-09-20."
+        },
+        {
+          "url": "https://developers.llamaindex.ai/python/llamaagents/workflows/managing_state/",
+          "scope": "Shared and typed state; serializable Context versus runtime resources.",
+          "access": "Read the full returned official page on 2026-09-20."
+        },
+        {
+          "url": "https://developers.llamaindex.ai/python/llamaagents/workflows/durable_workflows/",
+          "scope": "Serialization alone does not enable ongoing checkpoint persistence and crash recovery.",
+          "access": "Read the full returned official durability-guide prose on 2026-09-20."
+        }
+      ],
+      "notes": [
+        "All original index paragraphs, two chapter links, module graph, four reading suggestions, and return link translated fully; Chinese companion remains byte-identical.",
+        "English chapter labels match the translated chapter H1s; destinations remain the ordinary .md paths. Chinese links intentionally await central rewriting.",
+        "Mermaid node/edge structure is unchanged; labels are English. No executable code, executable string changes, or mathematical expressions.",
+        "No source factual conflicts found in the checked scope. Parser verification awaits available jsdom/Mermaid dependencies; topology and fence checks passed.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/03-dspy/16-declarative-programming-model.md",
+      "zh_path": "docs/frameworks/03-dspy/16-declarative-programming-model.zh.md",
+      "kind": "chapter",
+      "source_sha256": "a50caa3414bc50b5763b9a5cc0205c28a47f14247d0371312209f8220d3700a8",
+      "references_checked": [
+        {
+          "url": "https://dspy.ai/getting-started/class-based-signatures/",
+          "scope": "Read the redirect notice only; followed its /current/ target below.",
+          "access": "Success; returned Continue to the documentation rather than the chapter body. Original citation retained."
+        },
+        {
+          "url": "https://dspy.ai/current/getting-started/class-based-signatures/",
+          "scope": "Read the complete returned page: fields and descriptions, docstrings becoming task instructions, rendering of system instructions, optimizer limitations on field descriptions/names, and richer-type examples.",
+          "access": "Success."
+        },
+        {
+          "url": "https://dspy.ai/getting-started/changing-modules/",
+          "scope": "Read the redirect notice only; followed its /current/ target below.",
+          "access": "Success; original citation retained."
+        },
+        {
+          "url": "https://dspy.ai/current/getting-started/changing-modules/",
+          "scope": "Read the complete returned page: switching Predict to ChainOfThought, retaining the signature interface, and adding a reasoning output field. Did not follow its linked module-variant pages.",
+          "access": "Success."
+        },
+        {
+          "url": "https://arxiv.org/abs/2310.03714",
+          "scope": "The fetch returned only the paper identifier and title; checked citation title only, not the abstract, full paper, benchmarks, or algorithms.",
+          "access": "Partial content: title only. No claim of paper-level verification."
+        }
+      ],
+      "notes": [
+        "Read the entire original page and copied it before rewriting. Chinese companion remains byte-identical to baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Preserved 6 numbered H2s, 5 numbered H3s, all 3 Python blocks, the Mermaid graph topology, module comparison table, model identifier openai/gpt-4o-mini, all references, and normal .md links.",
+        "Executable text change 1: ExtractEvent class docstring changed from 从邮件正文中抽取会议事件的关键信息。 to Extract key meeting-event details from an email body. This is a translated initial model instruction, not an inert comment.",
+        "Executable text change 2: OutputField desc changed from ISO 8601 格式 to ISO 8601 format. It remains a prompt-visible description, not a date validator. Field identifiers, types, API calls, signature strings, and model identifier are unchanged.",
+        "AST comparison allows only those two recorded string translations; all three snippets compile as Python. The LM and ChainOfThought snippets were not executed against a provider, and no claim of extraction accuracy or paid-model verification is made.",
+        "Preserved distinctions between signature contract, adapter serialization/parsing, module strategy, discoverable predictors, ordinary Python control flow, program parameters, and runtime conversational state. Preserved no-guarantee cautions for CoT and hidden reasoning, ReAct versus native tool-call protocols, code-execution isolation, retrieval backend requirements, and date validation.",
+        "No Chinese business test literals occur on this page. No API modernization was performed. Validation passed for byte pairing, identical section identifiers, math, fences, links, Python syntax/AST, graph topology, existing Mermaid parser for both editions, existing check_docs.py math checks, and scoped git diff --check.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/03-dspy/17-compiler-and-optimizers.md",
+      "zh_path": "docs/frameworks/03-dspy/17-compiler-and-optimizers.zh.md",
+      "kind": "chapter",
+      "source_sha256": "30c6a9dd0350d7a662c6b0c80ff85d9f4a23350f7f9ea4e1b1bd96d6eab57ef3",
+      "references_checked": [
+        {
+          "url": "https://dspy.ai/diving-deeper/choosing-an-optimizer/",
+          "scope": "Read the redirect notice only; followed the /current/ target below.",
+          "access": "Success; original citation retained."
+        },
+        {
+          "url": "https://dspy.ai/current/diving-deeper/choosing-an-optimizer/",
+          "scope": "Read the complete returned optimizer guide, including search targets, returned artifacts, budget versus optimizer selection, baseline/demo/instruction/weight optimizers, and selection table. Cross-checked GEPA scalar-feedback support against its more specific API page rather than treating the guide's feedback wording as exhaustive.",
+          "access": "Success."
+        },
+        {
+          "url": "https://dspy.ai/api/optimizers/MIPROv2/",
+          "scope": "Read the redirect notice only; followed the /current/ target below.",
+          "access": "Success; original citation retained."
+        },
+        {
+          "url": "https://dspy.ai/current/api/optimizers/MIPROv2/",
+          "scope": "Read the complete returned API page, including constructor and compile source, auto/num_trials/num_candidates validation, return value, example, and the three-stage mechanism.",
+          "access": "Success. Documentation/source inspection only; no optimization run."
+        },
+        {
+          "url": "https://dspy.ai/api/optimizers/GEPA/overview/",
+          "scope": "Read the redirect notice only; followed the /current/ target below.",
+          "access": "Success; original citation retained."
+        },
+        {
+          "url": "https://dspy.ai/current/api/optimizers/GEPA/overview/",
+          "scope": "Read the first 20,000 returned characters: introduction, constructor signature, execution-trace reflection, metric arguments, float-or-feedback return contract, and fallback scalar feedback. Separately fetched HTML into memory and read extracted Budget Configuration, Reflection Configuration, and program_trace passages. Did not read the entire long API/source page.",
+          "access": "Success with initial truncation in the parameter table; targeted follow-up succeeded. Current optional code_proposer/program_trace capabilities were not inserted into the historical example."
+        },
+        {
+          "url": "https://arxiv.org/abs/2310.03714",
+          "scope": "Fetch returned identifier and title only; citation title checked, full paper not read.",
+          "access": "Partial content: title only."
+        },
+        {
+          "url": "https://arxiv.org/abs/2507.19457",
+          "scope": "Fetch returned identifier and title only; citation title checked, benchmark evidence and full paper not read.",
+          "access": "Partial content: title only."
+        }
+      ],
+      "notes": [
+        "Read the whole original page and copied it before rewriting. Chinese companion remains byte-for-byte identical to baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Preserved all 7 numbered H2s, 4 numbered H3s, every table and example, the exact optimization formula, all 5 math expressions, graph topology, numerical settings, URLs, and normal .md links.",
+        "The MIPROv2 Python block is executable-AST identical to the original; no executable strings were changed. Syntax compilation passed. Executed only the extracted exact_answer function locally: surrounding whitespace matched with score 1.0 and different answers scored 0.0.",
+        "Kept few-shot selection, instruction optimization, and weight training distinct. Ordinary compile() neither implies weight training nor guarantees global optimality or test-set gains. Kept BootstrapFinetune tunable-model requirements, GEPA not being weight training, and returned-program use rather than assumed in-place mutation.",
+        "Preserved MIPROv2 auto budget semantics, manual auto=None condition, GEPA's pred_name/pred_trace-compatible metric and scalar-feedback limitation, reflection/proposer configuration, and search budgets without modernizing APIs.",
+        "Preserved optimizer versus observability responsibilities, representative data versus mandatory gold labels, train/validation/test separation, leakage and selection bias, per-inference demonstration costs, search side effects, and the prohibition on extrapolating GEPA paper benchmarks to an untested task.",
+        "Validation passed for byte pairing, section identifiers, math/fences, links, Python syntax/AST, local exact-answer cases, graph topology, existing Mermaid parser for both editions, existing check_docs.py math checks, and scoped git diff --check. No LM compilation/search, fine-tuning, provider calls, or full-paper reproduction was performed.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/03-dspy/README.md",
+      "zh_path": "docs/frameworks/03-dspy/README.zh.md",
+      "kind": "index",
+      "source_sha256": "418ec41e4348794cff0765c41335d44845c846ea50ac6bc3a4007b353e1b63e2",
+      "references_checked": [
+        {
+          "url": "https://dspy.ai/diving-deeper/choosing-an-optimizer/",
+          "scope": "Read the redirect notice only; followed its current documentation target.",
+          "access": "Success; original index URL retained."
+        },
+        {
+          "url": "https://dspy.ai/current/diving-deeper/choosing-an-optimizer/",
+          "scope": "Read the complete returned optimizer guide alongside Chapter 17; checked instruction/demo/weight distinctions, fine-tuning requirements, and budget/metric tradeoffs. No claim of optimizer execution.",
+          "access": "Success."
+        }
+      ],
+      "notes": [
+        "Read the entire original index and copied it before rewriting; Chinese companion bytes match baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Translated metadata, title, scope, chapter labels, diagram labels and edges, all reading suggestions, and return label. Preserved normal .md link destinations and the external optimizer-guide URL.",
+        "Preserved the diagram's separate prompt/example and fine-tunable-weight branches, its feedback/deployment edges, developer responsibility for program structure and metrics, and independent testing. No executable strings were modified.",
+        "Validation passed for pairing, matching English chapter titles, all local targets existing, no Chinese text remaining, unchanged Mermaid graph topology, existing Mermaid parser for both editions, existing check_docs.py math checks, and scoped git diff --check.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/04-semantic-kernel/18-kernel-plugin-planner.md",
+      "zh_path": "docs/frameworks/04-semantic-kernel/18-kernel-plugin-planner.zh.md",
+      "kind": "chapter",
+      "source_sha256": "5fb5016f792cbf8d2a14c118bcd290fd55ea1e6bf9cb2a42e06f6ce16fdc9ba5",
+      "references_checked": [
+        {
+          "url": "https://learn.microsoft.com/en-us/semantic-kernel/concepts/kernel",
+          "scope": "Kernel service/plugin management and invocation sequence, C# builder registration, lightweight transient recommendation due to mutable Plugin collection.",
+          "access": "Read the complete returned official page on 2026-09-20, including the C# dependency-injection section."
+        },
+        {
+          "url": "https://learn.microsoft.com/en-us/semantic-kernel/concepts/planning",
+          "scope": "Historical planners versus automatic function calling, loop responsibilities, plugin registration, chat service invocation, and FunctionChoiceBehavior.Auto().",
+          "access": "Read the first 12,000 returned characters on 2026-09-20, including the complete C# and Python automatic-calling examples; remaining Java content was truncated."
+        },
+        {
+          "url": "https://learn.microsoft.com/en-us/semantic-kernel/concepts/enterprise-readiness/filters",
+          "scope": "Three Filter types, Python decorator registration, FunctionInvocationContext callback signature, short-circuit behavior without next, and automatic-invocation termination.",
+          "access": "Read the first 18,000 returned characters on 2026-09-20. These sections were available; the final direct-chat-service subsection was truncated."
+        },
+        {
+          "url": "https://github.com/microsoft/semantic-kernel/blob/ca40aa7226531d28a721d0ca0e451d0aaf86dafc/README.md",
+          "scope": "Pinned statement that standalone Microsoft Agent Framework is Semantic Kernel's successor and MAF 1.0 is production-ready.",
+          "access": "Retrieved and read the pinned official README, especially its opening status notice, on 2026-09-20. This is a repository announcement, not proof of stability for every extension."
+        }
+      ],
+      "notes": [
+        "Complete Chinese source copied byte-for-byte; no Chinese prose or links changed. All numbered sections, direct governance questions, lifecycle distinctions, examples, lists, and diagram topology retained.",
+        "Preserved SK examples rather than migrating them to MAF; maintained the distinction between Kernel invocation coordination, Plugin functions, automatic function selection, and application authorization/recovery.",
+        "One intentional executable metadata string translation: kernel_function description changed from 查询订单的物流状态 to Look up an order's shipping status. This is model-visible tool documentation, not a new tool identifier or logic change; model selection can be language-sensitive. No business-data strings changed.",
+        "Both Python snippets syntax-compiled. ASTs match the originals after normalizing only the documented description string. The C# fragment is byte-identical; no C# compiler, provider connection, or paid API was used.",
+        "Source verification date 2026-09-15 is retained as the historical manuscript note; the references listed here were checked again on 2026-09-20.",
+        "No suspected source factual error identified. All original URLs and .md destinations preserved; no mathematical expressions or Chinese anchors. Headings, fences, list counts, and diagram topology passed.",
+        "Mermaid parser could not run due to missing jsdom; central Mermaid/build validation remains necessary.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci.",
+        "Additional coordinator-owned syntax coverage: this chapter's C# fragment in both editions parsed unchanged as top-level statements using .NET SDK 10.0.400, Roslyn 5.9.0-1.26379.115, C# 14. No syntax errors or warnings. This is not SDK symbol resolution or runtime execution; fragment bytes match the baseline."
+      ]
+    },
+    {
+      "path": "docs/frameworks/04-semantic-kernel/19-process-and-agent-framework.md",
+      "zh_path": "docs/frameworks/04-semantic-kernel/19-process-and-agent-framework.zh.md",
+      "kind": "chapter",
+      "source_sha256": "dd606d413dba85e685837ef7332d3aca221e7668c409820aad1e617aa397be32",
+      "references_checked": [
+        {
+          "url": "https://learn.microsoft.com/en-us/semantic-kernel/frameworks/process/process-framework",
+          "scope": "Process Framework experimental status, event-driven steps invoking Kernel functions, and business-process concepts.",
+          "access": "Retrieved and read the complete returned official overview on 2026-09-20."
+        },
+        {
+          "url": "https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/agent-orchestration/",
+          "scope": "Experimental orchestration status, sequential/concurrent/handoff/group-chat/magentic patterns, runtime lifecycle, and absence of Java SDK support.",
+          "access": "Retrieved and read the complete returned official overview on 2026-09-20."
+        },
+        {
+          "url": "https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/agent-orchestration/group-chat",
+          "scope": "ChatCompletionAgent, GroupChatOrchestration, RoundRobinGroupChatManager(max_rounds), InProcessRuntime.start, invoke/get, stop_when_idle, and Java limitation.",
+          "access": "Read the first 14,000 returned characters on 2026-09-20, including the entire relevant Python setup/lifecycle sequence. The later custom-manager section was truncated."
+        },
+        {
+          "url": "https://github.com/microsoft/semantic-kernel/blob/ca40aa7226531d28a721d0ca0e451d0aaf86dafc/README.md",
+          "scope": "Pinned MAF successor and production-ready 1.0 release statement.",
+          "access": "Retrieved the pinned official README and read the status announcement on 2026-09-20."
+        },
+        {
+          "url": "https://learn.microsoft.com/en-us/agent-framework/overview/",
+          "scope": "Standalone successor relationship, agents/workflows/session responsibilities, .NET/Python/Go coverage, and Go public-preview notice.",
+          "access": "Retrieved and read the complete returned official overview on 2026-09-20."
+        },
+        {
+          "url": "https://learn.microsoft.com/en-us/agent-framework/migration-guide/from-semantic-kernel/",
+          "scope": "Python package/namespace split; .NET AIAgent, Microsoft.Extensions.AI, AIFunctionFactory, AgentSession, Run/streaming return types; Python package and session sections.",
+          "access": "Read the first 18,000 returned characters on 2026-09-20, including all relevant .NET sections and Python sections through the start of tool registration. Did not claim to read the remaining page."
+        },
+        {
+          "url": "https://devblogs.microsoft.com/agent-framework/semantic-kernel-and-microsoft-agent-framework/",
+          "scope": "SK v1.x support for critical/security fixes and selected existing features; most new features moving to MAF; at-least-one-year-after-GA minimum support commitment; historical preview wording.",
+          "access": "Retrieved and read the complete returned official transition announcement on 2026-09-20."
+        }
+      ],
+      "notes": [
+        "Original Chinese retained byte-for-byte, including historical 2026-09-15 review note and all links. All sections, support/migration tables, refund-approval questions, examples, and diagram structure translated without abridgment.",
+        "Maintained three distinct products/layers: experimental SK Process, SK Agent Orchestration, and standalone MAF. Did not turn core 1.0 status into a blanket extension/language guarantee or infer an EOL date from the minimum support statement.",
+        "No executable string changes. Retained Chinese Researcher/Writer instructions and quarterly-industry-trends task as example inputs, with English explanations. C# fragment unchanged byte-for-byte; Python fragment syntax-compiled with top-level await and its AST unchanged.",
+        "Runtime lifecycle was checked against the official Python example, not executed. Model services, credentials, C# step classes, and production recovery infrastructure remain intentionally unspecified application dependencies.",
+        "No source factual conflict identified. The transition announcement's historical preview statement was kept subordinate to the pinned later 1.0 statement, matching the original.",
+        "All URLs, local .md targets, heading numbers, fences, table/list counts, and Mermaid topology preserved. No formulas or Chinese anchors occur. Mermaid parsing remains blocked by missing jsdom; central parser/build validation is needed.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci.",
+        "Additional coordinator-owned syntax coverage: this chapter's C# fragment in both editions parsed unchanged as top-level statements using .NET SDK 10.0.400, Roslyn 5.9.0-1.26379.115, C# 14. No syntax errors or warnings. This is not SDK symbol resolution or runtime execution; fragment bytes match the baseline."
+      ]
+    },
+    {
+      "path": "docs/frameworks/04-semantic-kernel/README.md",
+      "zh_path": "docs/frameworks/04-semantic-kernel/README.zh.md",
+      "kind": "index",
+      "source_sha256": "0f14f75368c505a6c9be6ff702b521161da7a630a6d74e5d87d59f3bf1d9998c",
+      "references_checked": [
+        {
+          "url": "https://github.com/microsoft/semantic-kernel/blob/ca40aa7226531d28a721d0ca0e451d0aaf86dafc/README.md",
+          "scope": "Standalone MAF successor and 1.0 production-ready statement cited through Chapter 19.",
+          "access": "Read the pinned official status announcement on 2026-09-20."
+        },
+        {
+          "url": "https://learn.microsoft.com/en-us/agent-framework/migration-guide/from-semantic-kernel/",
+          "scope": "Package, tool, message, session, and .NET invocation migration boundaries.",
+          "access": "Read the first 18,000 returned characters on 2026-09-20; full .NET and initial Python sections, not the entire guide."
+        },
+        {
+          "url": "https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/agent-orchestration/",
+          "scope": "Experimental feature label and lack of Java orchestration parity.",
+          "access": "Read the complete returned official overview on 2026-09-20; the Process Framework experimental label was also checked in its separate overview for Chapter 19."
+        }
+      ],
+      "notes": [
+        "Complete index, two chapter titles/links, module graph, three reading suggestions, and return link translated; Chinese companion unchanged from baseline.",
+        "English titles match chapter H1s and all link destinations remain ordinary .md paths. No executable code or string changes, mathematical expressions, or Chinese anchors.",
+        "Diagram topology and fenced blocks preserved. No source factual conflict found; core release stability is explicitly separate from experimental extensions and SDK parity.",
+        "Mermaid parser unavailable due to missing jsdom; static checks passed and central parsing/build remain required.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/05-lightweight-agent-frameworks/20-autogen-and-crewai.md",
+      "zh_path": "docs/frameworks/05-lightweight-agent-frameworks/20-autogen-and-crewai.zh.md",
+      "kind": "chapter",
+      "source_sha256": "d9045c9a0d70c5675070890947e1566f6021be3d943f6b3a1a9cb13dcc7abae0",
+      "references_checked": [
+        {
+          "url": "https://github.com/microsoft/autogen/blob/027ecf0a379bcc1d09956d46d12d44a3ad9cee14/README.md",
+          "scope": "Pinned maintenance-mode notice, no new features/enhancements, community maintenance, MAF recommendation, and beginning of layered architecture description.",
+          "access": "Read the first 7,000 returned characters of the pinned official README on 2026-09-20; the full maintenance notice was available, but the later architecture section was truncated."
+        },
+        {
+          "url": "https://microsoft.github.io/autogen/stable/user-guide/core-user-guide/index.html",
+          "scope": "Actor model, asynchronous messaging, local/distributed runtime positioning, and Python/.NET interoperability.",
+          "access": "Read the complete returned official Core introduction on 2026-09-20."
+        },
+        {
+          "url": "https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/state.html",
+          "scope": "AssistantAgent and Team save_state/load_state, model context, team message state, and application-managed file/database persistence.",
+          "access": "Read the complete returned official state tutorial on 2026-09-20; no model-backed tutorial execution was performed."
+        },
+        {
+          "url": "https://docs.crewai.com/en/concepts/processes",
+          "scope": "Sequential predefined task order, context dependencies, hierarchical manager_llm/manager_agent requirement, delegation, and validation.",
+          "access": "Official URL redirected to https://docs.crewai.com/v1.15.22/en/concepts/processes.md; read the complete returned versioned page on 2026-09-20. Kept the original URL in the manuscript."
+        },
+        {
+          "url": "https://docs.crewai.com/en/concepts/flows",
+          "scope": "Event-driven Flow model, Flow/listen/start imports, start and listener behavior, state access, kickoff lifecycle, and final output.",
+          "access": "Official URL redirected to https://docs.crewai.com/v1.15.22/en/concepts/flows.md; read the first 15,000 returned characters on 2026-09-20. Did not inspect later persistence sections or run CrewAI. Kept the original URL in the manuscript."
+        }
+      ],
+      "notes": [
+        "Copied complete Chinese page unchanged; preserved all numbered sections, comparison rows, code fragments, role/cost discussion, historical 2026-09-15 review note, and diagram topology.",
+        "Preserved post-0.2 Core/AgentChat APIs rather than converting them to MAF. Core actors are not described as one process each, and AgentChat Teams do not inherit distributed semantics automatically.",
+        "Crew sequential/hierarchical task policy remains separate from Flow control and from transactional guarantees. Kept prepare_topic rather than overriding kickoff.",
+        "No executable string changes. Chinese market-analysis task and multi-agent-framework-selection topic remain intact and receive English explanations. Both Python fragments syntax-compiled and have unchanged ASTs.",
+        "No paid calls, model clients, distributed runtime, or CrewAI execution was used. Agent/task dependencies remain intentionally application-provided.",
+        "No suspected source factual conflict found. Broad reference pages and the MAF migration guide remain linked without a claim that every page was reread.",
+        "All original external/local URLs, numbered headings, fences, table/list counts, and diagram topology preserved. No mathematical expressions or Chinese anchors occur. Mermaid parsing awaits missing jsdom dependencies and central validation.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/05-lightweight-agent-frameworks/21-pydanticai-and-decision-matrix.md",
+      "zh_path": "docs/frameworks/05-lightweight-agent-frameworks/21-pydanticai-and-decision-matrix.zh.md",
+      "kind": "chapter",
+      "source_sha256": "ec784d7aecd55a8fac245deed796fc1890d05a0375a6e679711ee820b688bd0f",
+      "references_checked": [
+        {
+          "url": "https://ai.pydantic.dev/tools/",
+          "scope": "agent.tool and RunContext, signature-based parameter schemas, model-visible docstrings, and tool schema generation.",
+          "access": "Redirected to https://pydantic.dev/docs/ai/tools-toolsets/tools/. Read the first 17,000 returned characters on 2026-09-20, including the Tool Schema section; the later Docstrings section was truncated. Original manuscript URL retained."
+        },
+        {
+          "url": "https://ai.pydantic.dev/dependencies/",
+          "scope": "deps_type versus deps instances, RunContext.deps, synchronous versus asynchronous dependencies, output_validator with ModelRetry, and test overrides.",
+          "access": "Redirected to https://pydantic.dev/docs/ai/core-concepts/dependencies/. Read the full returned page on 2026-09-20; retained the original URL."
+        },
+        {
+          "url": "https://pydantic.dev/docs/ai/core-concepts/output/",
+          "scope": "output_type and result.output, runtime schema validation, tool-based structured output, output functions, ModelRetry, prompted-output limitations, and output-mode-specific handling.",
+          "access": "Read returned character ranges 0–18,000 and 24,500–39,500 on 2026-09-20. The intervening native-output details and later page sections were not read; no claim of full-page review."
+        },
+        {
+          "url": "https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/",
+          "scope": "Durable execution versus conversation storage; Temporal, DBOS, and Prefect integrations named as examples rather than an exhaustive list.",
+          "access": "Read the complete returned official overview on 2026-09-20; no backend was deployed or exercised."
+        },
+        {
+          "url": "https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/state.html",
+          "scope": "save_state/load_state and application-managed Agent/Team storage, supporting the recovery matrix.",
+          "access": "Read the complete returned official state tutorial on 2026-09-20."
+        }
+      ],
+      "notes": [
+        "Complete Chinese original copied byte-for-byte, including all links. Preserved every numbered section, three comparison matrices, three failure-case questions, example constraints, summary items, and diagram topology.",
+        "One intentional model-visible docstring translation: 获取某个产品的近期评论片段。 became Fetch recent review excerpts for a product. This changes tool-schema description language, not identifiers or control flow; it can affect model wording/selection. No other executable strings changed.",
+        "Chinese keyboard-assessment prompt and both Chinese reviews retained as business example data and explained in English. Preserved Literal labels, ge=-1/le=1, retries=2, PYDANTIC_AI_MODEL, keyboard key, and score=0.9 discussion.",
+        "Python snippet syntax-compiled locally; its AST matches the original after normalizing only the documented docstring. No paid API, external translation, PydanticAI agent run, or durable backend execution was used.",
+        "Kept type validity separate from factuality, dependencies separate from message_history, and saved conversation state separate from crash recovery. The model-output diagram remains a conceptual simplification; prose retains distinct output modes and provider limitations.",
+        "No suspected source factual conflict found in the checked scope. The new durable-execution page lists additional engines, but the original non-exhaustive Temporal/DBOS/Prefect examples remain accurate and were not expanded.",
+        "URLs, local .md paths, numbered heading sequence, code fences, table/list counts, and diagram topology preserved. No formulas or Chinese anchors. Mermaid parser was unavailable due to missing jsdom; central validation is still necessary.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/05-lightweight-agent-frameworks/README.md",
+      "zh_path": "docs/frameworks/05-lightweight-agent-frameworks/README.zh.md",
+      "kind": "index",
+      "source_sha256": "2cd1e62698dc8757bef5151f2bff4856b4a49819f0812d791f027ac43ac27e0b",
+      "references_checked": [
+        {
+          "url": "https://github.com/microsoft/autogen/blob/027ecf0a379bcc1d09956d46d12d44a3ad9cee14/README.md",
+          "scope": "Maintenance mode and official recommendation that new users adopt MAF, cited through Chapter 20.",
+          "access": "Read the pinned official status notice within the first 7,000 returned characters on 2026-09-20."
+        },
+        {
+          "url": "https://docs.crewai.com/en/concepts/flows",
+          "scope": "Event-driven Flow orchestration and state alongside Crews.",
+          "access": "Read the first 15,000 returned characters after redirect to the official v1.15.22 Markdown page on 2026-09-20."
+        },
+        {
+          "url": "https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/",
+          "scope": "Durable-execution integration capabilities, distinct from conversation storage.",
+          "access": "Read the full returned official overview on 2026-09-20."
+        }
+      ],
+      "notes": [
+        "Fully translated all index paragraphs, two chapter links, diagram labels, three reading suggestions, and return link. Chinese companion remains byte-identical to the baseline.",
+        "Preserved lightweight as a reading-group label rather than a claim about technical scope or production suitability. Did not conflate number of roles, type validation, and runtime reliability.",
+        "English chapter titles match chapter H1s; links use unchanged ordinary .md destinations. Chinese links remain untouched for central rewriting.",
+        "No executable code, executable string changes, mathematical expressions, or Chinese anchors. Diagram topology and fence checks passed; missing jsdom prevented parser execution.",
+        "No source factual conflicts identified in the checked scope; central Mermaid and site/build checks remain outstanding.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/06-selection-portability/22-cross-framework-technical-taxonomy.md",
+      "zh_path": "docs/frameworks/06-selection-portability/22-cross-framework-technical-taxonomy.zh.md",
+      "kind": "chapter",
+      "source_sha256": "1096f5f10fe489011bb92082c1e2620e4d700f7f84776217f34108ffe90de89a",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+          "scope": "Full returned persistence overview: checkpointer/store distinction, thread scope, and in-memory versus durable storage.",
+          "access": "Read on 2026-09-20; current documentation, not a pinned runtime experiment."
+        },
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/checkpointers",
+          "scope": "Introduction, pending writes, Threads, Checkpoints, Super-steps, checkpoint namespace, and StateSnapshot fields.",
+          "access": "Read the first 13000 characters, ending in Get state history; later sections not reviewed."
+        },
+        {
+          "url": "https://developers.llamaindex.ai/python/llamaagents/workflows/durable_workflows/",
+          "scope": "Full returned page: Context snapshots, pending events/store, re-running unfinished steps, at-least-once resume, serialization limits, and runtime plugins.",
+          "access": "Prose read in full; the web extraction degraded some code formatting, so code was not used as executable validation."
+        },
+        {
+          "url": "https://learn.microsoft.com/en-us/agent-framework/overview/",
+          "scope": "Full overview; AgentSession, workflows, and explicit successor relationship.",
+          "access": "Read the complete returned page on 2026-09-20."
+        },
+        {
+          "url": "https://github.com/microsoft/autogen",
+          "scope": "Maintenance-mode notice and layered architecture distinguishing Core from AgentChat.",
+          "access": "First 8500 characters of extracted content only; no source-code audit."
+        },
+        {
+          "url": "https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/",
+          "scope": "Full returned durable-execution overview and its explicit distinction from chat-thread storage.",
+          "access": "Read on 2026-09-20; backend implementations were not executed."
+        },
+        {
+          "url": "https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/README.md",
+          "scope": "Full returned GenAI semantic-conventions index and Development status.",
+          "access": "Read on 2026-09-20; preserves rather than overwrites the manuscript's historical 2026-09-15 check date."
+        },
+        {
+          "url": "https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md",
+          "scope": "Development status, introductory scope, agent-creation spans, attributes, and beginning of agent-invocation spans.",
+          "access": "Read the first 8000 characters; not all agent/tool span conventions were reviewed."
+        }
+      ],
+      "notes": [
+        "Read the entire Chinese source and translated all eight numbered sections, four numbered common mistakes, all four comparison tables, the six-node diagram, and the four-step failure scenario without abridging them.",
+        "Retained the five-layer distinction among serialization, durable storage, execution recovery, idempotent replay, and business transactions. Checkpoints do not undo executed tools.",
+        "Retained historical Microsoft release references and the 2026-09-15 OpenTelemetry status note; corroborating current documentation was not used to modernize API examples.",
+        "Other original references remain in the bibliography but are not represented here as independently re-read. No executable code appears in this chapter and no crash/side-effect experiment was performed.",
+        "Chinese original, formulas, external URLs, and local path targets are unchanged. English diagram labels changed; topology did not.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/06-selection-portability/23-lockin-and-portable-architecture.md",
+      "zh_path": "docs/frameworks/06-selection-portability/23-lockin-and-portable-architecture.zh.md",
+      "kind": "chapter",
+      "source_sha256": "1ecc878dbd92aa7413200f868c6e7f0e18c1611c7db1eedaeef0f8cfb86f5c9d",
+      "references_checked": [
+        {
+          "url": "https://docs.langchain.com/oss/python/langgraph/persistence",
+          "scope": "Full returned overview of thread-scoped checkpoints and cross-thread stores.",
+          "access": "Read on 2026-09-20; no checkpoint migration was attempted."
+        },
+        {
+          "url": "https://learn.microsoft.com/en-us/agent-framework/overview/",
+          "scope": "Full returned overview and explicit SK/AutoGen successor relationship.",
+          "access": "Read on 2026-09-20; current documentation, not a version replacement."
+        },
+        {
+          "url": "https://learn.microsoft.com/en-us/agent-framework/migration-guide/from-semantic-kernel/",
+          "scope": "C# migration sections 1–11: namespaces, agent creation, session lifecycle, hosted-history cleanup, tools, invocation/streaming, signatures, options, dependency injection, and agent types; beginning of Python package section.",
+          "access": "First 13000 characters only; remaining Python migration sections were not reviewed."
+        },
+        {
+          "url": "https://github.com/microsoft/autogen",
+          "scope": "Maintenance notice, successor recommendation, and architecture overview.",
+          "access": "First 8500 characters of extracted README content only."
+        },
+        {
+          "url": "https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/",
+          "scope": "Full returned overview: durable runtime integrations and distinction from conversation storage.",
+          "access": "Read on 2026-09-20; no backend integration was executed."
+        },
+        {
+          "url": "https://martinfowler.com/bliki/StranglerFigApplication.html",
+          "scope": "Full returned article: incremental modernization, identifying seams, transitional architecture, and organizational change.",
+          "access": "Read the full extracted article; images were not visually inspected."
+        },
+        {
+          "url": "https://alistair.cockburn.us/hexagonal-architecture/",
+          "scope": "Intent, motivation, inside/outside separation, ports and adapters, structure, and beginning of the sample-code section.",
+          "access": "Redirected to the same path without trailing slash; first 11000 characters only. Later sample code and application notes were not read."
+        },
+        {
+          "url": "https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/README.md",
+          "scope": "GenAI convention index and Development status, relevant to the chapter's open-telemetry portability caveat.",
+          "access": "Read the complete returned index; not the entire linked convention repository."
+        }
+      ],
+      "notes": [
+        "Read and translated the entire Chinese chapter, all seven numbered sections and four numbered common mistakes, preserving four diagrams and every decision branch/edge.",
+        "Preserved state-format, orchestration, and operational lock-in; adapter dependency direction; bounded nested workflows; single retry/cancellation/approval ownership; and the warning that MCP interoperability is not business portability.",
+        "Preserved read-only/replay/simulated shadow runs, no duplicated email/payment/order side effects, draining active tasks, approval/idempotency checks, rollback compatibility, and all four acceptance-evidence categories.",
+        "No executable snippets or changed executable strings. Migration and failure scenarios remain proposed evaluations rather than claimed project results.",
+        "All original external URLs and local targets retained. Unchecked bibliography entries are not claimed as re-read. Chinese content and links remain byte-for-byte unchanged.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/06-selection-portability/README.md",
+      "zh_path": "docs/frameworks/06-selection-portability/README.zh.md",
+      "kind": "index",
+      "source_sha256": "135c06fd93126779d86d1b9162510bee5467fd62f96500ad5c7402d7dd18b66c",
+      "references_checked": [
+        {
+          "url": "https://learn.microsoft.com/en-us/agent-framework/overview/",
+          "scope": "Full fetched overview, especially Why Agent Framework and the direct-successor relationship to Semantic Kernel and AutoGen.",
+          "access": "Read the complete returned page on 2026-09-20; moving documentation, not an execution test."
+        },
+        {
+          "url": "https://github.com/microsoft/autogen",
+          "scope": "README maintenance-mode notice and Core/AgentChat/Extensions architecture overview.",
+          "access": "Read the first 8500 characters of extracted page content; the remainder was not reviewed."
+        },
+        {
+          "url": "https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/",
+          "scope": "Durable execution overview, Durability is not storage, and backend integration list.",
+          "access": "Read the complete returned page on 2026-09-20; no durable backend was executed."
+        }
+      ],
+      "notes": [
+        "Read and translated the complete module index, both chapter entries, four-node diagram, and all reading recommendations.",
+        "Preserved the four engineering dimensions and the separation of evaluation from observability. No maturity ranking or unmeasured reliability claim was introduced.",
+        "Chinese original and links remain byte-for-byte unchanged; no executable strings were changed.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    },
+    {
+      "path": "docs/frameworks/README.md",
+      "zh_path": "docs/frameworks/README.zh.md",
+      "kind": "index",
+      "source_sha256": "eecb955c5b802a346dc84de95beb8f583271becb104008f3edb44c8d4a94a171",
+      "references_checked": [],
+      "notes": [
+        "Read the complete baseline Chinese topic index and translated every paragraph, six module entries, the comparison table, reading paths, metadata, and both Mermaid subgraph labels without changing diagram topology.",
+        "Preserved the distinction between application principles, tool protocols, and framework implementations; lightweight remains a reading category, not a runtime-cost claim.",
+        "No direct external citation appears in this index. Chapter-specific source checks are recorded on the chapter entries. Original Chinese content and links remain byte-for-byte unchanged.",
+        "Final coordinator checks passed for this pair: original-source SHA-256, exact Chinese preservation except the explicitly approved positions, numbered sections, table shapes, all local Markdown destinations and external citation URLs, code/math fences, unchanged formulas, and English prose with Chinese business data confined to documented examples. All 116 bilingual Mermaid blocks parsed in this worktree; all 58 English diagram topologies, node shapes, directions, subgraphs, edges, and styles match their originals. Earlier missing-jsdom limitations were resolved by restoring the existing package-lock dependencies with npm ci."
+      ]
+    }
+  ],
+  "validation": {
+    "page_pairs": 35,
+    "chapters": 23,
+    "indexes": 12,
+    "numbered_sections": 459,
+    "code_blocks_per_edition": 105,
+    "mermaid_blocks_per_edition": 58,
+    "python_blocks": 38,
+    "python_ast_equal_ignoring_docstrings": 34,
+    "python_ast_equal_allowing_documented_metadata": 38,
+    "paired_markdown_files": 70,
+    "original_chinese_exact_pairs": 31,
+    "original_chinese_approved_exception_pairs": 4,
+    "math_compatibility_pages": 70,
+    "math_compatibility_issues": 0,
+    "bilingual_mermaid_parse_count": 116,
+    "mermaid_parse_failures": 0,
+    "original_to_english_topology_comparisons": 58,
+    "topology_differences": 0,
+    "java_syntax_fragments_per_edition": 4,
+    "csharp_syntax_fragments_per_edition": 2,
+    "java_csharp_syntax_errors": 0,
+    "python_behavior_comparison": "All 38 Python snippets compile syntactically, allowing top-level await where appropriate. 34 ASTs match after excluding translated docstrings; all 38 match after additionally allowing only the seven explicitly recorded description/desc string translations. API identifiers, business strings, protocol literals, numbers, units, and control flow are preserved.",
+    "approved_chinese_exceptions": [
+      {
+        "path": "docs/frameworks/01-langchain/01-foundations/03-langchain-architecture.zh.md",
+        "sections": [
+          "3.3.2",
+          "3.9.2"
+        ],
+        "change": "Qualify application-side execution as describing custom client-side tools and distinguish provider-hosted built-in tools."
+      },
+      {
+        "path": "docs/frameworks/01-langchain/04-langgraph/09-langchain-vs-langgraph.zh.md",
+        "sections": [
+          "9.8"
+        ],
+        "change": "Add the separate LangChain v1.3 introduction and pinned LangGraph 1.2.0 experimental-status qualifications."
+      },
+      {
+        "path": "docs/frameworks/01-langchain/04-langgraph/10-langgraph-advantages.zh.md",
+        "sections": [
+          "10.8"
+        ],
+        "change": "Qualify v3 compatibility and historical experimental status without adding a LangChain dependency to direct LangGraph use or generalizing to other versions."
+      },
+      {
+        "path": "docs/frameworks/01-langchain/05-production/12-deep-research.zh.md",
+        "sections": [
+          "12.1.1"
+        ],
+        "change": "Delete the unsupported current preview-label claim only; retain Agent Protocol server requirements and make no GA claim."
+      }
+    ],
+    "checks": [
+      "35 original paths paired with 35 companions; chapter H1 numbers are exactly 1-23; 12 indexes retained, including deep LangChain indexes.",
+      "459 numbered H2/H3 identifiers and all 105 fenced blocks per edition preserved.",
+      "All original source hashes computed from git show at source_commit, including the four companions with explicitly parent-approved factual qualifications.",
+      "Chinese byte comparison applies only the exact approved textual changes, not whole-file exemptions; all Chinese internal links remain original for the parent's shared rewrite.",
+      "All local .md target sequences and external citation URL sequences preserved; no local fragment anchors occur in the scope.",
+      "Existing scripts/check_docs.py math functions applied to all 70 pages without running or modifying its migration-incompatible global registry checks.",
+      "Existing scripts/check_mermaid.mjs run from docs/frameworks: 116 diagrams, zero failures.",
+      "All English Mermaid graphs independently compared through the existing Mermaid parser's graph database against the source-commit topology and styles.",
+      "Pure/local-fake Python cases covered routing, budgets, the procurement approval ledger and all approval gates, progress projection, tool outputs, scoped memory, trace minimization, and exact-answer scoring; see page notes for boundaries.",
+      "JavaCompiler/JavacTask and installed Roslyn used for parse-only validation of 12 bilingual Java/C# snippets, without adding packages or resolving framework symbols.",
+      "git diff --check passed; changes are limited to docs/frameworks/** and this evidence record."
+    ],
+    "limitations": [
+      "No paid API, live model, real procurement/refund side effect, external translation service, or manuscript upload was used.",
+      "Framework/provider integration, dependency compatibility matrices, real durable backends, and fault-recovery deployments were not executed. Local fake/pure tests do not establish those guarantees.",
+      "Translated docstrings and schema descriptions can change model-facing wording; no model-behavior equivalence or performance claim is made.",
+      "Reference access is limited to the per-page scopes recorded above. Several live docs are mutable and excerpts are partial; the DSPy/GEPA arXiv fetches returned title metadata only, not full papers.",
+      "Repository-wide bilingual navigation, manifests, strict site/EPUB builds, GitHub-rendered math, and publication remain the parent integration scope. The old global check_docs registry is not yet bilingual-aware and was not modified."
+    ]
+  }
+}

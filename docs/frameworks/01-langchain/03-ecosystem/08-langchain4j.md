@@ -1,68 +1,70 @@
 ---
-description: 解释 LangChain4j AI Services、工具、Chat Memory 与 RAG 的 Java 集成方式，区分模型监听、服务事件和 Guardrails 的边界。
+description: Explain Java integration with LangChain4j AI Services, tools, Chat Memory, and RAG, distinguishing the boundaries of model listeners, service events, and guardrails.
 ---
 
-# 第八章：LangChain4j 与 Java 生态
+# Chapter 8: LangChain4j and the Java Ecosystem
 
-## 8.1 它是 LangChain 的 Java 版吗
+## 8.1 Is It the Java Version of LangChain?
 
-容易先入为主地把它理解成 LangChain 的 Java 对应物。
+It is tempting to assume that LangChain4j is simply LangChain's Java counterpart.
 
-> **官方定位很明确**：LangChain4j 是**从 Java 习惯出发设计的 JVM 开源库**，重视类型安全、POJO、注解、接口和依赖注入。
+> **Its official positioning is clear**: LangChain4j is **an open-source JVM library designed around Java idioms**, emphasizing type safety, POJOs, annotations, interfaces, and dependency injection.
 >
-> **它的 API、内部实现和发布周期都独立于 Python LangChain。** 更准确的说法是「它吸收了 LLM 应用生态中的通用模式」，而不是「逐项复刻 LangChain」。
+> **Its API, implementation, and release cycle are independent of Python LangChain.** It adopts common patterns from the LLM application ecosystem rather than replicating LangChain feature by feature.
 
-### 8.1.1 为什么这个区别重要
+### 8.1.1 Why This Distinction Matters
 
-**因为它解释了 LangChain4j 最有辨识度的能力为什么叫 AI Services。**
+**It explains why LangChain4j's most distinctive abstraction is called AI Services.**
 
-Java 开发者熟悉的是**接口、类型和服务层**，而不是在业务代码里到处拼消息数组和 JSON。**LangChain4j 选择顺着 Java 的思维方式，把一次 AI 能力包装成一个可调用的服务接口。**
+Java developers are accustomed to **interfaces, types, and service layers**, not assembling message arrays and JSON throughout business code. **LangChain4j follows that way of thinking by wrapping an AI capability in a callable service interface.**
 
-### 8.1.2 两层抽象
+### 8.1.2 Two Layers of Abstraction
 
-| 层 | 类比 | 代表抽象 |
+| Layer | Analogy | Representative abstractions |
 |---|---|---|
-| **低层** | 自己组零件 | `ChatModel`、`EmbeddingModel`、`ChatMemory` |
-| **高层** | 直接调用装修好的服务台 | **AI Services** |
+| **Low-level** | Assemble the parts yourself | `ChatModel`, `EmbeddingModel`, `ChatMemory` |
+| **High-level** | Walk up to a fully equipped service desk | **AI Services** |
 
-> **官方文档中的旧式 Chains 已明确标为 legacy。** 不要因为框架名字里有 Chain，就把 `ConversationalChain` 当成主入口。
+> **The official documentation explicitly marks the older Chains as legacy.** Do not treat `ConversationalChain` as the main entry point just because the framework's name contains "Chain."
 
-## 8.2 统一接口能抹平所有差异吗
+## 8.2 Can Unified Interfaces Eliminate Every Difference?
 
-**假设公司今天试一家云厂商模型，明天因为数据合规换一家，后天又要接本地 Ollama。**
+**Suppose a company tries one cloud provider's model today, switches to another tomorrow for data compliance, and then needs a local Ollama deployment.**
 
-直接调用每家 SDK：认证方式、请求对象、消息格式、流式回调和异常类型都不同，**业务层很快会长满适配代码**。
+Calling each SDK directly means handling different authentication methods, request objects, message formats, streaming callbacks, and exception types. **The business layer quickly fills with adapter code.**
 
-| 能力 | 核心接口 |
+| Capability | Core interface |
 |---|---|
-| 聊天模型 | `ChatModel` / `StreamingChatModel` |
-| 文本向量化 | `EmbeddingModel` |
-| 向量写入与搜索 | `EmbeddingStore` |
+| Chat models | `ChatModel` / `StreamingChatModel` |
+| Text embedding | `EmbeddingModel` |
+| Vector storage and search | `EmbeddingStore` |
 
-**具体厂商能力放进独立集成模块，业务代码尽量依赖核心接口。**
+**Provider-specific capabilities live in separate integration modules, while business code depends on core interfaces wherever possible.**
 
-### 8.2.1 统一接口的收益在哪里
+### 8.2.1 What Do Unified Interfaces Buy You?
 
-> **收益主要在于把变化关在适配层里。** 单元测试可以替换模型实现，试验不同向量库时也不用推翻上层 RAG 流程。
+> **Their main benefit is containing change within the adapter layer.** Unit tests can substitute model implementations, and experiments with different vector databases need not replace the RAG workflow above them.
 
-### 8.2.2 为什么不能把它理解成完全无锁定
+### 8.2.2 Why This Does Not Mean Complete Freedom from Lock-In
 
-**因为抽象只能覆盖交集。**
+**An abstraction can only standardize the shared capabilities.**
 
-- 某个模型是否支持**工具调用、原生 JSON Schema、图片输入、思考内容或特殊采样参数**，仍要查官方能力矩阵；
-- 切换供应商后，**Prompt 效果、Token 计算、限流、异常处理和评测基线也要重新验证**。
+- Whether a model supports **tool calling, native JSON Schema, image input, reasoning content, or special sampling parameters** still requires checking the official capability matrix.
+- After changing providers, **prompt effectiveness, token accounting, rate limits, exception handling, and evaluation baselines all need to be revalidated**.
 
-## 8.3 AI Services 解决什么问题
+## 8.3 What Problem Do AI Services Solve?
 
-**只做一次模型调用，手写几行 SDK 代码并不难。** 真正麻烦的是业务开始要求多轮对话、工具调用、知识检索和稳定字段之后——开发者要不断处理 **Prompt 拼装、消息转换、模型循环和输出反序列化**。
+**Writing a few lines of SDK code for a single model call is straightforward.** The trouble starts when the application needs multi-turn conversations, tool calling, knowledge retrieval, and consistent output fields. Developers repeatedly handle **prompt assembly, message conversion, model loops, and output deserialization**.
 
-> **AI Services 就是为了收拢这些胶水代码。** 开发者声明一个 Java 接口，LangChain4j 在运行时提供代理实现。
+> **AI Services consolidate this glue code.** Developers declare a Java interface, and LangChain4j supplies a proxy implementation at runtime.
 >
-> **它很像 Spring Data JPA 或 Retrofit**：我们描述「服务要暴露什么方法」，框架负责把方法参数变成消息，再把模型响应转换成方法返回值。
+> **The approach resembles Spring Data JPA or Retrofit**: declare the methods the service should expose, and the framework converts method arguments into messages and model responses into return values.
 
-### 8.3.1 一个把关键能力放在一起的例子
+### 8.3.1 An Example That Brings the Main Capabilities Together
 
-以下是组装片段，不是独立 Java 文件：`chatModel`、`embeddingModel`、`embeddingStore`、`chatMemoryStore` 与 `orderService` 需由应用初始化；record 和文本块需要兼容的 JDK，框架及集成的 JDK/Spring Boot 要求仍以选定版本为准。`minScore(0.75)` 只是示例阈值，必须按模型、距离转换与业务数据标定，不能当成通用相关性概率。
+These are assembly snippets, not standalone Java files. The application must initialize `chatModel`, `embeddingModel`, `embeddingStore`, `chatMemoryStore`, and `orderService`. Records and text blocks require a compatible JDK; the framework's and integrations' JDK/Spring Boot requirements depend on the selected versions. `minScore(0.75)` is only an example threshold. Calibrate it against the model, distance-to-score conversion, and business data rather than treating it as a universal probability of relevance.
+
+The example keeps its Chinese customer-service strings. The field descriptions request a Chinese reply for the user, the retrieved order status (an empty string if no lookup occurred), and whether human assistance is needed. The system message tells the assistant to use the lookup tool for order status, never invent information absent from the system, and recommend human assistance for high-risk requests.
 
 ```java
 record SupportReply(
@@ -82,7 +84,7 @@ interface SupportAssistant {
 }
 ```
 
-接口说明输入输出，工具对象则把模型请求接到既有订单服务。订单号来自模型，订单归属和操作权限仍由服务端核验。
+The interface declares the inputs and outputs; the tool object connects model requests to the existing order service. The model supplies the order ID, but the server still verifies order ownership and permission to act. The Chinese tool description specifies a read-only order-status lookup, with no refunds or modifications; the parameter description means "order ID."
 
 ```java
 final class OrderTools {
@@ -90,22 +92,22 @@ final class OrderTools {
     private final OrderService orderService;
 
     OrderTools(OrderService orderService) {
-        // 复用现有 Java 领域服务，不把数据库连接直接暴露给模型
+        // Reuse the Java domain service; do not expose a database connection to the model
         this.orderService = orderService;
     }
 
     @Tool("根据订单号查询订单状态，只读，不执行退款或修改")
     String findOrder(@P("订单号") String orderId) {
-        // 真正的鉴权、租户隔离和审计仍应由业务服务完成
+        // The business service still enforces authorization, tenant isolation, and auditing
         return orderService.findStatus(orderId);
     }
 }
 ```
 
-知识库检索器独立配置。检索前应执行文档访问控制，不能等答案生成后才隐藏无权查看的内容。
+Configure the knowledge-base retriever separately. Enforce document access controls before retrieval, rather than waiting until after answer generation to hide unauthorized content.
 
 ```java
-// 向量库中的文档应已在离线流程完成切分、向量化和写入
+// Documents should already be chunked, embedded, and stored by an offline pipeline
 ContentRetriever retriever = EmbeddingStoreContentRetriever.builder()
         .embeddingStore(embeddingStore)
         .embeddingModel(embeddingModel)
@@ -114,7 +116,7 @@ ContentRetriever retriever = EmbeddingStoreContentRetriever.builder()
         .build();
 ```
 
-最后把模型、工具、检索器和记忆窗口交给 AI Service 代理：
+Finally, supply the model, tools, retriever, and memory window to the AI Service proxy. The sample customer question asks, in Chinese, "Where is order A1024?"
 
 ```java
 SupportAssistant assistant = AiServices.builder(SupportAssistant.class)
@@ -124,7 +126,7 @@ SupportAssistant assistant = AiServices.builder(SupportAssistant.class)
         .chatMemoryProvider(memoryId -> MessageWindowChatMemory.builder()
                 .id(memoryId)
                 .maxMessages(20)
-                // 生产环境可接自定义 ChatMemoryStore 持久化当前记忆窗口
+                // In production, a custom ChatMemoryStore can persist the current memory window
                 .chatMemoryStore(chatMemoryStore)
                 .build())
         .build();
@@ -132,226 +134,226 @@ SupportAssistant assistant = AiServices.builder(SupportAssistant.class)
 SupportReply reply = assistant.chat("conversation-1001", "订单 A1024 到哪了？");
 ```
 
-**入口只有一句 `assistant.chat()`，背后却串起了一条完整链路**：
+**The entry point is just `assistant.chat()`, but it connects a complete sequence behind the scenes**:
 
 ```mermaid
 flowchart TB
-    A["AI Service 代理<br/>按 MemoryId 读取历史并组织输入"] --> B["Retriever 补充知识库内容"]
-    B --> C["模型判断"]
-    C -->|需要查订单| D["调用 OrderTools"]
+    A["AI Service proxy<br/>Read prior messages by MemoryId and assemble input"] --> B["Retriever adds knowledge-base content"]
+    B --> C["Model decides"]
+    C -->|Order lookup needed| D["Call OrderTools"]
     D --> C
-    C -->|得到结果| E["更新当前记忆窗口"]
-    E --> F["框架把模型输出转换成 SupportReply"]
+    C -->|Result obtained| E["Update the current memory window"]
+    E --> F["Framework converts model output into SupportReply"]
 
     style F fill:#e6f4ea
 ```
 
-### 8.3.2 结构化输出的三个工程细节
+### 8.3.2 Three Engineering Details of Structured Output
 
-1. **返回 record 或 POJO 时**，LangChain4j 可以自动生成 Schema 并解析响应；
-2. **想用模型供应商原生的 JSON Schema 约束**，要确认对应 `ChatModel` 支持并**显式启用**——模型不支持时框架可能退回到 **Prompt 格式指令，可靠性更弱**；
-3. **即使反序列化成功，也只说明数据形状能对上**，不代表金额、权限和订单状态符合业务规则。**确定性的业务校验仍然不能交给模型。**
+1. **When returning a record or POJO**, LangChain4j can generate the schema and parse the response automatically.
+2. **To use a provider's native JSON Schema constraints**, confirm support in the corresponding `ChatModel` and **enable it explicitly**. When the model does not support it, the framework may fall back to **format instructions in the prompt, which are less reliable**.
+3. **Successful deserialization only establishes that the data has the expected shape.** It does not establish that amounts, permissions, or order statuses satisfy business rules. **Deterministic business validation must not be delegated to the model.**
 
-> **依赖版本不要在多处手填。** 官方推荐通过 `langchain4j-bom` 管理模块版本，再从官方 Release Notes 选择经过验证的版本，避免核心包、模型集成和 Spring Starter 版本互相错位。
+> **Do not manually specify dependency versions in multiple places.** The official recommendation is to manage module versions with `langchain4j-bom` and select a validated release from the official release notes, avoiding mismatches between the core package, model integrations, and Spring starters.
 
-## 8.4 Tools 如何连接业务动作
+## 8.4 How Tools Connect to Business Actions
 
-**Tools 最容易被误解成「把数据库权限交给模型」。**
+**A common misconception is that tools give the model database permissions.**
 
-> **模型只负责生成工具名和参数、请求执行某个动作，真正运行 Java 方法的是应用程序。**
+> **The model generates a tool name and arguments to request an action. The application actually executes the Java method.**
 
-LangChain4j 通过 `@Tool` 暴露对象方法，也支持运行时提供工具。框架把工具说明和参数 Schema 发给模型，再执行模型选择的 Java 方法，把结果作为工具消息交回模型。
+LangChain4j exposes object methods through `@Tool` and also supports supplying tools at runtime. The framework sends tool descriptions and parameter schemas to the model, executes the Java methods the model selects, and returns their results as tool messages.
 
-**一次 AI Service 调用中可能发生多轮「模型 → 工具 → 模型」，直到拿到最终结果。**
+**A single AI Service invocation may involve several rounds of model → tool → model before producing the final result.**
 
-### 8.4.1 自动循环省的是代码，不是安全边界
+### 8.4.1 An Automatic Loop Saves Code, Not Security Boundaries
 
-| 动作 | 必须补的约束 |
+| Action | Required controls |
 |---|---|
-| 查订单 | 用户与**租户校验** |
-| 退款 | **幂等 + 额度控制** |
-| 发消息 | **审批与审计** |
-| 工具异常 | **不应把堆栈、路径或敏感信息原样回传给模型** |
+| Look up an order | User and **tenant checks** |
+| Issue a refund | **Idempotency and amount limits** |
+| Send a message | **Approval and auditing** |
+| Handle a tool exception | **Do not return raw stack traces, paths, or sensitive information to the model** |
 
-> **工具描述约束的是模型行为，服务端权限约束的才是真实能力。**
+> **Tool descriptions guide model behavior; server-side permissions constrain what can actually happen.**
 
-## 8.5 Chat Memory 等于聊天档案吗
+## 8.5 Is Chat Memory a Conversation Archive?
 
-多轮客服每次手工拼回历史消息，既麻烦又容易超上下文窗口。LangChain4j 提供 `ChatMemory` 抽象：
+Manually rebuilding prior messages on every turn of a support conversation is cumbersome and can exceed the context window. LangChain4j provides the `ChatMemory` abstraction:
 
-| 实现 | 淘汰依据 |
+| Implementation | Eviction basis |
 |---|---|
-| `MessageWindowChatMemory` | 消息条数 |
-| `TokenWindowChatMemory` | Token 窗口 |
+| `MessageWindowChatMemory` | Message count |
+| `TokenWindowChatMemory` | Token window |
 
-### 8.5.1 必须分清 memory 和 history
+### 8.5.1 Distinguish Memory from History
 
-| 概念 | 是什么 |
+| Concept | Meaning |
 |---|---|
-| **Chat Memory** | **下一次要喂给模型的上下文**，可以发生淘汰、压缩或注入 |
-| **完整聊天记录** | 产品实际展示和**审计所需的事实记录** |
+| **Chat Memory** | **Context to feed the model next**, which may undergo eviction, compression, or injection |
+| **Complete conversation history** | What the product actually displays and **the factual record needed for auditing** |
 
-> **官方明确说明 LangChain4j 提供的是 memory，不替应用保存完整 history。**
+> **The official documentation explicitly states that LangChain4j provides memory; it does not preserve complete history for the application.**
 
-### 8.5.2 工程注意点
+### 8.5.2 Engineering Considerations
 
-- 默认实现把消息放在内存中，**需要持久化时实现 `ChatMemoryStore` 接到数据库**；
-- 多用户场景用 `@MemoryId` 和 `ChatMemoryProvider` **隔离会话**，不能让所有用户共享同一个窗口；
-- **同一个 MemoryId 不应被并发调用**，否则可能破坏 Chat Memory——**分布式并发控制仍是应用的责任**。
+- Default implementations keep messages in memory. **For persistence, implement `ChatMemoryStore` and connect it to a database.**
+- In multi-user applications, use `@MemoryId` and `ChatMemoryProvider` to **isolate conversations**, rather than sharing one window across all users.
+- **Do not make concurrent calls with the same MemoryId**, as this can corrupt Chat Memory. **Distributed concurrency control remains the application's responsibility.**
 
-> **如果业务说的「长期记忆」是用户偏好、历史事实或企业知识**，通常应该结构化存入业务数据库，或做成可检索知识再通过 RAG 注入，**而不是无限增大消息窗口**（对照 [第六章](../02-agent-building/06-memory.md)）。
+> **If "long-term memory" means user preferences, historical facts, or enterprise knowledge**, store it as structured data in a business database, or make it retrievable knowledge and inject it through RAG. **Do not keep enlarging the message window indefinitely** (compare [Chapter 6](../02-agent-building/06-memory.md)).
 
-## 8.6 RAG 不只是连接向量库
+## 8.6 RAG Is More Than Connecting a Vector Database
 
-企业项目常见的需求是让模型回答**内部制度、产品手册和客户资料**。
+A common enterprise requirement is answering questions about **internal policies, product manuals, and customer information**.
 
-| 复杂度 | 做法 |
+| Complexity | Approach |
 |---|---|
-| 简单知识库 | 把一个检索器直接交给 AI Service |
-| **需要查询改写、多路检索、融合、重排和上下文注入** | 用 **`RetrievalAugmentor`** 把这些阶段组合起来 |
+| Simple knowledge base | Supply a retriever directly to the AI Service |
+| **Query rewriting, multi-source retrieval, fusion, reranking, and context injection are needed** | Compose those stages with **`RetrievalAugmentor`** |
 
-**底层来源也不只限于向量库**，还可以是全文搜索、Web 搜索、知识图谱或业务数据库。
+**Underlying sources are not limited to vector databases.** They can include full-text search, web search, knowledge graphs, or business databases.
 
-> **对 Java 团队的价值**：数据加载、检索策略和模型调用可以继续留在同一套工程、配置和测试体系中。
+> **The benefit for Java teams** is keeping data loading, retrieval strategies, and model calls within the same project, configuration, and testing setup.
 >
-> **但框架只提供积木**——文档质量、切分策略、召回率、权限过滤、引用溯源和离线评测仍决定最终效果。
+> **The framework only supplies building blocks.** Document quality, chunking strategy, recall, permission filtering, citation provenance, and offline evaluation still determine the outcome.
 
-## 8.7 Java 生态如何集成
+## 8.7 Integrating with the Java Ecosystem
 
-选型先看团队现有的服务框架、配置方式和监控体系。
+Start with the team's existing service framework, configuration practices, and monitoring setup.
 
-| 现状 | 做法 |
+| Current setup | Approach |
 |---|---|
-| 已有 **Spring Boot** 服务 | 沿用其配置、依赖注入和监控体系；Starter 可自动创建常用 Bean，也能用 `@AiService` 声明；按项目的 Spring Boot 大版本选依赖 |
-| 已有 **Quarkus** 服务 | 优先 **Quarkus LangChain4j**——复用核心抽象，再接入 CDI、构建期装配、原生镜像和开发工具 |
-| Helidon / Micronaut | 有对应集成，但除非岗位技术栈明确使用，**说清「优先沿用团队现有依赖注入、配置和监控体系」就够了** |
+| Existing **Spring Boot** services | Retain their configuration, dependency injection, and monitoring; starters can create common beans automatically, and `@AiService` supports declarative services; choose dependencies for the project's Spring Boot major version |
+| Existing **Quarkus** services | Evaluate **Quarkus LangChain4j** first: reuse the core abstractions with CDI, build-time wiring, native images, and development tools |
+| Helidon / Micronaut | Integrations exist, but unless the role explicitly uses them, **it is enough to explain why you would retain the team's existing dependency injection, configuration, and monitoring** |
 
-## 8.8 可观测性与 Guardrails 的边界
+## 8.8 The Boundaries of Observability and Guardrails
 
-排查一次客服回答出错，不能只盯最终文本，因为一次调用可能已经经过 RAG 检索、模型判断和工具执行。
+When investigating an incorrect support response, do not inspect only the final text. A single invocation may already have passed through RAG retrieval, model decisions, and tool execution.
 
 ```mermaid
 flowchart LR
-    A["Retriever 找回了什么"] --> B["送给模型的消息"] --> C["Tool 的参数与结果"] --> D["输入输出校验是否拦住异常内容"]
+    A["What the retriever found"] --> B["Messages sent to the model"] --> C["Tool arguments and results"] --> D["Whether input/output validation caught problematic content"]
 
     style A fill:#e8f0fe
 ```
 
-图中列的是排查线索，校验可能分布在多个阶段，并非统一在最后执行。`ChatModelListener` 观察的是模型请求、响应和错误，不会自动成为 Retriever、Tool 和审批等全链路的 span。整次调用还需 AI Service 事件或应用级 instrumentation，并关联同一个 trace ID；Spring Boot 或 Quarkus 集成能帮助接入团队已有的指标与追踪系统。
+The diagram lists investigative clues, not a rule that all validation runs at the end; checks may occur at several stages. `ChatModelListener` observes model requests, responses, and errors. It does not automatically create spans across retrieval, tools, approvals, and the rest of the workflow. Observing the whole invocation also requires AI Service events or application-level instrumentation correlated by the same trace ID. Spring Boot or Quarkus integrations can connect to the team's existing metrics and tracing systems.
 
-### 8.8.1 Guardrails 的两条边界
+### 8.8.1 Two Boundaries of Guardrails
 
-1. **官方仍把 Guardrails 和 AI Service Observability 标为实验性**，而且**只适用于 AI Services，不能直接套在低层 `ChatModel` 上**；
-2. **Guardrail 不是安全系统的替代品**——Prompt Injection 检测可能漏报，输出校验也不能替代业务权限。
+1. **The official documentation still marks Guardrails and AI Service Observability as experimental.** They **apply only to AI Services and cannot be applied directly to the low-level `ChatModel`**.
+2. **A guardrail is not a replacement for a security system.** Prompt injection detection can miss attacks, and output validation cannot replace business authorization.
 
-> **认证、授权、数据隔离、资金风控和审计必须继续放在确定性的业务层。**
+> **Authentication, authorization, data isolation, financial risk controls, and auditing must remain in the deterministic business layer.**
 
-尤其要注意执行顺序：官方 Input Guardrail 位于 RAG 操作之后、模型调用之前。因此即使它最后拒绝问题，检索也可能已经发生；租户 ACL 必须在检索器或数据服务里执行。基于模型的 Guardrail 还会增加调用费用与延迟，不能把每个检查都放成一次额外模型请求而不测成本。
+Pay particular attention to execution order: the documented Input Guardrail runs after RAG operations and before the model call. Retrieval may therefore have already happened even if the guardrail ultimately rejects the question. Enforce tenant ACLs in the retriever or data service. Model-based guardrails also add cost and latency; do not turn every check into an additional model request without measuring the cost.
 
-## 8.9 什么时候适合 LangChain4j
+## 8.9 When Is LangChain4j a Good Fit?
 
-### 8.9.1 适合
+### 8.9.1 Good Fits
 
-**团队已有大量 Java 服务，希望把 AI 能力嵌入现有系统**：企业知识库问答、带会话上下文的智能客服、从合同和简历中抽取结构化字段、批量摘要与分类、让模型查询订单或创建工单、需要在多个模型或向量库之间评估选型。
+**The team already has many Java services and wants to embed AI in existing systems**: enterprise knowledge-base Q&A, customer support with conversational context, extracting structured fields from contracts and résumés, batch summarization and classification, letting models look up orders or create tickets, or evaluating several models or vector databases.
 
-> **它尤其适合「AI 是业务系统的一部分」的团队。** 领域服务、数据库访问、权限和审计已经写在 Java 中，**直接把这些能力注册为受控 Tools，通常比新增一个 Python 微服务再跨语言调用更简单**。
+> **It is especially suitable when AI is part of the business system.** Domain services, database access, authorization, and auditing are already implemented in Java. **Registering these capabilities as controlled tools is usually simpler than adding a Python microservice and making cross-language calls.**
 
-### 8.9.2 不适合
+### 8.9.2 Poor Fits
 
-- **只调一家模型做一次文本生成**：厂商官方 SDK 可能更轻，不必为了抽象而抽象；
-- **深度依赖某家模型刚发布的专属能力**：直接 SDK 往往更早暴露完整参数；
-- **跨小时运行、可暂停恢复、强事务补偿的复杂流程**：不能只依赖模型工具循环，还要结合工作流引擎、消息系统或图编排方案。
+- **A single text-generation call to one provider**: its official SDK may be lighter; avoid abstraction for its own sake.
+- **Heavy dependence on a provider's newly released proprietary feature**: the direct SDK often exposes the full parameter set sooner.
+- **Complex workflows that run for hours, support pause/resume, and require robust transaction compensation**: a model/tool loop alone is not enough. Combine it with a workflow engine, messaging system, or graph orchestration layer.
 
-### 8.9.3 同类 Java 方案怎么选
+### 8.9.3 Choosing Among Java Alternatives
 
-| 现状或目标 | 更值得优先评估的方案 |
+| Current setup or goal | Option to evaluate first |
 |---|---|
-| 已有普通 Java 项目，需要丰富的模型、Tools、Memory 和 RAG 组件 | **LangChain4j** |
-| Spring Boot 是统一技术底座，希望沿用 Spring 官方抽象 | **Spring AI**，也可对比 LangChain4j Spring Boot Starter |
-| Quarkus、原生镜像和 Dev Services 是核心诉求 | **Quarkus LangChain4j** |
-| 深度绑定单一供应商最新专属能力 | **厂商官方 Java SDK** |
-| 长时间、可恢复、强确定性的业务流程 | **工作流引擎或图编排层**，再组合 LLM 框架 |
+| An existing plain Java project needs a broad range of model, tool, memory, and RAG components | **LangChain4j** |
+| Spring Boot is the standard foundation and the team wants official Spring abstractions | **Spring AI**; also compare the LangChain4j Spring Boot Starter |
+| Quarkus, native images, and Dev Services are central requirements | **Quarkus LangChain4j** |
+| Deep reliance on one provider's newest proprietary capabilities | **The provider's official Java SDK** |
+| Long-running, recoverable business workflows requiring deterministic execution | **A workflow engine or graph orchestration layer**, combined with an LLM framework |
 
-> **选型时做一个小型真实 PoC，而不是只比功能清单**：用同一批问题验证回答质量、工具参数准确率、结构化输出成功率、延迟、Token 成本、监控完整度和故障恢复。
+> **Run a small PoC using a real use case instead of merely comparing feature lists.** Use the same questions to evaluate answer quality, tool-argument accuracy, structured-output success rate, latency, token cost, monitoring coverage, and failure recovery.
 >
-> **因为「支持某项功能」和「满足自己的生产要求」，中间还隔着业务数据与工程验证。**
+> **Supporting a feature is not the same as meeting your production requirements. Business data and engineering validation bridge that gap.**
 
-## 8.10 常见错误
+## 8.10 Common Mistakes
 
-### 8.10.1 说它是「Python LangChain 的官方 Java 移植」
+### 8.10.1 Calling It "the Official Java Port of Python LangChain"
 
-**API、实现和发布周期都独立**，它是从 Java 习惯出发设计的独立框架。
+**Its API, implementation, and release cycle are independent.** It is a separate framework designed around Java idioms.
 
-### 8.10.2 因为名字里有 Chain 就用 `ConversationalChain`
+### 8.10.2 Using `ConversationalChain` Because the Name Contains "Chain"
 
-**旧式 Chains 已标为 legacy**，主入口是 AI Services。
+**The older Chains are marked as legacy.** AI Services are the main entry point.
 
-### 8.10.3 把统一接口吹成完全无锁定
+### 8.10.3 Claiming Unified Interfaces Eliminate All Lock-In
 
-**抽象只能覆盖交集**，工具调用、JSON Schema、多模态支持仍有差异。
+**Abstractions standardize shared capabilities.** Tool calling, JSON Schema, and multimodal support still differ.
 
-### 8.10.4 切换模型后不重新验证
+### 8.10.4 Skipping Revalidation After Switching Models
 
-**Prompt 效果、Token 计算、限流、异常处理、评测基线都要重跑。**
+**Recheck prompt effectiveness, token accounting, rate limits, exception handling, and evaluation baselines.**
 
-### 8.10.5 以为反序列化成功就代表业务正确
+### 8.10.5 Equating Successful Deserialization with Business Correctness
 
-**只说明数据形状对上了**，金额、权限、状态仍需确定性校验。
+**It only confirms the data's shape.** Amounts, permissions, and statuses still require deterministic validation.
 
-### 8.10.6 在多处手填依赖版本
+### 8.10.6 Manually Specifying Versions in Multiple Places
 
-**用 `langchain4j-bom`**，否则核心包与集成模块容易错位。
+**Use `langchain4j-bom`** to avoid mismatches between core and integration modules.
 
-### 8.10.7 以为 `@Tool` 是把数据库权限交给模型
+### 8.10.7 Thinking `@Tool` Gives the Model Database Permissions
 
-**模型只提意图，执行和鉴权都在 Java 侧。**
+**The model proposes an action; Java code handles execution and authorization.**
 
-### 8.10.8 工具异常把堆栈原样回传给模型
+### 8.10.8 Returning Raw Stack Traces from Tool Exceptions
 
-**会泄漏路径和敏感信息。**
+**This can leak paths and sensitive information to the model.**
 
-### 8.10.9 把 Chat Memory 当成完整聊天记录
+### 8.10.9 Treating Chat Memory as Complete Conversation History
 
-**memory 是给模型的上下文，history 是审计事实**，框架不替你保存后者。
+**Memory is context for the model; history is the factual audit record.** The framework does not preserve the latter for you.
 
-### 8.10.10 所有用户共享一个记忆窗口 / 并发用同一 MemoryId
+### 8.10.10 Sharing One Memory Window Across Users or Calling the Same MemoryId Concurrently
 
-**必须用 `@MemoryId` 隔离，并发控制是应用的责任。**
+**Isolate conversations with `@MemoryId`. Concurrency control is the application's responsibility.**
 
-### 8.10.11 把 Guardrails 当安全系统
+### 8.10.11 Treating Guardrails as a Security System
 
-**它是实验性的、只适用于 AI Services、且不能替代权限与风控。**
+**Guardrails are experimental, apply only to AI Services, and cannot replace authorization or risk controls.**
 
-### 8.10.12 靠无限增大消息窗口实现「长期记忆」
+### 8.10.12 Implementing "Long-Term Memory" by Enlarging the Message Window Indefinitely
 
-**应该结构化入库或做成可检索知识再 RAG 注入。**
+**Store structured records in a database, or make the information retrievable and inject it through RAG.**
 
-## 8.11 本章总结
+## 8.11 Chapter Summary
 
-1. **定位先说准**：不是 Python LangChain 的 Java 移植，而是遵循 Java 习惯的独立 JVM LLM 框架；
-2. **两层抽象**：低层 `ChatModel` / `EmbeddingModel` / `ChatMemory`，高层 AI Services；
-3. **统一接口的收益是把变化关在适配层**，而非「一行切换任意模型」；
-4. **AI Services 收拢胶水代码**：声明接口，框架运行时代理，类似 Spring Data JPA / Retrofit；
-5. **结构化输出能约束形状，不保证业务正确**，原生 JSON Schema 需模型支持并显式启用；
-6. **用 `langchain4j-bom` 统一版本**；
-7. **Tools 是模型提意图、Java 执行**，鉴权、幂等、审批、审计一个都不能省；
-8. **memory ≠ history**，多用户要用 `@MemoryId` 隔离，同一 MemoryId 不可并发；
-9. **RAG 从简单 Retriever 到 `RetrievalAugmentor`**，但效果仍取决于文档质量与评测；
-10. **集成先看团队现有服务框架**：Spring Boot / Quarkus / Helidon / Micronaut；
-11. **可观测性顺调用链排查**，Guardrails 是实验性且不替代安全体系；
-12. **选型用小型真实 PoC 验证**，而不是比功能清单。
+1. **State its role accurately**: an independent JVM LLM framework following Java idioms, not a Java port of Python LangChain.
+2. **Two abstraction layers**: low-level `ChatModel` / `EmbeddingModel` / `ChatMemory`, and high-level AI Services.
+3. **Unified interfaces contain change in the adapter layer**; they do not make every model interchangeable with one line of code.
+4. **AI Services consolidate glue code**: declare an interface and let the framework provide a runtime proxy, much like Spring Data JPA or Retrofit.
+5. **Structured output constrains shape, not business correctness.** Native JSON Schema requires model support and explicit configuration.
+6. **Align versions with `langchain4j-bom`.**
+7. **The model proposes tool actions; Java executes them.** Authorization, idempotency, approval, and auditing are all still required.
+8. **Memory ≠ history.** Isolate users with `@MemoryId` and avoid concurrent calls with the same MemoryId.
+9. **RAG ranges from a simple retriever to `RetrievalAugmentor`**, but quality still depends on documents and evaluation.
+10. **Integrate with the team's existing service framework first**: Spring Boot / Quarkus / Helidon / Micronaut.
+11. **Use observability to investigate the call sequence.** Guardrails remain experimental and do not replace a security system.
+12. **Validate the choice with a small, realistic PoC**, not a feature-list comparison.
 
-> 可以把它理解为：LangChain4j 顺着 Java 的接口、类型和依赖注入习惯，把 Prompt、Tools、Memory、RAG 和结构化输出收拢成类型化的服务接口；但统一 API 不等于厂商能力一致，memory 不等于 history，Guardrails 也不等于权限系统。
+> LangChain4j follows Java's conventions for interfaces, types, and dependency injection to bring prompts, tools, memory, RAG, and structured output behind typed service interfaces. But a unified API does not make provider capabilities identical, memory is not history, and guardrails are not an authorization system.
 
-## 参考资料
+## References
 
-- [LangChain4j 官方文档](https://docs.langchain4j.dev/)
-- [LangChain4j GitHub 仓库](https://github.com/langchain4j/langchain4j)
-- [LangChain4j: AI Services 教程](https://docs.langchain4j.dev/tutorials/ai-services)
-- [LangChain4j: Tools 教程](https://docs.langchain4j.dev/tutorials/tools)
-- [LangChain4j: Chat Memory 教程](https://docs.langchain4j.dev/tutorials/chat-memory)
-- [LangChain4j: RAG 教程](https://docs.langchain4j.dev/tutorials/rag)
-- [LangChain4j: Guardrails 与执行顺序](https://docs.langchain4j.dev/tutorials/guardrails)
+- [LangChain4j official documentation](https://docs.langchain4j.dev/)
+- [LangChain4j GitHub repository](https://github.com/langchain4j/langchain4j)
+- [LangChain4j: AI Services tutorial](https://docs.langchain4j.dev/tutorials/ai-services)
+- [LangChain4j: Tools tutorial](https://docs.langchain4j.dev/tutorials/tools)
+- [LangChain4j: Chat Memory tutorial](https://docs.langchain4j.dev/tutorials/chat-memory)
+- [LangChain4j: RAG tutorial](https://docs.langchain4j.dev/tutorials/rag)
+- [LangChain4j: Guardrails and execution order](https://docs.langchain4j.dev/tutorials/guardrails)
 - [LangChain4j: AI Service Observability](https://docs.langchain4j.dev/tutorials/observability)
 - [Quarkus LangChain4j](https://docs.quarkiverse.io/quarkus-langchain4j/dev/)
-- [Spring AI 官方文档](https://docs.spring.io/spring-ai/reference/)
+- [Spring AI official documentation](https://docs.spring.io/spring-ai/reference/)

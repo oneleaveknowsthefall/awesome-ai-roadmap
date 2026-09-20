@@ -1,29 +1,29 @@
 ---
-description: "说明 DSPy 的 Signature、Module、Adapter 与程序组合，区分提示词优化、类型校验、控制流和运行时状态。"
+description: "Explain DSPy signatures, modules, adapters, and program composition, distinguishing prompt optimization, type validation, control flow, and runtime state."
 ---
 
-# 第十六章：DSPy 的声明式编程模型：Signature、Module 与 Program
+# Chapter 16: DSPy's Declarative Programming Model: Signatures, Modules, and Programs
 
-## 16.1 命令式 Prompt 工程的天花板
+## 16.1 The limits of imperative prompt engineering
 
-[LangChain 生态](../01-langchain/README.md) 和 [LlamaIndex 生态](../02-llamaindex/README.md) 在常见用法里，Prompt 往往还是**字符串常量**：写一段模板，塞进变量，调用模型，看输出是否符合预期，再手工改字符串。这个循环有一个结构性问题：**Prompt 的「意图」和「具体措辞」被绑在一起**，换一个模型、换一个任务分布，之前调好的措辞可能立刻失效，而工程上也缺少系统化的方法判断该往哪个方向调整。
+In common uses of the [LangChain ecosystem](../01-langchain/README.md) and [LlamaIndex ecosystem](../02-llamaindex/README.md), prompts are often still **string constants**: write a template, insert variables, call the model, inspect the output, then edit the string by hand. This loop has a structural problem: **the prompt's intent is tied to its exact wording**. Change the model or task distribution, and carefully tuned wording may immediately stop working, without a systematic engineering method for deciding which adjustments to try.
 
-DSPy（Declarative Self-improving Python）的出发点是把这两件事拆开：先声明输入、输出和任务目标，再选择 Module 及程序结构，让优化器在指定搜索空间内改进指令、示例或模型权重。常规 Prompt 优化并不自动决定业务流程该拆成几步；没有编译也能运行 DSPy 程序。
+DSPy (Declarative Self-improving Python) starts by separating those concerns. Declare the inputs, outputs, and task objective first, then choose modules and program structure so an optimizer can improve instructions, examples, or model weights within a specified search space. Ordinary prompt optimization does not automatically decide how many steps a business process needs; a DSPy program can also run without compilation.
 
 ```mermaid
 flowchart TB
-    subgraph Old["命令式 Prompt 工程"]
-        O1["手写 Prompt 字符串"] --> O2["跑一遍看效果"] --> O3["人工猜测怎么改措辞"] --> O1
+    subgraph Old["Imperative prompt engineering"]
+        O1["Handwrite a prompt string"] --> O2["Run it and inspect the result"] --> O3["Guess how to revise the wording"] --> O1
     end
-    subgraph New["DSPy 声明式编程"]
-        N1["声明 Signature：输入/输出契约"] --> N2["选择 Module：Predict / CoT / ReAct"]
-        N2 --> N3["Optimizer 编译：预算内搜索更优参数"]
+    subgraph New["DSPy declarative programming"]
+        N1["Declare a Signature: input/output contract"] --> N2["Choose a Module: Predict / CoT / ReAct"]
+        N2 --> N3["Compile with an optimizer: search for better parameters within budget"]
     end
 ```
 
-## 16.2 Signature：声明字段和任务指令，而非完整请求模板
+## 16.2 Signature: declare fields and task instructions, not a full request template
 
-`Signature` 描述输入字段、输出字段和任务指令。字段名、`desc` 与类的 docstring 都会影响模型收到的提示，不能把它们当作与 Prompt 无关的注释：
+A `Signature` describes input fields, output fields, and task instructions. Field names, `desc`, and the class docstring all affect the prompt the model receives; they are not comments unrelated to prompting:
 
 ```python
 import dspy
@@ -31,27 +31,27 @@ import dspy
 dspy.configure(lm=dspy.LM("openai/gpt-4o-mini"))
 
 class ExtractEvent(dspy.Signature):
-    """从邮件正文中抽取会议事件的关键信息。"""
+    """Extract key meeting-event details from an email body."""
 
     email: str = dspy.InputField()
     event_name: str = dspy.OutputField()
-    date: str = dspy.OutputField(desc="ISO 8601 格式")
+    date: str = dspy.OutputField(desc="ISO 8601 format")
 ```
 
-上例需要安装 DSPy 并配置对应模型的凭据。它没有手写完整消息模板；docstring 提供初始 instructions，Adapter 将 Signature、示例和运行输入组织成模型请求并解析输出。优化器可改写指令或示例，Adapter 决定序列化方式，两者不是同一层。
+The example requires DSPy to be installed and credentials configured for the chosen model. It does not handwrite a complete message template: the docstring supplies initial instructions, while an Adapter assembles the signature, examples, and runtime inputs into a model request and parses the output. The optimizer can rewrite instructions or examples; the Adapter determines serialization. These are different layers.
 
-对照 LangChain 的结构化输出，DSPy 更强调把多个带签名的模型调用组成可优化程序。不要据此认为优化器会任意修改字段名或类型；常规指令优化主要改 instructions，字段定义仍是开发者维护的接口。
+Compared with LangChain's structured output, DSPy places more emphasis on composing multiple model calls with signatures into an optimizable program. This does not mean that an optimizer arbitrarily changes field names or types. Ordinary instruction optimization primarily changes instructions; field definitions remain an interface maintained by the developer.
 
-## 16.3 Module：把 Signature 变成可执行策略
+## 16.3 Module: turn a signature into an executable strategy
 
-`Signature` 只是契约，`Module` 才决定「怎么让模型完成这个契约」。DSPy 内置了几种典型策略：
+A `Signature` is only a contract; the `Module` determines how the model is asked to fulfill it. DSPy includes several common strategies:
 
-| Module | 策略 | 适合场景 |
+| Module | Strategy | Suitable use cases |
 |---|---|---|
-| `dspy.Predict` | 直接根据 Signature 生成一次输出 | 简单抽取、分类 |
-| `dspy.ChainOfThought` | 在签名中增加 reasoning 字段，再产出目标字段 | 需要显式中间推理的问题；不等于访问模型隐藏思维，也不保证提升 |
-| `dspy.ReAct` | 在有界循环中选择工具、接收观察并生成结果 | 外部工具辅助任务；不应假定等同于供应商原生 tool-call 消息协议 |
-| `dspy.ProgramOfThought` | 生成并执行代码，再利用执行结果回答 | 可形式化的计算；需执行环境、资源限制与隔离 |
+| `dspy.Predict` | Directly generates an output from the signature | Simple extraction and classification |
+| `dspy.ChainOfThought` | Adds a reasoning field to the signature before producing the target fields | Problems that need explicit intermediate reasoning; this neither accesses the model's hidden reasoning nor guarantees improvement |
+| `dspy.ReAct` | Selects tools, receives observations, and produces a result in a bounded loop | Tasks assisted by external tools; do not assume it is equivalent to a provider's native tool-call message protocol |
+| `dspy.ProgramOfThought` | Generates and executes code, then answers using the execution result | Computations that can be formalized; requires an execution environment, resource limits, and isolation |
 
 ```python
 extract = dspy.ChainOfThought(ExtractEvent)
@@ -59,11 +59,11 @@ result = extract(email=inbox_message)
 print(result.event_name, result.date)
 ```
 
-同一个 `Signature` 换一个 `Module`，任务契约不变，但底层生成策略完全不同——**这是「关注点分离」在 DSPy 里的第一层体现**：契约和策略解耦。
+Changing the `Module` while keeping the same `Signature` leaves the task contract intact but changes the underlying generation strategy. **This is the first layer of separation of concerns in DSPy**: decoupling the contract from the strategy.
 
-## 16.4 Program：Module 的组合与状态
+## 16.4 Program: module composition and state
 
-多个 `Module` 可以组合成一个 `Program`（在 DSPy 中体现为一个继承 `dspy.Module` 的类），组合方式和普通 Python 类完全一致：
+Several modules can form a program, represented in DSPy by a class inheriting from `dspy.Module`. Composition works just as it does with ordinary Python classes:
 
 ```python
 class ResearchAgent(dspy.Module):
@@ -77,47 +77,47 @@ class ResearchAgent(dspy.Module):
         return self.generate_answer(context=context, question=question)
 ```
 
-这里注入 `retrieve(question) -> list[str]`，可以接自己的检索服务；如果使用 `dspy.Retrieve`，还必须配置检索后端，不能只配置 LM 就假设它能检索。
+The injected dependency is `retrieve(question) -> list[str]`, which can connect to your own retrieval service. If you use `dspy.Retrieve`, you must also configure a retrieval backend; configuring only the LM does not make retrieval work.
 
-`forward` 是普通 Python 控制流。常规 DSPy 优化器遍历程序中可发现的 predictors，并结合运行轨迹优化参数，不是静态编译任意 Python。通常不会改写手写 if/else；如果使用专门的代码优化能力，需要另行核对其 API、执行隔离和测试范围，不能从「DSPy 支持优化」推导出所有控制流都会被搜索。
+`forward` uses ordinary Python control flow. Standard DSPy optimizers traverse discoverable predictors in the program and use execution traces to optimize parameters; they do not statically compile arbitrary Python. They generally do not rewrite handwritten if/else branches. Specialized code-optimization features require separate checks of their APIs, execution isolation, and test coverage. “DSPy supports optimization” does not imply that it searches over all control flow.
 
-## 16.5 常见错误
+## 16.5 Common mistakes
 
-### 16.5.1 把 Signature 的 docstring 当作最终 Prompt
+### 16.5.1 Treating a signature's docstring as the final prompt
 
-docstring 确实会作为初始任务指令进入请求，优化器也可能改写它。应写清成功条件和业务歧义，不要把它误认为「完全不会发送的说明」，也不要堆入无法由指标验证的措辞技巧。
+The docstring does enter the request as initial task instructions, and the optimizer may rewrite it. Make success conditions and business ambiguities clear. Do not mistake it for documentation that is never sent to the model, or fill it with wording tricks that the metric cannot validate.
 
-### 16.5.2 认为换个 Module 就能免费获得推理能力
+### 16.5.2 Assuming a different module provides reasoning capability for free
 
-`ChainOfThought` 会让模型「生成推理过程」，但推理质量仍然取决于底层模型能力和任务本身的可分解程度；把一个模型做不好的任务简单套上 `ChainOfThought`，不一定能解决准确率问题。
+`ChainOfThought` asks the model to generate a reasoning process, but its quality still depends on the underlying model's abilities and how decomposable the task is. Simply wrapping a task the model handles poorly in `ChainOfThought` may not solve the accuracy problem.
 
-### 16.5.3 在 `forward` 里塞入大量不可复用的胶水逻辑
+### 16.5.3 Filling `forward` with non-reusable glue logic
 
-`forward` 可以包含普通业务逻辑，代码长本身不会让优化器失效。需要检查的是待优化的 predictor 是否注册为可发现的子模块、是否在运行轨迹中被调用，以及指标能否评价它的贡献；把模型调用藏在框架无法追踪的外部函数里，才可能使该部分不参与优化。
+`forward` can contain ordinary business logic; length alone does not break the optimizer. Check whether the predictor to be optimized is registered as a discoverable submodule, whether execution traces call it, and whether the metric can assess its contribution. Hiding model calls inside external functions that the framework cannot trace may exclude that part from optimization.
 
-### 16.5.4 混淆「声明式」和「不需要写代码」
+### 16.5.4 Confusing “declarative” with “no code required”
 
-DSPy 依然需要开发者组织 Module、管理数据流和定义指标。声明式不是零代码，也不是禁止手写指令，而是减少对完整 Prompt 模板的手工耦合。
+Developers still organize modules, manage data flow, and define metrics in DSPy. Declarative programming is neither no-code nor a ban on handwritten instructions; it reduces manual coupling to complete prompt templates.
 
-### 16.5.5 把编译参数当作会话记忆
+### 16.5.5 Treating compiled parameters as conversational memory
 
-保存程序的指令和示例，不等于保存一次运行的对话历史、检索游标或人工审批状态。服务端共享一个 Module 时，不要把用户私有上下文写进实例属性；让运行输入、依赖和会话存储承担各自职责。
+Saving a program's instructions and examples does not save a run's conversation history, retrieval cursor, or human approval state. When sharing a module on a server, do not put private user context in instance attributes. Runtime inputs, dependencies, and session storage should each serve their own purpose.
 
-检查程序边界时可以追问：检索调用是否也被计入端到端 metric？未检索到证据时是否允许拒答？`date: str` 即使能解析，也不证明日期有效，应改用合适的类型或业务校验。再比较 `Predict` 与 CoT 的字段准确率、token 和延迟，判断多出来的 reasoning 是否真的有收益。
+When examining program boundaries, ask: Are retrieval calls included in the end-to-end metric? Is abstention allowed when no evidence is retrieved? A parseable `date: str` does not prove that the date is valid; use an appropriate type or business validation. Then compare field accuracy, token usage, and latency between `Predict` and CoT to determine whether the additional reasoning actually helps.
 
-## 16.6 本章总结
+## 16.6 Chapter summary
 
-1. **DSPy 把「任务契约」和「实现策略」拆开**：`Signature` 声明输入输出契约，`Module` 决定具体的生成策略，同一契约可以自由切换策略；
-2. **docstring 是初始指令而非完整 Prompt**，Adapter 负责消息组织与解析，优化器负责其支持范围内的参数搜索；
-3. **`Predict`、`ChainOfThought`、`ReAct`、`ProgramOfThought` 是四种典型的内置策略**，分别对应直接生成、显式推理、工具调用、代码生成四类任务形态；
-4. **`Program` 用普通 Python 类和函数组合 `Module`**，控制流写法贴近原生代码，换来了和 Python 生态的无缝集成，代价是手写控制流本身不在编译器的优化范围内；
-5. **这种关注点分离是第十七章「编译与优化」得以自动化的前提**——只有契约和策略解耦，优化器才能在不改变任务语义的前提下搜索更优的具体实现。
+1. **DSPy separates the task contract from the implementation strategy**: a `Signature` declares the input/output contract, and a `Module` determines the generation strategy. The same contract can use different strategies.
+2. **The docstring supplies initial instructions, not a complete prompt**. The Adapter assembles and parses messages; the optimizer searches parameters within its supported scope.
+3. **`Predict`, `ChainOfThought`, `ReAct`, and `ProgramOfThought` are four common built-in strategies**, corresponding to direct generation, explicit reasoning, tool use, and code generation.
+4. **A program composes modules using ordinary Python classes and functions**. Native control flow integrates seamlessly with the Python ecosystem, with the tradeoff that handwritten control flow itself is outside the compiler's optimization scope.
+5. **This separation of concerns enables the automation discussed in Chapter 17 on compilation and optimization**. Decoupling the contract from the strategy lets the optimizer search for better implementations without changing the task's meaning.
 
-因此，DSPy 不是换一种 Prompt 写法，而是把 Prompt 工程从手工改字符串，转成「契约声明 + 策略选择 + 自动编译」的程序优化问题。
+DSPy is therefore more than another way to write prompts. It turns prompt engineering from manual string editing into a program-optimization problem: contract declaration, strategy selection, and automatic compilation.
 
-## 参考资料
+## References
 
-- [DSPy 官方文档](https://dspy.ai/)
+- [Official DSPy documentation](https://dspy.ai/)
 - [DSPy: Class-based signatures](https://dspy.ai/getting-started/class-based-signatures/)
 - [DSPy: Changing modules](https://dspy.ai/getting-started/changing-modules/)
-- [DSPy 论文：Khattab et al., "DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines"](https://arxiv.org/abs/2310.03714)
+- [DSPy paper: Khattab et al., "DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines"](https://arxiv.org/abs/2310.03714)

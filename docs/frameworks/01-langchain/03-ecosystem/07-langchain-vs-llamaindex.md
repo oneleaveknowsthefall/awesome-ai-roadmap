@@ -1,171 +1,171 @@
 ---
-description: 从模型工具接入与数据上下文链路比较 LangChain 和 LlamaIndex，讨论工具组合后的引用保真、重复生成与评测成本。
+description: Compare LangChain and LlamaIndex through model and tool integration and the data-to-context pipeline, including citation fidelity, duplicate generation, and evaluation costs when combining them.
 ---
 
-# 第七章：LangChain 与 LlamaIndex 的分工
+# Chapter 7: Dividing Responsibilities Between LangChain and LlamaIndex
 
-## 7.1 为什么容易混淆
+## 7.1 Why Are They Easy to Confuse?
 
-两个框架都支持模型调用、Tools、RAG、Agent 和 Workflow。只看功能清单，很容易得出「它们差不多」的结论。
+Both frameworks support model calls, tools, RAG, agents, and workflows. Looking only at a feature list, it is easy to conclude that they are much the same.
 
-> 更有区分度的是设计重心：
+> Their design priorities provide a more useful distinction:
 >
-> - **LangChain** 更关心如何**统一模型与工具，并快速组装通用 Agent**；
-> - **LlamaIndex** 更关心如何把**私有数据加工成高质量上下文**，再交给模型或 Agent 使用。
+> - **LangChain** focuses more on **unifying models and tools and quickly assembling general-purpose agents**.
+> - **LlamaIndex** focuses more on **turning private data into high-quality context** for a model or agent to use.
 
-## 7.2 核心区别
+## 7.2 The Core Difference
 
-| 维度 | LangChain | LlamaIndex |
+| Dimension | LangChain | LlamaIndex |
 |---|---|---|
-| **设计重心** | 通用 Agent 组装和工具集成 | 数据接入与上下文增强 |
-| **主要优势** | 模型、Tools、中间件和第三方集成 | 文档处理、索引、检索和重排 |
-| **常见场景** | 工具型 Agent、SQL Agent、业务助手 | 企业知识库、文档 Agent、复杂 RAG |
-| **复杂流程** | 通过 LangGraph 管理状态、恢复和人工介入 | 使用 Workflows，或与 LangGraph 组合 |
+| **Design priority** | General-purpose agent assembly and tool integration | Data ingestion and context augmentation |
+| **Main strengths** | Models, tools, middleware, and third-party integrations | Document processing, indexing, retrieval, and reranking |
+| **Common use cases** | Tool-using agents, SQL agents, business assistants | Enterprise knowledge bases, document agents, complex RAG |
+| **Complex workflows** | Manage state, recovery, and human intervention through LangGraph | Use Workflows, or combine with LangGraph |
 
-> **这张表比较的是优势重心，不是能力边界。** LangChain 也有完整的 RAG 组件，LlamaIndex 也能创建 Agent；**区别在于哪一套抽象更贴近项目的主要问题**。
+> **This table compares areas of strength, not hard capability boundaries.** LangChain also has a full set of RAG components, and LlamaIndex can also create agents. **The difference is which set of abstractions better matches the project's main problem.**
 
-## 7.3 LangChain 强在哪里
+## 7.3 Where LangChain Is Strong
 
-**如果项目需要接入多个模型、搜索、数据库、浏览器、MCP Server 和公司内部 API**，最大的工程成本往往是**不同接口之间的适配**。
+**When a project needs multiple models, search, databases, browsers, MCP servers, and internal company APIs**, the largest engineering cost is often **adapting between different interfaces**.
 
 ```mermaid
 flowchart TB
-    A["统一 Model / Message / Tool / Structured Output 接口<br/>屏蔽厂商差异"] --> B["create_agent 组装模型与工具"]
-    B --> C["Middleware 统一加入<br/>权限、重试、摘要、动态模型选择、人工审批"]
-    C --> D["流程复杂到需要精细控制分支、并行和恢复时<br/>继续下沉到 LangGraph<br/>不必推翻已定义好的模型与工具"]
+    A["Unify Model / Message / Tool / Structured Output interfaces<br/>Abstract away provider differences"] --> B["Assemble models and tools with create_agent"]
+    B --> C["Apply middleware consistently<br/>Authorization, retries, summarization, dynamic model selection, human approval"]
+    C --> D["When workflows need finer control over branching, parallelism, and recovery<br/>Move down to LangGraph<br/>Keep the existing model and tool definitions"]
 
     style D fill:#e6f4ea
 ```
 
-**它的主要难点**：让模型**选对工具、填对参数**，并把权限、重试和审批统一接入调用过程。
+**The main challenge** is getting the model to **choose the right tool and supply the right arguments**, while consistently integrating authorization, retries, and approval into execution.
 
-> **LangGraph 是 LangChain Agent 的底层运行时。** 标准循环中的暂停恢复和工具审批可直接配置 `create_agent`；只有业务拓扑需要额外控制时，才显式编写状态图。
+> **LangGraph is the underlying runtime for LangChain agents.** Pausing, resuming, and tool approval within the standard loop can be configured directly through `create_agent`. Write an explicit state graph only when the business workflow's topology needs additional control.
 
-## 7.4 LlamaIndex 强在哪里
+## 7.4 Where LlamaIndex Is Strong
 
-**真实 RAG 项目的困难通常不止是把文档放进向量数据库。**
+**The challenges of a real RAG project usually go beyond putting documents into a vector database.**
 
-| 阶段 | 真实困难 |
+| Stage | Practical challenges |
 |---|---|
-| **数据刚进来** | PDF 表格、跨页内容、切分方式、元数据；同一制度多个版本，**要判断哪一份仍然有效** |
-| **查询阶段** | 决定走向量检索、关键词检索还是结构化数据库 |
-| **多路结果回来后** | 过滤、重排、**处理冲突** |
+| **Initial ingestion** | PDF tables, content spanning pages, chunking, and metadata; when a policy has multiple versions, **determine which one is still in force** |
+| **Querying** | Decide between vector retrieval, keyword retrieval, and a structured database |
+| **After results arrive from multiple sources** | Filter, rerank, and **resolve conflicts** |
 
-> **难点沿着「数据进入 → 建立索引 → 发起检索 → 组织上下文」一路传递，而不是某一个向量库能单独解决。**
+> **Difficulties propagate through ingestion → indexing → retrieval → context assembly. No single vector database can solve them all.**
 
 ```mermaid
 flowchart LR
-    A["数据接入"] --> B["解析与切分"] --> C["索引"] --> D["检索与重排"] --> E["Query Engine"] --> F["Agent"]
+    A["Data ingestion"] --> B["Parsing and chunking"] --> C["Indexing"] --> D["Retrieval and reranking"] --> E["Query Engine"] --> F["Agent"]
 
     style B fill:#e8f0fe
     style D fill:#e8f0fe
 ```
 
-> **LlamaIndex 把「如何得到高质量上下文」当作主要工程问题。**
+> **LlamaIndex treats obtaining high-quality context as the central engineering problem.**
 
-企业文档、多数据源路由和复杂检索是它更自然的应用入口。
+Enterprise documents, routing across data sources, and complex retrieval are natural starting points for using it.
 
-更准确地说，**LlamaIndex 的优势重心在数据**，而不是「只能做 RAG」——它同样提供 Agent 和事件驱动 Workflow。
+More precisely, **LlamaIndex's strengths center on data**; that does not mean it can only do RAG. It also provides agents and event-driven workflows.
 
-## 7.5 应该如何选型
+## 7.5 How Should You Choose?
 
-选型时先看项目最怕哪类风险。
+Start with the risks that matter most to the project.
 
-| 项目主要风险 | 优先评估 | 原因 |
+| Main project risk | Evaluate first | Reason |
 |---|---|---|
-| 模型和业务工具太多，集成复杂 | **LangChain** | 通用组件和工具接口更自然 |
-| 文档解析、切分和检索质量差 | **LlamaIndex** | 数据与上下文链路抽象更细 |
-| 流程需要暂停恢复和人工审批 | **LangGraph**，可搭配 LangChain | 状态与执行控制是核心能力 |
-| 同时需要复杂检索和复杂流程 | **LlamaIndex + LangChain/LangGraph** | 数据层与编排层分别选合适组件 |
+| Too many models and business tools make integration complex | **LangChain** | General-purpose components and tool interfaces are a natural fit |
+| Poor document parsing, chunking, or retrieval quality | **LlamaIndex** | More fine-grained abstractions for the data-to-context pipeline |
+| Workflows need pause/resume and human approval | **LangGraph**, optionally with LangChain | State and execution control are core capabilities |
+| Both complex retrieval and complex workflows are required | **LlamaIndex + LangChain/LangGraph** | Choose suitable components separately for the data and orchestration layers |
 
-> **如果只是简单知识库或单工具 Agent，没有必要为了架构完整同时引入两套框架。**
+> **For a simple knowledge base or a single-tool agent, there is no need to introduce both frameworks just to make the architecture look complete.**
 >
-> 组合会增加依赖、追踪和调试成本，**只有当两边确实解决独立难题时才值得**。
+> Combining them adds dependency, tracing, and debugging costs. **It is worthwhile only when each solves a distinct problem.**
 
-## 7.6 两者如何组合
+## 7.6 How to Combine Them
 
-**最常见的组合边界是 Tool。**
+**The most common integration boundary is a tool.**
 
 ```python
-# LlamaIndex Query Engine 被包装成 LangChain 可以调用的 Tool
+# Wrap a LlamaIndex Query Engine as a tool LangChain can call
 @tool
 def search_company_knowledge(question: str) -> str:
-    """查询企业知识库。"""
+    """Query the company knowledge base."""
     return str(query_engine.query(question))
 
-# LangChain Agent 负责判断何时查询知识库，何时调用订单工具
+# The LangChain agent decides when to query knowledge and when to use order tools
 agent = create_agent(
     model=chat_model,
     tools=[search_company_knowledge, lookup_order],
 )
 ```
 
-| 层 | 谁负责 |
+| Layer | Responsible component |
 |---|---|
-| 数据加载、构建索引、Query Engine | **LlamaIndex** |
-| 判断什么时候调用、工具选择 | **LangChain Agent** |
-| 审批、重试、恢复 | **LangGraph** |
+| Data loading, index construction, Query Engine | **LlamaIndex** |
+| Deciding when to call a tool and which one | **LangChain agent** |
+| Approval, retries, recovery | **LangGraph** |
 
-> **这段代码表达的重点是职责边界。** 生产环境还需要补充**租户权限、引用来源、超时和可观测性**。
+> **This snippet illustrates the division of responsibilities.** Production use also requires **tenant authorization, citation sources, timeouts, and observability**.
 
-`str(query_engine.query(...))` 只展示答案文本边界，可能丢失 `source_nodes` 等证据元数据，而且 Query Engine 若已经调用一次生成模型，外层 Agent 再总结就有两次生成成本和事实漂移风险。需要可核验引用时，应把答案与经权限过滤的证据 ID、片段、来源版本分别传递；若外层模型负责最终写作，可以直接暴露 Retriever 的证据结果，避免重复生成。
+`str(query_engine.query(...))` illustrates a boundary that passes only answer text; it may discard evidence metadata such as `source_nodes`. If the Query Engine has already called a generative model, having the outer agent summarize again incurs the cost of two generations and risks factual drift. When citations must be verifiable, pass the answer separately from authorization-filtered evidence IDs, excerpts, and source versions. If the outer model writes the final response, expose the retriever's evidence results directly to avoid duplicate generation.
 
-判断这种组合是否值得，不能只测最终答案：固定同一批文档、切片和问题，分别比较召回质量、引用支持率、生成次数、P95 延迟，以及单框架基线。两层各自配置三次尝试，最坏可能放大成九次底层请求；因此跨边界的 deadline、取消和重试预算应由一层统一负责。
+To decide whether the combination is worthwhile, do not evaluate only the final answer. Keep documents, chunks, and questions fixed, then compare retrieval quality, the proportion of citations that support their claims, generation counts, and P95 latency against a single-framework baseline. If each layer allows three attempts, the worst case can multiply into nine underlying requests. One layer should therefore own cross-boundary deadlines, cancellation, and the retry budget.
 
-## 7.7 常见错误
+## 7.7 Common Mistakes
 
-### 7.7.1 用「LangChain 做 Chain，LlamaIndex 做 RAG」这个过时标签
+### 7.7.1 Using the Outdated Label "LangChain Does Chains; LlamaIndex Does RAG"
 
-**两者都能做 Agent、工具调用和 RAG**，区别是设计重心。
+**Both support agents, tool calling, and RAG.** Their design priorities differ.
 
-### 7.7.2 以为 LangChain 只会把 Prompt 串成 Chain
+### 7.7.2 Thinking LangChain Only Strings Prompts into Chains
 
-**当前主线已经转向 Agent**，固定流程才由 Runnable 和 LCEL 承担。
+**Its main direction has shifted toward agents.** Runnable and LCEL handle fixed workflows.
 
-### 7.7.3 以为 LlamaIndex 是向量数据库
+### 7.7.3 Thinking LlamaIndex Is a Vector Database
 
-**它能连接向量库，但本身是数据处理、索引、检索与上下文组织的抽象。**
+**It connects to vector databases, but is itself an abstraction for data processing, indexing, retrieval, and context assembly.**
 
-### 7.7.4 按功能清单比框架
+### 7.7.4 Comparing Frameworks by Feature Lists
 
-**功能重叠不代表设计重心相同**，要看哪套抽象更贴近你的主要难题。
+**Overlapping features do not imply identical design priorities.** Ask which abstractions better fit your main difficulty.
 
-### 7.7.5 认为必须二选一
+### 7.7.5 Assuming You Must Choose One or the Other
 
-可以通过 **Tool 或服务接口**组合。
+You can combine them through **tools or service interfaces**.
 
-### 7.7.6 为了架构完整同时引入两套
+### 7.7.6 Introducing Both for Architectural Completeness
 
-**简单知识库或单工具 Agent 不需要**，多一套依赖只增加调试成本。
+**A simple knowledge base or single-tool agent does not need both.** The extra dependencies only add debugging costs.
 
-### 7.7.7 把 RAG 难点简化成「选个向量库」
+### 7.7.7 Reducing RAG to "Choose a Vector Database"
 
-**难点沿数据进入 → 索引 → 检索 → 组上下文一路传递。**
+**Difficulties propagate through ingestion → indexing → retrieval → context assembly.**
 
-### 7.7.8 组合时忘了生产要素
+### 7.7.8 Forgetting Production Requirements When Combining Frameworks
 
-租户权限、引用来源、超时、可观测性**都不会自动来**。
+Tenant authorization, citation sources, timeouts, and observability **do not appear automatically**.
 
-## 7.8 本章总结
+## 7.8 Chapter Summary
 
-1. **不要再用过时标签**，两者都能做 Agent、工具调用和 RAG；
-2. **真正的区别是设计重心**：LangChain 偏通用 Agent 组装与工具集成，LlamaIndex 偏数据接入与上下文增强；
-3. **LangChain 的价值在屏蔽接口差异**：统一 Model / Message / Tool / 结构化输出，再用 `create_agent` 组装，Middleware 统一横切；
-4. **复杂流程可以从 LangChain 下沉到 LangGraph**，不必推翻已有模型与工具定义；
-5. **LlamaIndex 的价值在把「如何得到高质量上下文」当成核心工程问题**，链路拆得更细；
-6. **RAG 的困难是链式传递的**，不是某个向量库能单独解决；
-7. **选型先看项目最怕哪类风险**，再决定优先评估谁；
-8. **最常见的组合边界是 Tool**：LlamaIndex 管数据与检索，LangChain 管模型和工具选择，LangGraph 管状态与恢复；
-9. **组合有成本**，只有两边各自存在独立难题时才值得。
+1. **Drop the outdated labels.** Both support agents, tool calling, and RAG.
+2. **The real difference is design priority**: LangChain emphasizes general-purpose agent assembly and tool integration; LlamaIndex emphasizes ingestion and context augmentation.
+3. **LangChain's value lies in abstracting away interface differences**: unify Model / Message / Tool / structured output, assemble them with `create_agent`, and apply cross-cutting behavior through middleware.
+4. **Complex workflows can move from LangChain down to LangGraph** without discarding existing model and tool definitions.
+5. **LlamaIndex's value lies in treating high-quality context as the central engineering problem**, with finer-grained abstractions along the pipeline.
+6. **RAG difficulties propagate through the pipeline.** No single vector database can solve them all.
+7. **Choose based on the project's greatest risks**, then decide what to evaluate first.
+8. **The most common integration boundary is a tool**: LlamaIndex handles data and retrieval, LangChain handles model and tool selection, and LangGraph handles state and recovery.
+9. **Combining frameworks has a cost.** It is worthwhile only when each addresses a distinct difficulty.
 
-> 可以把分界记成这样：LangChain 先解决模型与工具怎么统一和调度，LlamaIndex 先解决私有数据怎么变成高质量上下文；两类问题同时存在时，再用 Tool 把它们接起来。
+> Think of the boundary this way: LangChain first addresses how to unify and coordinate models and tools; LlamaIndex first addresses how to turn private data into high-quality context. When both problems exist, connect the two through a tool.
 
-## 参考资料
+## References
 
-- [LangChain 官方文档](https://docs.langchain.com/oss/python/langchain/overview)
-- [LangChain: Agents 概念文档](https://docs.langchain.com/oss/python/langchain/agents)
-- [LangChain: Retrieval 概念文档](https://docs.langchain.com/oss/python/langchain/retrieval)
-- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
-- [LlamaIndex 官方文档](https://docs.llamaindex.ai/)
+- [LangChain official documentation](https://docs.langchain.com/oss/python/langchain/overview)
+- [LangChain: Agents](https://docs.langchain.com/oss/python/langchain/agents)
+- [LangChain: Retrieval](https://docs.langchain.com/oss/python/langchain/retrieval)
+- [LangGraph official documentation](https://docs.langchain.com/oss/python/langgraph/overview)
+- [LlamaIndex official documentation](https://docs.llamaindex.ai/)
 - [LlamaIndex: Building an Agent](https://docs.llamaindex.ai/en/stable/understanding/agent/)
 - [LlamaIndex: Workflows](https://docs.llamaindex.ai/en/stable/understanding/workflows/)

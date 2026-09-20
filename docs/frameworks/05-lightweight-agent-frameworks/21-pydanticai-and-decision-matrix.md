@@ -1,18 +1,18 @@
 ---
-description: "介绍 PydanticAI 的类型化输出、依赖注入、有限重试和持久执行集成，以实际状态与恢复要求比较 Agent 框架。"
+description: "Introduces PydanticAI's typed outputs, dependency injection, bounded retries, and durable-execution integrations, comparing agent frameworks by their actual state and recovery requirements."
 ---
 
-# 第二十一章：PydanticAI 的类型安全范式与三者适用边界
+# Chapter 21: PydanticAI's Type-Safe Approach and Where the Three Frameworks Fit
 
-## 21.1 第三种路线：把「协作」问题换成「正确性」问题
+## 21.1 A third approach: shifting from collaboration to correctness
 
-PydanticAI 以 Python 类型、工具和依赖注入组织 Agent，但不只支持无状态的单 Agent 调用：它也支持会话历史、多 Agent 组合和持久执行集成。本章从单个 Agent 的可测试边界切入，再看这些能力如何扩展。
+PydanticAI organizes agents around Python types, tools, and dependency injection, but it is not limited to stateless, single-agent calls. It also supports conversation history, multi-agent composition, and durable-execution integrations. This chapter starts with the testable boundaries of a single agent, then considers how those capabilities extend.
 
-这里的类型安全包括静态检查与运行时校验，不代表自然语言输入或模型推断自动获得事实正确性。
+Type safety here includes static checking and runtime validation. It does not automatically make natural-language inputs or model inference factually correct.
 
-## 21.2 核心设计：`Agent`、`output_type` 与依赖注入
+## 21.2 Core design: `Agent`, `output_type`, and dependency injection
 
-PydanticAI 的 `Agent` 对象接受一个 `output_type`（通常是 Pydantic `BaseModel`），运行结果会被自动校验并转换成对应类型，而不是返回一段需要自己解析的原始字符串：
+PydanticAI's `Agent` accepts an `output_type`, usually a Pydantic `BaseModel`. Run results are automatically validated and converted to that type, rather than returned as a raw string you must parse yourself:
 
 ```python
 from typing import Literal
@@ -38,7 +38,7 @@ agent = Agent(
 
 @agent.tool
 def recent_reviews(ctx: RunContext[ReviewDeps], product: str) -> list[str]:
-    """获取某个产品的近期评论片段。"""
+    """Fetch recent review excerpts for a product."""
     return ctx.deps.reviews.get(product, [])
 
 result = agent.run_sync(
@@ -48,104 +48,104 @@ result = agent.run_sync(
 print(result.output.label, result.output.score)
 ```
 
-先设置 `PYDANTIC_AI_MODEL` 为官方支持且账户可用的 `provider:model` 标识，并配置凭据；不要把 CLI 模型别名当成供应商 API 模型名。这里用内存数据演示可替换依赖，生产可改成带请求身份的只读服务。已有异步事件循环中应 `await agent.run(...)`，不要调用 `run_sync()`。
+First set `PYDANTIC_AI_MODEL` to an officially supported `provider:model` identifier available to your account, and configure credentials. A CLI model alias is not a provider API model name. This example uses in-memory data to demonstrate replaceable dependencies; production code could use a read-only service carrying the request's identity instead. The Chinese prompt asks for an assessment of `keyboard` based on recent reviews; the two excerpts say that the keys feel good and that they are a little loud. Inside an existing asynchronous event loop, use `await agent.run(...)`, not `run_sync()`.
 
-这里有两个工程上直接相关的点：
+Two points have immediate engineering implications:
 
-1. **`@agent.tool` 装饰的函数签名和 docstring 直接生成工具 Schema**——这和 [Tools 主题](../../tools/README.md) 中 Function Calling 的 Schema 设计原则完全一致，PydanticAI 没有发明新协议，只是让 Schema 生成过程和 Python 类型注解无缝衔接；
-2. **`RunContext` 是依赖注入的入口**——工具函数通过 `ctx.deps` 访问运行时注入的依赖（数据库连接、当前用户身份等），这些依赖在测试时可以被替换成 mock 对象，不需要真的连接外部系统就能验证 Agent 的调用逻辑。
+1. **The signature and docstring of an `@agent.tool` function directly generate its tool schema.** This follows the same function-calling schema design principles discussed in the [Tools topic](../../tools/README.md). PydanticAI does not invent a new protocol; it connects schema generation directly to Python type annotations.
+2. **`RunContext` is the entry point for dependency injection.** Tool functions use `ctx.deps` to access dependencies injected at runtime, such as database connections or the current user's identity. Tests can replace these dependencies with mocks, allowing the agent's call logic to be checked without connecting to external systems.
 
-## 21.3 类型安全带来的工程收益
+## 21.3 Engineering benefits of type safety
 
 ```mermaid
 flowchart LR
-    A["模型输出的原始文本"] --> B{"output_type 校验"}
-    B -->|"通过"| C["强类型对象<br/>可直接用于业务逻辑"]
-    B -->|"不通过且有预算"| D["反馈校验错误并重试"]
+    A["Raw text from the model"] --> B{"output_type validation"}
+    B -->|"Pass"| C["Strongly typed object<br/>Ready for business logic"]
+    B -->|"Fail with budget remaining"| D["Return validation errors and retry"]
     D --> B
-    B -->|"预算耗尽"| E["失败返回 / 应用回退"]
+    B -->|"Budget exhausted"| E["Return failure / application fallback"]
 ```
 
-当输出不满足约束时，框架可以将校验错误反馈给模型并有限重试；预算耗尽仍会失败，需要应用处理。工具输出、供应商原生结构化输出、提示式输出有不同支持条件，不能假定所有模型都执行同一种严格 JSON Schema 约束。静态类型工具能检查调用代码，不会验证外部事实。
+When an output violates constraints, the framework can feed validation errors back to the model and retry within a limit. Exhausting the budget still produces a failure the application must handle. Tool-based output, provider-native structured output, and prompted output have different support requirements; do not assume every model enforces the same strict JSON Schema constraints. Static typing tools can check the calling code, not external facts.
 
-可用 output validator 检查跨字段业务约束，并以 `ModelRetry` 请求修正；如果证据本身不足，则应拒答而非无限重试。重试同样增加 token、延迟，不能绕过单请求预算。
+An output validator can check cross-field business constraints and request a correction with `ModelRetry`. If the evidence itself is insufficient, however, the agent should decline to answer rather than retry indefinitely. Retries also consume tokens and add latency; they cannot bypass the per-request budget.
 
-## 21.4 类型化接口之外，还要比较什么
+## 21.4 What else matters beyond typed interfaces?
 
-还要比较状态归属、失败后的恢复粒度，以及工具和观测数据的迁移成本。可以按下面三步检查；跨全部框架的对照见[第二十二章](../06-selection-portability/22-cross-framework-technical-taxonomy.md)。
+Compare state ownership, the granularity of recovery after failure, and migration costs for tools and observability data. The following three-step checklist helps; [Chapter 22](../06-selection-portability/22-cross-framework-technical-taxonomy.md) compares the full set of frameworks.
 
-**先看状态：框架提供什么对象，运行数据放在哪里。**
+**Start with state: which objects does the framework provide, and where does run data live?**
 
-| 框架 | 核心抽象 | 状态模型 |
+| Framework | Core abstractions | State model |
 |---|---|---|
-| AutoGen | Core 消息 / AgentChat Team | Agent 内部状态及 Team 消息 |
-| CrewAI | Agent、Task、Crew、Flow | Task 输出、记忆与 Flow state |
-| PydanticAI | 类型化 Agent 与依赖 | Run、消息历史、依赖；三者职责不同 |
-| Semantic Kernel | Kernel、Plugin、Process / Agent | 按具体 Agent/Process 建模 |
-| LangGraph | 状态图 | 状态通道与 reducer |
+| AutoGen | Core messages / AgentChat Teams | Internal agent state and Team messages |
+| CrewAI | Agent, Task, Crew, Flow | Task outputs, memory, and Flow state |
+| PydanticAI | Typed agents and dependencies | Runs, message history, and dependencies, each with a different responsibility |
+| Semantic Kernel | Kernel, Plugin, Process / Agent | Modeled according to the particular Agent/Process |
+| LangGraph | State graph | State channels and reducers |
 
-**再看恢复：保存过数据，不代表能从任意中间步骤继续。**
+**Then examine recovery: saving data does not mean execution can resume from any intermediate step.**
 
-| 框架 | 恢复入口 |
+| Framework | Recovery entry point |
 |---|---|
-| AutoGen | `save_state` / `load_state`，应用管理存储 |
-| CrewAI | Flow 持久化，不等于内部每次调用检查点 |
-| PydanticAI | 官方 durable execution 集成，如 Temporal、DBOS、Prefect |
-| Semantic Kernel | 核对实验功能及运行时，不笼统承诺 |
-| LangGraph | checkpointer，仍需持久后端 |
+| AutoGen | `save_state` / `load_state`, with application-managed storage |
+| CrewAI | Flow persistence, not a checkpoint for every internal call |
+| PydanticAI | Official durable-execution integrations such as Temporal, DBOS, and Prefect |
+| Semantic Kernel | Check the experimental feature and runtime rather than making a blanket promise |
+| LangGraph | A checkpointer, still requiring a persistent backend |
 
-**最后检查工具与运维资产：哪些能保留，哪些需要重新适配。**
+**Finally, inspect tools and operational assets: what can be retained, and what needs new adapters?**
 
-| 框架 | 工具与观测接入 | 主要迁移负担 |
+| Framework | Tool and observability integration | Main migration burden |
 |---|---|---|
-| AutoGen | AgentChat 工具与 Core 消息分层；Core 遥测需配置导出 | 消息、Team 策略；维护模式需评估 MAF |
-| CrewAI | Tool / 参数 Schema；Flow/Crew 追踪集成 | Task 上下文、Flow 状态和运行服务 |
-| PydanticAI | 类型注解、Pydantic、业务 validator；Logfire / OpenTelemetry | 消息格式、重试/工具语义、持久执行后端 |
-| Semantic Kernel | KernelFunction 与 Plugin；OpenTelemetry / Application Insights | Plugin、Filter、线程及 MAF 迁移 |
-| LangGraph | 可接 Tool Schema 与执行节点；LangSmith / 其他集成 | reducer、检查点与中断语义 |
+| AutoGen | AgentChat tools and Core messages occupy different layers; Core telemetry requires export configuration | Messages and Team policies; maintenance mode requires evaluating MAF |
+| CrewAI | Tools / parameter schemas; Flow/Crew tracing integrations | Task context, Flow state, and execution services |
+| PydanticAI | Type annotations, Pydantic, business validators; Logfire / OpenTelemetry | Message formats, retry/tool semantics, and durable-execution backends |
+| Semantic Kernel | KernelFunction and Plugin; OpenTelemetry / Application Insights | Plugins, Filters, threads, and MAF migration |
+| LangGraph | Tool schemas and execution nodes can be integrated; LangSmith / other integrations | Reducers, checkpoints, and interrupt semantics |
 
-这是核对清单，不是「最严格/最成熟/最低锁定」排名。新 .NET/Python 项目应另外评估 [MAF](../04-semantic-kernel/19-process-and-agent-framework.md)，不要默认选处于维护模式的 AutoGen 或 SK 实验 Process。PydanticAI 的持久执行也需要部署相应引擎，运维负担并未因为提供集成而消失。
+This is a checklist, not a ranking of "strictest," "most mature," or "least lock-in." New .NET/Python projects should also evaluate [MAF](../04-semantic-kernel/19-process-and-agent-framework.md) rather than defaulting to AutoGen in maintenance mode or experimental SK Process. PydanticAI's durable execution still requires deployment of the corresponding engine; an integration does not remove the operational burden.
 
-已有会话可通过 `message_history` 传给下一次 run；这与依赖注入不同，也不等于崩溃恢复。恢复长任务时要按 Temporal、DBOS 等后端的语义划定可重放步骤，避免把数据库连接或授权令牌作为历史数据持久保存。
+An existing conversation can be passed to the next run through `message_history`. This is different from dependency injection and is not crash recovery. When recovering a long-running task, define replayable steps according to the semantics of the chosen backend, such as Temporal or DBOS. Avoid persisting database connections or authorization tokens as historical data.
 
-## 21.5 常见错误
+## 21.5 Common mistakes
 
-### 21.5.1 认为类型校验能替代模型能力评测
+### 21.5.1 Assuming type validation can replace model-capability evaluation
 
-`output_type` 校验能保证「格式正确」，不能保证「内容正确」——一个格式完全合法但语义错误的 `Sentiment` 对象照样能通过校验，仍然需要独立的评测流程判断内容质量。
+`output_type` validation can ensure a valid format, not correct content. A perfectly well-formed but semantically wrong `Sentiment` object can still pass validation. Content quality still needs an independent evaluation process.
 
-### 21.5.2 把依赖注入当作可选的代码风格
+### 21.5.2 Treating dependency injection as an optional coding style
 
-`RunContext` 是一种方便的可测试边界，并非唯一方法；普通函数参数或服务适配器也能隔离依赖。关键是不要把用户身份与全局可变连接耦合，让测试可以替换外部服务。
+`RunContext` provides a convenient testable boundary, but it is not the only approach: ordinary function parameters or service adapters can also isolate dependencies. The key is to avoid coupling user identity to globally mutable connections and to let tests substitute external services.
 
-### 21.5.3 只看决策矩阵的单一维度就下结论
+### 21.5.3 Drawing a conclusion from just one dimension of the matrix
 
-Python 类型容易复用，不代表会话格式、工具重试与持久运行时可以零成本迁移。应按具体集成评估，而不是把 PydanticAI 一概归为「无状态、恢复全自建」。
+Python types may be easy to reuse, but that does not make session formats, tool retries, or durable runtimes free to migrate. Evaluate specific integrations rather than categorically describing PydanticAI as "stateless, with all recovery left to custom code."
 
-### 21.5.4 把角色化框架的「团队隐喻」当作技术架构本身
+### 21.5.4 Mistaking a role-based framework's team metaphor for its technical architecture
 
-CrewAI 的 `role`/`goal`/`backstory` 是 Prompt 工程的组织方式，不代表底层有类似人类团队的组织架构或权限体系，不能替代真实的权限与审批设计。
+CrewAI's `role`/`goal`/`backstory` fields organize prompt engineering. They do not imply an underlying organizational structure or permission system like a human team's, and cannot replace actual authorization and approval design.
 
-类型系统相关的追问应落到失败样本：合法的 `score=0.9` 能否证明评论积极？能否通过 validator 检测相互矛盾字段？若校验期间查询订单状态发生变化，结果该按哪个版本提交？前两项由评测和业务校验覆盖，最后一项需要业务事务或版本检查，不能靠 Pydantic 类型解决。
+Follow-up questions about type systems should focus on failure cases: Does a valid `score=0.9` prove that a review is positive? Can a validator detect contradictory fields? If an order's status changes while validation is querying it, which version should govern the commit? Evaluation and business validation address the first two; the last needs a business transaction or version check, not Pydantic types alone.
 
-## 21.6 本章总结
+## 21.6 Chapter summary
 
-1. **PydanticAI 用类型化接口组织 Agent 调用**：`output_type` 声明输出契约，校验失败可有限重试；`RunContext` 提供可测试的依赖注入入口；
-2. **类型注解帮助生成工具 Schema**，供应商支持的 Schema 子集、输出模式和校验语义仍需核对；
-3. **类型校验解决的是「格式正确性」，不是「内容正确性」**，仍然需要独立的评测体系判断语义质量；
-4. **AutoGen、CrewAI、PydanticAI 在状态模型、持久化、工具契约、可观测性和 lock-in 风险上呈现出明显不同的取舍**，没有一个框架在全部维度上都最优；
-5. **框架选型应该先明确项目最看重的两三个维度**，再对照决策矩阵找最匹配的框架，而不是寻找一个「全能」选项。
+1. **PydanticAI organizes agent calls through typed interfaces.** `output_type` declares the output contract, validation failures can trigger bounded retries, and `RunContext` provides a testable dependency-injection entry point.
+2. **Type annotations help generate tool schemas.** The provider's supported schema subset, output mode, and validation semantics still require verification.
+3. **Type validation addresses format correctness, not content correctness.** Semantic quality still needs independent evaluation.
+4. **AutoGen, CrewAI, and PydanticAI make noticeably different tradeoffs in state models, persistence, tool contracts, observability, and lock-in risk.** No framework is best on every dimension.
+5. **Framework selection should start with the two or three dimensions that matter most to the project.** Then use the matrix to find the closest fit rather than searching for an all-purpose winner.
 
-如果说 AutoGen 和 CrewAI 主要回答「多个 Agent 怎么协作」，那么 PydanticAI 处理的是另一层问题：单个 Agent 的输入输出能否获得和普通 Python 函数类似的类型安全保障。三者对应的是不同优化方向，而不是同一赛道上的直接替代关系。
+Where AutoGen and CrewAI primarily address how multiple agents collaborate, PydanticAI addresses a different layer: whether a single agent's inputs and outputs can have type-safety guarantees resembling those of ordinary Python functions. The three optimize for different concerns rather than being direct substitutes in a single category.
 
-## 参考资料
+## References
 
-- [PydanticAI 官方文档](https://ai.pydantic.dev/)
-- [PydanticAI: Agents 核心概念](https://pydantic.dev/docs/ai/core-concepts/agent/)
+- [PydanticAI official documentation](https://ai.pydantic.dev/)
+- [PydanticAI: Core Agent concepts](https://pydantic.dev/docs/ai/core-concepts/agent/)
 - [PydanticAI: Function Tools](https://ai.pydantic.dev/tools/)
-- [PydanticAI: Dependencies 依赖注入](https://ai.pydantic.dev/dependencies/)
-- [AutoGen 官方文档](https://microsoft.github.io/autogen/stable/)
-- [CrewAI 官方文档](https://docs.crewai.com/)
-- [PydanticAI: 输出模式与校验](https://pydantic.dev/docs/ai/core-concepts/output/)
+- [PydanticAI: Dependency injection](https://ai.pydantic.dev/dependencies/)
+- [AutoGen official documentation](https://microsoft.github.io/autogen/stable/)
+- [CrewAI official documentation](https://docs.crewai.com/)
+- [PydanticAI: Output modes and validation](https://pydantic.dev/docs/ai/core-concepts/output/)
 - [PydanticAI: Durable Execution](https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/)
 - [AutoGen: State](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/state.html)

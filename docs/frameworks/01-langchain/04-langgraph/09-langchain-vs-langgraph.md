@@ -1,118 +1,118 @@
 ---
-description: 区分 LangChain 高层 Agent 与 LangGraph 图编排的依赖和控制粒度，解释状态合并、持久化及渐进组合的边界。
+description: Distinguish LangChain's high-level agents from LangGraph orchestration, including dependencies, control granularity, state merging, persistence, and incremental composition.
 ---
 
-# 第九章：LangChain 与 LangGraph 的层次关系
+# Chapter 9: The Layered Relationship Between LangChain and LangGraph
 
-## 9.1 两者处于同一层吗
+## 9.1 Are they at the same layer?
 
-只按功能多少来比较这两个框架，很容易忽略它们是**上下层关系**。
+Comparing these frameworks only by counting features makes it easy to overlook their **layered relationship**.
 
-> **LangChain 提供高层 Agent API，LangGraph 提供更低层的编排框架与运行时。**
+> **LangChain provides a high-level agent API; LangGraph provides a lower-level orchestration framework and runtime.**
 
-> 本章聚焦层次、选型和组合边界；`interrupt` 审批协议、节点容错版本、流式脱敏和持久化实现放在[第十章](10-langgraph-advantages.md)展开。
+> This chapter focuses on layers, framework selection, and composition boundaries. [Chapter 10](10-langgraph-advantages.md) covers the `interrupt` approval protocol, version requirements for node fault tolerance, stream redaction, and persistence implementation.
 
-| 框架 | 官方定位 |
+| Framework | Official positioning |
 |---|---|
-| **LangChain** | **高层 Agent 框架**，提供模型、工具和常见的 Agent 循环 |
-| **LangGraph** | **更低层的编排框架与运行时**，负责有状态流程如何执行、暂停和恢复 |
+| **LangChain** | A **high-level agent framework** providing models, tools, and common agent loops |
+| **LangGraph** | A **lower-level orchestration framework and runtime** governing how stateful workflows execute, pause, and resume |
 
-**LangGraph 不要求使用高层 `langchain` 包或它的模型包装器**，可以直接接其他模型 SDK 或普通 Python 函数。但 Python `langgraph` 包依赖 `langchain-core` 等基础库；「可独立使用」不等于依赖树完全没有 LangChain 生态组件。
+**LangGraph does not require the high-level `langchain` package or its model wrappers**: it can call other model SDKs or ordinary Python functions directly. However, the Python `langgraph` package depends on foundational libraries such as `langchain-core`. “Usable independently” does not mean its dependency tree contains no LangChain ecosystem components.
 
-### 9.1.1 关键的层次关系
+### 9.1.1 The key layering relationship
 
 ```mermaid
 flowchart TB
-    A["LangChain 高层 Agent API<br/>create_agent"] --> B["编译后的 LangGraph"]
-    B --> C["检查点、流式事件、中断与执行运行时"]
+    A["LangChain high-level agent API<br/>create_agent"] --> B["Compiled LangGraph"]
+    B --> C["Checkpoints, streaming events,<br/>interrupts, and execution runtime"]
 
     style A fill:#e8f0fe
     style C fill:#fff3cd
 ```
 
-**`create_agent` 会构建一个基于 LangGraph 的图运行时**：Agent 在模型节点和工具节点之间循环，直到模型给出最终答案或命中停止条件。
+**`create_agent` builds a graph runtime based on LangGraph**: the agent loops between model and tool nodes until the model produces a final answer or a stopping condition is reached.
 
-> **这也解释了为什么两者看起来能力重叠，却不能互相替代**：
+> **This explains why their capabilities appear to overlap without making them interchangeable**:
 >
-> - 用 **LangChain** 时，框架已经替你搭好了常见 Agent 的拓扑，**你主要配置零件和生命周期钩子**；
-> - 用 **LangGraph** 时，**节点怎么拆、状态怎么更新、下一步去哪，都由你来决定**。
+> - With **LangChain**, the framework has already assembled a common agent topology. **You mainly configure components and lifecycle hooks**.
+> - With **LangGraph**, **you decide how to divide nodes, update state, and choose the next step**.
 
-## 9.2 核心差异：抽象层级
+## 9.2 The core difference: level of abstraction
 
-| 对比维度 | LangChain v1 | LangGraph |
+| Dimension | LangChain v1 | LangGraph |
 |---|---|---|
-| **官方定位** | 高层 Agent 开发框架 | 低层 Agent 编排框架与运行时 |
-| **主要入口** | `create_agent`、模型、工具、middleware、结构化输出 | `StateGraph`、State、Node、Edge、`Command`、`Send`、Subgraph |
-| **默认提供什么** | 预构建的模型与工具调用循环，以及常用扩展点 | 构建任意有状态工作流的编排原语，**不替你规定 Prompt 或 Agent 架构** |
-| **控制流** | 标准 Agent loop 已搭好，可通过 middleware 定制 | 开发者显式定义顺序、条件路由、循环、并行、动态分发和子图 |
-| **状态** | 以 AgentState 和 messages 为默认核心，可扩展字段 | 可设计完整 State Schema、输入输出 Schema、内部通道与 reducer |
-| **持久化与记忆** | 通过底层 LangGraph 的 checkpointer 和 store 使用 | 直接在图编译和运行层控制 checkpointer、store、thread 与状态历史 |
-| **durable execution** | 可以继承底层运行能力，标准 Agent 也能暂停和恢复 | **是核心定位之一**，更适合显式设计长流程的恢复边界和副作用 |
-| **人工介入** | 常用 `HumanInTheLoopMiddleware` 审批工具调用 | 可在**任意节点内**用 `interrupt()` 暂停，用 `Command(resume=...)` 恢复 |
-| **流式输出** | 直接从 Agent 输出消息 token、步骤更新和自定义进度 | 除消息和状态外，还可观察 checkpoint、task、debug 等更底层事件 |
-| **扩展方式** | middleware 钩住 Agent、模型和工具生命周期 | 节点、边、路由函数、`Command`、`Send`、子图和 Runtime |
-| **部署与调试** | 可接 LangSmith tracing、Studio 和 Deployment | 同一套能力，并能更直接查看节点路径和状态变化 |
-| **更适合** | 标准工具调用 Agent、客服助手、数据查询助手、快速原型 | 长流程、多阶段审批、确定性与 Agent 混排、复杂并行、多 Agent 系统 |
+| **Official positioning** | High-level agent development framework | Low-level agent orchestration framework and runtime |
+| **Main entry points** | `create_agent`, models, tools, middleware, structured output | `StateGraph`, state, nodes, edges, `Command`, `Send`, subgraphs |
+| **What it provides by default** | A prebuilt model/tool-calling loop and common extension points | Orchestration primitives for arbitrary stateful workflows; **it does not prescribe prompts or an agent architecture** |
+| **Control flow** | A standard agent loop, customizable through middleware | Explicitly defined sequences, conditional routing, loops, parallelism, dynamic dispatch, and subgraphs |
+| **State** | `AgentState` and `messages` as the default core, with extensible fields | Full state schemas, input/output schemas, internal channels, and reducers |
+| **Persistence and memory** | Available through the underlying LangGraph checkpointer and store | Direct control over checkpointers, stores, threads, and state history at graph compilation and execution |
+| **Durable execution** | Inherits runtime capabilities; standard agents can also pause and resume | **A core capability**, particularly suited to explicitly designing recovery boundaries and side effects in long workflows |
+| **Human involvement** | Commonly uses `HumanInTheLoopMiddleware` to review tool calls | Can pause with `interrupt()` **inside any node** and resume with `Command(resume=...)` |
+| **Streaming** | Streams message tokens, step updates, and custom progress directly from the agent | Exposes lower-level checkpoint, task, and debug events in addition to messages and state |
+| **Extension mechanisms** | Middleware hooks into agent, model, and tool lifecycles | Nodes, edges, routing functions, `Command`, `Send`, subgraphs, and Runtime |
+| **Deployment and debugging** | Integrates with LangSmith tracing, Studio, and Deployment | The same capabilities, with more direct visibility into node paths and state changes |
+| **Best suited to** | Standard tool-calling agents, customer support assistants, data-query assistants, rapid prototypes | Long workflows, multistage approvals, mixed deterministic/agent workflows, complex parallelism, multi-agent systems |
 
-> **「持久化」「流式输出」「人工介入」会同时出现在两列，是因为这些能力由 LangGraph 运行时提供，LangChain Agent 也能直接使用。**
+> **Persistence, streaming, and human involvement appear in both columns because the LangGraph runtime supplies these capabilities, and LangChain agents can use them directly.**
 >
-> 两者差别主要是封装层级和控制粒度，不是简单的有或没有。
+> The main distinction is the level of abstraction and granularity of control, not a simple yes/no feature checklist.
 
-## 9.3 「LangChain 只能线性执行」为什么是错的
+## 9.3 Why is “LangChain can only run linearly” wrong?
 
-**它混淆了三个不同概念。**
+**It conflates three different ideas.**
 
-### 9.3.1 传统 Chain 也不只能顺序执行
+### 9.3.1 Traditional chains are not limited to sequential execution
 
-**LCEL 除了 `RunnableSequence`，也能通过并行和分支 Runnable 表达并发与条件选择**（见 [第二章](../01-foundations/02-chain-and-lcel.md)）。
+**Beyond `RunnableSequence`, LCEL can express concurrency and conditional selection through parallel and branching runnables** (see [Chapter 2](../01-foundations/02-chain-and-lcel.md)).
 
-> 固定的 Prompt、模型、解析器流水线**常写成线性形式，但那是用法选择，不是框架能力上限**。
+> Fixed prompt/model/parser pipelines **are often written linearly, but that is a usage choice, not the framework's capability limit**.
 
-### 9.3.2 `create_agent` 本身就不是一条直线
+### 9.3.2 `create_agent` is not a straight line either
 
-模型可能直接结束，也可能请求工具；工具执行后又回到模型继续决策——**这已经形成「条件路由 + 循环」**，多个工具调用还可能被并行执行。
+A model may finish immediately or request tools. After tools execute, control returns to the model for another decision. **That is already conditional routing plus a loop**, and multiple tool calls may execute in parallel.
 
-> **拿一条早期 `prompt | model | parser` 管道去代表当前 LangChain Agent，并不公平。**
+> **An early `prompt | model | parser` pipeline is not a fair representation of today's LangChain agents.**
 
-### 9.3.3 真正拉开差异的是「业务拓扑成为一等公民」
+### 9.3.3 The real distinction is making business topology a first-class concern
 
-**比如这样一条流程**：
+**Consider this workflow**:
 
 ```mermaid
 flowchart TB
-    A["权限校验"] --> B1["研究节点 1"] & B2["研究节点 2"] & B3["研究节点 3"]
-    B1 & B2 & B3 --> C["汇总"]
-    C --> D{"金额高?"}
-    D -->|是| E["转人工"]
-    D -->|否| F["继续"]
-    F --> G{"失败?"}
-    G -->|是| H["补偿节点"]
-    G -->|否| I["等待次日任务继续"]
+    A["Authorization check"] --> B1["Research node 1"] & B2["Research node 2"] & B3["Research node 3"]
+    B1 & B2 & B3 --> C["Aggregate"]
+    C --> D{"High amount?"}
+    D -->|Yes| E["Human review"]
+    D -->|No| F["Continue"]
+    F --> G{"Failed?"}
+    G -->|Yes| H["Compensation node"]
+    G -->|No| I["Wait for the next day's<br/>task to continue"]
 
     style C fill:#e8f0fe
     style H fill:#fff3cd
 ```
 
-**这时开发者需要明确看到每个节点、状态字段和路由条件**，图编排的价值才真正体现出来。
+**Here, developers need a clear view of every node, state field, and routing condition.** This is where graph orchestration becomes valuable.
 
-> **更准确的边界**：LangChain 能表达分支和循环，但它的高层 Agent API 主要围绕**通用模型与工具循环**组织；**LangGraph 则允许开发者直接拥有整个工作流的拓扑控制权。**
+> **A more accurate boundary**: LangChain can express branches and loops, but its high-level agent API primarily organizes work around a **general-purpose model/tool loop**. **LangGraph lets developers directly control the topology of the entire workflow.**
 
-## 9.4 Middleware 与图编排有何不同
+## 9.4 How does middleware differ from graph orchestration?
 
-middleware 能覆盖一部分定制需求，但它不等于图编排。
+Middleware covers some customization needs, but it is not equivalent to graph orchestration.
 
-> 区别在于：是在**围绕同一套 Agent loop 加横切逻辑**，还是要**重新定义整条业务流程的拓扑**。
+> The distinction is between **adding cross-cutting logic around the same agent loop** and **redefining the topology of the entire business workflow**.
 
-| | 处理的问题 |
+| | Problems addressed |
 |---|---|
-| **middleware** | 改造**标准 Agent loop**：模型调用前动态生成提示词、裁剪消息、选模型和工具；调用后做安全检查；给工具调用增加重试和人工审批。**这些逻辑都围绕 Agent / Model / Tool 的生命周期展开，不需要重新设计整张图** |
-| **节点和边** | **更一般的流程结构**：分类节点进入完全不同的子流程，多个节点并行后汇合，把数据库写入、人工表单、规则引擎和一个完整 Agent 放在同一张图中。**这里的每一步不一定是模型或工具调用，甚至可以完全不使用 LLM** |
+| **Middleware** | Customizes a **standard agent loop**: dynamically generates prompts, trims messages, and selects models and tools before a model call; performs safety checks afterward; adds retries and human approval to tool calls. **These changes follow agent/model/tool lifecycles without requiring a redesign of the whole graph** |
+| **Nodes and edges** | Express **more general workflow structures**: a classifier routes to entirely different subflows; multiple nodes run in parallel and then join; database writes, human forms, rules engines, and a complete agent coexist in one graph. **A step need not be a model or tool call, and the workflow may use no LLM at all** |
 
-> **middleware 不是独立运行时**，它运行在 `create_agent` 返回的编译图内部。**这个完整 Agent 还可以作为节点或子图放进更大的 `StateGraph`，middleware 会跟着它一起工作。**
+> **Middleware is not a separate runtime**: it runs inside the compiled graph returned by `create_agent`. **That complete agent can itself become a node or subgraph in a larger `StateGraph`, and its middleware continues to work there.**
 >
-> **这正是两层组合，而不是二选一。**
+> **This is composition across two layers, not an either/or choice.**
 
-### 9.4.1 组合示例
+### 9.4.1 A composition example
 
 ```python
 from typing import Literal
@@ -121,24 +121,24 @@ from langchain.agents import AgentState, create_agent
 from langgraph.graph import END, START, StateGraph
 
 class WorkflowState(AgentState):
-    # route 是外层业务流程状态，不属于标准 Agent loop 的固定字段
+    # route belongs to the outer workflow, not the standard agent loop's fixed fields.
     route: Literal["research", "reject"]
 
 def classify_request(state: WorkflowState) -> dict:
-    # 这里用确定性规则演示路由，实际项目也可以调用分类模型
+    # Deterministic routing for illustration; a real project could use a classifier.
     text = str(state["messages"][-1].content)
     route = "reject" if "删除生产数据" in text else "research"
     return {"route": route}
 
 def choose_route(state: WorkflowState) -> Literal["research_agent", "reject"]:
-    # 条件边根据外层业务状态选择下一节点
+    # The conditional edge selects the next node from the outer workflow state.
     return "research_agent" if state["route"] == "research" else "reject"
 
 def reject_request(state: WorkflowState) -> dict:
-    # 确定性的拒绝节点不需要调用模型
+    # A deterministic rejection node needs no model call.
     return {"messages": [{"role": "assistant", "content": "该操作不在允许范围内。"}]}
 
-# create_agent 返回编译后的 LangGraph，可直接嵌入外层图成为子图
+# create_agent returns a compiled LangGraph, embeddable as a subgraph.
 research_agent = create_agent(
     model=research_model,
     tools=[search_tool],
@@ -153,191 +153,191 @@ builder.add_conditional_edges("classify", choose_route)
 builder.add_edge("research_agent", END)
 builder.add_edge("reject", END)
 
-# 外层 LangGraph 管业务拓扑，内层 LangChain Agent 管模型与工具循环
+# Outer LangGraph: business topology. Inner LangChain agent: model/tool loop.
 workflow = builder.compile()
 ```
 
-> **这段代码不是在把 LangChain「迁移」成 LangGraph，而是在正确分工。** 内部研究 Agent 继续享受高层抽象，外部业务流程则获得显式路由。
+> **This code is not “migrating” LangChain to LangGraph; it assigns responsibilities to the right layer.** The inner research agent keeps its high-level abstractions, while the outer business workflow gains explicit routing.
 
-这是需提供 `research_model` 和 `search_tool` 的组装片段；字符串匹配只演示路由，不是安全策略或提示注入防护。生产授权应基于可信身份、动作和资源执行。子图直接作为节点时，父子共享的消息字段沿 reducer 合并；状态结构不同则需要 wrapper 显式转换，不能假设任意两个图都可以直接拼接。
+This assembly fragment requires `research_model` and `search_tool`. The Chinese example strings mean “delete production data” and “This operation is outside the permitted scope.” String matching only illustrates routing; it is not an authorization policy or a prompt-injection defense. Production authorization must evaluate trusted identities, actions, and resources. When a subgraph is added directly as a node, shared message fields are merged through their reducer. Different state structures require an explicit mapping wrapper; arbitrary graphs cannot simply be plugged together.
 
-## 9.5 State：默认状态与自由建模
+## 9.5 State: defaults versus custom modeling
 
-Agent 需要状态，是因为模型调用、工具结果、人工意见和中间产物不能只靠函数局部变量一直传下去。
+Agents need state because model calls, tool results, human feedback, and intermediate artifacts cannot all be carried indefinitely through function-local variables.
 
-| | 状态使用姿势 |
+| | Approach to state |
 |---|---|
-| **LangChain** | 为常见 Agent 准备了 **AgentState，默认核心是 `messages`**。用户消息、工具调用、工具结果和最终回复都追加到这份状态。可用 TypedDict 扩展字段，**官方更推荐让相关 middleware 声明自己需要的状态**，避免能力和数据散落 |
-| **LangGraph** | **状态设计本身成为工作流架构的一部分**。可定义整体 State，也可区分输入、输出和内部 Schema。**节点只返回局部更新，reducer 决定并行或多次更新如何合并** |
+| **LangChain** | Provides **`AgentState`, centered by default on `messages`**, for common agents. User messages, tool calls, tool results, and final responses are added to this state. Fields can be extended with a `TypedDict`; **the documentation recommends declaring middleware-specific state in the relevant middleware**, keeping capabilities and their data together |
+| **LangGraph** | **State design becomes part of the workflow architecture.** You can define an overall state and separate input, output, and internal schemas. **Nodes return only partial updates; reducers determine how concurrent or repeated updates are merged** |
 
-### 9.5.1 为什么需要 reducer
+### 9.5.1 Why are reducers necessary?
 
-> **假如多个研究节点同时写入 `evidence`，我们希望合并证据；默认单值通道收到同一 super-step 的多个更新会报错，并不是最后写入者获胜。**
+> **If several research nodes write to `evidence` simultaneously, we want their evidence merged. A default single-value channel raises an error when it receives multiple updates in the same super-step; it does not use last-write-wins.**
 >
-> **合并语义必须在 State 中提前定义。**
+> **Merge semantics must be defined in the state in advance.**
 
-**这不是说 LangChain 没有 State**——它的 Agent State 就运行在 LangGraph 上。区别在于：用 LangChain 时通常接受一套**为标准 Agent loop 设计好的状态骨架**；直接用 LangGraph 时，你要为整个业务工作流**设计数据通道和更新规则**，也因此拥有更大的自由度和责任。
+**This does not mean LangChain has no state**: its agent state runs on LangGraph. With LangChain, you usually accept a **state skeleton designed for the standard agent loop**. With LangGraph directly, you **design data channels and update rules for the entire business workflow**, gaining both freedom and responsibility.
 
-## 9.6 谁提供持久化与记忆
+## 9.6 Who provides persistence and memory?
 
-这里常见两种误解：
+Two common misconceptions are:
 
-- ❌「LangChain 管记忆，LangGraph 管持久化」
-- ❌「只有 LangGraph 才能断点恢复」
+- ❌ “LangChain handles memory; LangGraph handles persistence.”
+- ❌ “Only LangGraph can resume from a checkpoint.”
 
-> 这两种说法都把上下层关系拆开了。
+> Both statements incorrectly separate two layers of the same stack.
 
-### 9.6.1 LangGraph 的两套持久化机制
+### 9.6.1 LangGraph's two persistence mechanisms
 
-| 机制 | 保存 | 适合 |
+| Mechanism | What it stores | Suitable uses |
 |---|---|---|
-| **Checkpointer** | 按 `thread_id` 保存图状态快照 | 线程内短期记忆、人工介入、时间旅行、故障恢复 |
-| **Store** | 图状态之外、**跨线程**可读取的业务数据 | 用户偏好、事实、共享知识等长期记忆 |
+| **Checkpointer** | Graph state snapshots organized by `thread_id` | Thread-scoped short-term memory, human involvement, time travel, failure recovery |
+| **Store** | Application data outside graph state, accessible **across threads** | Long-term memory such as user preferences, facts, and shared knowledge |
 
-**`create_agent` 会把 checkpointer 和 store 交给底层图**，因此 LangChain Agent 同样可以获得短期记忆、长期记忆和恢复能力（见 [第六章](../02-agent-building/06-memory.md)）。
+**`create_agent` passes its checkpointer and store to the underlying graph**, so LangChain agents also gain short-term memory, long-term memory, and recovery capabilities (see [Chapter 6](../02-agent-building/06-memory.md)).
 
-> **真正的差异在控制粒度**：LangChain 给标准 Agent 暴露便利入口，**LangGraph 让开发者在任意节点和子图层面设计状态保存与恢复边界**。
+> **The real difference is control granularity**: LangChain exposes convenient entry points for standard agents; **LangGraph lets developers design state-saving and recovery boundaries at arbitrary nodes and subgraphs**.
 
-### 9.6.2 durable execution 的选型含义
+### 9.6.2 What durable execution means for framework selection
 
-Checkpointer 能恢复状态，不会替业务保证副作用安全；复杂流程需要显式设计任务边界与幂等。这正是业务需要下沉 LangGraph 的信号之一。**恢复语义、审批协议和容错实现见[第十章](10-langgraph-advantages.md)。**
+A checkpointer can restore state, but it does not make business side effects safe. Complex workflows need explicit task boundaries and idempotency. This is one signal that a workflow may benefit from direct LangGraph control. **See [Chapter 10](10-langgraph-advantages.md) for recovery semantics, approval protocols, and fault-tolerance implementation.**
 
-## 9.7 人工介入有什么区别
+## 9.7 How does human involvement differ?
 
-| 需求 | 更合适的 |
+| Requirement | Better fit |
 |---|---|
-| 「模型想发送邮件时先让人确认」 | **`HumanInTheLoopMiddleware`**：工具真正执行前暂停，接受批准、修改、拒绝或人工直接回复 |
-| 理赔流程展示中间材料让审核员补字段；营销流程等一周后继续；多位审核人分别填意见再按票数路由 | **LangGraph 的 `interrupt()`**：可放在节点内部的**任意业务位置**，恢复时把外部输入送回流程 |
+| “Ask a person before the model sends an email” | **`HumanInTheLoopMiddleware`**: pauses before actual tool execution and accepts approval, edits, rejection, or a direct human response |
+| Show intermediate insurance-claim materials so a reviewer can fill in missing fields; resume a marketing workflow after a week; collect several reviewers' opinions and route by vote count | **LangGraph's `interrupt()`**: can pause at **any business step inside a node** and return external input to the workflow on resumption |
 
-> **底层状态都由 LangGraph 持久化，恢复时继续使用相同的 `thread_id`。**
+> **LangGraph persists the underlying state in both cases, and resumption uses the same `thread_id`.**
 >
-> **准确说法是**：LangChain 提供了围绕 Agent 工具调用的**高层审批体验**，LangGraph 提供了**更通用的中断与恢复原语**。前者省事，后者表达范围更广。
+> **The precise distinction**: LangChain provides a **high-level approval experience around agent tool calls**; LangGraph provides **more general interrupt and resume primitives**. The former is easier to use; the latter covers a broader range of workflows.
 >
-> 审批载荷的严格 schema、身份边界、任务/版本绑定和一次性幂等决策属于实现要求，见[第十章](10-langgraph-advantages.md)，不要仅把它当成一个布尔确认框。
+> A strict approval-payload schema, identity boundaries, task/version binding, and a single idempotent decision are implementation requirements, covered in [Chapter 10](10-langgraph-advantages.md). Do not reduce approval to a Boolean confirmation box.
 
-## 9.8 流式输出能看到多深
+## 9.8 How deep does streaming visibility go?
 
-**用户界面逐字显示模型回答，只是流式输出最表面的一层。**
+**Displaying a model's answer token by token is only the most visible layer of streaming.**
 
-- 用户还想看到「正在搜索」「工具已返回」「等待审批」等进度；
-- **开发者可能需要观察哪个节点更新了哪些状态、哪个任务失败、何时写入检查点。**
+- Users also want progress such as “Searching,” “Tool returned,” and “Waiting for approval.”
+- **Developers may need to know which node updated which state, which task failed, and when a checkpoint was written.**
 
-| | 能观察到 |
+| | Observable information |
 |---|---|
-| **LangChain Agent** | `stream` / `stream_events` 输出模型消息、Agent 步骤和工具自定义进度（**因为 `create_agent` 返回编译图，它遵循 LangGraph 的流式接口**） |
-| **LangGraph** | 更低层的 `values`、`updates`、`messages`、`custom`、`checkpoints`、`tasks`、`debug` 等事件类型，还能处理**子图命名空间** |
+| **LangChain agent** | `stream` / `stream_events` expose model messages, agent steps, and custom tool progress (**`create_agent` returns a compiled graph, so it follows LangGraph's streaming interfaces**) |
+| **LangGraph** | Lower-level event types including `values`, `updates`, `messages`, `custom`, `checkpoints`, `tasks`, and `debug`, with support for **subgraph namespaces** |
 
-> **两者都能流式输出**——LangChain 优先给常见 Agent 体验，LangGraph 允许观察完整执行引擎。
+> **Both support streaming**: LangChain prioritizes common agent experiences; LangGraph exposes the complete execution engine.
 
-`stream_events(..., version="v3")` 的类型化投影和前端状态白名单属于具体实现，见[第十章](10-langgraph-advantages.md)。
+Typed projections from `stream_events(..., version="v3")` and frontend state allowlists are implementation details covered in [Chapter 10](10-langgraph-advantages.md). This interface is version-dependent: LangChain introduced typed event streaming in v1.3, while LangGraph's 1.2.0 implementation marked v3 experimental; see Section 10.8 for the distinction between the two packages.
 
-## 9.9 部署与调试如何分工
+## 9.9 How are deployment and debugging responsibilities divided?
 
-**把 LangSmith 当成 LangGraph 专属控制台也不准确。**
+**It is also inaccurate to treat LangSmith as a LangGraph-only console.**
 
-LangSmith 承担 **tracing、evaluation、Studio 和 Deployment** 等平台能力，可以观察 LangChain Agent，也可以观察直接编写的 LangGraph，甚至支持其他框架接入 tracing。
+LangSmith provides platform capabilities for **tracing, evaluation, Studio, and Deployment**. It can observe LangChain agents and directly written LangGraph workflows, and it supports tracing integrations with other frameworks.
 
-> **由于 `create_agent` 本身就是图，LangChain Agent 也可以在 Studio 中查看节点、线程、状态和执行轨迹。**
+> **Because `create_agent` is itself a graph, LangChain agents can also display nodes, threads, state, and execution traces in Studio.**
 
-**直接使用 LangGraph 时**，业务步骤被拆成更明确的节点，往往更容易看到复杂路由走了哪条路径，并使用 checkpoint 做状态回放和时间旅行调试。**但这种可见性来自图的建模粒度，不代表 LangChain 无法部署或调试。**
+**When using LangGraph directly**, business steps become more explicit nodes. That often makes complex routing paths easier to inspect and enables checkpoint-based state replay and time-travel debugging. **This visibility comes from the granularity of graph modeling, not from any inability to deploy or debug LangChain.**
 
-> 这里要分清两个问题：是否使用托管平台，是**部署选择**；是否使用 LangChain 高层 Agent API，是**开发抽象选择**。
+> Separate two questions: using a managed platform is a **deployment choice**; using LangChain's high-level agent API is a **development abstraction choice**.
 
-## 9.10 什么时候下沉 LangGraph
+## 9.10 When should you move down to LangGraph?
 
 ```mermaid
 flowchart TB
-    Q1{"需求能自然表达成<br/>『给模型一组工具，让它循环调用直到完成』吗?"}
-    Q1 -->|能| A["从 create_agent 开始<br/>客服问答、数据库查询助手、内部知识助手"]
-    A --> A2["提示词动态化、模型切换、工具筛选<br/>摘要、重试、护栏、敏感工具审批<br/>先用 middleware 解决"]
-    Q1 -->|主角已不是一个 Agent loop<br/>而是一条业务流程| B["考虑 LangGraph"]
-    B --> B2["典型信号：<br/>确定性规则与模型决策交替出现<br/>多条路径并行再汇合<br/>跨小时/跨天暂停恢复<br/>多个 Agent 协作<br/>必须精确控制失败补偿和人工节点"]
+    Q1{"Does the requirement naturally fit<br/>'Give a model tools and let it<br/>call them until done'?"}
+    Q1 -->|Yes| A["Start with create_agent<br/>Support Q&A, database query assistants,<br/>internal knowledge assistants"]
+    A --> A2["Dynamic prompts, model switching, tool selection<br/>Summaries, retries, guardrails,<br/>sensitive-tool approval<br/>Try middleware first"]
+    Q1 -->|The central concern is a business<br/>workflow, not a single agent loop| B["Consider LangGraph"]
+    B --> B2["Typical signals:<br/>Rules alternate with model decisions<br/>Parallel paths later join<br/>Pauses lasting hours or days<br/>Several agents collaborate<br/>Precise control of compensation<br/>and human-review nodes"]
 
     style A fill:#e6f4ea
     style B fill:#fff3cd
 ```
 
-### 9.10.1 更常见的做法是渐进式组合
+### 9.10.1 Incremental composition is the more common approach
 
-**先用 LangChain 做出单个可用 Agent，等业务拓扑变复杂时，再把这个 Agent 作为 LangGraph 的节点或子图。**
+**Build one useful agent with LangChain first. When the business topology becomes complex, use that agent as a LangGraph node or subgraph.**
 
-> 官方推荐的路线也是：先从高层入口开始，复杂度上来后再下沉到细粒度控制。
+> The official recommendation follows the same progression: start with the high-level entry point, then move to finer-grained control as complexity increases.
 
-### 9.10.2 最后一个误区
+### 9.10.2 One final misconception
 
-> **LangGraph 更底层，不代表它天然更适合所有项目。**
+> **Being lower-level does not make LangGraph inherently better for every project.**
 >
-> 控制权越大，需要自己设计和测试的状态、路由、恢复与副作用就越多。一个标准 Agent 用几十个节点重搭一遍，未必更可靠，反而可能增加维护成本。
+> More control means more state, routing, recovery behavior, and side effects to design and test yourself. Rebuilding a standard agent with dozens of nodes may increase maintenance costs rather than reliability.
 
-## 9.11 常见错误
+## 9.11 Common mistakes
 
-### 9.11.1 把两者当成并列的两套引擎比功能多少
+### 9.11.1 Comparing them as two peer engines by counting features
 
-**它们是上下层关系**，`create_agent` 就构建在 LangGraph 上。
+**They occupy different layers**: `create_agent` is built on LangGraph.
 
-### 9.11.2 说「LangChain 只能线性」
+### 9.11.2 Saying “LangChain is linear only”
 
-**LCEL 能并行和分支，Agent loop 本身就是条件路由 + 循环。**
+**LCEL supports parallelism and branching; the agent loop itself combines conditional routing and iteration.**
 
-### 9.11.3 说「持久化 / 流式 / 记忆 / 人工审批只有 LangGraph 才有」
+### 9.11.3 Claiming that only LangGraph has persistence, streaming, memory, or human approval
 
-**LangChain Agent 通过底层 LangGraph 同样能用**，差别是控制粒度和使用成本。
+**LangChain agents use those capabilities through LangGraph too.** The differences are control granularity and implementation effort.
 
-### 9.11.4 认为 middleware 能替代图编排
+### 9.11.4 Assuming middleware can replace graph orchestration
 
-**middleware 围绕 Agent / Model / Tool 生命周期**，节点和边处理的是更一般的流程结构（可以完全不含 LLM）。
+**Middleware follows agent/model/tool lifecycles**; nodes and edges handle more general workflow structures, including workflows with no LLM.
 
-### 9.11.5 把 middleware 当成独立运行时
+### 9.11.5 Treating middleware as a separate runtime
 
-**它跑在编译图内部。**
+**It runs inside the compiled graph.**
 
-### 9.11.6 用 LangGraph 却不定义 reducer
+### 9.11.6 Using LangGraph without defining reducers
 
-默认单值通道会因同一步多个更新抛出 `InvalidUpdateError`。可为合并结果定义 reducer，或让分支写不同字段；`add_messages` 按消息 ID 更新/追加，也不等同于无条件列表拼接。
+Default single-value channels raise `InvalidUpdateError` for multiple updates in one step. Define reducers to merge results or have branches write different fields. `add_messages` updates or appends by message ID; it is not unconditional list concatenation.
 
-### 9.11.7 以为 durable execution 就是把状态存进数据库
+### 9.11.7 Thinking durable execution just means saving state to a database
 
-**恢复时重跑扣款和发邮件照样出事故**，副作用必须放进任务边界并保证幂等。
+**Charging a payment or sending an email again during recovery can still cause incidents.** Put side effects behind task boundaries and make them idempotent.
 
-### 9.11.8 把 LangSmith 当成 LangGraph 专属
+### 9.11.8 Treating LangSmith as exclusive to LangGraph
 
-**它可以观察 LangChain Agent，也支持其他框架接入。**
+**It observes LangChain agents and supports integrations with other frameworks too.**
 
-### 9.11.9 把部署选择和抽象选择混为一谈
+### 9.11.9 Conflating deployment choices with abstraction choices
 
-**是否托管 ≠ 是否用高层 API。**
+**Managed hosting ≠ using a high-level API.**
 
-### 9.11.10 认为「更底层 = 更高级」
+### 9.11.10 Assuming “lower-level = more advanced”
 
-**控制权越大，要自己设计和测试的东西越多。**
+**More control means more things to design and test yourself.**
 
-## 9.12 本章总结
+## 9.12 Chapter summary
 
-1. **关系先定准**：LangChain v1 是高层 Agent 框架，LangGraph 是低层编排框架与运行时，**`create_agent` 构建在 LangGraph 上**；
-2. **核心边界**：LangChain 默认提供常见模型与工具循环；LangGraph 不替你规定 Agent 架构，而是把 State、Node、Edge、分支、循环、并行、子图、中断和恢复交出来；
-3. **「LangChain 只能线性」是错的**：LCEL 支持并行分支，Agent loop 本身就是条件路由加循环；
-4. **真正的差异是「业务拓扑是不是一等公民」**；
-5. **middleware 改造同一台机器，图编排重新规划整条生产线**，且 middleware 跑在编译图内部；
-6. **AgentState 是为标准 loop 准备的骨架，LangGraph 让状态设计成为架构的一部分**，reducer 决定合并语义；
-7. **Checkpointer 管线程内快照，Store 管跨线程数据**，两者都由 LangGraph 提供、LangChain 可直接使用；
-8. **durable execution 的难点是副作用而非存储**：任务边界 + 幂等；
-9. **人工介入两档**：中间件审批工具调用 vs `interrupt()` 放在任意业务位置；
-10. **流式输出两档**：Agent 步骤与消息 vs checkpoint / task / debug 等引擎级事件；
-11. **LangSmith 不是 LangGraph 专属**，部署选择与抽象选择要分开；
-12. **推荐路线是渐进式组合**：先 LangChain 做出可用 Agent，业务拓扑变复杂时把它作为节点或子图嵌入 LangGraph。
+1. **Establish the relationship first**: LangChain v1 is a high-level agent framework; LangGraph is a low-level orchestration framework and runtime. **`create_agent` is built on LangGraph**.
+2. **The core boundary**: LangChain supplies a common model/tool loop by default. LangGraph does not prescribe an agent architecture; it exposes state, nodes, edges, branches, loops, parallelism, subgraphs, interrupts, and recovery.
+3. **“LangChain is linear only” is wrong**: LCEL supports parallelism and branching, and the agent loop itself combines conditional routing with iteration.
+4. **The real difference is whether business topology becomes a first-class concern**.
+5. **Middleware modifies the same machine; graph orchestration redesigns the production line.** Middleware runs inside the compiled graph.
+6. **`AgentState` is a skeleton for a standard loop; LangGraph makes state design part of the architecture.** Reducers define merge semantics.
+7. **Checkpointers manage thread-scoped snapshots; stores manage cross-thread data.** LangGraph provides both, and LangChain uses them directly.
+8. **The hard part of durable execution is side effects, not storage**: task boundaries plus idempotency.
+9. **Two levels of human involvement**: middleware approval for tool calls versus `interrupt()` at arbitrary business steps.
+10. **Two levels of streaming**: agent steps and messages versus engine-level checkpoint, task, and debug events.
+11. **LangSmith is not exclusive to LangGraph**. Keep deployment choices separate from abstraction choices.
+12. **Incremental composition is the recommended path**: start with a useful LangChain agent, then embed it as a LangGraph node or subgraph when business topology becomes complex.
 
-LangChain 负责高层 Agent 入口和标准模型/工具循环，LangGraph 负责更细粒度的状态与流程控制。可以先构建一个 Agent，再按需要组合进业务图；这是一条迁移路径，不是对所有项目架构的统计结论。
+LangChain supplies the high-level agent entry point and standard model/tool loop; LangGraph offers finer-grained state and workflow control. You can build an agent first and compose it into a business graph as needed. This is a migration path, not a statistical claim about the architecture of all projects.
 
-## 参考资料
+## References
 
-- [LangChain 官方文档](https://docs.langchain.com/oss/python/langchain/overview)
-- [LangChain: Agents 概念文档](https://docs.langchain.com/oss/python/langchain/agents)
+- [LangChain documentation](https://docs.langchain.com/oss/python/langchain/overview)
+- [LangChain: Agents](https://docs.langchain.com/oss/python/langchain/agents)
 - [LangChain: Middleware](https://docs.langchain.com/oss/python/langchain/middleware)
 - [LangChain: Streaming](https://docs.langchain.com/oss/python/langchain/streaming)
-- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/overview)
+- [LangGraph documentation](https://docs.langchain.com/oss/python/langgraph/overview)
 - [LangGraph: Graph API](https://docs.langchain.com/oss/python/langgraph/use-graph-api)
-- [LangGraph 持久化文档](https://docs.langchain.com/oss/python/langgraph/persistence)
+- [LangGraph: Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)
 - [LangGraph: Human-in-the-loop](https://docs.langchain.com/oss/python/langgraph/interrupts)
-- [LangSmith 官方文档](https://docs.langchain.com/langsmith/observability)
-- [LangGraph Python 包依赖声明](https://github.com/langchain-ai/langgraph/blob/main/libs/langgraph/pyproject.toml)
-- [LangGraph 并行状态更新错误](https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE)
+- [LangSmith documentation](https://docs.langchain.com/langsmith/observability)
+- [LangGraph Python package dependencies](https://github.com/langchain-ai/langgraph/blob/main/libs/langgraph/pyproject.toml)
+- [LangGraph concurrent state-update error](https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE)
