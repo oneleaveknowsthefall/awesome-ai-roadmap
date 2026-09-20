@@ -1,266 +1,266 @@
 ---
-description: 解释工具调用的训练数据、损失掩码、SFT 与强化学习，以及执行反馈为何仍需业务和安全校验。
+description: Tool-calling training data, loss masks, supervised fine-tuning, reinforcement learning, and why execution feedback still needs business and safety validation.
 ---
 
-# 第二章：LLM 如何学会调用工具
+# Chapter 2: How LLMs Learn to Use Tools
 
-## 2.1 能力来自数据、训练与运行时的共同作用
+## 2.1 Capability comes from data, training, and the runtime together
 
-**参数量本身不能保证可靠的工具调用，但不能断言预训练模型绝无工具能力。**
+**Parameter count alone does not ensure reliable tool use, but neither can we claim that pretrained models have no tool-use ability.**
 
-工具调用至少包含三种能力：选择工具、构造符合接口的参数、根据执行结果继续任务。它们与预训练中的代码和 API 知识有关，也会受示例提示、后训练及约束解码影响。单看 `json.loads` 是否成功，无法判断工具是否选对。
+Tool use involves at least three abilities: selecting a tool, constructing arguments that fit its interface, and continuing the task from its results. These abilities draw on code and API knowledge acquired during pretraining, and are also affected by example-based prompting, post-training, and constrained decoding. A successful `json.loads` call does not tell you whether the right tool was selected.
 
-不能假定现代预训练语料完全没有工具轨迹，也不能从 API 支持情况反推闭源模型的训练配方。Toolformer 已展示用少量示例生成、筛选 API 调用数据再训练的路线；ReAct 则展示提示驱动的推理—行动交替。两者都不是“必须先 SFT 再 RLHF”的证明。
+We cannot assume that modern pretraining corpora contain no tool trajectories, or infer a closed model's training recipe from its API support. Toolformer demonstrated generating and filtering API-call data from a small set of examples before further training. ReAct demonstrated prompting that alternates reasoning and action. Neither proves that SFT must precede RLHF.
 
-模型可能只描述意图：
+A model might simply describe its intent:
 
-> 我需要查询天气 API 才能回答这个问题。
+> I need to query a weather API to answer this question.
 
-也可能在示例引导下输出调用文本。可靠性需要用未见工具、错误恢复和多轮任务检验，不能靠单个成功样例判断。
+With examples, it might also produce call text. Reliability must be tested on unseen tools, error recovery, and multi-turn tasks, not inferred from a single successful example.
 
 ```mermaid
 flowchart LR
-    PT["预训练<br/>语言、代码与 API 知识"] --> SFT["可选：SFT / 工具轨迹训练"]
-    SFT --> RL["可选：偏好优化 / 执行奖励"]
-    PT --> RT["运行时：示例、Schema、约束解码"]
+    PT["Pretraining<br/>Language, code, and API knowledge"] --> SFT["Optional: SFT / tool-trajectory training"]
+    SFT --> RL["Optional: preference optimization / execution rewards"]
+    PT --> RT["Runtime: examples, schemas, constrained decoding"]
     RL --> RT
-    RT --> READY["在目标任务上评测工具能力"]
+    RT --> READY["Evaluate tool use on target tasks"]
 ```
 
-## 2.2 用 SFT 学习工具调用轨迹
+## 2.2 Learning tool-use trajectories with SFT
 
-SFT（Supervised Fine-Tuning，监督微调）让模型学习示范轨迹。本节介绍一种常见训练方式，不是所有工具模型必经的第一阶段。
+Supervised fine-tuning (SFT) trains a model on demonstration trajectories. This section describes a common approach, not a mandatory first stage for every tool-using model.
 
-### 2.2.1 训练样本长什么样
+### 2.2.1 What does a training example look like?
 
-工具调用的 SFT 样本，特殊之处在于它是一条**完整的多角色对话轨迹**，而不是简单的问答对：
+A tool-use SFT example is distinctive because it is a **complete, multi-role conversation trajectory**, rather than a simple question–answer pair:
 
-| 角色 | 内容 | 训练时是否计算 loss |
+| Role | Content | Included in training loss? |
 |---|---|---|
-| `system` | 工具定义（JSON Schema） | 否 |
-| `user` | 北京今天天气怎么样？ | 否 |
-| `assistant` | `{"tool_calls":[{"name":"get_weather","arguments":{"city":"北京"}}]}` | **是** |
-| `tool` | 晴，15°C，东北风 3 级 | 否 |
-| `assistant` | 北京今天天气晴朗，气温 15°C…… | **是** |
+| `system` | Tool definitions (JSON Schema) | No |
+| `user` | 北京今天天气怎么样？ | No |
+| `assistant` | `{"tool_calls":[{"name":"get_weather","arguments":{"city":"北京"}}]}` | **Yes** |
+| `tool` | 晴，15°C，东北风 3 级 | No |
+| `assistant` | 北京今天天气晴朗，气温 15°C…… | **Yes** |
 
-表中采用常见的 assistant-only loss 配方，具体序列化和掩码以训练实现为准。工具结果作为输入上下文，目标是让模型生成调用与后续回答，而不是在运行时冒充外部工具。
+The Chinese example asks for today's weather in Beijing (`北京`). The tool returns "Sunny, 15°C, northeasterly wind at force 3," and the assistant begins, "Beijing is sunny today, with a temperature of 15°C…". The table uses a common assistant-only loss recipe; the training implementation determines the exact serialization and masks. Tool results are input context. The objective is to generate calls and follow-up answers, not to impersonate an external tool at runtime.
 
-掩码错误可能强化错误角色的续写倾向，但并不必然导致幻觉。还要检查 chat template、角色终止符和推理端停止条件；即使模型输出了伪造结果，宿主也不能把它当真实工具响应。
+An incorrect mask may encourage continuation in the wrong role, but does not inevitably cause hallucinations. Check the chat template, role terminators, and inference-time stopping conditions too. Even if a model emits a fabricated result, the host must not accept it as a genuine tool response.
 
-### 2.2.2 训练数据必须覆盖的五类场景
+### 2.2.2 Five scenarios the training data should cover
 
-场景覆盖不足会留下评测盲区，也可能形成系统性偏差。应至少检查以下五类场景：
+Insufficient coverage leaves evaluation blind spots and may introduce systematic bias. Check at least these five scenarios:
 
-| 场景 | 不覆盖的后果 |
+| Scenario | Consequence of missing it |
 |---|---|
-| 单工具调用 | 最基础，一般不会缺 |
-| **多工具并行调用** | 可能对无依赖查询逐次请求，增加往返；有依赖或写冲突时仍应串行 |
-| **工具调用失败后的处理** | 可能放弃任务，或原样重复同一个错误调用 |
-| **不需要工具，直接回答** | 形成「见问题就调工具」的惯性，简单算术也去调计算器 |
-| **多轮对话中引用历史工具结果** | 无视上下文里已有的结果，重复调用同一个工具 |
+| Single-tool calls | The basic case; usually already covered |
+| **Multiple parallel tool calls** | The model may request independent queries one at a time, adding round trips; dependencies or write conflicts still require sequential execution |
+| **Handling failed tool calls** | The model may abandon the task or repeat the same incorrect call unchanged |
+| **Answering directly when no tool is needed** | The model may develop a habit of calling a tool for every question, even using a calculator for simple arithmetic |
+| **Reusing previous tool results in a multi-turn conversation** | The model may ignore results already in context and call the same tool again |
 
-第四类容易被忽略：**要教模型选择工具，也要覆盖「不该调工具」的样本**。比例应按目标任务和过度调用率调整，不是越多越好。
+The fourth is easy to overlook: **teach tool selection, but include cases where no tool should be called**. Adjust their proportion to the target tasks and measured overcalling rate; more is not automatically better.
 
-### 2.2.3 训练数据从哪来
+### 2.2.3 Where does training data come from?
 
-| 来源 | 成本 | 质量 | 典型用途 |
+| Source | Cost | Quality | Typical use |
 |---|---|---|---|
-| 人工标注 | 极高 | 高 | 种子数据、评测集 |
-| 强模型蒸馏（Self-Instruct / Distillation） | 低 | 中，需抽检 | 规模化扩充 |
-| **真实 API 执行反馈** | 取决于环境与调用费用 | 可验证部分事实，不自动提供完整 ground truth | 过滤无效调用、验证结果状态 |
+| Human annotation | Very high | High | Seed data and evaluation sets |
+| Distillation from a stronger model (Self-Instruct / distillation) | Low | Moderate; spot checks needed | Scaling up the dataset |
+| **Real API execution feedback** | Depends on the environment and call costs | Can verify some facts, but does not automatically supply complete ground truth | Filtering invalid calls and checking result state |
 
-ToolLLM 使用真实 RapidAPI 工具和模型生成的指令、解题轨迹构建数据，评测也涉及模型判定；不能概括成“只看 HTTP 成功码”。执行校验能筛掉不存在的参数、无效调用等错误，但 API 成功不等于用户目标达成，还需检查对象、时间范围、结果和权限。
+ToolLLM builds its data from real RapidAPI tools and model-generated instructions and solution trajectories; its evaluation also involves model judgments. Describing it as merely checking HTTP success codes would be inaccurate. Execution checks can filter nonexistent parameters and invalid calls, but API success does not imply that the user's goal was achieved. The target object, time range, results, and permissions still need checking.
 
-能安全执行的轨迹应结合执行结果校验；支付、发信、删数据等操作要放进隔离环境或受控模拟器，不能为了验证训练样本触发真实副作用。
+Validate safely executable trajectories against their execution results. Payments, email sending, data deletion, and similar operations belong in isolated environments or controlled simulators. Do not create real side effects merely to validate training examples.
 
-## 2.3 SFT 的数据分布与局限
+## 2.3 SFT data distributions and limitations
 
-若数据中过度代表“必须调用”的场景，SFT 模型可能过度调用。
+If "must call a tool" scenarios are overrepresented, an SFT model may overcall.
 
-这是数据分布与任务目标不匹配，不是 SFT 的必然性质。补充无需工具、信息不足需澄清、拒绝越权等轨迹，也能通过 SFT 学习选择边界。
+This is a mismatch between the data distribution and task objectives, not an inherent property of SFT. Demonstrations of direct answers, clarification when information is missing, and refusal of unauthorized actions can also teach selection boundaries through SFT.
 
-SFT 最大化示范轨迹的似然；偏好优化显式比较候选，RL 则优化奖励下的策略。三者监督形式不同，但都可能同时影响格式、选择和规划能力。
+SFT maximizes the likelihood of demonstrated trajectories. Preference optimization explicitly compares candidates, while RL optimizes a policy under a reward. These are different forms of supervision, but all can affect formatting, selection, and planning.
 
 ```mermaid
 flowchart TB
-    Q["用户：1+1 等于几？"] --> SFTM["训练偏向调用的模型"]
-    SFTM --> A1["调用 calculator(expr='1+1')"]
-    A1 --> BAD["多此一举<br/>增加延迟与成本"]
+    Q["User: What is 1+1?"] --> SFTM["Model trained on call-heavy data"]
+    SFTM --> A1["Call calculator(expr='1+1')"]
+    A1 --> BAD["Unnecessary work<br/>More latency and cost"]
 
-    Q --> RLM["覆盖不调用样例的模型"]
-    RLM --> A2["直接回答：2"]
-    A2 --> GOOD["行为得体"]
+    Q --> RLM["Model trained with no-call examples"]
+    RLM --> A2["Answer directly: 2"]
+    A2 --> GOOD["Appropriate behavior"]
 
     style BAD fill:#fce8e6
     style GOOD fill:#e6f4ea
 ```
 
-## 2.4 用反馈优化选择与调用边界
+## 2.4 Using feedback to improve selection and invocation boundaries
 
-### 2.4.1 RLHF 的四步
+### 2.4.1 Four steps in RLHF
 
-RLHF（Reinforcement Learning from Human Feedback，基于人类反馈的强化学习）的一种经典实现如下，不是工具训练唯一可用的反馈形式：
+One classic implementation of reinforcement learning from human feedback (RLHF) proceeds as follows. It is not the only feedback approach available for tool training:
 
-1. **采样多样回答**：对同一问题让模型生成若干种处理方式——有的调工具、有的直接答、有的参数填错；
-2. **人类偏好排序**：标注员对这些回答排序。「北京天气」题里调工具的排第一，「1+1」题里直接回答的排第一；
-3. **训练奖励模型**：用排序数据训练一个只负责打分的模型，它学的是「预测人类会给这个回答打多少分」；
-4. **强化学习优化主模型**：用奖励模型的打分作为信号，通过 PPO 等算法调整主模型参数。
+1. **Sample varied responses.** Generate several approaches to the same question: some use tools, some answer directly, and some supply incorrect arguments.
+2. **Rank them by human preference.** Annotators rank the responses. A tool-using answer ranks first for "Beijing weather"; a direct answer ranks first for "1+1."
+3. **Train a reward model.** Use the ranking data to train a scoring model that predicts how humans would rate a response.
+4. **Optimize the main model with RL.** Use reward-model scores as the signal for updating the main model with an algorithm such as PPO.
 
-### 2.4.2 奖励模型是人类偏好的蒸馏体
+### 2.4.2 The reward model distills human preferences
 
-奖励模型受标注质量、覆盖范围和分布偏移影响；不能把它的能力严格等同于单个标注员的水平。
+A reward model is affected by annotation quality, coverage, and distribution shift. Its capabilities cannot be equated precisely with those of an individual annotator.
 
-人类的判断被蒸馏进了这个「裁判」。如果标注标准不一致——比如有的标注员认为查百科该调搜索，有的认为模型自己知道就行——奖励模型学到的就是一个自相矛盾的标准，后面主模型再怎么优化，也是往一个模糊的方向走。
+Human judgment is distilled into this "judge." If annotation standards conflict—for example, some annotators require search for encyclopedic questions while others accept an answer from the model's knowledge—the reward model learns inconsistent criteria. Further optimization then pushes the main model toward an ill-defined objective.
 
-因此要明确标注规范并检查分歧，不能只报告奖励分数上涨。
+Define annotation guidelines and examine disagreements rather than reporting only that reward scores increased.
 
-### 2.4.3 PPO 与 KL 正则不是同一个概念
+### 2.4.3 PPO and KL regularization are not the same thing
 
-经典 InstructGPT 使用 PPO。理解时要分清：
+The original InstructGPT used PPO. Keep two ideas separate:
 
-- **PPO 的 clipped surrogate objective**：限制新旧策略概率比带来的更新幅度；它不是严格的分布距离保证；
-- **RLHF 中对参考模型的 KL 惩罚**：通常另外加入奖励或目标，限制策略偏离参考模型。它不等于 PPO 本身必然内置的约束。
+- **PPO's clipped surrogate objective** limits updates through the probability ratio between the new and old policies. It is not a strict guarantee on distribution distance.
+- **The KL penalty against a reference model in RLHF** is typically added separately to the reward or objective to limit deviation from that reference. It is not a constraint inherently built into PPO itself.
 
-KL 正则可能缓解过度偏移，但不能消除奖励投机。若奖励只数“成功工具调用次数”，模型仍可能制造无用调用；应直接测任务成功率、调用成本和越权率。
+KL regularization may reduce excessive drift, but cannot eliminate reward hacking. If the reward counts only "successful tool calls," the model may generate pointless calls. Measure task success, call cost, and unauthorized-action rates directly.
 
-关于 PPO、DPO、GRPO 的完整对比，见 LLM 主题的 Post-Training 与 DPO/PPO 章节。
+For a full comparison of PPO, DPO, and GRPO, see the Post-Training and DPO/PPO chapters in the LLM topic.
 
-### 2.4.4 RLAIF：用 AI 代替人工打分
+### 2.4.4 RLAIF: replacing human ratings with AI feedback
 
-RLAIF 用 AI 反馈替代部分人工反馈，可能降低人工标注成本。具体成本与评委模型、采样数、复核比例有关，没有通用的数量级降幅。
+RLAIF replaces some human feedback with AI feedback, potentially reducing annotation cost. The actual cost depends on the judge model, sample count, and human-review fraction; there is no universal order-of-magnitude reduction.
 
-代价是**偏见传递**：如果 AI 评委自己认为「所有数学题都该调计算器」，被它训练出来的模型也会继承这个倾向。
+The tradeoff is **bias propagation**. If the AI judge believes that every math question should use a calculator, the model trained from its judgments may inherit that tendency.
 
-可混合人工和 AI 反馈，并对关键评测集做独立复核；不能用训练时的同一个评委证明系统全面可靠。
+Human and AI feedback can be combined, with independent review of critical evaluation sets. The same judge used during training cannot establish that the resulting system is reliable in every respect.
 
-## 2.5 工具执行与可验证奖励
+## 2.5 Tool execution and verifiable rewards
 
-执行反馈并非 2025 年才出现。ToolRL、ReTool 等工作进一步研究将工具交互纳入强化学习；这是一条研究路线，不代表所有厂商都采用同样的训练配方。
+Execution feedback did not first appear in 2025. ToolRL, ReTool, and related work further investigate incorporating tool interactions into reinforcement learning. This is a research direction, not evidence that every provider uses the same training recipe.
 
-### 2.5.1 为什么可以这么做
+### 2.5.1 Why is this possible?
 
-工具调用的一部分行为能用程序验证，这与数学题、代码测试等可验证任务相似。**可判定的是具体条件，不是整个用户目标天然可判定**：
+Some aspects of tool use can be checked programmatically, much like verifiable math tasks or code tests. **Specific conditions are checkable; the user's entire goal is not automatically checkable**:
 
-- 调用的函数名在工具列表里吗？→ 可判定；
-- 参数能通过 JSON Schema 校验吗？→ 可判定；
-- 工具实际执行成功了吗？→ 有可信执行记录或可核对的业务状态时可判定；
-- 最终答案满足任务要求吗？→ 有可靠标准答案或状态校验器时可判定，开放任务未必具备。
+- Is the requested function name in the tool list? → Checkable.
+- Do its arguments pass JSON Schema validation? → Checkable.
+- Did the tool actually execute successfully? → Checkable with trustworthy execution records or business state that can be inspected.
+- Does the final answer satisfy the task? → Checkable with a reliable reference answer or state validator; open-ended tasks may have neither.
 
-这类规则可在训练循环中自动提供奖励，不必每次请人评分，这就是 RLVR（Reinforcement Learning with Verifiable Rewards，可验证奖励强化学习）的思路。人仍需设计任务、校验器及安全执行环境。
+Such rules can supply rewards automatically during training without asking a person to score every instance. This is the idea behind reinforcement learning with verifiable rewards (RLVR). People still need to design the tasks, validators, and safe execution environment.
 
 ```mermaid
 flowchart LR
-    subgraph RLHF["RLHF 路线"]
-        H1[人类排序] --> H2[训练奖励模型] --> H3[RL 优化]
+    subgraph RLHF["RLHF approach"]
+        H1[Human rankings] --> H2[Train reward model] --> H3[RL optimization]
     end
 
-    subgraph RLVR["RLVR 路线"]
-        V1[模型生成调用] --> V2[真实执行 / Schema 校验]
-        V2 --> V3["规则奖励<br/>成功=1 失败=0"] --> V4[RL 优化]
+    subgraph RLVR["RLVR approach"]
+        V1[Model generates a call] --> V2[Actual execution / schema validation]
+        V2 --> V3["Rule-based reward<br/>Success=1 Failure=0"] --> V4[RL optimization]
     end
 
     style V2 fill:#e6f4ea
 ```
 
-### 2.5.2 带来的变化
+### 2.5.2 What changes?
 
-| 维度 | 偏好奖励 | 可验证奖励 |
+| Dimension | Preference rewards | Verifiable rewards |
 |---|---|---|
-| 奖励来源 | 偏好评估器 | 校验器、测试与执行环境，也可能有漏洞 |
-| 标注成本 | 需要偏好数据或 AI 评委 | 减少部分标注，但需构建任务、执行环境和校验器 |
-| 直接优化的信号 | 评估器对行为或答案的偏好 | 校验器定义的格式、结果或状态条件 |
-| 局限 | 奖励模型漂移 | 只适用于可判定任务 |
+| Reward source | Preference evaluator | Validators, tests, and execution environments, which may themselves contain flaws |
+| Annotation cost | Requires preference data or an AI judge | Reduces some annotation, but requires tasks, an execution environment, and validators |
+| Directly optimized signal | The evaluator's preference for behavior or answers | Format, outcome, or state conditions defined by the validator |
+| Limitation | Reward-model drift | Limited to checkable tasks |
 
-可验证奖励也会发生 **reward hacking**。例如把“HTTP 200”作为成功，会奖励查询了错误账户的调用；只检查文件存在，可能奖励空文件。应验证最终业务状态、禁止副作用和成本约束，并在隔离环境中执行训练轨迹。
+Verifiable rewards are also vulnerable to **reward hacking**. Treating HTTP 200 as success can reward a query against the wrong account; checking only that a file exists can reward an empty file. Validate final business state, prohibited side effects, and cost constraints, and execute training trajectories in isolation.
 
-这些研究的奖励来源不完全相同：ToolRL 分析工具选择、参数等细粒度奖励设计；ReTool 研究推理过程中的代码工具交互。不能把它们都说成只用“真实 API 是否成功”评分，也不能由单项实验推断模型已经学会任意多步规划。
+The reward sources in these studies are not identical. ToolRL analyzes fine-grained rewards for tool selection, arguments, and related components. ReTool studies code-tool interactions during reasoning. Neither should be reduced to a single "did the real API succeed?" signal, and one experiment does not establish arbitrary multi-step planning ability.
 
-### 2.5.3 与推理模型的合流
+### 2.5.3 Combining tool use with reasoning models
 
-工具交互也可与推理训练结合：模型在推理中提出调用，拿到结果后继续推理，再用任务奖励优化轨迹。ReTool 是公开例子；o 系列、DeepSeek-R1 等模型的名称本身不能证明其训练使用了相同的工具环境或奖励。
+Tool interaction can also be combined with reasoning training: the model proposes a call during reasoning, continues after receiving the result, and learns from a task-level reward over the trajectory. ReTool is a public example. The names of models such as the o-series or DeepSeek-R1 do not establish that they used the same tool environment or rewards.
 
-这带来一个新的技术难点——推理过程中断与恢复的状态管理，这正是 [第七章](07-reasoning-models-and-tools.md) 要讲的内容。
+This introduces an engineering challenge: managing state when reasoning pauses for a tool and then resumes. [Chapter 7](07-reasoning-models-and-tools.md) covers that issue.
 
-## 2.6 训练好之后，运行时发生了什么
+## 2.6 What happens at runtime after training?
 
-训练与运行时是两件事，面试里经常被混着问。运行时的完整流程在 [第一章](01-function-calling.md) 已经讲过，这里只强调分界：
+Training and runtime are different, although interview questions often blur them. [Chapter 1](01-function-calling.md) covers the complete runtime flow; the important distinction here is:
 
 ```mermaid
 flowchart TB
-    subgraph TRAIN["训练期（厂商或自有训练团队）"]
-        T1[SFT 等轨迹训练] --> T2[可选：偏好或执行奖励优化] --> T3[产出模型权重]
+    subgraph TRAIN["Training: provider or your training team"]
+        T1[Trajectory training such as SFT] --> T2[Optional preference or execution-reward optimization] --> T3[Produce model weights]
     end
 
-    subgraph RUNTIME["运行期（你做）"]
-        R1[传入 tools schema] --> R2[模型输出 tool_calls]
-        R2 --> R3[你的代码执行] --> R4[结果回填] --> R5[模型生成答案]
+    subgraph RUNTIME["Runtime: your application"]
+        R1[Supply tools schema] --> R2[Model outputs tool_calls]
+        R2 --> R3[Your code executes] --> R4[Return results] --> R5[Model generates answer]
     end
 
-    T3 -.部署.-> R2
+    T3 -.Deploy.-> R2
 ```
 
-运行时会改变可用能力：chat template、工具解析器、约束解码、上下文与路由都可能影响结果。先确认接口是否支持并行及调用格式，再用目标任务评测；公开榜单不是模型在所有应用中的能力上限。
+Runtime choices affect the capabilities available in practice: the chat template, tool parser, constrained decoding, context, and routing can all change the outcome. First confirm the interface's support for parallel calls and its call format, then evaluate target tasks. A public leaderboard is not a ceiling on the model's capability in every application.
 
-## 2.7 怎么衡量一个模型的工具调用能力
+## 2.7 How do you evaluate a model's tool use?
 
-常见的公开评测：
+Common public benchmarks include:
 
-| 评测 | 侧重 |
+| Benchmark | Focus |
 |---|---|
-| **BFCL**（Berkeley Function Calling Leaderboard） | 多语言、多场景的函数调用准确率，含「不该调用」的相关性检测 |
-| **ToolBench** | 基于真实 API 构建的工具任务；评测器与在线 API 可用性会影响结果 |
-| **API-Bank** | 可运行工具环境中的规划、检索与调用，不等于直接测试生产 API |
-| **τ-bench** | 与用户和工具双向交互的完整任务完成率 |
+| **BFCL** (Berkeley Function Calling Leaderboard) | Function-call accuracy across languages and scenarios, including relevance detection for cases where no call should be made |
+| **ToolBench** | Tool tasks built around real APIs; the evaluator and live API availability can affect results |
+| **API-Bank** | Planning, retrieval, and calling in an executable tool environment, not necessarily direct testing of production APIs |
+| **τ-bench** | End-to-end task completion through interaction with both users and tools |
 
-BFCL 包含相关性判断等类别；结果应注明榜单版本、模型快照、原生 FC 或提示模式及运行配置。自建评测还应分别记录：工具选择、参数有效性、对象正确性、最终成功、重复调用、越权与费用。
+BFCL includes categories such as relevance judgments. Report the leaderboard version, model snapshot, native function-calling or prompt-based mode, and runtime configuration. In your own evaluation, record tool selection, argument validity, correct target objects, final success, repeated calls, unauthorized actions, and cost separately.
 
-自建评测集时也应该照抄这个思路：**测试集里必须有一批不该调工具的问题**，否则你测不出过度调用。
+Apply the same principle when building a test set: **include questions that should not trigger a tool call**. Otherwise, you cannot measure overcalling.
 
-## 2.8 常见错误
+## 2.8 Common mistakes
 
-### 2.8.1 从模型规模推断接口能力
+### 2.8.1 Inferring interface capability from model size
 
-规模不是充分条件，专门后训练也不是唯一可能路径。接口、提示格式和解析器不匹配，同样会表现为“不会调用”。
+Size is not sufficient, and dedicated post-training is not the only possible route. A mismatch between the interface, prompt format, and parser can also appear as an inability to call tools.
 
-### 2.8.2 训练数据只有正例
+### 2.8.2 Training only on positive examples
 
-只有“该调用”的示范会增加过度调用风险。需覆盖不调用、错误恢复、历史复用、澄清和拒绝越权。
+Demonstrations containing only "should call" cases increase the risk of overcalling. Cover direct answers, error recovery, reuse of history, clarification, and refusal of unauthorized requests too.
 
-### 2.8.3 loss mask 打到 tool 消息上
+### 2.8.3 Applying the loss mask to tool messages incorrectly
 
-assistant-only loss 应按角色正确掩码，同时验证模板和停止条件。是否学习工具文本是训练配方选择；不能据此断言一定产生或消除幻觉。
+Assistant-only loss requires correct role-based masking, together with validation of the template and stopping conditions. Whether to learn tool text is a training-recipe choice; it does not by itself establish that hallucinations will appear or disappear.
 
-### 2.8.4 纯蒸馏不做执行校验
+### 2.8.4 Distilling without execution checks
 
-上游模型的错误可能随蒸馏数据传递。除格式与参数检查外，还应在安全执行环境中核对结果；无法执行的样本要单独标记验证范围，不能当作已经证实正确的轨迹。
+Errors in the teacher model can propagate through distilled data. Beyond format and argument checks, inspect results in a safe execution environment. Mark the verified scope of samples that cannot be executed separately; do not treat them as proven-correct trajectories.
 
-### 2.8.5 把 SFT 和 RL 划成互斥能力
+### 2.8.5 Assigning mutually exclusive capabilities to SFT and RL
 
-SFT 可以学格式也可以学调用边界；RL 可以优化格式、选择和规划。是否先 SFT，取决于基座能力、探索难度与奖励设计，不能背成必要顺序。
+SFT can teach both format and invocation boundaries; RL can optimize format, selection, and planning. Whether SFT should come first depends on the base model's capabilities, exploration difficulty, and reward design. It is not a necessary sequence to memorize.
 
-### 2.8.6 不排查运行时就归咎训练
+### 2.8.6 Blaming training before inspecting the runtime
 
-先检查模型快照、API 参数、工具 Schema、解析器和历史回填，再比较提示或训练改动。用相同执行环境做消融，避免把适配器故障误认成模型能力缺失。
+Check the model snapshot, API parameters, tool schemas, parser, and history submission before comparing prompt or training changes. Run ablations in the same execution environment so an adapter failure is not mistaken for a missing model capability.
 
-## 2.9 本章总结
+## 2.9 Chapter summary
 
-1. **可靠工具调用取决于训练和运行时**，不能从规模或接口表现反推训练配方；
-2. **SFT 常使用多角色轨迹和 assistant-only loss**，需验证角色边界；
-3. **训练数据应覆盖调用和不调用场景**，避免只学会增加工具使用次数；
-4. **蒸馏数据要校验格式、参数与任务结果**，安全可执行时再做执行验证，避免继承教师错误；
-5. **SFT 与 RL 都能影响选择和规划**，不是“会不会/该不该”的互斥分工；
-6. **区分 PPO clipping 与参考模型 KL 正则**，两者都不是安全保证；
-7. **执行奖励仍会被投机**，状态码成功不等于业务成功；
-8. **评测应固定模型、模板和运行时**，报告最终任务成功与安全、成本指标。
+1. **Reliable tool use depends on training and runtime together**; neither size nor interface behavior reveals the training recipe.
+2. **SFT often uses multi-role trajectories with assistant-only loss**; verify role boundaries.
+3. **Training data should cover both calling and not calling**, rather than teaching the model merely to use more tools.
+4. **Validate distilled data for format, arguments, and task outcomes**; use execution checks when safe to avoid inheriting teacher errors.
+5. **Both SFT and RL can affect selection and planning**; they do not divide neatly into "can call" and "should call."
+6. **Distinguish PPO clipping from reference-model KL regularization**; neither is a safety guarantee.
+7. **Execution rewards can still be gamed**; a successful status code is not business success.
+8. **Hold the model, template, and runtime fixed for evaluation**, and report final task success alongside safety and cost metrics.
 
 
-## 参考资料
+## References
 
 - [Toolformer: Language Models Can Teach Themselves to Use Tools](https://arxiv.org/abs/2302.04761)
-- [ReAct 原论文](https://arxiv.org/abs/2210.03629)
-- [PPO 原论文](https://arxiv.org/abs/1707.06347)
+- [ReAct paper](https://arxiv.org/abs/2210.03629)
+- [PPO paper](https://arxiv.org/abs/1707.06347)
 - [ToolLLM: Facilitating Large Language Models to Master 16000+ Real-world APIs](https://arxiv.org/abs/2307.16789)
-- [Training language models to follow instructions with human feedback（InstructGPT）](https://arxiv.org/abs/2203.02155)
+- [Training language models to follow instructions with human feedback (InstructGPT)](https://arxiv.org/abs/2203.02155)
 - [Constitutional AI: Harmlessness from AI Feedback](https://arxiv.org/abs/2212.08073)
 - [ToolRL: Reward is All Tool Learning Needs](https://arxiv.org/abs/2504.13958)
 - [ReTool: Reinforcement Learning for Strategic Tool Use in LLMs](https://arxiv.org/abs/2504.11536)

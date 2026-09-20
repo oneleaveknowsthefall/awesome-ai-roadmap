@@ -1,18 +1,18 @@
 ---
-description: 从工具调用训练、JSON Schema 与 strict 约束到推理状态回传，理解模型提议与应用执行的边界。
+description: Understand the boundary between model proposals and application execution through tool training, JSON Schema, strict constraints, and reasoning-state round trips.
 ---
 
-# Tools · 函数与工具调用
+# Tools · Function and Tool Calling
 
-从工具调用协议、模型学习到 Schema 工程和推理模型适配。
+From tool-calling protocols and model training to schema engineering and reasoning-model integration.
 
-先读调用闭环和 Schema，再看训练与推理模型。示例中的 Chat Completions 字段不是通用标准；Responses、Claude 等接口须分别适配。重点区分格式正确、业务正确和执行获准。
+Start with the call-and-result flow and schemas, then move to training and reasoning models. The examples' Chat Completions fields are not a universal standard; Responses, Claude, and other interfaces need their own adapters. Distinguish valid formatting, business correctness, and permission to execute.
 
-## 章节
+## Chapters
 
-1. [第一章：Function Calling 是什么，原理是什么](01-function-calling.md)
-2. [第二章：LLM 如何学会调用工具](02-tool-learning.md)
-3. [第三章：工具定义与 Schema 工程](03-tool-schema-design.md)
-4. [第七章：为什么有些推理模型不支持 MCP](07-reasoning-models-and-tools.md)
+1. [Chapter 1: What Function Calling Is and How It Works](01-function-calling.md)
+2. [Chapter 2: How LLMs Learn to Use Tools](02-tool-learning.md)
+3. [Chapter 3: Tool Definitions and Schema Engineering](03-tool-schema-design.md)
+4. [Chapter 7: Why Some Reasoning Models Seem Not to Support MCP](07-reasoning-models-and-tools.md)
 
-返回 [Tools 相关知识点](../README.md)。
+Back to [Tools](../README.md).

@@ -1,133 +1,133 @@
 ---
-description: 按角色、能力与传输拆解 MCP，解释 2026-07-28 的逐请求元数据、MRTR 输入及已弃用能力。
+description: Breaks MCP into roles, capabilities, and transports, explaining per-request metadata, MRTR input, and deprecated features in version 2026-07-28.
 ---
 
-# 第五章：MCP 的三层组成
+# Chapter 5: The Three Layers of MCP
 
-## 5.1 用三层把概念理清
+## 5.1 Use three layers to organize the concepts
 
-第一次接触 MCP，最劝退的是名词密度：Host、Client、Server、Tools、Resources、Prompts、JSON-RPC、stdio、Streamable HTTP、sampling、elicitation、roots……
+For a newcomer, MCP's vocabulary can be overwhelming: Host, Client, Server, Tools, Resources, Prompts, JSON-RPC, stdio, Streamable HTTP, sampling, elicitation, roots…
 
-本章按角色、能力、传输三个视角组织概念；这是教学拆分，不是三个独立进程或强制依赖层级。
+This chapter organizes those concepts into three perspectives: roles, capabilities, and transports. These are teaching categories, not three separate processes or a mandatory dependency hierarchy.
 
 ```mermaid
 flowchart TB
-    subgraph L1["第一层 · 角色架构：谁和谁在通信"]
+    subgraph L1["Layer 1 · Roles: who communicates with whom"]
         A["Host ── Client ── Server"]
     end
 
-    subgraph L2["第二层 · 能力类型：Server 能提供什么"]
+    subgraph L2["Layer 2 · Capabilities: what a Server can provide"]
         B["Tools / Resources / Prompts<br/>+ Client input capabilities"]
     end
 
-    subgraph L3["第三层 · 传输协议：消息怎么传"]
-        C["JSON-RPC 2.0 消息格式<br/>+ stdio / Streamable HTTP 传输方式"]
+    subgraph L3["Layer 3 · Transports: how messages travel"]
+        C["JSON-RPC 2.0 message format<br/>+ stdio / Streamable HTTP transports"]
     end
 
     L1 --> L2 --> L3
 ```
 
-解耦的意思是：传输可替换而不改变核心能力语义；能力扩展也不必重写角色模型。
+Decoupling means that a transport can change without changing core capability semantics, and capabilities can expand without rewriting the role model.
 
-## 5.2 第一层：角色架构
+## 5.2 Layer 1: roles
 
-### 5.2.1 三个角色各自做什么
+### 5.2.1 What each role does
 
-| 角色 | 是什么 | 核心职责 |
+| Role | What it is | Core responsibilities |
 |---|---|---|
-| **Host** | AI 应用本身（Claude Desktop、Cursor、你的 Agent） | 启动和管理所有 Client、决定连哪些 Server、执行安全策略、处理用户授权、协调 LLM 调用 |
-| **Client** | Host 内部的连接模块 | 通信、能力发现和转发请求/结果；通常对应一个 Server 连接 |
-| **Server** | 工具提供方的独立进程或服务 | 暴露能力，并验证调用者及资源权限 |
+| **Host** | The AI application itself: Claude Desktop, Cursor, or your agent | Starts and manages Clients, selects Servers, enforces security policies, handles user authorization, and coordinates LLM calls |
+| **Client** | A connection module inside the Host | Communicates, discovers capabilities, and forwards requests/results; usually corresponds to one Server connection |
+| **Server** | The tool provider's independent process or service | Exposes capabilities and verifies callers and resource permissions |
 
-Host 选择接入方，Client 封装协议交互，Server 提供能力。服务端必须关心认证身份和租户，但不必知道调用方内部采用哪个模型或编排框架。
+The Host chooses providers, the Client encapsulates protocol interactions, and the Server supplies capabilities. The Server must care about authenticated identity and tenancy, but does not need to know which model or orchestration framework the caller uses internally.
 
-### 5.2.2 一对一连接便于隔离，但不是安全保证
+### 5.2.2 One-to-one connections help isolation but do not guarantee security
 
-Host 常为每个 Server 建立独立 Client/连接，便于管理生命周期、认证与故障；规范不会因此自动隔离 Server 的文件、网络或进程权限。
+A Host often creates a separate Client/connection for each Server to manage lifecycle, authentication, and failures independently. The specification does not thereby isolate the Server's filesystem, network, or process permissions.
 
 ```mermaid
 flowchart TB
-    subgraph GOOD["独立 Client / 连接"]
-        H1[Host] --> C1[Client 1] --> S1[财务数据 Server]
-        H1 --> C2[Client 2] --> S2[第三方工具 Server]
-        NOTE1["便于分别管理<br/>版本、认证、故障与生命周期"]
+    subgraph GOOD["Separate Clients / connections"]
+        H1[Host] --> C1[Client 1] --> S1[Financial data Server]
+        H1 --> C2[Client 2] --> S2[Third-party tool Server]
+        NOTE1["Manage versions, authentication,<br/>failures, and lifecycles separately"]
     end
 
-    subgraph BOUNDARY["真正的安全边界"]
-        P["Host 策略"] --> R["进程 / 容器权限"]
-        P --> N["网络出口与数据过滤"]
-        P --> A["用户授权与审计"]
+    subgraph BOUNDARY["Actual security boundaries"]
+        P["Host policies"] --> R["Process / container permissions"]
+        P --> N["Network egress and data filtering"]
+        P --> A["User authorization and auditing"]
     end
 
     style GOOD fill:#e6f4ea
     style BOUNDARY fill:#fff3cd
 ```
 
-面对第三方 Server，Host 还应使用最小权限、进程/容器隔离、网络出口控制和参数过滤。只有这些运行时策略才能限制一个 Server 能读取和执行的范围。
+For third-party Servers, the Host should also apply least privilege, process/container isolation, network egress controls, and argument filtering. These runtime policies are what restrict what a Server can read and execute.
 
-### 5.2.3 Host 与 Server 分别执行授权
+### 5.2.3 Host and Server enforce authorization separately
 
-Host 和 Client 经常被混在一起。Client 负责通信和转发，授权与策略决定仍在 Host。
+People often conflate Host and Client. The Client handles communication and forwarding; the Host retains authorization and policy decisions.
 
-具体来说，这些决策全在 Host：
+In particular, the Host decides:
 
-- 用户是否授权某次工具调用；
-- 哪些 Server 的工具可以暴露给模型；
-- 敏感操作是否需要二次确认；
-- 多个 Server 的上下文怎么聚合进 Prompt。
+- Whether the user has authorized a tool call.
+- Which Servers' tools may be exposed to the model.
+- Whether a sensitive operation needs another confirmation.
+- How context from multiple Servers is assembled into the prompt.
 
-Host 的确认不能替代 Server 的权限检查。Server 应在每次操作上验证身份、scope、租户及对象归属；Client 也不能因 Server 声称某操作“只读”就跳过本地策略。
+Host confirmation cannot replace Server permission checks. The Server should verify identity, scopes, tenant, and object ownership for each operation. Likewise, a Client must not skip local policy merely because a Server describes an operation as “read-only.”
 
-## 5.3 第二层：能力类型
+## 5.3 Layer 2: capabilities
 
-### 5.3.1 Server 提供的三类能力
+### 5.3.1 Three capabilities provided by Servers
 
-区分它们的关键是**默认控制路径**，而不是「读还是写」或是否有副作用：
+The key distinction is the **default control path**, not “read versus write” or the presence of side effects:
 
-| 能力 | 控制权 | 有副作用 | 典型场景 |
+| Capability | Control | Side effects | Typical uses |
 |---|---|---|---|
-| **Tools** | 模型或 Host 工作流可选择，Host 最终放行 | 可读、可写或有副作用 | 搜索、创建 Issue、发消息、写文件 |
-| **Resources** | Client/Host 决定何时读取/注入 | 通常是可读取上下文；不构成安全承诺 | 读日志、读文档、读数据库记录 |
-| **Prompts** | 用户或 Host 取得 | 返回模板/消息 | 代码审查模板、周报生成模板 |
+| **Tools** | A model or Host workflow may select them; the Host gives final permission | May read, write, or cause side effects | Search, create issues, send messages, write files |
+| **Resources** | The Client/Host decides when to read or inject them | Usually readable context; not a security promise | Read logs, documents, or database records |
+| **Prompts** | Retrieved by the user or Host | Return templates/messages | Code-review or weekly-report templates |
 
-Tools、Resources、Prompts 的分类不是安全等级。Host 控制暴露与共享，Server 控制实际资源访问。
+Tools, Resources, and Prompts are not security levels. The Host controls exposure and sharing; the Server controls actual resource access.
 
-对应的 JSON-RPC 方法：
+Their corresponding JSON-RPC methods are:
 
 ```jsonc
-{"method": "tools/list"}          // 发现有哪些工具
-{"method": "tools/call"}          // 调用某个工具
-{"method": "resources/list"}      // 列出可用资源
-{"method": "resources/read"}      // 读取某个资源
-{"method": "prompts/list"}        // 列出提示模板
-{"method": "prompts/get"}         // 展开某个模板
+{"method": "tools/list"}          // Discover available tools
+{"method": "tools/call"}          // Call a tool
+{"method": "resources/list"}      // List available resources
+{"method": "resources/read"}      // Read a resource
+{"method": "prompts/list"}        // List prompt templates
+{"method": "prompts/get"}         // Expand a template
 ```
 
-上例只列方法名，不是完整请求。`*/list` 可能分页；2026-07-28 的缓存结果带 `ttlMs` 和 `cacheScope`，列表变化可通过 `subscriptions/listen` 订阅。缓存必须按授权上下文隔离，不能把某租户的工具清单复用给另一租户。
+These are method names, not complete requests. `*/list` operations may be paginated. Cacheable results in 2026-07-28 carry `ttlMs` and `cacheScope`; Clients can subscribe to list changes through `subscriptions/listen`. Caches must be isolated by authorization context: one tenant's tool list cannot be reused for another tenant.
 
-[Tools 规范](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)还区分了几个强度不同的要求：
+The [Tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) distinguishes requirements of different strengths:
 
-- 工具集合 **MUST NOT** 按连接状态或同连接其他请求的副作用变化；**MAY** 随时间、当前请求携带的授权变化。
-- 集合未变化时，Server **SHOULD** 保持确定性返回顺序，以利于列表缓存和模型前缀缓存；不是必须按字母排序。
-- `tools.listChanged` 能力仍存在。声明它的 Server **SHOULD** 向已通过 `subscriptions/listen` 请求 `notifications.toolsListChanged: true` 的 Client 发送 `notifications/tools/list_changed`，而不是向所有连接广播。
+- The tool set **MUST NOT** vary with connection state or the side effects of other requests on that connection. It **MAY** change over time or according to the authorization supplied with the current request.
+- If the set has not changed, the Server **SHOULD** return tools in deterministic order to support list caching and model-prefix caching. Alphabetical order is not required.
+- The `tools.listChanged` capability still exists. A Server declaring it **SHOULD** send `notifications/tools/list_changed` to Clients that requested `notifications.toolsListChanged: true` through `subscriptions/listen`, not broadcast to every connection.
 
-[订阅规范](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/subscriptions)要求先发送 `notifications/subscriptions/acknowledged`，其 filter 表示服务端实际接受的订阅子集；Client 应核对，不能把提交订阅当成功。流中的通知携带 `_meta.io.modelcontextprotocol/subscriptionId` 用于关联。变化通知不携带完整新清单，收到后重新 `tools/list`，并审查新增或改动定义。
+The [subscription specification](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/subscriptions) requires `notifications/subscriptions/acknowledged` first. Its filter describes the subset the Server actually accepted. The Client should check it rather than equate submitting a subscription with success. Notifications on the stream carry `_meta.io.modelcontextprotocol/subscriptionId` for correlation. Change notifications do not contain the complete new list: call `tools/list` again and review new or changed definitions.
 
-### 5.3.2 容易被漏掉的第四类：Server 需要 Client 输入
+### 5.3.2 An easily missed fourth category: the Server needs Client input
 
-上面三类是 Server **提供**给 Client 的。执行过程中，Server 有时还需要模型推理或用户补充信息。2026-07-28 规范不再让 Server 反向发起 JSON-RPC request，而是在当前响应中返回 `InputRequiredResult`；Client 处理后带输入重发原请求。
+The three capabilities above are what the Server **provides** to the Client. During execution, however, a Server may need model inference or additional information from the user. In 2026-07-28, the Server no longer initiates a reverse JSON-RPC request. Instead, it returns `InputRequiredResult` in the current response; the Client handles it and resends the original request with the input.
 
-| 能力 | Server 想要什么 | 用途 |
+| Capability | What the Server needs | Use |
 |---|---|---|
-| **Sampling（已弃用）** | 让 Host 一侧的模型完成受控推理 | 仅为兼容说明；新实现应考虑直接集成模型 API |
-| **Elicitation** | 向用户索取结构化补充信息 | 参数不全时补充；不能替代高风险动作的独立审批 |
-| **Roots（已弃用）** | 获取工作目录等上下文提示 | 不是文件沙箱；迁移到参数、资源 URI 或服务端配置 |
+| **Sampling (deprecated)** | Controlled model inference on the Host side | Described for compatibility only; new implementations should consider direct model-API integration |
+| **Elicitation** | Structured additional information from the user | Fills missing parameters; does not replace separate approval for high-risk actions |
+| **Roots (deprecated)** | Context hints such as working directories | Not a filesystem sandbox; migrate to parameters, resource URIs, or Server configuration |
 
-这些状态依据 [2026-07-28 changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)：Sampling、Roots、Logging 已弃用但未移除。兼容 Sampling 时，Host 仍需限制模型、预算、可见上下文和返回范围。
+These statuses follow the [2026-07-28 changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog): Sampling, Roots, and Logging are deprecated, not removed. A Host supporting Sampling for compatibility must still constrain models, budgets, visible context, and returned data.
 
-### 5.3.3 InputRequiredResult 的往返模式
+### 5.3.3 The InputRequiredResult round-trip pattern
 
-这种模式称为 **MRTR（Multi Round-Trip Requests，多轮往返请求）**。消息方向仍是 Client request → Server response；需要 Client 输入时，Server 返回输入需求，结束这一轮响应，Client 随后补齐输入再发起新请求，不要求服务端一直挂起原来的调用栈：
+This pattern is called **MRTR: Multi Round-Trip Requests**. The direction remains Client request → Server response. When Client input is needed, the Server returns the input requirements and ends that response. The Client then supplies the input in a new request; the Server need not keep the original call stack suspended:
 
 ```mermaid
 sequenceDiagram
@@ -135,133 +135,133 @@ sequenceDiagram
     participant S as Server
 
     rect rgb(230, 244, 234)
-    Note over C,S: Server 需要用户补充信息
+    Note over C,S: Server needs additional user information
     C->>S: tools/call
     S-->>C: InputRequiredResult(elicitation/create)
-    C->>C: Host 展示请求并取得用户输入
-    C->>S: 新请求 ID，原参数 + inputResponses + requestState
-    S-->>C: 工具结果
+    C->>C: Host displays the request and collects user input
+    C->>S: New request ID, original params + inputResponses + requestState
+    S-->>C: Tool result
     end
 ```
 
-并非每个 Server 都使用这些能力。Host 应逐请求声明允许的 Client capabilities，并把用户交互、模型访问、预算和数据边界纳入授权策略。
+Not every Server uses these capabilities. The Host should declare permitted Client capabilities on each request and include user interaction, model access, budgets, and data boundaries in its authorization policy.
 
-`InputRequiredResult.resultType` 为 `input_required`。客户端按 `inputRequests` 的键提供对应 `inputResponses`，原样携回 `requestState`；该状态不能当作可信授权。需绑定调用者、参数与有效期，并避免重放输入过程造成重复副作用。普通完成结果的 `resultType` 为 `complete`。
+`InputRequiredResult.resultType` is `input_required`. The Client supplies `inputResponses` matching the keys in `inputRequests` and echoes `requestState` unchanged. That state is not trusted authorization: bind it to the caller, arguments, and expiry, and prevent repeated side effects when an input flow is replayed. An ordinary completed result has `resultType: complete`.
 
-## 5.4 第三层：传输协议
+## 5.4 Layer 3: transports
 
-### 5.4.1 消息格式与传输方式是解耦的
+### 5.4.1 Message format and transport are decoupled
 
-这一层的设计点，就是把消息格式和传输方式分开：
+The design separates how a message is represented from how it travels:
 
 ```mermaid
 flowchart TB
-    MSG["JSON-RPC 2.0<br/>消息格式（不变）"]
-    MSG --> T1["stdio<br/>本地子进程"]
-    MSG --> T2["Streamable HTTP<br/>远程服务"]
-    MSG --> T3["自定义传输<br/>规范允许扩展"]
+    MSG["JSON-RPC 2.0<br/>Message format: unchanged"]
+    MSG --> T1["stdio<br/>Local subprocess"]
+    MSG --> T2["Streamable HTTP<br/>Remote service"]
+    MSG --> T3["Custom transport<br/>Extensions permitted by the specification"]
 ```
 
-工具语义可在不同传输上复用，但改成远程服务还涉及认证、部署、取消、隔离和连接故障，不能保证只改配置。当前 HTTP 与 stdio 的取消机制也不同。
+Tool semantics can be reused across transports. Moving to a remote service still changes authentication, deployment, cancellation, isolation, and connection-failure handling; it is not necessarily a configuration-only change. The current HTTP and stdio cancellation mechanisms also differ.
 
-### 5.4.2 两种主要传输方式
+### 5.4.2 The two main transports
 
 | | stdio | Streamable HTTP |
 |---|---|---|
-| Server 形态 | 本地子进程 | 独立 HTTP 服务 |
-| 通信通道 | 操作系统管道（stdin/stdout） | HTTP POST |
-| 延迟 | 无网络往返，但仍有序列化与调度 | 取决于部署、网络及服务处理 |
-| 多 Client 共享 | 标准子进程管道通常由一个 Client 独占；后端服务仍可共享 | 独立服务可接受多个 Client |
-| 认证 | 凭据一般由环境或受控配置提供；进程隔离另行落实 | 协议授权为可选；受保护 HTTP 服务采用相应 OAuth 规范 |
-| 典型用途 | 文件系统、本地 Git、本地数据库 | 团队共享服务、SaaS 工具 |
+| Server form | Local subprocess | Independent HTTP service |
+| Communication channel | Operating-system pipes: stdin/stdout | HTTP POST |
+| Latency | No network round trip, but serialization and scheduling remain | Depends on deployment, network, and service processing |
+| Sharing across Clients | Standard subprocess pipes are normally exclusive to one Client; backend services can still be shared | An independent service can accept multiple Clients |
+| Authentication | Credentials generally come from the environment or controlled configuration; process isolation is separate | Protocol authorization is optional; protected HTTP services use the relevant OAuth specification |
+| Typical uses | Filesystem, local Git, local databases | Shared team services and SaaS tools |
 
-一个实用细节：stdio 模式下 **stdout 只能走协议消息**，任何 `print` 调试输出都会污染消息流导致解析失败。日志必须写 stderr——这是新手写 MCP Server 最常踩的坑。
+One practical detail: in stdio mode, **stdout is reserved for protocol messages**. Any debug `print` can contaminate the stream and cause parsing failures. Write logs to stderr—this is one of the most common mistakes when writing a first MCP Server.
 
-传输层的完整细节，包括 HTTP+SSE 到 Streamable HTTP 的演进，见 [第十二章](12-mcp-transport.md)。
+For full transport details, including the transition from HTTP + SSE to Streamable HTTP, see [Chapter 12](12-mcp-transport.md).
 
-## 5.5 三层拼起来：一次完整调用
+## 5.5 Putting the three layers together: a complete call
 
 ```mermaid
 sequenceDiagram
-    participant U as 用户
+    participant U as User
     participant H as Host
     participant C as Client
     participant S as Server
     participant M as LLM
 
-    Note over H,S: 可选发现阶段
-    H->>C: 创建 Client 连接 GitHub Server
+    Note over H,S: Optional discovery phase
+    H->>C: Create a Client connected to the GitHub Server
     C->>S: server/discover
-    S-->>C: 支持的版本与能力
+    S-->>C: Supported versions and capabilities
     C->>S: tools/list
     S-->>C: [create_issue, search_repos, ...]
-    C->>H: 汇总工具清单
+    C->>H: Consolidated tool list
 
-    Note over H,M: 运行阶段
-    U->>H: 帮我提个 bug issue
-    H->>M: messages + 按授权和任务筛选的工具 Schema
+    Note over H,M: Execution phase
+    U->>H: File a bug issue for me
+    H->>M: messages + tool schemas filtered by authorization and task
     M-->>H: tool_calls: create_issue(...)
-    H->>U: 请确认：将创建 Issue
-    U->>H: 同意
-    H->>C: 转发调用
+    H->>U: Confirm creation of the issue
+    U->>H: Approve
+    H->>C: Forward the call
     C->>S: tools/call
     S-->>C: {"issue_url": "..."}
-    C->>H: 结果
-    H->>M: 按模型 API 回填工具结果
-    M-->>H: 已创建 Issue，链接是……
-    H->>U: 最终答案
+    C->>H: Result
+    H->>M: Supply the tool result in the model API format
+    M-->>H: Issue created, here is the link...
+    H->>U: Final answer
 ```
 
-这次完整调用里，有三点最值得注意：
+Three points matter in this complete call:
 
-1. **若 Host 使用模型 Function Calling**，可将 MCP Tool 转为该模型的 schema；也可由规则、结构化输出或人工操作调用 MCP。MCP 对模型接口没有强制要求；
-2. **用户授权发生在 Host 层**，在调用真正发出去之前；
-3. **能力可提前发现，但协商是逐请求的**；每个请求仍携带版本与 Client capabilities，不能只信启动时缓存。
+1. **If the Host uses model function calling**, it can convert MCP Tools to the model's schema. Rules, structured output, or human actions can also invoke MCP; MCP does not mandate a model interface.
+2. **User authorization happens at the Host layer**, before the actual call is sent.
+3. **Capabilities may be discovered in advance, but negotiation is per request.** Every request still carries its version and Client capabilities; startup caches alone are insufficient.
 
-## 5.6 常见错误
+## 5.6 Common mistakes
 
-### 5.6.1 把三层混在一起讲
+### 5.6.1 Mixing all three layers together
 
-面试时把 Host/Client/Server 和 Tools/Resources/Prompts 和 stdio/HTTP 混着说，听起来像在背名词。分成三层，每层回答一个问题（谁在通信、提供什么、怎么传），结构立刻清晰。
+An interview answer that mixes Host/Client/Server, Tools/Resources/Prompts, and stdio/HTTP sounds like a list of memorized terms. Three layers make the structure clearer, with one question per layer: who communicates, what is provided, and how messages travel.
 
-### 5.6.2 把连接映射误作安全沙箱
+### 5.6.2 Mistaking connection mappings for a security sandbox
 
-独立 Client/连接有助于管理；但安全边界要靠 Host 的授权、运行时隔离和网络策略，不能只靠对象关系。
+Separate Clients/connections help management. Security boundaries still depend on Host authorization, runtime isolation, and network policy—not object relationships alone.
 
-### 5.6.3 把 Host 的职责安到 Client 上
+### 5.6.3 Assigning the Host's responsibilities to the Client
 
-Host 负责应用级策略与生命周期决策；Client 负责落实协议连接、版本与能力处理，也可能实现 OAuth 流程。把 Client 看成没有校验职责的字节管道，会漏掉协议和认证检查。
+The Host makes application-level policy and lifecycle decisions. The Client implements protocol connections, version and capability handling, and possibly OAuth flows. Treating a Client as a byte pipe with no validation duties overlooks protocol and authentication checks.
 
-### 5.6.4 只知道三类 Server 能力，不知道输入需求
+### 5.6.4 Knowing only the three Server capabilities and missing input requirements
 
-Sampling 与 Elicitation 让 Server 在执行中请求 Host 提供模型或用户输入。当前规范通过 `InputRequiredResult` 完成往返，不应继续照抄旧版 Server→Client request 流程。
+Sampling and Elicitation let a Server request model or user input from the Host during execution. The current specification handles those round trips with `InputRequiredResult`; do not copy the legacy Server→Client request flow.
 
-### 5.6.5 忽略 stdout 污染问题
+### 5.6.5 Ignoring stdout contamination
 
-stdio 模式下往 stdout 打日志会直接破坏协议消息流，而且报错信息通常是难懂的 JSON 解析失败。日志一律写 stderr。
+Writing logs to stdout in stdio mode directly breaks the protocol stream. The resulting error is often an obscure JSON parsing failure. All logs go to stderr.
 
-### 5.6.6 忽略逐请求能力协商
+### 5.6.6 Ignoring per-request capability negotiation
 
-每个请求都要携带版本与 Client capabilities；不要只在启动时发现一次后永久相信缓存，也不要假定任意 Host 都允许 sampling 或 elicitation。
+Every request must carry its version and Client capabilities. Do not discover once at startup and trust that cache forever, or assume every Host permits sampling or elicitation.
 
-## 5.7 本章总结
+## 5.7 Chapter summary
 
-1. **三层拆解**：角色架构解决「谁和谁通信」，能力类型解决「提供什么」，传输协议解决「怎么传」；
-2. **三层尽量解耦**，传输和能力可分别演进；
-3. **Host 是决策者，Client 是连接器，Server 是提供者**；独立连接不替代运行时安全隔离；
-4. **三类正向能力按默认控制路径区分**：Tools 可由模型/工作流选择，Resources 由 Client 加载，Prompts 由用户/Host 取得；
-5. **输入需求通过 MRTR 往返**：Elicitation 补充用户信息，Sampling/Roots 仅作弃用兼容；
-6. **当前规范用 `InputRequiredResult` 而非 Server 反向 request**，Client capabilities 随每个请求声明并由 Host 策略控制；
-7. **传输切换仍需工程适配**，认证、取消和部署约束不会自动消失；
-8. **stdio 下 stdout 是协议专用通道**，日志必须走 stderr。
+1. **Three layers organize the concepts.** Roles answer “who communicates,” capabilities answer “what is provided,” and transports answer “how messages travel.”
+2. **Keep the layers as decoupled as possible**, so transports and capabilities can evolve separately.
+3. **The Host decides, the Client connects, and the Server provides.** Separate connections do not replace runtime security isolation.
+4. **The three Server capabilities differ by default control path.** Models/workflows can select Tools, Clients load Resources, and users/Hosts retrieve Prompts.
+5. **Input requirements use MRTR round trips.** Elicitation obtains user information; Sampling and Roots are retained as deprecated compatibility features.
+6. **The current specification uses `InputRequiredResult`, not reverse Server requests.** Client capabilities accompany each request and remain subject to Host policy.
+7. **Switching transports still requires engineering work.** Authentication, cancellation, and deployment constraints do not disappear.
+8. **With stdio, stdout is exclusively for protocol messages.** Logs must use stderr.
 
 
-## 参考资料
+## References
 
-- [MCP 架构说明](https://modelcontextprotocol.io/specification/2026-07-28/architecture)
-- [MCP 规范 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)
-- [MCP Server 能力：Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
+- [MCP architecture](https://modelcontextprotocol.io/specification/2026-07-28/architecture)
+- [MCP specification 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)
+- [MCP Server capabilities: Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
 - [MCP Multi Round-Trip Requests](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr)
-- [MCP 弃用特性](https://modelcontextprotocol.io/specification/2026-07-28/deprecated)
-- [MCP 传输层规范](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
-- [JSON-RPC 2.0 规范](https://www.jsonrpc.org/specification)
+- [MCP deprecated features](https://modelcontextprotocol.io/specification/2026-07-28/deprecated)
+- [MCP transport specification](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
+- [JSON-RPC 2.0 specification](https://www.jsonrpc.org/specification)

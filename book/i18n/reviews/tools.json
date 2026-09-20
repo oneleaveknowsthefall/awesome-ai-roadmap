@@ -1,0 +1,939 @@
+{
+  "scope": "docs/tools/**",
+  "source_commit": "be53fedaedfb28da181db8e95f41bf91100621c4",
+  "reviewed_at": "2026-09-20",
+  "method": "Read all 15 source chapters and 6 indexes in full, preserving their scope and examples. Translate complete normal-path English pages and retain byte-identical Simplified Chinese companions. Check technical questions against the pinned primary specifications, papers, and official documentation at the scopes recorded per page; preserve inaccessible-source and historical-version limitations.",
+  "validation": {
+    "page_pairs": 21,
+    "chapters": 15,
+    "indexes": 6,
+    "chinese_companions_byte_identical_to_source": true,
+    "source_hashes_verified": 21,
+    "chapter_h1s_and_numbered_heading_hierarchy": "passed",
+    "table_row_and_fence_language_parity": "passed",
+    "fenced_block_pairs": 86,
+    "python_ast_pairs": 21,
+    "python_ast_comparison": "Identical structure and executable values apart from reviewed schema descriptions, docstrings, and human-facing RuntimeError text. Actual Chinese model inputs and tool-result payloads remain unchanged.",
+    "json_block_pairs": 4,
+    "jsonc_block_pairs": 3,
+    "jsonc_message_pairs": 11,
+    "json_comparison": "Keys, nesting, constants, numbers, and data values preserved. Agent Card human-readable names/descriptions are localized; its Chinese example prompt is retained. JSONC teaching blocks contain separate messages, parsed individually rather than misclassified as one JSON document.",
+    "math": "No inline or display math expressions are present in the source scope; delimiter and unsupported-macro checks introduce no new findings.",
+    "external_link_destinations": "unchanged",
+    "english_internal_links_and_fragments": "passed",
+    "mermaid_command": "(cd docs/tools && node ../../scripts/check_mermaid.mjs)",
+    "mermaid_diagrams": 100,
+    "mermaid_failures": 0,
+    "mermaid_data_exception": "The English Chapter 1 sequence diagram retains the exact source get_weather(city=\"北京\") argument as example data. All explanatory labels are English; the nearby prose explains this intentional exception.",
+    "whitespace": "git diff --check passed",
+    "legacy_check_docs": {
+      "command": "python3 scripts/check_docs.py",
+      "exit_code": 1,
+      "issues": 53,
+      "explanation": "All findings concern parent-owned bilingual integration: 15 Chinese chapter links expected in English indexes, 2 doubled chapter counts, 21 Chinese pages missing from legacy navigation, and 15 historical review records expected for Chinese companions. The checker, root indexes, navigation, and manifests were not altered to silence these findings."
+    }
+  },
+  "limitations": [
+    "Chinese companion links are intentionally unchanged from the source bytes; the coordinating migration owns the protected cross-edition link rewrite.",
+    "Website/book language routing, navigation, manifests, MkDocs builds, and browser/device rendering belong to the parent migration and are not claimed complete here. Mermaid validation checks syntax, not final publication layout.",
+    "Existing locked npm dependencies were restored with npm ci only after the scoped Mermaid command failed because jsdom was missing; no dependency manifests or locks changed.",
+    "No paid model requests, live OAuth/MCP/A2A integrations, production tool actions, or third-party translation services were used.",
+    "Source access and review depth are listed individually. Preserved citations without a references_checked entry are not claimed to have been re-reviewed."
+  ],
+  "pages": [
+    {
+      "path": "docs/tools/01-function-calling/01-function-calling.md",
+      "zh_path": "docs/tools/01-function-calling/01-function-calling.zh.md",
+      "kind": "chapter",
+      "source_sha256": "b243d44d95c5e4eac2d61d9b9bb5f4f1ea1980cfc554c14eb40f93cb78fafe9f",
+      "references_checked": [
+        {
+          "url": "https://developers.openai.com/api/docs/guides/function-calling",
+          "scope": "Read tool-call flow, Python Responses examples, flat function definitions, call_id/result correlation, reasoning-item preservation, tool_choice, strict-mode defaults, and function-count guidance on 2026-09-20.",
+          "limitations": "Section-level documentation review, not every language example or API behavior; no paid or live model request. Existing gpt-4o examples were retained rather than replaced with the guide's current models."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/migrate-to-responses",
+          "scope": "Read Messages vs. Items, response.output, output_text, different function-calling shapes, and manual history versus previous_response_id guidance.",
+          "limitations": "Read the opening sections through the beginning of endpoint migration, not the entire long multilingual guide; no live integration test."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/writing-tools-for-agents",
+          "scope": "Read tool evaluation, clear boundaries and names, meaningful results, granularity, and the beginning of token-efficiency guidance.",
+          "limitations": "The fetched excerpt covered approximately the first 18,000 characters; no claim to a complete article review or reproduction of the provider's evaluations."
+        },
+        {
+          "url": "https://arxiv.org/abs/2302.04761",
+          "scope": "Read the Toolformer abstract directly from the primary arXiv HTML, including tool selection, arguments, result incorporation, and a small number of demonstrations.",
+          "limitations": "Abstract-only check; did not re-read or reproduce the full paper."
+        },
+        {
+          "url": "https://arxiv.org/abs/2210.03629",
+          "scope": "Read the ReAct abstract directly from primary arXiv HTML, confirming interleaved reasoning and actions with in-context examples.",
+          "limitations": "Abstract-only check; does not establish any universal ACTION serialization syntax."
+        }
+      ],
+      "notes": [
+        "Read the complete original chapter before editing. Chinese companion is byte-identical to baseline be53fedaedfb28da181db8e95f41bf91100621c4; Chinese links remain untouched for the coordinator.",
+        "Translated all 26 numbered headings, prose, tables, explanatory comments, schema descriptions, human-facing RuntimeError messages, and Mermaid explanatory labels while preserving identifiers, API shapes, numbers, actual model inputs, and tool-result payload data. The original Chinese city_not_found JSON content is retained exactly, including the typo 广洲, with its meaning explained in adjacent English prose. Per the coordinator's clarified data-preservation rule, the sequence diagram retains the exact original get_weather(city=\"北京\") payload; 北京 is the only Han text in this module's English Mermaid blocks and is an intentional protocol/example-data exception, not untranslated explanatory prose. Adjacent English prose explains the preserved argument. Executable Chinese inputs and schema city examples are unchanged.",
+        "Retained both Chat Completions and Responses examples, strict=False for Responses, complete output replay, correct call_id versus item id, zero/multiple-call handling, and tool_choice=none single-batch closure.",
+        "Preserved concurrency/time-budget, cancellation, partial-failure, authorization, and idempotency qualifications without adding topics or changing technical claims.",
+        "Python AST structure matched the original across executable snippets. A stricter final literal audit across the module confirmed 183 original Python strings unchanged and permitted differences only in schema descriptions and human-facing RuntimeError text. Eighteen offline mock checks across both API examples verified zero calls, multiple calls, matching IDs and city results, history retention, authorization rejection, incomplete responses, refusals, and closure failures. No SDK or network call was executed by the examples.",
+        "Numbered heading order, table-row counts, fence languages/counts, external URLs, local link targets, and git diff --check passed. Existing module-scoped Mermaid validation passed across both editions: 26 diagrams, zero failures.",
+        "Original reference dates were retained as historical source-manuscript annotations, not used as evidence of this migration review. Other original citations were preserved but not re-audited in this task."
+      ]
+    },
+    {
+      "path": "docs/tools/01-function-calling/02-tool-learning.md",
+      "zh_path": "docs/tools/01-function-calling/02-tool-learning.zh.md",
+      "kind": "chapter",
+      "source_sha256": "4cfd30ad49384636dc370ab93004d35501faeee4cf3e7142a7acb897a72f51d5",
+      "references_checked": [
+        {
+          "url": "https://arxiv.org/abs/2302.04761",
+          "scope": "Read the primary Toolformer abstract on self-supervised tool learning from a handful of demonstrations.",
+          "limitations": "Abstract-only review; did not inspect every data-filtering step or reproduce training."
+        },
+        {
+          "url": "https://arxiv.org/abs/2210.03629",
+          "scope": "Read the primary ReAct abstract on prompting interleaved reasoning and actions.",
+          "limitations": "Abstract-only review; no experiment reproduced."
+        },
+        {
+          "url": "https://arxiv.org/abs/2307.16789",
+          "scope": "Read the primary ToolLLM abstract describing real RapidAPI collection, ChatGPT-generated instructions and solution paths, ToolEval, and a neural API retriever.",
+          "limitations": "Abstract-only review; did not re-audit ToolEval implementation or live API availability."
+        },
+        {
+          "url": "https://arxiv.org/abs/1707.06347",
+          "scope": "Read the primary PPO abstract on surrogate policy-gradient objectives and repeated minibatch optimization. Also attempted https://arxiv.org/html/1707.06347v2.",
+          "limitations": "The attempted HTML endpoint did not yield readable clipped/surrogate passages. Full-text PPO clipping review was not completed; the chapter's existing qualified distinction was preserved, not newly asserted as experimentally verified."
+        },
+        {
+          "url": "https://arxiv.org/html/2203.02155v1",
+          "scope": "Read the InstructGPT abstract, Section 3.5 reinforcement-learning passage, Equation 2 context, and Appendix C.4 excerpts, including PPO, the additional per-token SFT-reference KL penalty, and the separate PPO clip ratio.",
+          "limitations": "Targeted passages only, not a full-paper review. The cited abstract URL remains unchanged in the manuscript."
+        },
+        {
+          "url": "https://arxiv.org/html/2504.13958v1",
+          "scope": "Read ToolRL's introduction on general-purpose tool selection/application, reward type, scale, granularity and dynamics, and fine-grained reward decomposition.",
+          "limitations": "Introduction-only check, not a full reward-implementation or benchmark audit. Retained the original abstract citation."
+        },
+        {
+          "url": "https://arxiv.org/html/2504.11536v1",
+          "scope": "Read ReTool's introduction on cold-start tool trajectories, sandboxed code-interpreter rollouts, outcome rewards, and interleaved execution during reasoning.",
+          "limitations": "The initial abstract fetch returned only a title; versioned HTML supplied readable introduction text. No full-text or experimental reproduction claimed; retained the original abstract citation."
+        }
+      ],
+      "notes": [
+        "Read the complete original chapter; preserved all original bytes in its Chinese companion from baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Translated all 25 numbered headings and every explanation, list, table, and diagram. Preserved the Chinese training-trajectory example and supplied an English explanation of the question, weather result, and assistant response.",
+        "Retained the assistant-only-loss qualification, all five coverage scenarios, no-call examples, data-source tradeoffs, SFT/RL distinctions, execution-safety boundaries, reward-hacking examples, and all four benchmark rows.",
+        "Kept ToolRL and ReTool distinct; did not infer closed-model training recipes or replace historically qualified claims with current provider behavior.",
+        "Heading hierarchy, table-row counts, fence counts/languages, original external URLs, and internal link targets passed parity checks. All four diagrams in each edition passed the existing Mermaid parser.",
+        "Other original references were retained but not fully re-reviewed; no training, benchmark run, model call, or new factual adjustment was performed."
+      ]
+    },
+    {
+      "path": "docs/tools/01-function-calling/03-tool-schema-design.md",
+      "zh_path": "docs/tools/01-function-calling/03-tool-schema-design.zh.md",
+      "kind": "chapter",
+      "source_sha256": "62736ec7b7c16c7a71354905a01c843d885fee5ebcb2bccef9f87ab8d4e2c192",
+      "references_checked": [
+        {
+          "url": "https://developers.openai.com/api/docs/guides/function-calling",
+          "scope": "Read strict-mode requirements, API-specific omitted-strict defaults, explicit non-strict mode, tool-definition token accounting, and the fewer-than-20-tools soft recommendation.",
+          "limitations": "Documentation excerpts, also accessed through the official .md representation; no live API schema-validation or model-selection experiment."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
+          "scope": "Read the supported-schemas section through the official .md representation: supported subset, root objects, required fields, nullable values, additionalProperties=false, and unsupported keywords.",
+          "limitations": "Targeted schema sections, not the full multilingual guide. Provider examples show nullable types with enums omitting null; no change was made to the manuscript's explicit null-in-enum requirement, and no API request tested those provider examples."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/writing-tools-for-agents",
+          "scope": "Read evaluation design, naming boundaries, meaningful tool results, consolidating related operations, and pagination/truncation guidance in the retrieved opening excerpt.",
+          "limitations": "Approximately the first 18,000 characters, not a complete article review. No provider experiments reproduced."
+        }
+      ],
+      "notes": [
+        "Read the entire source; the Chinese companion remains byte-identical to baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Preserved all 30 numbered headings and the unnumbered strict-mode subheading, all table rows, all code blocks, and the complete non-strict search_orders template.",
+        "Translated schema descriptions, explanatory comments, and diagram labels. Preserved actual model-facing tool-result values exactly: the Chinese pagination note, city_not_found message, and correction hint remain original Chinese strings, with English meanings supplied in adjacent prose. Preserved Chinese status and city-spelling example values, and retained the Chinese regression inputs with English glosses. Localization stops at descriptions, commentary, and human-facing exceptions; it does not change actual model-input or tool-result example data.",
+        "Retained strict required/nullable/additionalProperties constraints, streaming completion before execution, read-only SQL and tenant assumptions, timezone semantics, retry/idempotency limits, and distinctions between context length and cumulative billing.",
+        "Code AST structure matches the original. The final literal audit allows only schema-description and human-facing RuntimeError translations; every other Python string, including note/message/hint tool-result payloads, matches the source exactly. Structural, link, external-URL, and whitespace checks passed; the routing diagram in both editions passed the existing Mermaid validator.",
+        "No factual adjustment, database query, network tool execution, or paid model request was made. Other source references remain cited without a claim of complete re-review."
+      ]
+    },
+    {
+      "path": "docs/tools/01-function-calling/07-reasoning-models-and-tools.md",
+      "zh_path": "docs/tools/01-function-calling/07-reasoning-models-and-tools.zh.md",
+      "kind": "chapter",
+      "source_sha256": "190e7564d846dc297b844980da4cf2c46677aae8c96af883d6b0c65fd21ae3f0",
+      "references_checked": [
+        {
+          "url": "https://developers.openai.com/api/docs/guides/reasoning",
+          "scope": "Read model/API distinctions, GPT-6 Astra Responses tool-calling requirement, and Preserve reasoning across calls passages covering opaque items, previous_response_id, complete manual history, and stateless replay.",
+          "limitations": "Selected current documentation sections, not the entire guide. New settings not in the baseline were not added, and no reasoning-model request was run."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/function-calling",
+          "scope": "Read the requirement to return reasoning items with tool outputs and the current GPT-6 Astra Responses-only tool-calling qualification.",
+          "limitations": "Documentation check only; no inference that all model families or endpoints share these behaviors."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/models/o1",
+          "scope": "Read the current model page listing o1-2024-12-17 and function-calling support.",
+          "limitations": "Current page confirms its current statement; it does not establish every historical capability at release."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/models/o1-preview",
+          "scope": "Read the current model page and its feature list to retain the chapter's warning about differences from early tutorials.",
+          "limitations": "Dynamic documentation, not a September 2024 archive; not used to rewrite preview-era claims."
+        },
+        {
+          "url": "https://github.com/openai/openai-cookbook/blob/main/examples/o1/Using_chained_calls_for_o1_structured_outputs.ipynb",
+          "scope": "Fetched raw notebook JSON from the same official repository and read markdown cells about September 2024 o1-preview, absent Structured Outputs support, and chaining to gpt-4o-mini.",
+          "limitations": "Read relevant notebook commentary only; did not execute code or use Structured Outputs absence as proof of Function Calling absence. The cited main-branch URL is mutable."
+        },
+        {
+          "url": "https://www.anthropic.com/news/claude-4",
+          "scope": "Read the announcement's extended-thinking-with-tool-use beta description and explicit alternation between reasoning and tools.",
+          "limitations": "Historical release announcement, not a claim that current beta flags or every current model have identical requirements."
+        },
+        {
+          "url": "https://github.com/anthropics/anthropic-cookbook/blob/main/extended_thinking/extended_thinking_with_tool_use.ipynb",
+          "scope": "Fetched raw notebook JSON and read Claude 3.7-specific markdown on no new thinking block until a non-tool_result user turn, preserving signatures and thinking/redacted_thinking blocks, and unchanged history.",
+          "limitations": "Notebook commentary only; no code execution. Retained its early Claude 3.7 scope rather than generalizing to all current models; main-branch URL is mutable."
+        },
+        {
+          "url": "https://arxiv.org/html/2504.11536v1",
+          "scope": "Read ReTool's introduction on code-interpreter interaction during reasoning and task-outcome training.",
+          "limitations": "Introduction-only check; no experimental reproduction or inference about private model-training recipes."
+        },
+        {
+          "url": "https://arxiv.org/html/2504.13958v1",
+          "scope": "Read ToolRL's introduction on general-purpose tool selection and application and fine-grained reward design.",
+          "limitations": "Introduction-only check; not treated as the same execution environment or reward as ReTool."
+        }
+      ],
+      "notes": [
+        "Read the entire source chapter and preserved a byte-identical Chinese companion from baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Translated all 19 numbered headings, tables, prose, and all four Mermaid diagrams while retaining the FC-bridge-only dependency, MCP/host boundary, and distinction between reasoning state and reconstructible KV cache.",
+        "Historical o1-preview, o1-2024-12-17, January 2025 DeepSeek-R1, Claude 3.7, and Claude 4 beta qualifications remain pinned to their original scope. No model names, dates, budgets, or API behaviors were silently refreshed.",
+        "The current o1-preview feature list differs from the early Cookbook, as the baseline already explicitly notes. No factual adjustment was made.",
+        "Preserved post-tool reasoning, interleaving costs, complete state round trips, turn/cancellation checks, and task-specific evaluation criteria.",
+        "Heading, table-row, fence, URL, and local-link parity checks passed. All four diagrams in each edition passed the existing Mermaid parser.",
+        "The current Extended Thinking page, DeepSeek-R1 full paper, and PagedAttention full paper were not re-reviewed. No private reasoning, GPU behavior, or model execution was experimentally inspected."
+      ]
+    },
+    {
+      "path": "docs/tools/01-function-calling/README.md",
+      "zh_path": "docs/tools/01-function-calling/README.zh.md",
+      "kind": "index",
+      "source_sha256": "0230668b72619be104465b026ade242f9c7367e557eb8f1d5682db21bf68bc65",
+      "references_checked": [],
+      "notes": [
+        "Read the whole original index and preserved its exact bytes in README.zh.md from baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Translated the description, display title, reading guidance, all four chapter titles, and back link; English links retain ordinary .md targets.",
+        "Retained the distinction among formatting, business correctness, and execution authorization, and the warning that Chat Completions is not a universal interface.",
+        "Verified all four chapter links and the parent-index link resolve. No root index, navigation, manifest, or other module was edited; the coordinator owns integration and Chinese-link rewrites."
+      ]
+    },
+    {
+      "path": "docs/tools/02-mcp/04-what-is-mcp.md",
+      "zh_path": "docs/tools/02-mcp/04-what-is-mcp.zh.md",
+      "kind": "chapter",
+      "source_sha256": "1b07235fac743057e488f24198b67ff2a166a366aa21b75acea4b721b0186558",
+      "references_checked": [
+        {
+          "url": "https://modelcontextprotocol.io/specification/versioning",
+          "scope": "Fresh retrieval on 2026-09-20: Current is 2026-07-28; Current means ready for use with backward-compatible changes, Draft is not ready, and Final is unchanged historical specification.",
+          "limitations": "Redirected to https://modelcontextprotocol.io/docs/2026-07-28/learn/versioning.md. This is a live status page, not evidence that a particular SDK supports the version."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/changelog",
+          "scope": "Read major, minor, and deprecated-feature changes: removal of initialize and sessions; per-request metadata; mandatory Server implementation and optional Client use of server/discover; MRTR, resultType, cache fields, subscriptions, and Tasks extension.",
+          "limitations": "Checked the pinned revision, not draft proposals or SDK conformance. Sampling, Roots, and Logging remain deprecated rather than removed."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/architecture",
+          "scope": "Read Host, Client, and Server responsibilities, one-Client/one-Server relationship, context sharing, per-request capabilities, and InputRequiredResult.",
+          "limitations": "Architectural boundaries do not prove operating-system or network isolation in a deployed implementation."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning",
+          "scope": "Read modern, legacy, and dual-era definitions, version negotiation, server/discover requirements, and the complete compatibility matrix.",
+          "limitations": "No Client or Server interoperability experiment was run."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+          "scope": "Read tool interaction model, tools/list pagination and caching, allowed authorization-dependent lists, tool-call results, and list-change notification behavior.",
+          "limitations": "Review covered the returned sections through structured-output examples, not every later section of the long page."
+        },
+        {
+          "url": "https://www.jsonrpc.org/specification",
+          "scope": "Read sections 1–6 covering transport independence, request IDs, notifications, responses, and error objects.",
+          "limitations": "JSON-RPC alone does not establish MCP-specific metadata or version compliance; the examples section was only partially returned."
+        },
+        {
+          "url": "https://github.com/modelcontextprotocol/servers-archived",
+          "scope": "Read the archive notice, lack of maintenance/security guarantees, and GitHub's inclusion in archived reference implementations.",
+          "limitations": "No archived package was installed or executed."
+        },
+        {
+          "url": "https://github.com/github/github-mcp-server",
+          "scope": "Read the official repository overview and the distinction between GitHub-hosted remote and local Server deployment.",
+          "limitations": "Only the opening README sections were retrieved; no release or protocol compatibility testing."
+        },
+        {
+          "url": "https://www.anthropic.com/news/model-context-protocol",
+          "scope": "Read the launch announcement's explanation of the open protocol, reusable integrations, SDKs, and initial Server support.",
+          "limitations": "The simplified page did not expose its publication timestamp; a separate raw HTML date check received HTTP 403. The original November 2024 statement was preserved, not represented as newly timestamp-verified."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/docs/develop/build-server",
+          "scope": "Read Python tool-definition generation from type hints/docstrings, stdio logging rules, and Host mcpServers configuration.",
+          "limitations": "Redirected to the 2026-07-28 developer guide, whose current example uses MCPServer and Python SDK 2.0.0+. The manuscript explicitly retains FastMCP-style teaching code with an SDK-version caveat; it was not represented as tested against the current SDK."
+        }
+      ],
+      "notes": [
+        "Read the complete original before editing. Baseline was be53fedaedfb28da181db8e95f41bf91100621c4; source_sha256 was computed from git show bytes.",
+        "Chinese companion was copied byte-for-byte and verified against baseline. Chinese internal links remain untouched for the parent migration pass.",
+        "Complete English translation preserves all numbered headings, diagrams, tables, examples, caveats, and external/internal link destinations.",
+        "The original 2026-09-15 review note remains explicitly historical; the fresh source checks above were performed during this migration.",
+        "Scoped validation passed: heading hierarchy, table shape, fenced-block counts, English prose/diagram labels, unchanged JSON values, unchanged Python AST apart from translated docstrings, links, and git diff --check.",
+        "No definite factual conflict required a meaning change. No SDKs or real Servers were installed or run. After the parent restored existing npm dependencies, the existing Mermaid checker passed all 32 English/Chinese MCP diagrams; integrated coverage remains with the parent."
+      ]
+    },
+    {
+      "path": "docs/tools/02-mcp/05-mcp-components.md",
+      "zh_path": "docs/tools/02-mcp/05-mcp-components.zh.md",
+      "kind": "chapter",
+      "source_sha256": "0dc0f8d676fb865bd9e1ff07d5feb530e86ae8ed675bae702e4a3daf2d877cf6",
+      "references_checked": [
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/architecture",
+          "scope": "Fresh retrieval on 2026-09-20: Host/Client/Server duties, connection mappings, context separation, capability declarations, and Server input requirements.",
+          "limitations": "The three teaching layers are explanatory organization, not mandatory processes or security sandboxes."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+          "scope": "Read tools/list MUST NOT vary per connection; MAY vary with time/request authorization; deterministic order SHOULD; pagination/cache fields; listChanged SHOULD notification to opted-in subscriptions.",
+          "limitations": "Read relevant sections through structured-output examples rather than claiming a complete review of every later section."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/subscriptions",
+          "scope": "Read notifications filter, acknowledged-first requirement, accepted subset, subscriptionId correlation, graceful closure, and transport-specific cancellation.",
+          "limitations": "No live subscription stream was opened."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr",
+          "scope": "Read InputRequiredResult and inputRequests/inputResponses, new request IDs, exact opaque requestState echo, supported methods, capability checks, integrity protection, principal/expiry/parameter binding, and replay limitations.",
+          "limitations": "Protocol review only. Binding and expiry do not by themselves guarantee single-use business effects."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/changelog",
+          "scope": "Verified MRTR replacement of reverse requests, resultType, cache metadata, and deprecated-but-retained Sampling, Roots, and Logging.",
+          "limitations": "No assumption that every SDK or Host implements this revision."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/transports",
+          "scope": "Read standard transports, custom transports, message directions, metadata, and transport-specific cancellation.",
+          "limitations": "No deployment or transport performance measurement."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio",
+          "scope": "Read newline framing, protocol-only stdout, stderr logs, per-request metadata, cancellation, shutdown, and legacy compatibility.",
+          "limitations": "No subprocess lifecycle experiment."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization",
+          "scope": "Read OPTIONAL authorization, HTTP resource-server/client roles, stdio environment-credential distinction, and per-request token validation.",
+          "limitations": "Does not establish that any deployed Server safely enforces these requirements."
+        }
+      ],
+      "notes": [
+        "Complete original read; Chinese companion preserves baseline be53fedaedfb28da181db8e95f41bf91100621c4 bytes and original link destinations.",
+        "Full translation retains all numbered sections, comparisons, protocol-strength keywords, sequence diagrams, and end-to-end example; no summary substitution.",
+        "Scoped structural checks passed, including identical heading numbers, table shapes, code-block languages/counts, JSON data, and links; Mermaid labels and prose are English.",
+        "No factual meaning changes or additional security techniques were introduced. Parent owns integrated coverage.",
+        "Follow-up Mermaid validation found an English semicolon in sequence block 5 was interpreted as a statement delimiter. Replaced it with a comma without changing meaning. Existing checker run from docs/tools/02-mcp passed: diagrams=32 failures=0. Chinese originals remain untouched."
+      ]
+    },
+    {
+      "path": "docs/tools/02-mcp/06-mcp-vs-function-calling.md",
+      "zh_path": "docs/tools/02-mcp/06-mcp-vs-function-calling.zh.md",
+      "kind": "chapter",
+      "source_sha256": "90baa221eac44fab88704130d9f2fe91a18376bdb928b93e5c570457b9d799d8",
+      "references_checked": [
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+          "scope": "Fresh retrieval on 2026-09-20: no mandated user-interaction pattern; tool naming/collisions; JSON Schema 2020-12; structured and unstructured result types and outputSchema.",
+          "limitations": "Read relevant returned sections through structured-output examples; no model-provider schema conversion was executed."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/changelog",
+          "scope": "Verified loosened JSON Schema keyword support, structuredContent as any JSON value, and deprecation of Roots.",
+          "limitations": "These are pinned protocol claims, not SDK-release support claims."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/client/roots",
+          "scope": "Read explicit deprecation, informational-not-access-control semantics, migration options, and resource/path access caveats.",
+          "limitations": "No filesystem sandbox behavior was tested."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/docs/develop/build-server",
+          "scope": "Read type-hint/docstring tool generation, stdio logging, Python developer example, and mcpServers Host configuration.",
+          "limitations": "Redirects to the 2026-07-28 guide. It currently teaches MCPServer with SDK 2.0.0+; retained manuscript FastMCP teaching examples remain explicitly version-qualified and were not run. db, format_orders, and load_mcp_tools are application placeholders."
+        },
+        {
+          "url": "https://github.com/modelcontextprotocol/servers-archived",
+          "scope": "Read archived/unmaintained status, security warning, and archived GitHub entry.",
+          "limitations": "No packages installed or audited."
+        },
+        {
+          "url": "https://github.com/github/github-mcp-server",
+          "scope": "Read official GitHub Server overview and local/remote deployment alternatives.",
+          "limitations": "Opening README sections only; no supported-version matrix or runtime verification."
+        },
+        {
+          "url": "https://platform.openai.com/docs/guides/function-calling",
+          "scope": "Attempted to retrieve the exact cited guide.",
+          "limitations": "HTTP 403; this URL's content was not reviewed. The original manuscript link was preserved."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/function-calling",
+          "scope": "Read the accessible official guide's definitions and five-step application/model flow: model requests a tool call; application executes; results reference the call; model continues.",
+          "limitations": "Only the opening guide sections were reviewed. No API call was made, and later provider-specific details were not imported into the chapter."
+        }
+      ],
+      "notes": [
+        "Read the full source and copied its baseline bytes to the Chinese companion without rewriting links.",
+        "Retained the 5 applications × 8 tools = 40 example, decision flow, mixed-integration pseudocode, configuration, Server code, pitfalls table, and all deployment/maintenance caveats.",
+        "Validation passed for heading numbers, table shapes, all link destinations, 3 Mermaid blocks, 2 Python blocks, and 1 JSON block. Python ASTs are identical after excluding translated docstrings; executable identifiers and behavior are unchanged.",
+        "No actual MCP experiment or personal production experience is claimed. Current SDK guide differences are recorded as a limitation, not silently substituted into historical teaching code.",
+        "No definite factual conflict required a meaning change. Existing Mermaid checker subsequently passed all 32 diagrams in the paired MCP module; integrated coverage belongs to the parent."
+      ]
+    },
+    {
+      "path": "docs/tools/02-mcp/12-mcp-transport.md",
+      "zh_path": "docs/tools/02-mcp/12-mcp-transport.zh.md",
+      "kind": "chapter",
+      "source_sha256": "70ca36d93992bb0b2a13ee39719bd50b1ecde216ac534f7aa0c6a0735f7a0eee",
+      "references_checked": [
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/transports",
+          "scope": "Fresh retrieval on 2026-09-20: standard stdio/Streamable HTTP bindings, UTF-8 JSON-RPC, metadata, message direction, custom transports, and cancellation.",
+          "limitations": "WebSocket remains a custom-transport possibility, not a standard binding or universal interoperability guarantee."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http",
+          "scope": "Read the full page across two fetches: single POST endpoint, JSON/SSE responses, no reverse requests, subscription streams, required headers and body consistency, x-mcp-header validation/encoding, Origin checks, cancellation, no sessions/GET/Last-Event-ID, and dual-era fallback.",
+          "limitations": "No network experiment, proxy inspection, retry execution, or SDK conformance test was performed."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio",
+          "scope": "Read subprocess streams, newline-delimited messages, stdout/stderr separation, request correlation, metadata, cancellation, shutdown, restart, and backward compatibility.",
+          "limitations": "No Server process was started; lifecycle and performance explanations are conceptual."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning",
+          "scope": "Read modern/legacy/dual-era definitions and compatibility matrix; recognized modern errors must not automatically trigger initialize fallback.",
+          "limitations": "No implementation-specific probing behavior was tested."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2025-03-26/basic/transports",
+          "scope": "Read historical introduction of Streamable HTTP as the replacement for 2024-11-05 HTTP+SSE, including the older GET/POST and reverse-message behavior.",
+          "limitations": "Retrieved the opening 5,000 characters, not the full historical specification; historical behavior was kept distinct from 2026-07-28."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/changelog",
+          "scope": "Verified removal of initialization, protocol sessions, GET stream, replay, and reverse requests; required metadata and resultType.",
+          "limitations": "Protocol changes do not guarantee exactly-once business effects or current SDK implementation."
+        },
+        {
+          "url": "https://www.jsonrpc.org/specification",
+          "scope": "Read sections 1–6: transport independence, IDs, request/notification distinction, and result/error objects.",
+          "limitations": "MCP-specific framing and metadata were checked separately; the JSON-RPC examples section was not read in full."
+        }
+      ],
+      "notes": [
+        "Read the whole original and copied it byte-for-byte from the working tree after comparison with baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "All protocol keys, header names, versions, URLs, configuration paths, and JSON values are unchanged.",
+        "The two Chinese log strings remain actual example data; an English sentence explains their meaning. Comments, prose, headings, and Mermaid labels are English.",
+        "Validation passed for 28 headings, table structures, all links, 4 Mermaid blocks, 1 JSONC block, 1 JSON block, and 1 Python block. Python AST and decoded JSON values match baseline.",
+        "No factual meaning changes, live transports, or destructive operations. Existing Mermaid checker subsequently passed all 32 English/Chinese MCP diagrams; parent handles integrated publication checks."
+      ]
+    },
+    {
+      "path": "docs/tools/02-mcp/15-tool-protocol-security.md",
+      "zh_path": "docs/tools/02-mcp/15-tool-protocol-security.zh.md",
+      "kind": "chapter",
+      "source_sha256": "4df1a7df93c08994bc4a8b9772986da85715b0a2fdd4c3196e9ee3f8393e2091",
+      "references_checked": [
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization",
+          "scope": "Fresh retrieval on 2026-09-20, read across two fetches: OPTIONAL authorization, HTTP/stdio distinction, OAuth 2.1 draft-13 and Client ID Metadata Documents draft references, RFC 9728 discovery, DCR deprecation, issuer-response validation, resource in both requests, token audience, and refresh-token handling.",
+          "limitations": "The standards-compliance baseline explicitly cites draft-13; a refresh-token subsection also links draft-14. The chapter preserves the stated MCP baseline and does not claim these are the latest IETF drafts. No OAuth flow was executed."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations",
+          "scope": "Read PKCE/S256, metadata checks, exact redirects, issuer mix-up controls, token storage, audience binding, separate downstream tokens, and prohibition of passthrough.",
+          "limitations": "Normative defensive requirements only; no vulnerability search, payload, or reproduction."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/security_best_practices",
+          "scope": "Read confused-deputy mitigations, token-passthrough definition and defenses, and SSRF controls for metadata URLs, redirects, DNS binding, private addresses, and egress proxies.",
+          "limitations": "Redirected to https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices.md; reviewed the first 21,000 characters, not all later sections. Some internal source links point to latest; they were not used to replace the pinned authorization specification."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http",
+          "scope": "Read Origin validation, local bind-address and authentication guidance, header/body consistency, and warnings about sensitive mirrored parameters.",
+          "limitations": "No service was probed; defensive explanation only."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/changelog",
+          "scope": "Verified broader JSON Schema 2020-12 support and explicit reference-resolution/composition resource-bound requirements.",
+          "limitations": "No schema resolver was executed or security-tested."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+          "scope": "Read untrusted tool-annotation warning, tool metadata, JSON Schema and output definitions.",
+          "limitations": "Only relevant returned sections reviewed; no annotations were treated as an authorization or idempotency guarantee."
+        },
+        {
+          "url": "https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md",
+          "scope": "Retrieved raw tagged source and read sections 7, 13.1, 13.2, and push-notification authentication passages: declared security schemes, per-request authorization, task scoping, webhook authenticity, duplicate handling, and correlation.",
+          "limitations": "Source obtained from https://raw.githubusercontent.com/a2aproject/A2A/v1.0.1/docs/specification.md. Generated field tables are placeholders in Markdown, so field names were checked separately in the tagged proto. No claim of reviewing every section."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/a2aproject/A2A/v1.0.1/specification/a2a.proto",
+          "scope": "Read AgentCard security_schemes/security_requirements, AgentSkill security_requirements, SecurityScheme alternatives, and AuthenticationInfo for push notifications; confirms JSON field names and non-OAuth options.",
+          "limitations": "The spec/a2a.proto path mentioned in documentation returned 404; the actual specification/a2a.proto path was located using the v1.0.1 repository tree and reviewed. No SDK or generated schema was assumed authoritative."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc8252",
+          "scope": "Read the official .txt equivalent's loopback-port exception and exact registered redirect-URI matching requirements.",
+          "limitations": "Targeted passages, not a complete RFC review; loopback exceptions were not generalized to arbitrary wildcards."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc7636",
+          "scope": "Read official .txt passages on code verifier/challenge transformation and S256 requirement when technically capable.",
+          "limitations": "Targeted passages only; no PKCE implementation or test."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc8707",
+          "scope": "Read official .txt security considerations on audience-restricted tokens, resource indicators, and tenant-specific resource URIs.",
+          "limitations": "Targeted passages only. The requirement to send resource in both MCP requests was verified in the MCP authorization specification."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc9728",
+          "scope": "Read official .txt definitions of resource/authorization_servers metadata and exact resource-identifier validation.",
+          "limitations": "Targeted metadata passages rather than the complete RFC."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc9700",
+          "scope": "Read official .txt passages on exact redirect matching with native-loopback exception, minimal privileges, and refresh-token rotation or sender constraint.",
+          "limitations": "Targeted defensive passages only; no broader OAuth implementation audit."
+        }
+      ],
+      "notes": [
+        "Read the complete original; Chinese companion is byte-identical to baseline be53fedaedfb28da181db8e95f41bf91100621c4 and its links were not edited.",
+        "Preserved every defensive control, caveat, table, checklist item, numbered heading, and reference destination. No exploit payloads, attack procedures, or reproduction were added.",
+        "Protocol field identifiers and OAuth/RFC version distinctions are unchanged; no definite factual conflict required a meaning change.",
+        "Scoped validation passed for all 17 headings, both tables, checklist structure, Mermaid block, English prose/labels, link destinations, and diff whitespace.",
+        "No live security testing or claims of auditing an implementation. Existing Mermaid checker subsequently passed all 32 English/Chinese MCP diagrams. Parent handles integrated checks."
+      ]
+    },
+    {
+      "path": "docs/tools/02-mcp/README.md",
+      "zh_path": "docs/tools/02-mcp/README.zh.md",
+      "kind": "index",
+      "source_sha256": "584a4243d46db425ff9f2a319867c2d9833e29c1921e52789e1ad460cace287b",
+      "references_checked": [],
+      "notes": [
+        "Read and fully translated the six-page module index; all five chapter links, parent-index link, and pinned-version URL are unchanged.",
+        "The Chinese index is copied byte-for-byte from baseline be53fedaedfb28da181db8e95f41bf91100621c4; parent will rewrite Chinese links.",
+        "Current-version, deprecation, extension, and SDK/protocol distinctions match the chapter reviews recorded above.",
+        "Validated front matter, one H1, five chapter entries, English text, local-link existence, and unchanged link destinations. No other repository indexes or navigation were edited."
+      ]
+    },
+    {
+      "path": "docs/tools/03-skills/08-what-is-skill.md",
+      "zh_path": "docs/tools/03-skills/08-what-is-skill.zh.md",
+      "kind": "chapter",
+      "source_sha256": "a2915900095421c9e3c5f902aa65e2b53f8f10068ebe1fd765523e9b732aa3a6",
+      "references_checked": [
+        {
+          "url": "https://agentskills.io/specification",
+          "scope": "Fetched and read on 2026-09-20: directory structure, required name/description fields and their limits, optional metadata and compatibility, experimental allowed-tools, and three levels of progressive disclosure.",
+          "limitations": "A living format page with no independent semantic version; token sizes and the 500-line recommendation are guidance, not measured or universal runtime guarantees. Host authorization and execution behavior are not supplied by the file format."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/agentskills/agentskills/69ef37e9424c0a7ea9dd2293b559e43ec8176379/docs/specification.mdx",
+          "scope": "Fetched the complete specification at the manuscript's exact pinned commit on 2026-09-20 and compared the fields, experimental status, directory conventions, and loading recommendations with the current format page.",
+          "limitations": "The pin remains the historical baseline, not a claim that it is the latest revision. The original manuscript's 2026-09-15 review date is retained as a historical record and is not used as evidence for this review."
+        },
+        {
+          "url": "https://www.anthropic.com/news/skills",
+          "scope": "Fetched on 2026-09-20, following the redirect to https://claude.com/blog/skills: product entry points, folders containing instructions/scripts/resources, and the December 18, 2025 open-standard update. A separate live HTML read confirmed the October 16, 2025 publication date.",
+          "limitations": "The announcement has been updated since launch. Its product descriptions are not proof that every host has identical discovery, permissions, or execution behavior."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills",
+          "scope": "Fetched and read on 2026-09-20: SKILL.md metadata/body/resource progression, executable scripts, deterministic work, evaluation, dependency and untrusted-Skill cautions, and the open-standard update.",
+          "limitations": "Public design explanation, not inspection of closed-source internals or an execution experiment. Example performance statements are not generalized into guarantees."
+        },
+        {
+          "url": "https://agentskills.io/clients",
+          "scope": "Fetched on 2026-09-20; the official showcase identifies multiple clients supporting the Agent Skills format.",
+          "limitations": "Reviewed the showcase and representative entries, not every client implementation. Listing does not establish identical behavior or verified portability."
+        },
+        {
+          "url": "https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview",
+          "scope": "Attempted access on 2026-09-20; the request redirected to a region-unavailable page. Also attempted the current platform.claude.com path with the same result.",
+          "limitations": "The overview body was not accessible and is not claimed as reviewed. The existing citation is retained; technical checks use the accessible format specification and official engineering article."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "scope": "Fetched on 2026-09-20 and read the relevant workflow-versus-agent definitions, composable patterns, tool interfaces, and evaluation guidance.",
+          "limitations": "The article itself notes that the tooling landscape has changed since December 2024. Used for architectural distinctions, not as a current product/API specification."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+          "scope": "Fetched on 2026-09-20 and read the relevant finite-context, tool-set clarity, just-in-time retrieval, and progressive-disclosure sections.",
+          "limitations": "Public engineering guidance, not a controlled measurement of the chapter's hypothetical 20-Skill example or a guarantee of a particular model's attention behavior."
+        }
+      ],
+      "notes": [
+        "Original page read in full; Chinese companion copied before editing and compared byte-for-byte with git show be53fedaedfb28da181db8e95f41bf91100621c4:path.",
+        "Complete English prose, front matter, numbered headings, tables, directory comments, link captions, and both Mermaid diagrams. The 20-Skill, 2000-token, 40,000-token, 200K-context, approximately 100-token, 5000-token, and 500-line examples retain their assumptions and limits.",
+        "Two fenced Chinese model-facing Skill instruction examples remain byte-identical, with English explanations covering all steps and checks. The two Chinese discovery description values remain unchanged; their explanatory YAML comments are English and include their meanings.",
+        "Automated inspection passed: 18 numbered headings, 6 fenced blocks with unchanged language/order, 2 diagrams with preserved nodes/edges/style, unchanged table dimensions, all 10 link targets unchanged and local targets present, and baseline inline identifiers retained. No math or heading-fragment links were present.",
+        "Scoped existing Mermaid validator ran from docs/tools/03-skills: diagrams=20 failures=0 across the 4 page pairs. git diff --check passed for the scope. No dependencies installed.",
+        "No definite factual correction was made; source pinning, experimental-field caveats, host enforcement, and hypothetical-versus-measured distinctions were preserved."
+      ]
+    },
+    {
+      "path": "docs/tools/03-skills/09-skill-vs-mcp.md",
+      "zh_path": "docs/tools/03-skills/09-skill-vs-mcp.zh.md",
+      "kind": "chapter",
+      "source_sha256": "38146421651dd41384c5768eb222a23d4ef55a31a75b0e566805440828d46717",
+      "references_checked": [
+        {
+          "url": "https://agentskills.io/specification",
+          "scope": "Fetched and read on 2026-09-20: file-package structure, required SKILL.md, optional scripts/references/assets, progressive disclosure, and implementation-dependent tool support.",
+          "limitations": "Does not establish that a Skill requires MCP or that its instructions enforce authorization. No Skill was executed."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+          "scope": "Fetched on 2026-09-20 and read the relevant Tools sections: tools/list pagination and caching, authorization-dependent tool lists, host discretion over interaction patterns, tools/call, and tool schemas.",
+          "limitations": "The 2026-07-28 version remains pinned. Protocol discovery is not proof of model-context injection, and server declarations are not runtime authorization. No client/server compatibility test was performed."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/docs/getting-started/intro",
+          "scope": "Fetched on 2026-09-20; redirected to the official 2026-07-28 introduction. Checked the protocol's role connecting applications to external tools, data, and specialized prompts.",
+          "limitations": "Introductory documentation, not a mandate for a fixed MCP/Skill dependency hierarchy or full tool-schema injection."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28",
+          "scope": "Fetched and read on 2026-09-20: host/client/server roles, JSON-RPC, server Tools/Resources/Prompts, and consent and access-control responsibilities.",
+          "limitations": "Used only to verify distinctions already present in this chapter; newly listed extensions were not added as topics."
+        },
+        {
+          "url": "https://www.anthropic.com/news/skills",
+          "scope": "Fetched on 2026-09-20 via the official redirect; checked reusable folders and on-demand instructions, scripts, and resources.",
+          "limitations": "Updated vendor announcement; portability claims do not establish identical behavior across hosts."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills",
+          "scope": "Fetched and read on 2026-09-20: procedural knowledge packaging, script resources, progressive disclosure, security considerations, and complementarity with MCP.",
+          "limitations": "Does not specify a universal tool-name mapping or enforce business rules. Example tool names remain explicitly illustrative."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+          "scope": "Fetched on 2026-09-20 and read the relevant tool-set clarity, context budgeting, and just-in-time loading sections.",
+          "limitations": "No token benchmark or routing evaluation was run. The chapter calls for measuring actual injected input rather than assuming a universal cost advantage."
+        }
+      ],
+      "notes": [
+        "Original page read in full; Chinese companion is byte-identical to be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Translated all six comparison dimensions, deployment/distribution distinctions, task-selection examples, logic-placement guidance, failure/permission caveats, summaries, and all four diagrams without changing topology.",
+        "The fenced Chinese SKILL.md instructions remain byte-identical as actual model-facing prompt data. English context explains the PR diff, context-budget batching, coverage tracking, no silent omissions, and six-month production-incident lookup.",
+        "Automated inspection passed: 16 numbered headings, 5 fenced blocks with unchanged language/order, 4 diagrams with preserved structure, unchanged table dimensions, all 7 link targets unchanged and local targets present, and all inline identifiers retained. No math or heading-fragment links were present.",
+        "Scoped existing Mermaid validator passed: diagrams=20 failures=0 across all page pairs. git diff --check passed for the scope. No dependencies installed.",
+        "MCP 2026-07-28 pin, discovery-versus-injection distinction, optional composition, scripts needing credentials/runtime, and server-enforced invariants are preserved. No definite factual correction was required."
+      ]
+    },
+    {
+      "path": "docs/tools/03-skills/10-fc-skill-mcp.md",
+      "zh_path": "docs/tools/03-skills/10-fc-skill-mcp.zh.md",
+      "kind": "chapter",
+      "source_sha256": "3bebd62d181d17e535c59ef572fff7b57884bef19e050e314dc0fc23f5673ab5",
+      "references_checked": [
+        {
+          "url": "https://platform.openai.com/docs/guides/function-calling",
+          "scope": "Attempted access on 2026-09-20; the cited legacy URL returned HTTP 403.",
+          "limitations": "The legacy page body was not read. Its URL remains unchanged; the accessible official developers.openai.com guide was checked instead."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/function-calling",
+          "scope": "Fetched on 2026-09-20 and read the definitions and application/model execution loop: a model requests a call, application code executes it, and outputs are returned with call association. Also retrieved the official .md version to inspect API-notation context.",
+          "limitations": "The accessible examples emphasize Responses API and also mention Chat Completions. The chapter's existing tool_calls/tool notation was preserved rather than silently converting it into Responses items. No API call, model test, or executor run was performed."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/docs/getting-started/intro",
+          "scope": "Fetched on 2026-09-20, following the official redirect to the 2026-07-28 introduction: external tools, data, and prompt integration.",
+          "limitations": "The introduction describes capability integration, not a mandatory dependency on native model function calling."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28",
+          "scope": "Fetched and read on 2026-09-20: JSON-RPC and host/client/server roles, tool/resource/prompt capabilities, and consent and access-control requirements.",
+          "limitations": "Retained the chapter's explicit protocol pin. No claims about uninspected host internals, client compatibility, or execution results."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+          "scope": "Fetched on 2026-09-20 and read the relevant discovery and invocation sections, including host discretion over interaction patterns and authorization-dependent tool discovery.",
+          "limitations": "Tool discovery does not establish full model-context injection, and a successful connection does not establish task success."
+        },
+        {
+          "url": "https://www.anthropic.com/news/skills",
+          "scope": "Fetched on 2026-09-20 through the official redirect; confirmed the Skills release context and December 2025 open-standard update. Live HTML confirmed the October 16, 2025 publication date.",
+          "limitations": "The release timeline identifies particular products, not the origin of tool calling, interface standardization, or procedure reuse."
+        },
+        {
+          "url": "https://agentskills.io/specification",
+          "scope": "Fetched and read on 2026-09-20: reusable instruction packages, metadata discovery, and optional executable/reference resources.",
+          "limitations": "The format does not require MCP, a particular model API, or any tool call for a writing-only Skill."
+        },
+        {
+          "url": "https://www.anthropic.com/engineering/building-effective-agents",
+          "scope": "Fetched on 2026-09-20 and read the relevant workflow/agent distinction, composability, tool interfaces, environmental feedback, and testing guidance.",
+          "limitations": "The article flags changes since December 2024; retained as architectural guidance, not current API documentation."
+        }
+      ],
+      "notes": [
+        "Original page read in full; Chinese companion is byte-identical to be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Complete translation preserves release years 2023/2024/2025, optional dependency paths, all three failure boundaries, authorization checks, partial-date and script-failure handling, and the distinction between declining sales and causal evidence.",
+        "Retained the actual Chinese sales-analysis request verbatim and supplied its English meaning. Visible sequence labels and other diagram text are fully English; query_database(sql=...), run_python(code=...), tool_calls, tool, JSON-RPC, tools/list, and tools/call remain unchanged.",
+        "Automated inspection passed: 14 numbered headings, 4 fenced blocks, all 4 diagram structures including sequence participants/message order and timeline years, unchanged table dimensions, all 7 link targets unchanged and local targets present, and inline identifiers retained. No math or heading-fragment links were present.",
+        "Scoped existing Mermaid validator passed: diagrams=20 failures=0 across all page pairs. git diff --check passed for the scope. No dependencies installed.",
+        "No definite factual correction was made. No sales analysis was performed or reported as an observed result; all scenarios remain illustrative."
+      ]
+    },
+    {
+      "path": "docs/tools/03-skills/README.md",
+      "zh_path": "docs/tools/03-skills/README.zh.md",
+      "kind": "index",
+      "source_sha256": "a2f56307fcc85d707abcc2386e4180c2ba44ca2da9d6201d49a250a6eec2f90c",
+      "references_checked": [
+        {
+          "url": "https://agentskills.io/specification",
+          "scope": "Fetched and read on 2026-09-20: open file format, optional scripts, and progressive disclosure underlying the module overview.",
+          "limitations": "Host-specific activation, discovery, tool permissions, and execution require separate host documentation; the index retains that distinction."
+        }
+      ],
+      "notes": [
+        "Original index read in full; README.zh.md is byte-identical to baseline be53fedaedfb28da181db8e95f41bf91100621c4, including every Chinese link.",
+        "English title, description, overview, host-behavior caveats, chapter captions, and back link translated completely. Chapter order remains 8, 9, 10; ordinary English links retain normal .md targets.",
+        "Automated inspection passed: all 5 link targets unchanged, all local destinations present, no .zh.md targets introduced in the English index, and no fences, math, or heading fragments to migrate.",
+        "Only the four original pages and their four .zh.md companions were edited inside the repository. Evidence is stored outside the repository at the requested session-state path. No git rename, commit, push, PR, dependency installation, or global navigation/manifest change was performed."
+      ]
+    },
+    {
+      "path": "docs/tools/04-agent-communication/11-a2a-protocol.md",
+      "zh_path": "docs/tools/04-agent-communication/11-a2a-protocol.zh.md",
+      "kind": "chapter",
+      "source_sha256": "a8213806c6bbd86a547bc89b429a7e74a4a6394c63ec3d0a23160e07b7dfdd98",
+      "references_checked": [
+        {
+          "url": "https://github.com/a2aproject/A2A/releases/tag/v1.0.1",
+          "scope": "Attempted to retrieve the release page.",
+          "limitations": "The page retrieval returned only an error message, so release details were read through the GitHub API instead."
+        },
+        {
+          "url": "https://api.github.com/repos/a2aproject/A2A/releases/tags/v1.0.1",
+          "scope": "Read tag_name, published_at, and the full release body through gh api. Confirmed the patch release's HTTP media-type, transcoding-error, and TaskStatus documentation fixes.",
+          "limitations": "Release metadata review, not a review of every implementation or patch diff."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/a2aproject/A2A/v1.0.1/docs/specification.md",
+          "scope": "Read sections 3.1.1-3.1.3, 3.1.5-3.1.6, 3.2.2, 3.6-3.7, 5.1-5.5, 8.1-8.3, and 11.1: Message versus Task responses, cancellation and subscription limits, returnImmediately defaults, Major.Minor negotiation and missing-version 0.3 behavior, binding/method mapping, ProtoJSON casing, Card discovery, and application/a2a+json.",
+          "limitations": "Selected relevant sections, not a claim to have reviewed the entire specification. The tagged source still has the outdated Latest Released Version 1.0.0 notice and contradictory immediate-return wording in section 3.1.1. The chapter follows section 3.2.2 and the Proto field definition, as the Chinese baseline already does."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/a2aproject/A2A/v1.0.1/specification/a2a.proto",
+          "scope": "Read SendMessageConfiguration, Task, TaskState, Part, TaskArtifactUpdateEvent, AgentInterface, AgentCard, AgentCapabilities, and AgentSkill definitions. Checked return_immediately=false, TASK_STATE_* values, supported_interfaces, protocol_version, security fields, append, and last_chunk against the translated text and Agent Card example.",
+          "limitations": "Static definition checks only; no server, SDK, or interoperability test was run."
+        },
+        {
+          "url": "https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/",
+          "scope": "Read the launch announcement's opening, design principles, and discovery/task/artifact explanation.",
+          "limitations": "The retrieval was truncated during partner quotations. It is used for the launch and architectural history, not for v1.0.1 field definitions."
+        },
+        {
+          "url": "https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents",
+          "scope": "Read the June 23, 2025 project announcement, including its statement that Google launched A2A in April and that the project moved to Linux Foundation governance.",
+          "limitations": "Historical announcement; not a protocol conformance source."
+        }
+      ],
+      "notes": [
+        "Read and translated all eight numbered sections and all numbered subsections, including the single-agent context example, Card discovery, the full task state machine, microservices analogy, bindings, MCP comparison, mistakes, and summary.",
+        "Preserved the Agent Card's keys, interface URL, JSONRPC constant, wire version 1.0, software version 1.2.0, booleans, tags, and skill identifiers. Translated human-readable names and descriptions; retained the Chinese example prompt and the opening task request, explaining both in English.",
+        "Retained all three Mermaid diagrams, their node/state identities, edge structure, and styling while translating visible labels.",
+        "Kept the distinction between architectural context isolation and A2A guarantees, and all cancellation, replay, artifact assembly, authorization, and exactly-once limitations.",
+        "Reported the already-disclosed upstream returnImmediately inconsistency to the parent. No factual correction to the Chinese source was needed or made.",
+        "The Chinese companion is byte-identical to baseline be53fedaedfb28da181db8e95f41bf91100621c4; its internal links are intentionally untouched."
+      ]
+    },
+    {
+      "path": "docs/tools/04-agent-communication/README.md",
+      "zh_path": "docs/tools/04-agent-communication/README.zh.md",
+      "kind": "index",
+      "source_sha256": "feb074d17dc6e86fbd8f3cf5c0d431815947d90688a30995ac4a47270bead2e0",
+      "references_checked": [],
+      "notes": [
+        "Translated the complete module overview and chapter entry, preserving the distinction between release v1.0.1, wire-level 1.0, and legacy message/stream.",
+        "The linked release specification was checked for Chapter 11; no independent external-source check is claimed for this index.",
+        "Chinese companion remains byte-identical to the baseline."
+      ]
+    },
+    {
+      "path": "docs/tools/05-transport-gateway/13-sse-websocket-webrtc.md",
+      "zh_path": "docs/tools/05-transport-gateway/13-sse-websocket-webrtc.zh.md",
+      "kind": "chapter",
+      "source_sha256": "4d550e4256e30d3fae50de2cd3eff446e8c1ec4db4b02dbf90716918005a473e",
+      "references_checked": [
+        {
+          "url": "https://html.spec.whatwg.org/multipage/server-sent-events.html",
+          "scope": "Read the returned excerpts covering the EventSource interface, reconnection and Last-Event-ID, UTF-8 event parsing, blank-line dispatch, event/data/id/retry fields, and the beginning of the authoring notes.",
+          "limitations": "Inspected the first 28,000 characters of the simplified page, not the entire HTML standard or all linked algorithms. No browser execution or rendering test."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc6455.txt",
+          "scope": "Read the protocol-overview handshake excerpt showing HTTP/1.1 Upgrade and 101 Switching Protocols.",
+          "limitations": "Targeted excerpt only; the whole RFC was not read. A literal search for full-duplex returned no match and was not treated as verification."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc8441.txt",
+          "scope": "Read the introduction excerpt explaining why HTTP/2 cannot use connection-wide Upgrade/101 and how extended CONNECT creates a tunnel on a single HTTP/2 stream.",
+          "limitations": "Targeted excerpt only, not a full RFC review or an interoperability test."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc9220.txt",
+          "scope": "Read the section 3 excerpt describing WebSocket over an HTTP/3 stream and its reuse of extended CONNECT semantics from RFC 8441.",
+          "limitations": "Targeted excerpt only; no HTTP/3 client or proxy was tested."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc8835.txt",
+          "scope": "Read excerpts on UDP/TCP transport assumptions, TURN over TCP and TLS-over-TCP for UDP-blocking networks, DTLS-SRTP key exchange, and SCTP over DTLS over ICE for data channels.",
+          "limitations": "Targeted excerpts only. The cited extensionless RFC URL separately redirected to an excerpt from section 4.2; the plain-text RFC was used for the transport checks. No network or media measurements."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc8834.txt",
+          "scope": "Read section 6.1 excerpts on NACK feedback and retransmissions arriving in time to be useful, and section 6.2 on FEC bandwidth/playout-delay tradeoffs.",
+          "limitations": "Targeted section excerpts, not a complete RFC read. Codec-specific PLC and device audio-processing behavior were not independently tested."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc8831.txt",
+          "scope": "Read section 6.1 on SCTP encapsulation in DTLS, ordered/unordered messages, partial/full reliability, and timed or limited-retransmission policies; also inspected an ordering excerpt from section 6.3.",
+          "limitations": "Targeted excerpts only; no DataChannel implementation was run."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc8445.txt",
+          "scope": "Read section 2.2 excerpts on candidate pairing, priority ordering, and STUN connectivity checks, and section 2.3 on nomination of a valid pair by the controlling agent.",
+          "limitations": "Targeted excerpts only, not a complete ICE specification review or a NAT-traversal experiment."
+        },
+        {
+          "url": "https://developers.openai.com/api/docs/guides/voice-webrtc?api=realtime",
+          "scope": "Read the Realtime API portion covering browser/mobile WebRTC guidance, backend or ephemeral-credential session setup, HTTP POST SDP exchange, media tracks, and DataChannel events.",
+          "limitations": "The returned page starts with newer GPT-Live material despite the api=realtime query. That material was not used to update the chapter; the Realtime-specific portion was fetched separately. No API calls or executable examples were run, and this check does not independently establish the 2024 launch history."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/transports",
+          "scope": "Read the returned transport overview for stdio, Streamable HTTP, custom transports, binding-specific cancellation, and backward compatibility.",
+          "limitations": "Review is limited to the cited 2026-07-28 revision and the returned overview, not every linked protocol page."
+        },
+        {
+          "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http",
+          "scope": "Read the request-scoped POST/SSE response rules, historical transport notes, explicit absence of Last-Event-ID resumability, and cancellation on closing an SSE response stream.",
+          "limitations": "Read the first 18,000 characters of the returned page, not the entire binding document or all linked cancellation rules. These semantics were not generalized to older MCP revisions."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/a2aproject/A2A/v1.0.1/docs/specification.md",
+          "scope": "Read the introduction and protocol-binding structure, Send Streaming Message behavior, Cancel Task and Subscribe to Task excerpts, JSON-RPC SSE, gRPC server streaming, HTTP/REST SSE, and the explicit statement that task lifecycle is independent of an individual stream.",
+          "limitations": "The release-tagged source was accessed through its raw GitHub URL. Only the listed sections and targeted excerpts were read, not the whole specification or generated proto tables. The chapter retains the v1.0.1 release boundary; no latest-version refresh or runtime test."
+        }
+      ],
+      "notes": [
+        "Read the shared i18n contract and glossary read-only, then read all 380 lines of the original chapter before translation.",
+        "Baseline is be53fedaedfb28da181db8e95f41bf91100621c4. Copied the original bytes before rewriting and verified the Chinese companion against git show for that baseline.",
+        "Translated every section, description, diagram label, table, summary item, and reference label. Retained the Chinese SSE example payloads unchanged and supplied English context.",
+        "Preserved all 36 numbered section headings and their levels, all 6 fenced blocks, all table rows, all 17 link destinations, and Mermaid node/edge structure. The original has no formulas.",
+        "Preserved the distinctions between SSE format and EventSource, HTTP/1.1 Upgrade and HTTP/2/3 extended CONNECT, media and DataChannel paths, signaling and media transport, and protocol-specific cancellation/reconnection.",
+        "All English internal links still target normal .md files. No Chinese section fragments were present. Chinese companion links remain untouched for the parent's integrated rewrite.",
+        "Local checks passed for byte preservation, heading hierarchy, fence balance, SSE block identity, Mermaid topology, table row counts, link destinations and local link existence, and scoped git diff --check.",
+        "No definite factual correction was made. First-party checks covered the scopes above; MDN pages, the WebRTC homepage, launch history, browser concurrency behavior, and proxy compatibility were not independently rechecked.",
+        "The parent owns integrated coverage, Mermaid rendering, and site/book builds; this scope did not claim those validations."
+      ]
+    },
+    {
+      "path": "docs/tools/05-transport-gateway/14-llm-gateway.md",
+      "zh_path": "docs/tools/05-transport-gateway/14-llm-gateway.zh.md",
+      "kind": "chapter",
+      "source_sha256": "d4c1c39842703e3c8a523378c05a8650a79b2a450a2c2ff4a4829cb4d973b575",
+      "references_checked": [
+        {
+          "url": "https://docs.litellm.ai/docs/proxy/reliability",
+          "scope": "Read the returned documentation on failover after retries, ordered fallback model groups, fallback categories, and retries/timeouts/cooldowns configuration.",
+          "limitations": "Read the first 16,000 characters, not the entire live page. Did not run a gateway or provider request. The chapter's YAML remains conceptual pseudoconfiguration, not a claim of compatibility with the current LiteLLM schema; newer model names in the documentation were not substituted."
+        },
+        {
+          "url": "https://www.rfc-editor.org/rfc/rfc9111.txt",
+          "scope": "Read section 2 on cache keys including request method and target URI, and section 4.1 on Vary header matching and revalidation.",
+          "limitations": "Targeted section excerpts only, not the whole RFC. HTTP cache behavior was used to verify the contrast with semantic caching, not to imply that the RFC specifies LLM semantic caching."
+        }
+      ],
+      "notes": [
+        "Read all 316 lines of the original chapter before translation. Baseline is be53fedaedfb28da181db8e95f41bf91100621c4, and the Chinese companion was copied byte-for-byte before rewriting.",
+        "Translated the complete chapter, including descriptions, diagrams, tables, Python and YAML comments, failure cases, summaries, and references. Kept the Chinese model input and three Chinese weather-question examples with English context.",
+        "Preserved the budget clarification: local budget exhaustion is not provider rate limiting; request frequency, token rate, concurrency, daily spend, and per-task caps remain distinct; enforcement is server-side; unknown output usage may be reserved and reconciled; shared upstream resources prevent a blanket isolation guarantee.",
+        "Retained pre-delivery upstream-side-effect checks, nontransparent streaming retries, tool-write idempotency boundaries, attempt IDs, cancellation/deadline propagation, overlapping usage-field accounting, semantic-cache permission/version checks, and gateway ownership limits.",
+        "Preserved all 27 numbered section headings and their levels, the additional unnumbered streaming-retry heading, all 4 fenced blocks, all table rows, all 11 link destinations, and Mermaid node/edge structure. The original has no formulas.",
+        "Verified Python AST equality against the Chinese source and exact YAML equality after stripping comments. API fields, model identifiers, priorities, environment-variable names, URLs, protocol literals, and executable behavior are unchanged.",
+        "All English internal links still target normal .md files. No Chinese section fragments were present. Chinese companion links remain untouched for the parent's integrated rewrite.",
+        "Local checks passed for source bytes and hashes, headings, fences, code preservation, diagram topology, tables, links, and scoped git diff --check.",
+        "No definite factual correction was made. The vendor comparison table, vendor-specific budget enforcement, billing APIs, security controls, licenses, and performance were not independently audited or tested; no generic gateway guarantee was added.",
+        "The parent owns integrated coverage, Mermaid rendering, and site/book builds; no remote model or translation-service/API calls were made."
+      ]
+    },
+    {
+      "path": "docs/tools/05-transport-gateway/README.md",
+      "zh_path": "docs/tools/05-transport-gateway/README.zh.md",
+      "kind": "index",
+      "source_sha256": "c50e10a97c84963e73f45d4733ba2920ea57731dbfc9452e1b2333cd8df4ecdd",
+      "references_checked": [],
+      "notes": [
+        "Read the complete original index and copied its exact bytes to README.zh.md before rewriting. Verified the companion against baseline be53fedaedfb28da181db8e95f41bf91100621c4.",
+        "Translated the front matter description, title, module overview, chapters heading, both chapter labels, and the Tools return link.",
+        "Retained both chapter entries, their order, all 3 link destinations, and the distinctions between interface and capability compatibility and workload-specific cache/latency measurement.",
+        "No Chinese section fragments, formulas, tables, or fenced blocks are present. Chinese index links remain untouched for the parent.",
+        "Validated link preservation and local targets, heading count, source hash, absence of untranslated Chinese prose, and scoped git diff --check. No external source review was needed for the index."
+      ]
+    },
+    {
+      "path": "docs/tools/README.md",
+      "zh_path": "docs/tools/README.zh.md",
+      "kind": "index",
+      "source_sha256": "23439a408ad4783926ad31618fc47dadc55f8a9034c642d08f7dfc4e5f05901b",
+      "references_checked": [],
+      "notes": [
+        "Translated all five module entries, version boundaries, reading paths, FAQ answers, and diagram labels. Preserved all external source URLs and normal English-page link paths.",
+        "Retained the single fictional-demo note with order A1001 and 517 records; did not turn the scenario into author experience.",
+        "The index preserves the manuscript's pinned MCP 2026-07-28 and A2A v1.0.1 scope. Technical source checks are recorded against the relevant chapters rather than claimed as a separate index review.",
+        "Chinese companion is byte-identical to the baseline, including links; cross-edition Chinese link rewriting is deferred to the parent migration."
+      ]
+    }
+  ]
+}

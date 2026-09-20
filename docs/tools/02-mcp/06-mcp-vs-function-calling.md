@@ -1,38 +1,38 @@
 ---
-description: 从协议层级、部署位置、工具发现、权限和复用成本比较 MCP 与 Function Calling，并给出组合使用和选型建议。
+description: Compares MCP and function calling by interface boundary, deployment, tool discovery, permissions, and reuse costs, with guidance on choosing and combining them.
 ---
 
-# 第六章：MCP 与 Function Calling 的区别与选型
+# Chapter 6: MCP and Function Calling—Differences and Tradeoffs
 
-## 6.1 这个问题容易问偏
+## 6.1 The question can start from the wrong premise
 
-「MCP 和 Function Calling 有什么区别」这个问题本身有点误导性，因为它暗示两者是并列的竞品。实际上：
+“What is the difference between MCP and function calling?” can be misleading because it suggests they are competing alternatives at the same level. In fact:
 
-> **MCP 和 Function Calling 解决不同接口边界，常被同一个 Host 组合使用；MCP 并不规定或要求模型必须支持 Function Calling。**
+> **MCP and function calling address different interface boundaries and are often combined by the same Host. MCP does not specify or require a model to support function calling.**
 
-准确的区分是：
+The precise distinction is:
 
-| | Function Calling | MCP |
+| | Function calling | MCP |
 |---|---|---|
-| 解决的问题 | 模型**怎么表达**调用意图 | 工具**怎么被提供和发现** |
-| 协议双方 | 模型 ↔ 应用 | 应用 ↔ 工具提供方 |
-| 工具实现位置 | 不规定：可本地函数，也可远程 API | Server 暴露能力，可为本地进程或远程服务 |
-| 层次 | 模型输出格式约定 | 工具生态标准 |
+| Problem addressed | **How the model expresses** an intent to call | **How tools are provided and discovered** |
+| Interface participants | Model ↔ application | Application ↔ tool provider |
+| Tool implementation location | Unspecified: local function or remote API | A Server exposes capabilities as a local process or remote service |
+| Layer | Model output-format convention | Tool ecosystem standard |
 
-区别是接口边界，不是部署位置。Function Calling 本来就能触发远程服务；MCP 提供统一的发现、消息与能力协商。
+The difference is the interface boundary, not deployment location. Function calling can already trigger remote services; MCP supplies common discovery, messaging, and capability negotiation.
 
-## 6.2 Function Calling 的真实痛点
+## 6.2 The real integration pain around function calling
 
-复制一份 Schema 看起来不算什么工作量，但把账算到团队规模就不一样了。
+Copying one schema looks cheap. The calculation changes at team scale.
 
-若 **5 个应用**分别独立适配 **8 个工具**，就有 **40 个适配组合**；共享 SDK 或内部服务可减少重复代码，MCP 是标准化这类适配的一种方式。
+If **5 applications** independently integrate **8 tools**, there are **40 integration combinations**. Shared SDKs or internal services can reduce duplicated code; MCP is one way to standardize these integrations.
 
 ```mermaid
 flowchart TB
-    subgraph PAIN["缺少共享适配时的维护风险"]
-        P1["上游 API 字段变化"] --> R1["各应用分别适配"]
-        P2["迁移模型 API"] --> R2["检查 Schema 与回填格式"]
-        P3["新应用也需访问"] --> R3["重复实现发现与授权"]
+    subgraph PAIN["Maintenance risks without shared adapters"]
+        P1["Upstream API field changes"] --> R1["Each application adapts separately"]
+        P2["Migration to another model API"] --> R2["Check schemas and result-message formats"]
+        P3["A new application needs access"] --> R3["Reimplement discovery and authorization"]
     end
 
     style R1 fill:#fce8e6
@@ -40,112 +40,112 @@ flowchart TB
     style R3 fill:#fce8e6
 ```
 
-核心风险是：没有共享适配层时，同一工具会在多个应用里重复维护。Function Calling 本身不负责跨应用的工具管理和互操作；这部分可以用 MCP，也可以由已有共享 SDK 或内部服务承担。
+The core risk is maintaining the same tool integration in multiple applications because no shared adapter exists. Function calling itself does not manage tools or interoperability across applications. MCP can fill that role, but so can an existing shared SDK or internal service.
 
-## 6.3 常见集成：Host 用 Function Calling 路由 MCP Tool
+## 6.3 A common integration: the Host routes MCP Tools through function calling
 
-项目里最常见的接法，就是 Host 用 Function Calling 路由 MCP Tool。
+A common project architecture uses function calling in the Host to route MCP Tools.
 
 ```mermaid
 sequenceDiagram
-    participant M as 模型
-    participant H as 宿主程序（内含 MCP Client）
+    participant M as Model
+    participant H as Host application containing an MCP Client
     participant S as MCP Server
 
-    Note over H,S: 启动时
+    Note over H,S: Startup
     H->>S: tools/list
-    S-->>H: MCP 格式的工具定义
-    Note over H: 转换成模型原生的<br/>Function Calling Schema
+    S-->>H: Tool definitions in MCP format
+    Note over H: Convert to the model's native<br/>function-calling schema
 
-    Note over M,H: 运行时
-    H->>M: messages + tools（普通 FC 格式）
-    M-->>H: tool_calls（普通 FC 输出）
-    Note over M: 此桥接不要求模型<br/>理解 MCP 传输
-    H->>S: tools/call（路由到对应 Server）
-    S-->>H: 执行结果
-    H->>M: 按模型 API 回填工具结果
-    M-->>H: 最终答案
+    Note over M,H: Runtime
+    H->>M: messages + tools in ordinary FC format
+    M-->>H: tool_calls in ordinary FC output
+    Note over M: This bridge does not require<br/>understanding MCP transport
+    H->>S: tools/call routed to the appropriate Server
+    S-->>H: Execution result
+    H->>M: Supply the tool result in the model API format
+    M-->>H: Final answer
 ```
 
-在这种集成中，模型的视角确实是普通 Function Calling，能力发现、schema 转换、调用路由和结果回传都在 Host 层完成。这种桥接很常见，但不是 MCP 的规范要求。
+From the model's perspective, this is ordinary function calling. Capability discovery, schema conversion, call routing, and result delivery happen in the Host. The bridge is common, but not required by the MCP specification.
 
-沿着这条集成链路往下看，会得到两个结论：
+Following this integration path gives two conclusions:
 
-1. **模型不支持某厂商的 Function Calling 时，只有这条桥接路径不可用**。Host 仍可通过结构化输出、确定性工作流或人工界面调用 MCP Tool；
-2. **若由模型选择 Tool，工具 schema 工程仍然适用**。MCP 规定互操作格式，不保证模型会正确选择或填写参数。
+1. **If a model does not support a provider's function-calling interface, only that bridge becomes unavailable.** The Host can still invoke MCP Tools using structured output, deterministic workflows, or a human interface.
+2. **If a model selects the Tool, tool-schema engineering still matters.** MCP specifies an interoperability format; it does not guarantee correct tool selection or arguments.
 
-桥接不一定是逐字段复制。MCP 2026-07-28 使用 JSON Schema 2020-12，允许的关键词范围可能超出模型 strict 子集；Host 应拒绝不支持的定义，或做明确记录、可测试的转换，而不是静默删约束。工具结果的 `content`、`structuredContent`、`outputSchema` 也需按模型可接收的内容类型映射，不能一律当字符串而丢失图片、资源引用或错误标志。
+The bridge is not necessarily a field-by-field copy. MCP 2026-07-28 uses JSON Schema 2020-12, whose allowed keywords may exceed a model's strict subset. The Host should reject unsupported definitions or apply documented, testable conversions—not silently delete constraints. Tool-result `content`, `structuredContent`, and `outputSchema` also need mapping to content types accepted by the model. Treating everything as a string can lose images, resource references, or error flags.
 
-## 6.4 选型：什么时候用哪个
+## 6.4 Choosing an approach
 
-### 6.4.1 Function Calling 够用的场景
+### 6.4.1 When function calling is enough
 
-**快速原型和 Demo**。目标是跑通想法，直接在代码里定义 Schema 最快。搭 MCP Server 的时间可能超过原型本身的价值。
+**Quick prototypes and demos.** If the goal is to test an idea, defining schemas directly in code is fastest. Building an MCP Server may cost more time than the prototype warrants.
 
-**工具只服务这一个应用**。查本公司某张私有表的接口，绝不会被其他地方用到，写在项目里反而更清晰。为它单独维护一个进程是过度设计。
+**Tools used by only one application.** An interface querying a particular private company table, with no use elsewhere, may be clearer inside the project. Maintaining a separate process for it can be overengineering.
 
-**需要对执行逻辑做精细控制**。权限校验、参数二次处理、特殊错误处理、调用链路追踪，直接嵌在调用代码里最方便。MCP Server 是独立进程，这类定制要额外约定。
+**Fine-grained execution control.** Permission checks, argument preprocessing, special error handling, and call tracing are easiest to place directly in the invocation code. An independent MCP Server process needs additional agreements for such customization.
 
-**部署环境受限**。不能启动子进程时无法使用本地 stdio Server，但仍可连接远程 Streamable HTTP Server。比较现有 API 与 MCP 的运维成本，而不是因此断言 MCP 不可用。
+**Restricted deployment environments.** An environment that cannot launch subprocesses cannot use a local stdio Server, but it can still connect to a remote Streamable HTTP Server. Compare the operational costs of an existing API and MCP rather than concluding that MCP is impossible.
 
-### 6.4.2 MCP 更合适的场景
+### 6.4.2 When MCP is a better fit
 
-**已有维护中的 Server**。先核查发布者、许可证、更新状态、协议版本及权限范围。旧官方示例可能已归档，社区存在实现不等于已经安全测试或适合当前业务。
+**A maintained Server already exists.** First check the publisher, license, maintenance status, protocol version, and permission scope. Old official examples may be archived. The existence of a community implementation does not mean it has been security-tested or suits the business.
 
-**工具需要跨项目或跨团队复用**。MCP 可把上游业务适配收敛到 Server 一侧；客户端仍需维护模型桥接、权限和版本兼容，不是所有变更都能自动受益。
+**Tools need reuse across projects or teams.** MCP can concentrate upstream business integration on the Server side. Clients still need model bridges, permissions, and version compatibility; not every change benefits every consumer automatically.
 
-**工具规模上来了**。这里不给绝对数字门槛（「超过 3 个就上 MCP」这种说法没意义），要看三个维度综合：
+**The tool set has grown.** There is no universal numerical threshold—“use MCP above 3 tools” is not meaningful. Consider three dimensions together:
 
-| 维度 | 倾向 Function Calling | 倾向 MCP |
+| Dimension | Favors function calling | Favors MCP |
 |---|---|---|
-| 复用边界 | 一个应用消费，现有适配可维护 | 多种 Host 需要共享能力契约 |
-| 运维责任 | 应用团队统一维护现有调用链 | 提供方能承担 Server 的版本、认证和可用性 |
-| 变更影响 | 变化局限于一个调用方 | 多个调用方重复跟随上游 API 变化 |
+| Reuse boundary | One consuming application with maintainable existing adapters | Multiple Hosts need a shared capability contract |
+| Operational ownership | The application team maintains the existing call chain | The provider can own Server versions, authentication, and availability |
+| Impact of changes | Changes affect one caller | Multiple callers repeatedly adapt to upstream API changes |
 
-这些维度比工具代码行数更有意义。几十行的函数不必单独部署成服务，一个高价值且被多种 Host 复用的工具也可能值得标准化。
+These dimensions matter more than tool code size. A function of a few dozen lines need not become a separate service; one valuable tool reused by multiple Hosts may justify standardization.
 
-**Agent 需要接入多种独立工具来源**。代码执行、文件系统、数据库和外部 API 可以通过 MCP 模块化接入；但“在做 Agent”本身不是选型依据，已有接口若能满足复用与治理需求，也可以保留。
+**An agent needs several independent tool sources.** MCP can integrate code execution, filesystems, databases, and external APIs as modules. “We are building an agent” is not itself a selection criterion. Keep existing interfaces if they already meet reuse and governance needs.
 
-### 6.4.3 判断流程
+### 6.4.3 A decision flow
 
 ```mermaid
 flowchart TB
-    START{要接一个工具} --> Q1{社区有现成<br/>MCP Server 吗?}
-    Q1 -->|有| USE_MCP["先核查维护状态、权限<br/>及版本兼容后复用"]
-    Q1 -->|没有| Q2{需要跨项目 /<br/>跨团队复用吗?}
-    Q2 -->|需要| BUILD_MCP["实现 MCP Server"]
-    Q2 -->|不需要| Q3{已有本地函数或 API<br/>能满足需求吗?}
-    Q3 -->|能| USE_FC["实现或保留本地函数 / API<br/>可用 Function Calling 驱动"]
-    Q3 -->|不能| Q4{还需要跨 Host 的<br/>标准发现与互操作吗?}
-    Q4 -->|是| BUILD_MCP
-    Q4 -->|否| USE_FC
+    START{Integrate a tool} --> Q1{Is there an existing<br/>community MCP Server?}
+    Q1 -->|Yes| USE_MCP["Review maintenance, permissions,<br/>and version compatibility before reuse"]
+    Q1 -->|No| Q2{Must it be reused across<br/>projects or teams?}
+    Q2 -->|Yes| BUILD_MCP["Implement an MCP Server"]
+    Q2 -->|No| Q3{Can an existing local function<br/>or API meet the need?}
+    Q3 -->|Yes| USE_FC["Implement or keep a local function / API<br/>Optionally drive it with function calling"]
+    Q3 -->|No| Q4{Do you still need standard discovery<br/>and interoperability across Hosts?}
+    Q4 -->|Yes| BUILD_MCP
+    Q4 -->|No| USE_FC
 
     style USE_MCP fill:#e6f4ea
     style BUILD_MCP fill:#e6f4ea
     style USE_FC fill:#e8f0fe
 ```
 
-### 6.4.4 混用是常态
+### 6.4.4 Combining them is normal
 
-实际项目里最常见的形态不是二选一，而是**混用**：
+Real projects commonly **combine** the approaches rather than choose just one:
 
 ```python
-# 通用能力走 MCP：文件系统、GitHub、数据库，用社区现成的
+# Shared capabilities via MCP: reuse community filesystem, GitHub, and database tools
 mcp_tools = await load_mcp_tools(["filesystem", "github", "postgres"])
 
-# 业务专属能力走 Function Calling：内嵌，方便加权限和审计
+# Business-specific capabilities via function calling: embedded for permissions and auditing
 local_tools = [check_user_quota_schema, internal_billing_schema]
 
 tools = mcp_tools + local_tools
 ```
 
-示例中的函数为应用伪代码。业务专属能力也可以供多个应用共享 MCP Server；真正的依据是复用边界、权限、部署和维护责任，而非“通用/专属”的二分。
+The functions here are application pseudocode. Business-specific capabilities can also be shared through an MCP Server used by several applications. The real criteria are reuse boundaries, permissions, deployment, and maintenance ownership—not a binary split between “general-purpose” and “business-specific.”
 
-## 6.5 实际跑一遍 MCP
+## 6.5 Try an MCP integration
 
-可在本地只读目录做一次实验，记录版本、配置、发现结果和故障现象。没有实际运行过，不应把教程中的问题写成自己的生产经验。
+Run a local experiment against a read-only directory and record versions, configuration, discovery results, and failure symptoms. If you have not actually run it, do not present a tutorial's problems as your own production experience.
 
-### 6.5.1 最简接入
+### 6.5.1 Minimal integration
 
 ```json
 {
@@ -158,11 +158,11 @@ tools = mcp_tools + local_tools
 }
 ```
 
-这是示意配置，需替换成已安装、已审阅并固定版本的实际启动入口；宿主是否要重启由产品决定。目录参数是 filesystem Server 的实现配置，**不是 Roots 协议本身**。Roots 只是上下文提示而非强制沙箱，且在 2026-07-28 已弃用；文件访问还要靠服务端路径校验和 OS 隔离。
+This is illustrative configuration. Replace the entry point with an installed, reviewed, version-pinned program. Whether the Host needs a restart depends on the product. The directory argument configures the filesystem Server implementation; it is **not the Roots protocol itself**. Roots are context hints, not an enforced sandbox, and are deprecated in 2026-07-28. Filesystem access still needs Server-side path validation and OS isolation.
 
-旧 `@modelcontextprotocol/server-github` 已归档；GitHub 官方实现见 [github/github-mcp-server](https://github.com/github/github-mcp-server)。令牌应由凭据管理器或受控环境注入，不应提交到配置仓库。
+The old `@modelcontextprotocol/server-github` is archived; see [github/github-mcp-server](https://github.com/github/github-mcp-server) for GitHub's official implementation. Inject tokens through a credential manager or controlled environment; do not commit them to a configuration repository.
 
-### 6.5.2 自己写一个 Server
+### 6.5.2 Write a Server
 
 ```python
 from mcp.server.fastmcp import FastMCP
@@ -171,78 +171,78 @@ mcp = FastMCP("order-service")
 
 @mcp.tool()
 def get_order(order_id: str) -> dict:
-    """根据订单号查询订单详情。不支持模糊搜索。"""
+    """Look up order details by order ID. Fuzzy search is not supported."""
     return db.query_order(order_id)
 
 @mcp.resource("orders://recent")
 def recent_orders() -> str:
-    """最近 24 小时的订单摘要（只读）"""
+    """Read-only summary of orders from the last 24 hours."""
     return format_orders(db.recent(hours=24))
 
 if __name__ == "__main__":
     mcp.run()
 ```
 
-对 `@mcp.tool()`，SDK 根据参数类型生成输入 Schema，并用 docstring 生成描述；Host 再决定如何向模型暴露它。[第三章](../01-function-calling/03-tool-schema-design.md)的描述写法仍适用。`@mcp.resource()` 注册的则是可读取资源，不会仅因函数存在就变成模型工具。
+For `@mcp.tool()`, the SDK generates the input schema from parameter types and the description from the docstring. The Host then decides how to expose it to the model. The description-writing guidance in [Chapter 3](../01-function-calling/03-tool-schema-design.md) still applies. By contrast, `@mcp.resource()` registers a readable resource; the function's existence alone does not make it a model tool.
 
-这里的 `db` 和 `format_orders` 需应用实现，并加入认证与对象级过滤。SDK 示例不声明支持所有协议版本，需固定依赖后按目标版本验证。
+The application must implement `db` and `format_orders` and add authentication and object-level filtering. This SDK example does not claim support for every protocol version. Pin dependencies and validate against the intended version.
 
-### 6.5.3 实际会踩的坑
+### 6.5.3 Practical pitfalls
 
-| 坑 | 现象 | 原因 |
+| Pitfall | Symptom | Cause |
 |---|---|---|
-| **stdout 污染** | Server 连不上，报 JSON 解析错误 | stdio 模式下 `print` 调试信息混进了协议流。日志必须走 stderr |
-| **环境变量丢失** | shell 能跑，GUI 客户端启动失败 | 子进程通常继承父进程环境，但 GUI 宿主未必加载 shell 配置，宿主也可能过滤变量 |
-| **工具名冲突** | 模型调错 Server 的工具 | 多个 Server 有同名工具，需要加前缀区分 |
-| **上下文膨胀** | 响应变慢、成本飙升 | 接了太多 Server，几十个工具定义每轮全量传 |
-| **版本不匹配** | 部分功能不可用 | Server 实现的是旧规范版本，新特性用不了 |
+| **stdout contamination** | The Server fails to connect with a JSON parsing error | Debug `print` output enters the stdio protocol stream. Logs must go to stderr |
+| **Missing environment variables** | Works in a shell but fails when launched by a GUI Client | Subprocesses usually inherit the parent environment, but GUI Hosts may not load shell configuration and may filter variables |
+| **Tool-name collisions** | The model calls a tool on the wrong Server | Several Servers expose the same name; use prefixes to distinguish them |
+| **Context growth** | Slower responses and sharply higher cost | Too many Servers, with dozens of full tool definitions sent on every turn |
+| **Version mismatch** | Some features are unavailable | The Server implements an older specification without the new feature |
 
-如果 Host 全量注入工具，就会产生上下文开销；可用[第三章](../01-function-calling/03-tool-schema-design.md)的筛选方法。版本不兼容则应按协议矩阵解决，不能靠减少工具数量掩盖。
+If the Host injects all tools, it incurs context overhead; apply the filtering methods in [Chapter 3](../01-function-calling/03-tool-schema-design.md). Resolve version incompatibility through the protocol compatibility matrix, not by reducing tool counts to hide it.
 
-## 6.6 常见错误
+## 6.6 Common mistakes
 
-### 6.6.1 说 MCP 必然建立在 Function Calling 之上
+### 6.6.1 Saying MCP necessarily builds on function calling
 
-二者并非替代品，也不是必然上下游。Function Calling 是常见的模型适配层；MCP 定义 Host/Client 与 Server 的协议。Host 可采用其他机制发起 `tools/call`。
+They are neither replacements nor necessarily upstream and downstream of each other. Function calling is a common model adapter; MCP defines the Host/Client–Server protocol. A Host can use other mechanisms to initiate `tools/call`.
 
-### 6.6.2 只说「MCP 更标准化」
+### 6.6.2 Saying only “MCP is more standardized”
 
-应说清具体减少了什么：工具跨应用复用、从已知 Server 发现能力、集中维护上游适配。Server 地址、认证配置、模型桥接和兼容测试仍需有人负责。
+Explain what work it reduces: tool reuse across applications, capability discovery on known Servers, and centralized upstream adaptation. Someone must still own Server addresses, authentication configuration, model bridges, and compatibility tests.
 
-### 6.6.3 不比较维护成本就引入 MCP
+### 6.6.3 Adopting MCP without comparing maintenance costs
 
-一个只有自己用、逻辑十行的内部工具，包成独立进程只是增加了部署和运维负担。选型要看复用需求，不是看技术新旧。
+Wrapping a ten-line internal tool used by one person in a separate process only adds deployment and operational work. Choose according to reuse requirements, not the age of the technology.
 
-### 6.6.4 以为用了 MCP 就不用管工具描述
+### 6.6.4 Assuming MCP makes tool descriptions unimportant
 
-协议标准化了传输格式，没有标准化描述质量。Server 的 docstring 写得烂，模型照样选错工具。
+The protocol standardizes the transport format, not description quality. A poor Server docstring can still cause the model to select the wrong tool.
 
-### 6.6.5 忽略 MCP 的上下文成本
+### 6.6.5 Ignoring MCP's context costs
 
-MCP 工具发现不强制模型全量注入。Host 可先分页发现、缓存，再按权限检索相关工具；评估实际注入 token 与工具召回率，不能按 Server 数直接算固定成本。
+MCP discovery does not force every tool into model context. A Host can discover tools with pagination, cache them, and retrieve relevant tools under the caller's permissions. Measure actual injected tokens and tool-retrieval recall; do not assign a fixed cost from Server count alone.
 
-### 6.6.6 忽略第三方 Server 的信任问题
+### 6.6.6 Ignoring trust in third-party Servers
 
-本地 Server 涉及代码执行，远程 Server 涉及数据外传，两者都需信任审查。工具描述本身也可能被投毒，见[工具协议安全](15-tool-protocol-security.md)。
+Local Servers involve code execution; remote Servers involve sending data outside the application. Both require trust review. Tool descriptions can also be poisoned; see [tool protocol security](15-tool-protocol-security.md).
 
-## 6.7 本章总结
+## 6.7 Chapter summary
 
-1. **MCP 与 Function Calling 可以配合，但不存在强制依赖**；
-2. **本质区别是接口双方和职责**，不是本地与远程；
-3. **MCP 减少重复适配**，但共享 SDK 等方案也能复用，仍须比较维护成本；
-4. **在 Function Calling 桥接中，模型无需感知 MCP**；模型不支持 FC 时，Host 可选择其他 MCP 调用路径；
-5. **FC 适合轻量、专属、需精细控制、部署受限的场景**；
-6. **MCP 更适合共享能力契约和多个独立工具来源**，前提是有可信实现与明确运维责任；
-7. **判断顺序**：先看社区有没有现成的 → 再看要不要复用 → 再看环境和维护成本；
-8. **可以混用**：MCP、现有 API 和本地函数都可由同一 Host 路由。
+1. **MCP and function calling can cooperate without a mandatory dependency.**
+2. **The essential difference is interface participants and responsibilities**, not local versus remote deployment.
+3. **MCP reduces repeated adaptation**, but shared SDKs and other approaches also enable reuse. Compare maintenance costs.
+4. **In a function-calling bridge, the model need not know about MCP.** If the model lacks FC support, the Host can choose another MCP invocation path.
+5. **FC fits lightweight, application-specific, finely controlled, or deployment-constrained uses.**
+6. **MCP is a better fit for shared capability contracts and independent tool sources**, provided there are trusted implementations and clear operational owners.
+7. **Decision order:** check for an existing community implementation → assess reuse needs → compare environment constraints and maintenance costs.
+8. **Combining approaches is valid.** One Host can route MCP Tools, existing APIs, and local functions.
 
 
-## 参考资料
+## References
 
-- [Model Context Protocol 官方文档](https://modelcontextprotocol.io/docs/getting-started/intro)
-- [MCP 服务端开发快速上手](https://modelcontextprotocol.io/docs/develop/build-server)
-- [MCP Servers 官方示例仓库](https://github.com/modelcontextprotocol/servers)
-- [已归档 MCP 示例](https://github.com/modelcontextprotocol/servers-archived)
-- [MCP Roots：弃用状态与非安全边界](https://modelcontextprotocol.io/specification/2026-07-28/client/roots)
-- [OpenAI: Function Calling 指南](https://platform.openai.com/docs/guides/function-calling)
+- [Model Context Protocol documentation](https://modelcontextprotocol.io/docs/getting-started/intro)
+- [MCP Server development quickstart](https://modelcontextprotocol.io/docs/develop/build-server)
+- [MCP Servers official examples](https://github.com/modelcontextprotocol/servers)
+- [Archived MCP examples](https://github.com/modelcontextprotocol/servers-archived)
+- [MCP Roots: deprecation and the absence of a security boundary](https://modelcontextprotocol.io/specification/2026-07-28/client/roots)
+- [OpenAI: Function calling guide](https://platform.openai.com/docs/guides/function-calling)
 - [Anthropic: Introducing the Model Context Protocol](https://www.anthropic.com/news/model-context-protocol)

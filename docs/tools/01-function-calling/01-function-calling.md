@@ -1,101 +1,101 @@
 ---
-description: 解释 Function Calling 的工作流程、工具 Schema、模型决策和执行闭环，并给出参数约束与错误处理的工程要点。
+description: How function calling works, from tool schemas and model decisions to execution, argument constraints, and error handling.
 ---
 
-# 第一章：Function Calling 是什么，原理是什么
+# Chapter 1: What Function Calling Is and How It Works
 
-## 1.1 模型提出调用，谁来执行
+## 1.1 The model proposes a call. Who executes it?
 
-Function Calling 是**让模型通过结构化调用项表达「我想调用哪个函数、参数是什么」的一种接口约定**。本章以 JSON 参数的函数工具为例；tool calling 范围更大，也包括自定义文本工具及平台托管工具。
+Function calling is **an interface convention that lets a model express, through a structured call item, which function it wants to call and with what arguments**. This chapter uses function tools with JSON arguments as its example. Tool calling is broader: it also includes custom text tools and platform-hosted tools.
 
-这句话里有三个关键限定，缺一个就会掉进最常见的误区：
+Three qualifications matter here. Leaving out any one of them leads to a common misunderstanding:
 
-- **表达，不是执行**。模型输出调用意图，应用或平台工具运行时执行函数、发 HTTP 请求、连数据库；使用托管工具时不一定由你的应用亲自执行；
-- **结构化 JSON，不是自然语言**。这是 Function Calling 相对于「土办法」的核心改进；
-- **一种输出约定**。它是模型与应用之间的接口约定，不规定工具发现、分发或跨进程通信；[MCP](../02-mcp/04-what-is-mcp.md) 是解决这些接入问题的一种协议。
+- **Expression, not execution.** The model expresses its intent to call a tool. The application or platform's tool runtime executes the function, sends the HTTP request, or connects to the database. With hosted tools, your application does not necessarily execute the operation itself.
+- **Structured JSON, not natural language.** This is the central improvement over ad hoc integration.
+- **An output convention.** It defines an interface between the model and the application, not tool discovery, distribution, or interprocess communication. [MCP](../02-mcp/04-what-is-mcp.md) is one protocol for those integration concerns.
 
-应用应把模型提议、权限批准和实际执行分别记录，不能把其中任一步当成其他步骤已经发生。
+The application should record the model's proposal, authorization, and actual execution separately. None of these events proves that the others have happened.
 
-## 1.2 没有 Function Calling 的时代
+## 1.2 Before function calling
 
-OpenAI 在 2023 年 6 月发布了其 Function Calling API；工具增强模型此前已有研究。本节回顾两类常见文本集成方法，不是完整的技术史。
+OpenAI released its Function Calling API in June 2023; research on tool-augmented models predates that release. This section reviews two common text-based integration approaches, not the complete history.
 
-### 1.2.1 路线一：正则与关键词匹配
+### 1.2.1 Approach one: regular expressions and keyword matching
 
-让模型正常输出自然语言，宿主程序用规则去猜它的意图：
+The model produces ordinary natural language, and the host uses rules to infer its intent:
 
 ```python
-# 2023 年之前的典型写法
+# A typical approach before 2023
 if "天气" in reply and ("查" in reply or "看" in reply):
     city = re.search(r"([\u4e00-\u9fa5]{2,4})(?:的)?天气", reply)
     if city:
         call_weather_api(city.group(1))
 ```
 
-自然语言改写可能导致正则失配。若没有明确的解析失败处理，应用还可能把未识别的调用意图当普通回复返回，形成静默失败。
+The Chinese keywords mean "weather," "look up," and "look at"; the regular expression extracts a Chinese city name before "weather." A paraphrase can break the match. Without explicit handling for parse failures, the application may return an unrecognized call request as ordinary text, producing a silent failure.
 
-### 1.2.2 路线二：Prompt 里约定输出格式
+### 1.2.2 Approach two: specify an output format in the prompt
 
-进阶一点的做法是在 System Prompt 里写「如果需要调工具，请输出 `ACTION: 工具名(参数)`」。ReAct 也采用显式行动文本，但上面不是论文统一规定的语法。这比从任意自然语言猜意图更明确，仍要处理三个问题：
+A more explicit approach puts an instruction in the system prompt: "If you need a tool, output `ACTION: tool_name(arguments)`." ReAct also uses explicit action text, but this particular syntax is not a universal format prescribed by the paper. It is clearer than inferring intent from arbitrary language, yet three problems remain:
 
-| 问题 | 表现 |
+| Problem | What it looks like |
 |---|---|
-| 格式漂移 | 模型会输出 `ACTION：`（中文冒号）、加代码块包裹、在前面加一段解释 |
-| 混合输出 | 一段回复里既有自然语言又有指令，需要额外切分 |
-| 无法区分意图 | 模型「提到」某个工具名和「决定调用」它，在文本层面长得一样 |
+| Format drift | The model writes `ACTION：` with a full-width Chinese colon, wraps it in a code block, or adds an explanation first |
+| Mixed output | One response contains both natural language and commands, requiring additional splitting |
+| Ambiguous intent | Merely mentioning a tool and deciding to call it can look identical in text |
 
-例如用户问“你能查天气吗”，模型可能只是介绍 `get_weather`，不应仅因出现工具名就执行。显式动作语法也能区分两者，但解析器和停止条件需要专门设计。
+For example, when asked "Can you check the weather?", the model may simply describe `get_weather`. Mentioning the name should not trigger execution. An explicit action syntax can distinguish the two, but it requires a deliberately designed parser and stopping conditions.
 
-### 1.2.3 Function Calling 解决了什么
+### 1.2.3 What function calling solves
 
-它把这件事从**文本解析问题**变成了**协议问题**：
+It turns a **text-parsing problem** into a **protocol problem**:
 
 ```mermaid
 flowchart LR
-    subgraph OLD["旧方案"]
-        O1[模型输出自然语言] --> O2[正则 / 格式约定解析]
-        O2 --> O3{解析成功?}
-        O3 -->|失败| O4[静默降级]
-        O3 -->|成功| O5[调用工具]
+    subgraph OLD["Earlier approach"]
+        O1[Model outputs natural language] --> O2[Parse with regex or format rules]
+        O2 --> O3{Parsing succeeds?}
+        O3 -->|No| O4[Silent fallback]
+        O3 -->|Yes| O5[Call tool]
     end
 
-    subgraph NEW["Function Calling"]
-        N1[模型输出 tool_calls 结构] --> N2[解析字段并校验参数与权限]
-        N2 --> N3[调用工具]
+    subgraph NEW["Function calling"]
+        N1[Model outputs tool_calls structure] --> N2[Parse fields and validate arguments and permissions]
+        N2 --> N3[Call tool]
     end
 ```
 
-在 OpenAI **Chat Completions** 中，`tool_calls` 与 `finish_reason: "tool_calls"` 明确标记调用，而不是让应用从普通文本猜意图。Responses 则使用 `output` 中的 `function_call` 项，并以 `function_call_output.call_id` 回传；不能套用 `finish_reason`。这些字段是 API 设计，不代表模型内部直接生成了整个响应对象。
+In OpenAI **Chat Completions**, `tool_calls` and `finish_reason: "tool_calls"` explicitly mark a call; the application no longer has to infer intent from ordinary text. Responses instead uses `function_call` items in `output`, with results linked through `function_call_output.call_id`; `finish_reason` does not apply there. These fields are API design choices, not evidence that the model internally generates the entire response object.
 
-## 1.3 三个角色与职责边界
+## 1.3 Three roles and their responsibilities
 
-把整个流程理解成一次任务委托，三个角色的分工就很清楚了。
+Think of the process as delegating a task. The responsibilities then become clear.
 
 ```mermaid
 flowchart TB
-    DEV["开发者<br/>写工具说明书（JSON Schema）"] -->|注册 tools| MODEL
-    USER["用户<br/>提出需求"] -->|messages| MODEL
+    DEV["Developer<br/>Writes tool specifications in JSON Schema"] -->|Registers tools| MODEL
+    USER["User<br/>Makes a request"] -->|messages| MODEL
 
-    MODEL["模型<br/>只做决策"] -->|输出 tool_calls| HOST
+    MODEL["Model<br/>Makes decisions only"] -->|Outputs tool_calls| HOST
 
-    HOST["宿主程序<br/>校验、批准并执行"] -->|真正调用| EXT["外部系统<br/>API / DB / 文件"]
-    EXT -->|返回结果| HOST
-    HOST -->|role: tool 消息| MODEL
-    MODEL -->|最终自然语言答案| USER
+    HOST["Host application<br/>Validates, authorizes, and executes"] -->|Actual call| EXT["External systems<br/>API / DB / files"]
+    EXT -->|Returns results| HOST
+    HOST -->|role: tool message| MODEL
+    MODEL -->|Final natural-language answer| USER
 
     style MODEL fill:#e8f0fe
     style HOST fill:#fce8e6
 ```
 
-| 角色 | 职责 | 明确不做的事 |
+| Role | Responsibility | What it does not do |
 |---|---|---|
-| 开发者 | 定义工具、选择策略与评测样例 | 不能只靠描述保证模型选对 |
-| 模型 | 判断要不要调、调哪个、参数填什么 | **不执行任何代码，不访问网络** |
-| 宿主程序 | 校验调用、执行或拒绝、回填结果 | 不把模型提议当成授权 |
+| Developer | Defines tools, selection policies, and evaluation examples | Cannot ensure correct selection through descriptions alone |
+| Model | Decides whether to call, which tool to call, and which arguments to supply | **Does not execute code or access the network** |
+| Host application | Validates calls, executes or rejects them, and returns results | Does not treat a model proposal as authorization |
 
-模型推理与工具运行时是不同组件。宿主必须检查工具白名单、参数、用户权限和审批；模型说“查到了”不是执行证据，应以工具结果及其来源为准。
+Model inference and the tool runtime are separate components. The host must check the tool allowlist, arguments, user permissions, and approvals. The model saying "I found it" is not execution evidence; use tool results and their provenance.
 
-## 1.4 工具定义：Schema 的每个字段都在给模型提示
+## 1.4 Tool definitions: every schema field guides the model
 
 ```python
 tools = [{
@@ -103,20 +103,21 @@ tools = [{
     "function": {
         "name": "get_weather",
         "description": (
-            "查询中国大陆城市的实时天气，返回气温、天气状况、风向风速。"
-            "仅支持当前时刻，不支持未来预报和历史查询。"
+            "Get current weather for cities in mainland China, including temperature, "
+            "weather conditions, wind direction, and wind speed. "
+            "Supports the current time only, not forecasts or historical queries."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "city": {
                     "type": "string",
-                    "description": "城市名，如「北京」「杭州」。不要带省份或「市」后缀"
+                    "description": "Chinese city name, such as 北京 (Beijing) or 杭州 (Hangzhou). Omit the province and the 市 (city) suffix"
                 },
                 "unit": {
                     "type": "string",
                     "enum": ["celsius", "fahrenheit"],
-                    "description": "温度单位，默认 celsius"
+                    "description": "Temperature unit; defaults to celsius"
                 }
             },
             "required": ["city"]
@@ -125,58 +126,58 @@ tools = [{
 }]
 ```
 
-### 1.4.1 description 是重要的接口信息
+### 1.4.1 The description is important interface information
 
-没有显式提供时，模型看不到函数实现。它依据工具名、description、参数 Schema、系统指令和对话历史共同选择工具；description 不是唯一依据，也不能强制阻止误用。
+Unless explicitly provided, the model cannot see the function implementation. It selects tools using the name, description, parameter schema, system instructions, and conversation history together. The description is neither the only signal nor an enforcement mechanism.
 
-对比一下两种写法造成的行为差异：
+Compare the behavior these two descriptions are intended to encourage:
 
-| description | 模型的典型误用 |
+| Description | Typical misuse or intended behavior |
 |---|---|
-| `"获取天气"` | 用户问「北京下周会下雨吗」也照调，拿回实时数据后**编造**一个未来预报 |
-| `"查询中国大陆城市的实时天气……不支持未来预报和历史查询"` | 模型识别出能力边界，直接回复「我只能查当前天气」 |
+| `"Get weather"` | Calls it for "Will it rain in Beijing next week?", receives current data, and **invents** a forecast |
+| `"Get current weather for cities in mainland China… Does not support forecasts or historical queries"` | Recognizes the boundary and replies, "I can only check the current weather" |
 
-描述应同时给出能力和边界。表格只是预期行为，是否真的减少误用，要用未来天气、历史天气和地域外查询等反例检验。
+A description should state both capabilities and limits. These are expected behaviors, not guaranteed outcomes. Test whether misuse actually decreases with requests for future weather, past weather, and unsupported locations.
 
-### 1.4.2 参数描述决定填参质量
+### 1.4.2 Parameter descriptions affect argument quality
 
-`city` 的描述里那句「不要带省份或『市』后缀」不是废话。没有它，模型面对「浙江省杭州市今天天气如何」会老老实实填 `"浙江省杭州市"`，而你的 API 只认 `"杭州"`。
+The instruction to omit the province and the `市` suffix is not redundant. Without it, a request such as `浙江省杭州市今天天气如何` ("What is the weather today in Hangzhou, Zhejiang Province?") may produce `"浙江省杭州市"`, while the API accepts only `"杭州"`.
 
-参数描述值得包含格式、示例和范围；接口若只接受规范城市名，还应在服务端做别名归一化及歧义校验。
+Parameter descriptions should include formats, examples, and ranges. If the interface accepts only canonical city names, the server should also normalize aliases and check for ambiguity.
 
-### 1.4.3 用 enum 限定合法取值
+### 1.4.3 Use enums to restrict valid values
 
 ```python
-# 差：模型可能填 "高"、"HIGH"、"P0"、"urgent"
-{"priority": {"type": "string", "description": "优先级"}}
+# Poor: the model might supply "高" (high), "HIGH", "P0", or "urgent"
+{"priority": {"type": "string", "description": "Priority"}}
 
-# 好：限定合法取值；仍需校验业务含义
+# Better: restrict valid values; their business meaning still needs validation
 {"priority": {"type": "string", "enum": ["low", "medium", "high"]}}
 ```
 
-`enum` 既可用于服务端校验，也可被支持约束解码的运行时用于屏蔽非法 token。只有实际启用并支持该 Schema 的 strict/structured-output 路径才有此约束；仅注册 Schema 不能保证值合法，更不能保证优先级选得合理。上面的 Chat Completions 示例未开启 strict，严格模式见[第三章](03-tool-schema-design.md)。
+An `enum` supports server-side validation and can let a runtime with constrained decoding mask invalid tokens. That constraint applies only when a supported strict/structured-output path is actually enabled. Registering a schema alone does not guarantee valid values, much less a sensible priority choice. The Chat Completions example above does not enable strict mode; see [Chapter 3](03-tool-schema-design.md).
 
-## 1.5 完整调用流程：两轮对话加中间执行
+## 1.5 The complete flow: two model turns with execution in between
 
 ```mermaid
 sequenceDiagram
-    participant U as 用户
-    participant H as 宿主程序
-    participant M as 模型
-    participant T as 天气 API
+    participant U as User
+    participant H as Host application
+    participant M as Model
+    participant T as Weather API
 
-    U->>H: 北京今天天气怎么样？
-    H->>M: messages + tools（第一轮）
+    U->>H: What is the weather in Beijing today?
+    H->>M: messages + tools (first turn)
     M-->>H: finish_reason=tool_calls<br/>get_weather(city="北京")
-    Note over M: 模型在这里停下，<br/>没有输出最终答案
-    H->>T: 真正的 HTTP 请求
-    T-->>H: 晴，15°C，东北风 3 级
-    H->>M: 追加 role=tool 消息（第二轮）
-    M-->>H: 北京今天晴，气温 15°C……
-    H->>U: 最终答案
+    Note over M: The model stops here,<br/>without a final answer
+    H->>T: Actual HTTP request
+    T-->>H: Sunny, 15°C, northeasterly wind at force 3
+    H->>M: Append role=tool message (second turn)
+    M-->>H: Beijing is sunny today, with a temperature of 15°C…
+    H->>U: Final answer
 ```
 
-下面是单次查询的教学片段，不是独立可运行的客户端。`registry` 是应用的工具白名单；`validate_and_authorize` 需由应用实现，检查 Schema、业务参数和当前用户权限，失败时抛出明确错误。示例使用兼容 Chat Completions 的模型，不代表所有新模型支持该接口。
+The following is a teaching fragment for a single query, not a standalone client. `registry` is the application's tool allowlist. The application must implement `validate_and_authorize` to check the schema, business arguments, and current user's permissions, raising a clear error on failure. The example uses a model compatible with Chat Completions; it does not imply that all newer models support that interface. The Chinese input `北京今天天气怎么样？` asks for today's weather in Beijing. The diagram preserves the actual Chinese city argument `city="北京"`; its explanatory labels are in English.
 
 ```python
 import json
@@ -185,7 +186,7 @@ from openai import OpenAI
 client = OpenAI()
 messages = [{"role": "user", "content": "北京今天天气怎么样？"}]
 
-# 第一轮：模型决策
+# First turn: the model makes its decision
 resp = client.chat.completions.create(
     model="gpt-4o",
     messages=messages,
@@ -195,79 +196,79 @@ resp = client.chat.completions.create(
 choice = resp.choices[0]
 
 if choice.finish_reason == "tool_calls":
-    messages.append(choice.message)          # 必须先追加模型的这条消息
+    messages.append(choice.message)          # Append this model message first
 
     for call in choice.message.tool_calls:
         args = json.loads(call.function.arguments)
         validate_and_authorize(call.function.name, args)
-        result = registry[call.function.name](**args)   # 宿主程序执行
+        result = registry[call.function.name](**args)   # The host executes the call
 
         messages.append({
             "role": "tool",
-            "tool_call_id": call.id,          # 必须与请求的 id 一一对应
+            "tool_call_id": call.id,          # Must match this particular call's id
             "content": json.dumps(result, ensure_ascii=False),
         })
 
-    # 这个示例只允许单批查询，第二轮明确收尾
+    # This example allows one query batch only; the second turn closes the flow
     final = client.chat.completions.create(
         model="gpt-4o", messages=messages, tools=tools, tool_choice="none"
     )
     final_choice = final.choices[0]
     if final_choice.finish_reason != "stop" or final_choice.message.refusal:
-        raise RuntimeError("最终回答未正常完成或被拒绝")
+        raise RuntimeError("The final answer did not complete normally or was refused")
     print(final_choice.message.content)
 elif choice.finish_reason == "stop":
     if choice.message.refusal:
-        raise RuntimeError("请求被模型拒绝")
+        raise RuntimeError("The model refused the request")
     print(choice.message.content)
 else:
-    raise RuntimeError(f"响应未正常完成：{choice.finish_reason}")
+    raise RuntimeError(f"The response did not complete normally: {choice.finish_reason}")
 ```
 
-### 1.5.1 两个容易漏掉的必要步骤
+### 1.5.1 Two necessary steps that are easy to miss
 
-**必须把模型那条 `tool_calls` 消息追加回 messages**。很多人直接跳到追加 `role: "tool"`，结果 API 报 `messages with role 'tool' must be a response to a preceding message with 'tool_calls'`。原因是对话历史必须自洽：先有请求，才能有响应。
+**Append the model's `tool_calls` message to `messages`.** Jumping straight to `role: "tool"` can produce the API error `messages with role 'tool' must be a response to a preceding message with 'tool_calls'`. Conversation history must be internally consistent: a request must precede its response.
 
-**`tool_call_id` 必须一一对应**。把两个合法 ID 对应的结果交换，协议校验可能仍通过，模型却可能把杭州的天气当成北京的用；缺失或未知 ID 则可能直接被 API 拒绝。
+**Each `tool_call_id` must match its call.** Swapping the results associated with two valid IDs may pass protocol validation while making the model treat Hangzhou's weather as Beijing's. Missing or unknown IDs may be rejected by the API outright.
 
-### 1.5.2 Chat Completions 的常见 tool_choice 取值
+### 1.5.2 Common Chat Completions tool_choice values
 
-| 取值 | 行为 | 用途 |
+| Value | Behavior | Use |
 |---|---|---|
-| `"auto"`（默认） | 模型自己判断调不调 | 通用对话 |
-| `"required"` | 强制至少调一个工具 | 已确定必须查数据的流程节点 |
-| `{"type":"function","function":{"name":"x"}}` | 强制调指定工具 | 结构化抽取：把工具当输出格式用 |
-| `"none"` | 禁止调用 | 需要模型纯文本总结的收尾轮 |
+| `"auto"` (default) | The model decides whether to call a tool | General conversation |
+| `"required"` | Requires at least one tool call | A workflow step that must retrieve data |
+| `{"type":"function","function":{"name":"x"}}` | Forces the specified tool | Structured extraction: use the tool as an output format |
+| `"none"` | Disables calls | A closing turn that produces a text summary |
 
-把 `tool_choice` 锁定到某个工具时，Function Calling 实际上就在充当**结构化输出**接口。这是 Structured Output / JSON Mode 出现之前的通行做法，现在仍然被大量代码沿用。
+When `tool_choice` is locked to a particular tool, function calling effectively becomes a **structured-output** interface. This was common before Structured Outputs / JSON Mode and remains in extensive use in existing code.
 
-### 1.5.3 Responses API 的等价调用流程
+### 1.5.3 The equivalent flow with the Responses API
 
-Responses API 同样遵循「模型提出调用 → 宿主执行 → 回填结果 → 模型回答」的流程，但**工具定义、调用项和结果回填的结构都不同，不能只换一个 endpoint**。Chat Completions 把调用放在 assistant 消息的 `tool_calls` 中；Responses 则把消息、函数调用等作为不同类型的项，放在 `response.output` 列表中。
+Responses follows the same sequence: the model proposes a call, the host executes it, results are returned, and the model answers. However, **tool definitions, call items, and result submission all have different shapes; changing the endpoint alone is not enough**. Chat Completions puts calls in an assistant message's `tool_calls`; Responses represents messages, function calls, and other outputs as distinct item types in `response.output`.
 
-两种接口的关键字段可以这样对应：
+The key fields correspond as follows:
 
-| 含义 | Chat Completions | Responses API |
+| Meaning | Chat Completions | Responses API |
 |---|---|---|
-| Python SDK 入口 | `client.chat.completions.create(...)` | `client.responses.create(...)` |
-| 本例的对话输入 | `messages` | `input`，包含消息或工具结果等项 |
-| function tool 定义 | `{"type": "function", "function": {...}}` | `{"type": "function", "name": ..., "description": ..., "parameters": ...}` |
-| 查找函数调用 | `choices[0].message.tool_calls` | 遍历 `response.output`，筛选 `type == "function_call"` |
-| 函数名与 JSON 参数字符串 | `call.function.name`、`call.function.arguments` | `call.name`、`call.arguments` |
-| 调用与结果的关联 | 调用的 `id` → 结果的 `tool_call_id` | 调用的 `call_id` → 结果的 `call_id` |
-| 回填工具结果 | `role: "tool"` 消息，结果放在 `content` | `type: "function_call_output"` 项，结果放在 `output` |
-| 读取文本回答 | `choices[0].message.content` | `response.output_text`（SDK 汇总文本的便捷属性） |
+| Python SDK entry point | `client.chat.completions.create(...)` | `client.responses.create(...)` |
+| Conversation input in this example | `messages` | `input`, containing messages, tool results, and other items |
+| Function tool definition | `{"type": "function", "function": {...}}` | `{"type": "function", "name": ..., "description": ..., "parameters": ...}` |
+| Finding function calls | `choices[0].message.tool_calls` | Iterate over `response.output` and select `type == "function_call"` |
+| Function name and JSON argument string | `call.function.name`, `call.function.arguments` | `call.name`, `call.arguments` |
+| Linking a call to its result | Call's `id` → result's `tool_call_id` | Call's `call_id` → result's `call_id` |
+| Returning tool results | `role: "tool"` message with the result in `content` | `type: "function_call_output"` item with the result in `output` |
+| Reading the text answer | `choices[0].message.content` | `response.output_text` (an SDK convenience property aggregating text) |
 
-Responses 的 function tool schema 是**扁平结构**：`name`、`description`、`parameters`、`strict` 与 `type` 同级，没有外层 `function` 对象；这不表示 `parameters` 内部不能定义嵌套对象。
+The Responses function tool schema has a **flat outer structure**: `name`, `description`, `parameters`, and `strict` are siblings of `type`, with no wrapping `function` object. This does not prevent nested objects inside `parameters`.
 
-下面沿用 1.4 节的 `tools` 定义，以及前文由应用实现的 `registry` 和 `validate_and_authorize`，仍是单批查询的教学片段。显式设置 `strict=False`，保留原例中 `unit` 可选的语义；若开启严格模式，需要同时调整 Schema，不能只改这个开关。
+The following reuses the `tools` definition from Section 1.4 and the application-provided `registry` and `validate_and_authorize` from above. It is still a teaching fragment for one batch of queries. Setting `strict=False` explicitly preserves the original optional `unit` field. Enabling strict mode requires changing the schema too, not just flipping this switch.
 
 ```python
 import json
 from openai import OpenAI
 
 client = OpenAI()
-weather = tools[0]["function"]  # 读取前文 Chat Completions 的工具定义
+weather = tools[0]["function"]  # Read the earlier Chat Completions tool definition
 responses_tools = [{
     "type": "function",
     "name": weather["name"],
@@ -280,14 +281,14 @@ input_items = [{"role": "user", "content": "北京今天天气怎么样？"}]
 
 def check_response(response):
     if response.status != "completed":
-        raise RuntimeError(f"响应未正常完成：{response.status}")
+        raise RuntimeError(f"The response did not complete normally: {response.status}")
     for item in response.output:
         if item.type == "message":
             if any(part.type == "refusal" for part in item.content):
-                raise RuntimeError("请求被模型拒绝")
+                raise RuntimeError("The model refused the request")
 
 
-# 第一轮：从 output 中收集所有函数调用，不能假设第一项就是调用
+# First turn: collect every function call; the first output item need not be a call
 response = client.responses.create(
     model="gpt-4o", input=input_items, tools=responses_tools, tool_choice="auto"
 )
@@ -295,18 +296,18 @@ check_response(response)
 calls = [item for item in response.output if item.type == "function_call"]
 
 if calls:
-    input_items.extend(response.output)  # 先保留完整输出，再追加工具结果
+    input_items.extend(response.output)  # Preserve all output before adding tool results
     for call in calls:
         args = json.loads(call.arguments)
         validate_and_authorize(call.name, args)
         result = registry[call.name](**args)
         input_items.append({
             "type": "function_call_output",
-            "call_id": call.call_id,  # 对应调用的 call_id，不是该项的 id
+            "call_id": call.call_id,  # Match the call_id, not the item's id
             "output": json.dumps(result, ensure_ascii=False),
         })
 
-    # 与前例一样，第二轮禁止继续调用工具，收尾生成回答
+    # As above, disable further tool calls on the second turn and produce the answer
     response = client.responses.create(
         model="gpt-4o", input=input_items,
         tools=responses_tools, tool_choice="none",
@@ -316,31 +317,31 @@ if calls:
 print(response.output_text)
 ```
 
-这里手动维护 `input_items`，所以必须把第一轮完整的 `response.output` 带回下一轮；若换用推理模型，随调用返回的 `reasoning` 项也应保留，不能只摘出 `function_call`。另一种方式是通过 `previous_response_id=response.id` 关联上一轮，再在 `input` 中提交本轮工具结果；本例采用前一种方式。
+Because this example manages `input_items` manually, it must pass the first turn's complete `response.output` into the next turn. With a reasoning model, preserve any `reasoning` items returned alongside calls; do not extract only `function_call` items. Alternatively, link to the previous turn with `previous_response_id=response.id` and submit the current tool results in `input`. This example uses manual history management.
 
-**`call_id` 负责把结果配回具体调用**。即使同一函数被调用两次，也要分别回填，不能只按函数名关联。判断是否需要执行函数，应检查 `function_call` 项；`status == "completed"` 只说明这次响应已完成，不代表整个任务已完成，也不替代 Chat Completions 的 `finish_reason`。本例处理零个或多个调用，但只执行一批；需要多步工具协作时，仍要增加有轮数和时间预算的循环。
+**`call_id` associates each result with a particular call.** Even when the same function is called twice, each call needs its own result; matching by function name is insufficient. Check for `function_call` items to decide whether a function needs execution. `status == "completed"` means only that this response has completed, not that the whole task has finished, and it does not replace Chat Completions' `finish_reason`. The example handles zero or multiple calls but executes only one batch. Multi-step tool coordination still requires a loop with turn and time budgets.
 
-## 1.6 并行工具调用
+## 1.6 Parallel tool calls
 
-`tool_calls` 是数组而不是单个对象，这是一个刻意的设计。
+`tool_calls` is an array rather than a single object by design.
 
-用户问「帮我查北京、上海、广州的天气」，模型可以在**一次响应**里返回三个调用请求：
+If the user asks for the weather in Beijing, Shanghai, and Guangzhou, the model can return three call requests in **one response**:
 
 ```mermaid
 flowchart LR
-    subgraph SER["串行：4 轮模型调用，含最终总结"]
-        S1[模型] --> S2[查北京] --> S3[模型] --> S4[查上海] --> S5[模型] --> S6[查广州] --> S7[模型]
+    subgraph SER["Sequential: 4 model calls, including the final summary"]
+        S1[Model] --> S2[Query Beijing] --> S3[Model] --> S4[Query Shanghai] --> S5[Model] --> S6[Query Guangzhou] --> S7[Model]
     end
 
-    subgraph PAR["并行：2 轮模型调用"]
-        P1[模型一次输出 3 个 tool_calls] --> P2[并发执行三个查询]
-        P2 --> P3[一次性回填三条结果] --> P4[模型]
+    subgraph PAR["Parallel: 2 model calls"]
+        P1[Model outputs 3 tool_calls at once] --> P2[Execute three queries concurrently]
+        P2 --> P3[Return all three results together] --> P4[Model]
     end
 ```
 
-在三个查询彼此独立、每轮推理耗时均近似为 `T`、不计排队和调度开销的教学模型下：逐次查询加总结约为 `4T + IO₁ + IO₂ + IO₃`，一批并发加总结约为 `2T + max(IO₁, IO₂, IO₃)`。实际收益取决于生成长度、并发限制和 API 延迟。
+In a teaching model where the queries are independent, each model invocation takes approximately `T`, and queueing and scheduling overhead are ignored, sequential queries plus a summary take about `4T + IO₁ + IO₂ + IO₃`. A concurrent batch plus a summary takes about `2T + max(IO₁, IO₂, IO₃)`. Actual gains depend on generation length, concurrency limits, and API latency.
 
-下面只展示并发调度，输入须已完成解析、参数校验和授权。`validated_calls` 中每项包含 `name` 与 `arguments`，应用另行保留它与原调用 ID 的映射。
+The following shows scheduling only. Inputs must already have been parsed, validated, and authorized. Each entry in `validated_calls` contains `name` and `arguments`; the application separately retains its mapping to the original call ID.
 
 ```python
 import asyncio
@@ -353,81 +354,81 @@ async def run_all(validated_calls):
     return await asyncio.gather(*tasks, return_exceptions=True)
 ```
 
-`gather` 按输入顺序返回结果，异常也会作为列表项返回；应用必须逐项识别，不能把异常对象序列化成成功结果。这里只示意调度，尚需并发上限与超时；取消等待 `to_thread` 不会强制停止已运行的同步函数，底层 I/O 也要设置超时。
+`gather` returns results in input order, including exceptions as list entries. The application must examine every entry rather than serialize exception objects as successful results. This is only a scheduling sketch; concurrency limits and timeouts are still needed. Canceling a wait on `to_thread` does not forcibly stop a running synchronous function, so the underlying I/O also needs timeouts.
 
-### 1.6.1 并行的前提是无依赖
+### 1.6.1 Parallel calls must be independent
 
-「先查订单号，再用订单号查物流」有数据依赖，不能并行。模型可能猜测中间结果；宿主应验证前置步骤已完成及对象归属。多个写操作即便参数独立，也可能竞争同一业务资源，不能只看 JSON 结构决定并发。
+"Find the order number, then use it to track shipping" has a data dependency and cannot run in parallel. The model may guess an intermediate result; the host should verify that prerequisites are complete and that the object belongs to the authorized party. Even write operations with independent arguments may compete for the same business resource. JSON structure alone cannot determine whether concurrency is safe.
 
-### 1.6.2 部分失败怎么处理
+### 1.6.2 Handling partial failure
 
-并行执行时如果两个成功一个失败，**不要整批丢弃**。把失败的那个也以 `role: "tool"` 回填，内容写成结构化错误：
+If two parallel calls succeed and one fails, **do not discard the entire batch**. Return the failed call as a `role: "tool"` message too, with a structured error:
 
 ```python
 {"role": "tool", "tool_call_id": call.id,
  "content": '{"error": "city_not_found", "message": "未找到城市「广洲」，请确认拼写"}'}
 ```
 
-模型可能据此修正参数，但应设置最大轮数、总 deadline 和重复错误检测。鉴权失败、策略拒绝不应让模型绕过；写操作超时意味着结果未知，先查询业务状态或用持久化幂等键去重，不能盲目重试。`tool_call_id` 只是消息关联 ID，不自动提供幂等保证。
+The original Chinese result says, "City ‘广洲’ was not found; please check the spelling." Here `广洲` is a misspelling of Guangzhou (`广州`). The model may correct the arguments based on the error, but set a maximum turn count, an overall deadline, and repeated-error detection. Authentication failures and policy denials must not become opportunities to bypass controls. A timed-out write has an unknown outcome: check business state or deduplicate with a persistent idempotency key before retrying. `tool_call_id` is only a message-correlation ID; it does not provide idempotency automatically.
 
-## 1.7 从 Function Calling 到工具调用生态
+## 1.7 From function calling to the tool ecosystem
 
-Function Calling 只解决了「模型怎么表达调用意图」。它没有解决的问题清单很长：
+Function calling solves only how a model expresses its intent to call a tool. Many questions remain:
 
-| 未解决的问题 | 由谁解决 |
+| Unresolved question | Mechanism that addresses it |
 |---|---|
-| 工具怎么被**发现**（不用硬编码在代码里） | [MCP](../02-mcp/04-what-is-mcp.md) |
-| 工具怎么**跨进程 / 跨机器**提供 | [MCP 传输层](../02-mcp/12-mcp-transport.md) |
-| 复杂任务的**操作方法**怎么复用 | [Skill](../03-skills/08-what-is-skill.md) |
-| 多个 Agent 之间怎么**互相调用** | [A2A](../04-agent-communication/11-a2a-protocol.md) |
-| 多模型、多供应商怎么**统一治理** | [LLM 网关](../05-transport-gateway/14-llm-gateway.md) |
+| How are tools **discovered** without hardcoding them? | [MCP](../02-mcp/04-what-is-mcp.md) |
+| How are tools exposed **across processes or machines**? | [MCP transports](../02-mcp/12-mcp-transport.md) |
+| How can **procedures for complex tasks** be reused? | [Skills](../03-skills/08-what-is-skill.md) |
+| How do multiple agents **call one another**? | [A2A](../04-agent-communication/11-a2a-protocol.md) |
+| How can multiple models and providers share **centralized governance**? | [LLM gateways](../05-transport-gateway/14-llm-gateway.md) |
 
-理解这个边界很重要：许多 LLM Host 会将 MCP Tool 转为模型能理解的 schema 并用 Function Calling 驱动调用；但 MCP 与 A2A 不以 Function Calling 为协议前提，Host 也可通过规则、结构化输出或人工流程发起调用。
+This boundary matters. Many LLM hosts translate MCP tools into model-readable schemas and use function calling to drive execution. However, neither MCP nor A2A requires function calling as a protocol prerequisite. A host can also initiate calls through rules, structured outputs, or human-driven workflows.
 
-## 1.8 常见错误
+## 1.8 Common mistakes
 
-### 1.8.1 认为模型自己执行了工具
+### 1.8.1 Assuming the model executed the tool
 
-调用项不是执行凭证。应用和工具服务端都应独立检查授权；平台托管工具也有自己的执行边界。模型参数可能被用户或工具返回内容操纵。
+A call item is not proof of execution. The application and tool server should independently check authorization; platform-hosted tools also have their own execution boundaries. Users or tool-returned content can influence model-generated arguments.
 
-### 1.8.2 把 description 当注释写
+### 1.8.2 Treating the description as a code comment
 
-`"description": "获取天气"` 没有说明地域、时间和返回值范围。工具定义是模型输入的一部分，应连同系统指令和回归样例一起维护。
+`"description": "Get weather"` says nothing about supported geography, time, or returned information. Tool definitions are part of the model's input and should be maintained alongside system instructions and regression examples.
 
-### 1.8.3 注册几十个工具指望模型选对
+### 1.8.3 Registering dozens of tools and expecting the model to choose correctly
 
-工具增多可能增加混淆和上下文成本，尤其是功能相近的工具。可按权限和场景动态筛选，或使用接口支持的延迟加载。候选数量用召回率、调用准确率和端到端成本评测，不设通用门槛。
+More tools can increase confusion and context cost, especially when their capabilities overlap. Filter them dynamically by permissions and use case, or use deferred loading if the interface supports it. Evaluate candidate counts through retrieval recall, call accuracy, and end-to-end cost rather than imposing a universal threshold.
 
-### 1.8.4 忘记回填模型的 tool_calls 消息
+### 1.8.4 Forgetting to append the model's tool_calls message
 
-只追加 `role: "tool"` 而漏掉模型那条消息，会直接触发 API 报错。对话历史必须保持请求与响应成对。
+Appending only `role: "tool"` without the model's preceding message triggers an API error. Conversation history must keep requests and responses paired.
 
-### 1.8.5 用异常中断替代错误回填
+### 1.8.5 Interrupting execution instead of returning a useful error
 
-对城市名拼写等可纠正错误，可在适配层回填脱敏的结构化结果，让模型在次数预算内重试。鉴权拒绝和非预期故障则应停止或升级处理；底层使用异常本身不是错误，错误在于丢失失败原因或把失败伪装成成功。
+For correctable errors such as city-name misspellings, the adapter can return a sanitized, structured result so the model can retry within its attempt budget. Authorization denials and unexpected failures should stop the flow or be escalated. Using exceptions internally is not itself wrong; losing the failure reason or presenting failure as success is.
 
-### 1.8.6 假设所有模型的 Function Calling 行为一致
+### 1.8.6 Assuming all models behave identically
 
-不同模型的差异比想象中大：并行调用的支持程度不同，`tool_choice` 的取值语义不同，参数为空时有的填 `{}` 有的填 `null`，Schema 复杂嵌套时的稳定性也不同。换模型必须重跑工具调用的回归测试。
+Models differ more than one might expect: support for parallel calls, `tool_choice` semantics, whether empty arguments become `{}` or `null`, and reliability with deeply nested schemas can all vary. Rerun tool-calling regression tests whenever you switch models.
 
-## 1.9 本章总结
+## 1.9 Chapter summary
 
-1. **Function Calling 是模型层的输出约定**，把工具调用从文本解析问题变成协议问题；
-2. **调用标记依赖具体 API**，Chat Completions 与 Responses 的回填结构不同；
-3. **模型提议、宿主批准、工具执行**，服务端还需复核权限；
-4. **工具名、描述、Schema 与上下文共同影响选择**，strict 约束格式而非业务正确性；
-5. **两轮只是最小示例**，完整 Agent 需循环处理调用并设置退出条件；
-6. **无依赖查询可以并发**，写操作还要检查冲突、幂等性和部分失败；
-7. **它只解决了表达问题**，工具发现、跨进程接入可由 MCP 等机制补齐，两者不是强制上下层关系。
+1. **Function calling is a model-facing output convention**, turning tool invocation from a text-parsing problem into a protocol problem.
+2. **Call markers depend on the API**; Chat Completions and Responses use different result-submission structures.
+3. **The model proposes, the host authorizes, and the tool executes**; the server must also recheck permissions.
+4. **Names, descriptions, schemas, and context jointly influence selection**; strict mode constrains format, not business correctness.
+5. **Two turns are only the minimal example**; a complete agent needs a call-handling loop with exit conditions.
+6. **Independent queries can run concurrently**; writes also require conflict checks, idempotency, and partial-failure handling.
+7. **Function calling solves expression, not every integration concern**; mechanisms such as MCP can provide discovery and cross-process access without forming a mandatory protocol stack.
 
 
-## 参考资料
+## References
 
-- [OpenAI: Function Calling 指南（2026-09-08 核查）](https://developers.openai.com/api/docs/guides/function-calling)
-- [OpenAI: Responses API 迁移指南（本节字段与示例于 2026-09-16 对照此页及 Function Calling 指南核查）](https://developers.openai.com/api/docs/guides/migrate-to-responses)
-- [OpenAI: 2023 年 Function Calling 发布](https://openai.com/index/function-calling-and-other-api-updates/)
+- [OpenAI: Function Calling guide (checked 2026-09-08)](https://developers.openai.com/api/docs/guides/function-calling)
+- [OpenAI: Responses API migration guide (this section's fields and examples were checked against this page and the Function Calling guide on 2026-09-16)](https://developers.openai.com/api/docs/guides/migrate-to-responses)
+- [OpenAI: The 2023 Function Calling announcement](https://openai.com/index/function-calling-and-other-api-updates/)
 - [Anthropic: Tool Use with Claude](https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview)
 - [Anthropic: Writing Effective Tools for Agents](https://www.anthropic.com/engineering/writing-tools-for-agents)
 - [Toolformer: Language Models Can Teach Themselves to Use Tools](https://arxiv.org/abs/2302.04761)
 - [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629)
-- [JSON Schema 规范](https://json-schema.org/)
+- [JSON Schema specification](https://json-schema.org/)
