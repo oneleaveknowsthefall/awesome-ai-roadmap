@@ -1,19 +1,19 @@
 ---
-description: 从记忆分类到持久化、检索与上下文压缩，讨论事实来源、权限、失效处理及可恢复性评测。
+description: From memory categories to persistence, retrieval, and context compression, examine fact provenance, authorization, invalidation, and recovery evaluation.
 ---
 
-# Agent · 记忆与上下文
+# Agents · Memory and Context
 
-覆盖记忆分类、长短期存储、召回使用与上下文压缩。
+Covers memory categories, short- and long-term storage, retrieval and use, and context compression.
 
-建议先读第七章区分记忆的作用域、内容与存储，再读第八章的写入一致性和权限控制，最后用第十章检查压缩后还能否恢复状态、找到证据。持久化解决“数据还在不在”，检索解决“找不找得到”，Context 构建解决“这轮模型实际看到了什么”；三者不能互相替代。
+Start with Chapter 7 to distinguish memory scope, content, and storage. Then read Chapter 8 on write consistency and access control, and use Chapter 10 to check whether state can still be recovered and evidence located after compression. Persistence answers “Is the data still there?”, retrieval answers “Can we find it?”, and context construction answers “What did the model actually see in this invocation?” None can substitute for the others.
 
-框架与 API 的持久化、缓存和删除行为并不完全相同，阅读示例时应同时确认章内说明的版本与适用范围。
+Persistence, caching, and deletion behavior differs across frameworks and APIs. When reading an example, also check the version and scope specified in the chapter.
 
-## 章节
+## Chapters
 
-1. [第七章：AI Agent 的记忆机制](07-agent-memory.md)
-2. [第八章：Agent 长短期记忆系统的工程实现](08-agent-memory-implementation.md)
-3. [第十章：Agent 记忆与上下文压缩](10-agent-memory-compression.md)
+1. [Chapter 7: Memory Mechanisms in AI Agents](07-agent-memory.md)
+2. [Chapter 8: Implementing Short- and Long-Term Agent Memory](08-agent-memory-implementation.md)
+3. [Chapter 10: Agent Memory and Context Compression](10-agent-memory-compression.md)
 
-返回 [Agent 相关知识点](../README.md)。
+Back to [Agent Topics](../README.md).

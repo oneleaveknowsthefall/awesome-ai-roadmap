@@ -1,68 +1,68 @@
 ---
-description: 覆盖 AI Agent 的架构、规划、记忆、多智能体与 Harness，并通过代码搜索编辑、失败归因和后训练案例说明工程取舍。
+description: Agent architecture, planning, memory, multi-agent systems, and harnesses, with engineering tradeoffs illustrated through code editing, failure attribution, and post-training.
 ---
 
-# Agent 相关知识点
+# Agents
 
-本主题位于应用架构层，覆盖 Agent 基础架构、运行时 Harness、推理规划、记忆上下文、多智能体协作，以及生产评估与安全。编码与后训练模块进一步讨论：怎样可靠地修改代码，怎样从失败轨迹判断该改工具还是训练模型。
+This topic covers the application architecture of agents: foundational architecture, runtime harnesses, reasoning and planning, memory and context, multi-agent coordination, and production evaluation and security. The coding and post-training modules take these ideas further: how to change code reliably, and how to use failed trajectories to decide whether to fix a tool or train the model.
 
-## 子模块
+## Modules
 
-1. [基础与架构（第 1–3 章）](01-foundations/README.md)
-2. [Runtime 与 Harness（第 16–23 章）](02-runtime-harness/README.md)
-3. [推理、规划与反思（第 4–6、11–12 章）](02-reasoning-planning/README.md)
-4. [记忆与上下文（第 7–8、10 章）](03-memory-context/README.md)
-5. [多智能体系统（第 9、13 章）](04-multi-agent/README.md)
-6. [评估与安全（第 14–15 章）](05-production/README.md)
-7. [Coding Agent 工程（第 24 章）](06-coding-agents/README.md)
-8. [Agent 后训练（第 25 章）](07-post-training/README.md)
+1. [Foundations and Architecture (Chapters 1–3)](01-foundations/README.md)
+2. [Runtime and Harnesses (Chapters 16–23)](02-runtime-harness/README.md)
+3. [Reasoning, Planning, and Reflection (Chapters 4–6, 11–12)](02-reasoning-planning/README.md)
+4. [Memory and Context (Chapters 7–8, 10)](03-memory-context/README.md)
+5. [Multi-Agent Systems (Chapters 9, 13)](04-multi-agent/README.md)
+6. [Evaluation and Security (Chapters 14–15)](05-production/README.md)
+7. [Coding Agent Engineering (Chapter 24)](06-coding-agents/README.md)
+8. [Agent Post-Training (Chapter 25)](07-post-training/README.md)
 
-## 模块关系
+## How the modules connect
 
 ```mermaid
 flowchart TB
-    F[基础与架构] --> H[Runtime 与 Harness]
-    F --> R[推理、规划与反思]
-    F --> M[记忆与上下文]
+    F[Foundations and Architecture] --> H[Runtime and Harnesses]
+    F --> R[Reasoning, Planning, and Reflection]
+    F --> M[Memory and Context]
     H --> R
     H --> M
-    R --> A[多智能体系统]
+    R --> A[Multi-Agent Systems]
     M --> A
-    H --> P[评估与安全]
+    H --> P[Evaluation and Security]
     R --> P
     M --> P
     A --> P
-    H --> C[代码搜索、编辑与验证]
+    H --> C[Code Search, Editing, and Verification]
     C --> P
-    P --> T[失败归因与后训练]
+    P --> T[Failure Attribution and Post-Training]
 ```
 
-图中的依赖从基础概念走向执行与协作：规划决定尝试什么，记忆提供可用信息，Harness 负责实际执行。评估与安全约束这些过程；代码任务和后训练则分别追问“改动是否正确”和“反复出现的策略错误怎样改善”。
+The dependencies move from foundational concepts toward execution and coordination. Planning determines what to try, memory supplies available information, and the harness carries out execution. Evaluation and security constrain these processes. Code tasks ask whether a change is correct; post-training asks how to improve recurring policy errors.
 
-协议细节不在本主题重复展开：工具接入见 [Tools · MCP](../tools/02-mcp/README.md)，跨 Agent 互操作见 [Tools · Agent 通信](../tools/04-agent-communication/README.md)。
+Protocol details are covered elsewhere: see [Tools · MCP](../tools/02-mcp/README.md) for tool integration and [Tools · Agent Communication](../tools/04-agent-communication/README.md) for interoperability between agents.
 
-## 阅读建议
+## Suggested reading paths
 
-- **Agent 入门**：基础与架构 → 推理、规划与反思；
-- **有状态 Agent**：基础与架构 → 记忆与上下文；
-- **多 Agent 系统**：基础与架构 → 推理规划 → 多智能体系统；
-- **工程落地 / Harness 开发**：基础与架构 → Runtime 与 Harness；
-- **Coding Agent**：Runtime 与 Harness → Coding Agent 工程 → 评估与安全；
-- **用训练改善 Agent**：先读 [LLM 训练与对齐](../llm/02-training-alignment/README.md)和[工具学习](../tools/01-function-calling/02-tool-learning.md)，再读 Agent 后训练；
-- **生产上线**：完成目标模块后阅读评估与安全。
+- **Getting started**: Foundations and Architecture → Reasoning, Planning, and Reflection.
+- **Stateful agents**: Foundations and Architecture → Memory and Context.
+- **Multi-agent systems**: Foundations and Architecture → Reasoning and Planning → Multi-Agent Systems.
+- **Implementation and harness development**: Foundations and Architecture → Runtime and Harnesses.
+- **Coding agents**: Runtime and Harnesses → Coding Agent Engineering → Evaluation and Security.
+- **Improving agents through training**: read [LLM Training and Alignment](../llm/02-training-alignment/README.md) and [Tool Learning](../tools/01-function-calling/02-tool-learning.md) before Agent Post-Training.
+- **Production deployment**: read Evaluation and Security after the modules relevant to your system.
 
-## 常见问题
+## Frequently asked questions
 
-### AI Agent 和普通聊天机器人有什么区别？
+### How does an AI agent differ from an ordinary chatbot?
 
-普通聊天机器人主要生成回复；Agent 把模型放入持续控制循环，由模型根据目标决定下一步，并通过工具读取状态或改变外部系统。能否可靠执行任务还取决于 Harness、权限和评测，而不只是模型能力。
+An ordinary chatbot primarily generates replies. An agent places the model in an ongoing control loop: the model chooses the next step toward a goal and uses tools to inspect state or change external systems. Reliable task execution depends on the harness, permissions, and evaluation as well as the model.
 
-### Agent Framework 和 Agent Harness 是一回事吗？
+### Are an agent framework and an agent harness the same thing?
 
-不是同一个视角。Framework 描述开发 API、组件和编排抽象，Harness 描述驱动循环、装配上下文、执行工具、保存状态并处理失败的运行时职责。一个框架产品可以同时提供完整 Harness；具体能力仍需配置和部署，“框架只管开发、不含运行时”也不准确。
+They describe different aspects of a system. A framework provides development APIs, components, and orchestration abstractions. A harness describes the runtime responsibilities of driving the loop, assembling context, executing tools, saving state, and handling failures. A framework product can also provide a complete harness, whose capabilities still depend on configuration and deployment. Saying that frameworks only support development and have no runtime is also inaccurate.
 
-### 什么时候需要 Multi-Agent？
+### When do you need multiple agents?
 
-当任务需要明确的权限隔离、独立上下文、并行工作或不同专业角色时，Multi-Agent 才可能带来收益。若一个 Agent 加工具和结构化工作流就能完成任务，拆成多个 Agent 往往只会增加通信和调试成本。
+Multiple agents may help when a task needs explicit permission separation, independent contexts, parallel work, or distinct specialist roles. If one agent with tools and a structured workflow can handle the task, splitting it across several agents often adds communication and debugging costs without a corresponding benefit.
 
-返回[文档主题索引](../README.md)。
+Back to the [documentation topic index](../README.md).

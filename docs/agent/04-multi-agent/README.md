@@ -1,16 +1,16 @@
 ---
-description: 比较单、多 Agent 的选型条件，梳理并行调度、交接协议、共享状态一致性与失败恢复。
+description: Compare single-agent and multi-agent designs, parallel scheduling, handoff contracts, shared-state consistency, and failure recovery.
 ---
 
-# Agent · 多智能体系统
+# Agents · Multi-Agent Systems
 
-先判断任务是否值得拆成独立决策循环，再讨论怎样交接、调度和验收。重点区分 Agent 的语义协作与存储系统的强一致提交，避免把多角色投票当成分布式共识。
+First decide whether a task warrants separate decision loops, then consider handoffs, scheduling, and acceptance. Distinguish coordination over the meaning of agents' results from strongly consistent commits in a storage system: votes from multiple roles are not distributed consensus.
 
-## 章节
+## Chapters
 
-1. [第九章：Single-Agent 与 Multi-Agent 系统](09-single-vs-multi-agent.md)
-2. [第十三章：Multi-Agent 协作、路由与动态切换](13-multi-agent-coordination.md)
+1. [Chapter 9: Single-Agent and Multi-Agent Systems](09-single-vs-multi-agent.md)
+2. [Chapter 13: Multi-Agent Coordination, Routing, and Dynamic Switching](13-multi-agent-coordination.md)
 
-第九章适合比较上下文隔离、任务耦合、成本与评测基线；第十三章进一步讨论消息语义、并发写入、租约、预算和故障恢复。
+Chapter 9 compares context isolation, task coupling, costs, and evaluation baselines. Chapter 13 goes further into message semantics, concurrent writes, leases, budgets, and failure recovery.
 
-返回 [Agent 相关知识点](../README.md)。
+Back to [Agent Topics](../README.md).

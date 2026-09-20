@@ -1,111 +1,111 @@
 ---
-description: 以部分完成便收尾的 Agent 为例，解释首错归因、冻结决策前缀、SFT 与偏好对构造、多轮训练环境、信用分配和独立验收。
+description: An agent that stops after partial completion illustrates first-error attribution, frozen decision prefixes, SFT and preference data, multi-turn training environments, credit assignment, and independent acceptance.
 ---
 
-# 第二十五章：Agent 后训练：从失败轨迹到可靠策略
+# Chapter 25: Agent Post-Training: From Failed Trajectories to Reliable Policies
 
-## 25.1 测试没过，不等于该训练模型
+## 25.1 A failing test does not necessarily mean the model needs training
 
-> 下面是一个虚构的 CSV 导出助手案例：产品要求固定列顺序、写入 UTF-8 BOM、空数据仍输出表头；助手只完成前两项便宣称全部完成。
+> Consider a fictional CSV export assistant. The product requires a fixed column order, a UTF-8 BOM, and a header even when the data is empty. The assistant implements only the first two requirements, then claims that everything is complete.
 
-工程师小周拿到用户反馈：“空表导出还是坏的。”她的第一步不是收集一批“不要提前结束”的句子，而是把用户请求、实际修改、工具返回和最后答复放在一起看。
+Zhou, an engineer, receives the user's feedback: “Exporting an empty table is still broken.” Rather than collect a batch of “do not stop early” instructions, she first compares the request, the actual changes, tool results, and final reply.
 
-工具记录显示，两项检查通过，空数据分支尚未实现。助手能看到这个结果，却回答“所有要求均已完成”。这里至少有两个待查问题：为什么遗漏实现，以及为什么在已知有缺项时收尾。只把最终失败标成负样本，会把此前正确的修改也混在一起。
+The tool record shows that two checks passed while the empty-data branch remains unimplemented. The assistant can see this result but responds, “All requirements are complete.” At least two questions need investigation: why was the implementation omitted, and why did the assistant stop despite knowing something was missing? Labeling only the final failure as a negative example also sweeps the earlier correct edits into that label.
 
-**Agent 后训练要改变的是模型在特定状态下选择动作的倾向，不是替运行时补齐缺失的信息或权限。** 没读到验收要求、工具错误返回成功、模型看见缺项仍收尾，表面相似，修法完全不同。
+**Agent post-training changes the model's tendency to choose actions in particular states. It does not supply information or permissions missing from the runtime.** Missing acceptance requirements in context, a tool that reports an error as success, and a model that sees an unmet requirement but stops anyway can look similar. They require different remedies.
 
-[工具学习](../../tools/01-function-calling/02-tool-learning.md)已介绍工具轨迹和 assistant-only loss；[后训练方法](../../llm/02-training-alignment/10-post-training.md)与 [DPO/PPO 对比](../../llm/02-training-alignment/11-dpo-vs-ppo.md)解释算法。本章只沿着一次失败，讨论怎样把工程证据接到训练和验收。
+[Tool Learning](../../tools/01-function-calling/02-tool-learning.md) covers tool trajectories and assistant-only loss. [Post-Training Methods](../../llm/02-training-alignment/10-post-training.md) and [DPO versus PPO](../../llm/02-training-alignment/11-dpo-vs-ppo.md) explain the algorithms. This chapter follows one failure to show how engineering evidence connects to training and acceptance.
 
-## 25.2 先找到第一个不可接受的决策
+## 25.2 Find the first unacceptable decision
 
-小周从最后的失败向前查，但按时间顺序核对证据。最后一个报错只是入口；第一个工具失败也未必是策略错误，合理探索可能失败，再由助手恢复。
+Zhou works backward from the final failure, but checks the evidence in chronological order. The last error is only a starting point. Even the first tool failure may not be a policy error: reasonable exploration can fail and the assistant can recover.
 
-| 查到的证据 | 暂时归因 | 下一步 |
+| Evidence found | Provisional attribution | Next step |
 |---|---|---|
-| 用户原请求有第三项，实际模型输入被截断后没有 | 上下文装配或数据管线 | 修截断和需求保留策略，再重放 |
-| 检查脚本只跑两项，却返回 `all_passed` | 工具或验证契约 | 明确已检查、未检查和失败项 |
-| 输入含三项要求与缺项结果，助手直接宣布全完成 | 候选策略错误 | 冻结收尾前状态，测是否稳定复现 |
-| 推理连接中断后，UI 自动补出“已完成” | 运行时终止处理 | 区分正常终止、截断与异常 |
-| 用户中途取消，助手停止并如实报告部分完成 | 不应标为过早结束 | 保留取消与交接语义 |
+| The user's request includes the third requirement, but the truncated model input does not | Context assembly or data pipeline | Fix truncation and requirement retention, then replay |
+| The checking script runs only two checks but returns `all_passed` | Tool or verification contract | Distinguish checked, unchecked, and failed items |
+| Input contains all three requirements and the missing-item result, yet the assistant announces completion | Candidate policy error | Freeze the state before the completion claim and test reproducibility |
+| The inference connection breaks and the UI automatically inserts “completed” | Runtime termination handling | Distinguish normal termination, truncation, and exceptions |
+| The user cancels; the assistant stops and accurately reports partial completion | Not premature completion | Preserve cancellation and handoff semantics |
 
-她记录首错位置、错误类别、责任组件、输入证据，以及尚未排除的其他原因。若早期规划已经明确删掉第三项，那才是更早的错误；若只是先做两项，仍可能正常接着做，不能仅凭任务暂未完成就判错。
+She records the first-error location, error category, responsible component, input evidence, and alternative causes not yet ruled out. If an earlier plan explicitly dropped the third requirement, that would be an earlier error. Merely doing two items first is not enough to establish failure: the assistant may still continue normally.
 
-本例假定此前没有违反约束的动作，第一处可确认的错误是准备生成“全部完成”的决策。冻结它能隔离收尾策略，但不能证明最初为什么漏改；两者需要分别保留假设。
+This case assumes no preceding action violated constraints. The first confirmed error is the decision about to produce the “everything is complete” response. Freezing that boundary isolates the stopping policy; it does not establish why the implementation was initially omitted. Keep those hypotheses separate.
 
-### 字符复制失败也要这样拆
+### Apply the same decomposition to character-copying failures
 
-另一条轨迹出现 `old_string` 匹配失败时，不能直接增加“精确复制 SFT”。沿文件读取、工具返回、上下文序列化、模型输出、JSON 解析、工具匹配逐段找首次差异。
+When another trajectory encounters an `old_string` mismatch, do not immediately add “exact-copy SFT.” Find the first difference along the path from file reading through tool output, context serialization, model output, JSON parsing, and tool matching.
 
-比如 JSON 源文本里的 `\n` 解码后是换行，`\\n` 解码后是反斜杠加字母 `n`。日志显示的转义形式不同，并不自动表示内容改变。应在相同语义层比较字节、Unicode 码点与首次差异位置；token ID 只在同一 tokenizer 下比较。
+For example, `\n` in JSON source decodes to a newline, whereas `\\n` decodes to a backslash followed by `n`. Different escaped representations in logs do not automatically mean the content changed. Compare bytes, Unicode code points, and the first differing position at the same semantic layer; compare token IDs only under the same tokenizer.
 
-读取工具若压缩了空白，修工具；JSON 被二次转义，修适配层；工具使用了过期文件快照，处理版本冲突。只有确认模型收到准确内容、输出首先改变目标字符，才把它列为模型复制能力候选。若拿不到原始输入或输出，保留“未能归因”，不要用最终错误强行补标签。
+If the reading tool collapses whitespace, fix the tool. If JSON is escaped twice, fix the adapter. If the tool uses a stale file snapshot, handle the version conflict. Treat model copying ability as a candidate cause only after confirming that the model received the correct content and its output was the first place the target characters changed. Without raw input or output, retain “unattributed” instead of inferring a label from the final error.
 
-不同编辑格式的匹配和版本问题，见[第二十四章：代码搜索、编辑与验证](../06-coding-agents/24-code-search-edit-verification.md)。
+See [Chapter 24: Code Search, Editing, and Verification](../06-coding-agents/24-code-search-edit-verification.md) for matching and version issues across editing formats.
 
-## 25.3 冻结的是决策前的完整条件
+## 25.3 Freeze the complete conditions before the decision
 
-小周截下错误答复之前的轨迹。所谓**决策前缀**，不是一段“你还没做完，请继续”的新提示，而是当时模型实际看到的全部有效消息与工具定义，以及这些消息对应的环境状态。
+Zhou cuts the trajectory just before the incorrect response. A **decision prefix** is not a new prompt saying “you are not finished; continue.” It includes all effective messages and tool definitions the model actually saw, together with the environment state those messages describe.
 
-这种把失败切成决策边界的做法，可对照李博杰书中[首错归因与前缀回归](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter7.md#L434-L535)的讨论。
+This division of a failure at a decision boundary can be compared with Bojie Li's discussion of [first-error attribution and prefix regression](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter7.md#L434-L535).
 
-| 冻结内容 | 为什么不能缺 |
+| What to freeze | Why it matters |
 |---|---|
-| 此前的 system、user、assistant、tool 消息与调用关联 ID | 保留真实指令优先级、已做动作和观察 |
-| 工具 Schema、工具版本、Harness 与上下文模板版本 | 参数含义、输出解析和截断都可能改变行为 |
-| 工作区快照、依赖、外部服务夹具与随机种子 | 同样的检查应针对同样的文件和状态 |
-| 读写范围、网络限制、审批状态与剩余预算 | 合法动作和能否继续取决于这些条件 |
-| 用户成功条件与验证器版本 | 区分“实现了”“检查了”和“允许交付了” |
-| 采样模型、tokenizer、解码配置和数据来源 | 支持复现、版本对照与数据治理 |
+| Earlier system, user, assistant, and tool messages, with call correlation IDs | Preserves actual instruction priority, completed actions, and observations |
+| Tool schemas and versions, harness version, and context-template version | Parameter meanings, output parsing, and truncation can change behavior |
+| Workspace snapshot, dependencies, external-service fixtures, and random seeds | The same checks must operate on the same files and state |
+| Read/write scope, network restrictions, approval state, and remaining budget | These determine which actions are permitted and whether work can continue |
+| User success criteria and verifier version | Separates “implemented,” “checked,” and “approved for delivery” |
+| Sampling model, tokenizer, decoding configuration, and data provenance | Supports reproduction, version comparisons, and data governance |
 
-首错之后的批评、最终正确补丁和隐藏验收答案不能倒灌进前缀。否则训练教的是“看到纠正后改口”，而上线需要的是“尚未被纠正时就选对”。
+Do not leak criticism after the first error, the eventual correct patch, or hidden acceptance answers back into the prefix. Otherwise the training task becomes “change your answer after correction,” whereas deployment requires choosing correctly before anyone intervenes.
 
-冻结并不等于把生产上下文全部送去训练。先确认训练用途授权，替换凭据和个人信息，隔离租户数据；替换后重新确认错误仍成立。审计原件与训练副本分开授权、记录血缘和保留期。脱敏不能替代授权，详见[反馈闭环与数据治理](../../engineering/06-performance-operations/13-feedback-loop-data-flywheel.md)。
+Freezing does not mean sending every production context into training. Confirm authorization for training use, replace credentials and personal information, and isolate tenant data. After replacement, confirm that the failure still holds. Apply separate access controls, lineage records, and retention periods to audit originals and training copies. De-identification is not a substitute for authorization; see [Feedback Loops and Data Governance](../../engineering/06-performance-operations/13-feedback-loop-data-flywheel.md).
 
-回归应检查下一步或有限几步的**可观察行为**，不要求输出或采集私有思维链，也不把不可见推理日志当必需标签。服务要求回传的不透明 reasoning 状态按接口契约保留，不擅自解析成训练文本。
+Regression should check the next action, or a bounded sequence of **observable actions**. It need not output or collect private chain of thought, nor require invisible reasoning logs as labels. Preserve opaque reasoning state required by a service according to its interface contract; do not reinterpret it as training text.
 
-### 为同一状态写出允许与禁止动作
+### Define allowed and forbidden actions for the same state
 
-在本例的收尾前缀上，允许先读取空数据实现、执行空数据探针，或在已有充分证据时直接提交合法修补；不是必须逐字复制某条“标准操作”。
+At this case's stopping boundary, acceptable actions include reading the empty-data implementation, running an empty-data probe, or applying a valid fix directly when sufficient evidence already exists. There is no requirement to copy a single “standard action” verbatim.
 
-禁止动作包括：未补第三项便声称全部完成、篡改验收断言、伪造检查结果、越权读取业务数据。若环境确实阻塞，应允许报告缺项并交接；但本例工具可用、要求清楚，“需要用户重新确认是否要空表头”不是合理澄清。
+Forbidden actions include claiming full completion before implementing the third requirement, changing acceptance assertions, inventing check results, and reading business data without authorization. If the environment really is blocked, reporting the missing item and handing off should be allowed. Here, however, the tools are available and the requirement is clear. Asking the user to reconfirm whether empty exports need headers is not a reasonable clarification.
 
-这样定义的是**行为边界**：可以走不同的正确路径，但最终交付声明必须由当前版本的证据支持。前缀回归通过，只说明这个边界上的行为改善，不等于整项任务完成。
+This defines a **behavioral boundary**. Several correct paths may be possible, but the final delivery claim must be supported by evidence about the current version. A passing prefix regression shows improvement at that boundary, not completion of the entire task.
 
-## 25.4 决定修哪里，再选择训练信号
+## 25.4 Choose what to fix before choosing a training signal
 
 ```mermaid
 flowchart TD
-    F["失败轨迹与反馈"] --> A["首错归因与前缀重放"]
-    A --> B{"信息、工具与权限是否正确"}
-    B -->|否| H["修工具或 Harness"]
-    B -->|是| P["比较提示、约束与模型策略"]
-    P --> C{"是否值得更新参数"}
-    C -->|否| R["运行时修复与回归"]
-    C -->|是| D["授权数据与训练环境"]
-    D --> T["示范、偏好或交互优化"]
-    H --> E["前缀回归与独立端到端验收"]
+    F["Failed trajectories and feedback"] --> A["First-error attribution and prefix replay"]
+    A --> B{"Correct information, tools, and permissions?"}
+    B -->|No| H["Fix tools or the harness"]
+    B -->|Yes| P["Compare prompts, constraints, and model policy"]
+    P --> C{"Is a parameter update justified?"}
+    C -->|No| R["Runtime fixes and regression"]
+    C -->|Yes| D["Authorized data and training environment"]
+    D --> T["Demonstrations, preferences, or interactive optimization"]
+    H --> E["Prefix regression and independent end-to-end acceptance"]
     R --> E
     T --> E
 ```
 
-小周先让检查工具返回覆盖清单，并在运行时设置完成门禁。若一个清晰提示就能稳定避免误报、额外成本可接受，没必要先动权重。硬权限和验收门禁也不应在训练之后删除。
+Zhou first makes the checking tool return a coverage list and adds a completion gate in the runtime. If a clear prompt reliably prevents false completion claims at an acceptable additional cost, there is no reason to start with a weight update. Hard permission checks and acceptance gates should not be removed after training either.
 
-当同类错误在多个任务族持续出现，已有足够可信的纠正数据，且提示方案仍有明显失败或成本问题，才比较参数更新。模型还必须有可训练权重或明确支持该训练方式的托管接口；拥有一个聊天 API 并不意味着能对它运行任意 DPO 或 PPO。
+Consider parameter updates when the same errors persist across task families, enough trustworthy corrections exist, and the prompt-based approach still has substantial failure or cost problems. The model must also expose trainable weights or a hosted interface that explicitly supports the method. Access to a chat API does not imply that arbitrary DPO or PPO training is possible.
 
-| 当前缺口 | 可尝试的信号 | 先证明什么 |
+| Current gap | Candidate signal | What to establish first |
 |---|---|---|
-| 不会补空数据分支或不会调用检查工具 | SFT 示范 | 正确续写可执行，工具与角色格式正确 |
-| 会继续修复，却常选提前结束 | 同前缀偏好对 | 优劣来自动作质量，而非上下文差异 |
-| 局部动作合理，连续多步仍难完成 | 可重置环境中的交互训练 | 能稳定采样、验证，且有合法成功路径 |
-| 学生常进入示范未覆盖的状态 | 学生采样、教师监督 | 教师能纠正这些状态，接口与数据许可满足要求 |
+| Cannot implement the empty-data branch or call the checking tool | SFT demonstrations | The correct continuation executes and uses valid tool and role formats |
+| Can continue repairing but often chooses to stop early | Same-prefix preference pairs | Preference reflects action quality rather than different contexts |
+| Individual actions are reasonable, but multi-step completion remains difficult | Interactive training in a resettable environment | Sampling and verification are stable and a permitted successful path exists |
+| The student frequently reaches states absent from demonstrations | Student sampling with teacher supervision | The teacher can correct those states, and interfaces and data permissions support the method |
 
-这些不是必经的四个阶段。少量失败可能只够验证假设，不能凭一个固定样本门槛决定“现在适合微调”。
+These are not four mandatory stages. A small set of failures may only be enough to test a hypothesis; no fixed sample threshold can establish that fine-tuning is now appropriate.
 
-## 25.5 一条前缀怎样变成训练样本
+## 25.5 Turn a prefix into a training example
 
-### 共同上下文，两个不同的下一步
+### Shared context, two different next actions
 
-下面是**教学用偏好样本清单**，不是训练框架或模型厂商的请求格式。`messages_ref` 指向经授权、不可变的完整消息序列；内联 `last_observation` 只是其最后一条工具消息的摘要，不可拿它替代整个前缀。制成数据集时必须解析引用并校验摘要与原件一致，缺少文件就报错。
+The following is an **educational preference-example manifest**, not a request format for a training framework or model provider. `messages_ref` points to an authorized, immutable full message sequence. The inline `last_observation` summarizes only its final tool message and cannot replace the entire prefix. Dataset construction must resolve the reference and check the summary against the original; a missing file must produce an error.
 
 ```json
 {
@@ -152,133 +152,135 @@ flowchart TD
 }
 ```
 
-这里的 `read_file` 只读指定路径，工具返回文件内容与版本；它在示例工具集中可用。偏好不是“长答复胜过短答复”，而是同一个已知缺项状态下，读取实现以继续处理比虚报完成更合适。`chosen` 只是可接受下一步之一，还不是修复成功标签。
+The Chinese sample strings retain the three requirements—fixed column order, UTF-8 BOM, and headers for empty data—and the rejected claim, “All three requirements are complete and ready for delivery.”
 
-这个 JSON 能检验结构，却不能单独运行轨迹：示例引用没有附带真实快照和工具实现。实际流水线还应锁定模型、tokenizer、模板、文件内容哈希，以及调用前后的状态证据。
+Here, `read_file` reads only the specified path and returns its contents and version; it is available in the example tool set. The preference does not reward a long answer over a short one. Given the same known missing requirement, reading the implementation to continue is more appropriate than falsely claiming completion. `chosen` is only one acceptable next action, not a successful-repair label.
 
-两支必须从同一个前缀分叉。不能给 `chosen` 加上事后“第三项没完成”的用户提醒，却不给 `rejected`；也不能一边有写权限，一边被只读沙箱阻塞。
+This JSON permits structural checking but cannot replay the trajectory on its own: the example references do not include real snapshots or tool implementations. A real pipeline must also pin the model, tokenizer, template, file-content hashes, and state evidence before and after calls.
 
-### SFT：示范不止一句“继续检查”
+Both branches must start from the same prefix. Do not give `chosen` a later user reminder that the third item is incomplete while withholding it from `rejected`. Nor may one branch have write permission while a read-only sandbox blocks the other.
 
-小周让标注员从快照继续：读取空数据分支、补实现、运行相关检查、核对三项条件，再如实收尾。她执行这段续写，确认没有改动验证器，也没有把先前正确的列顺序和 BOM 弄坏。
+### SFT: a demonstration is more than “keep checking”
 
-可以把首错边界的正确下一步作为短 SFT 样本，也可以保留修复到交付的多轮轨迹。短样本更聚焦边界，但不能独自教会完整修复；长样本覆盖恢复过程，却更容易混入无关操作与过长上下文。
+Zhou asks an annotator to continue from the snapshot: inspect the empty-data branch, implement it, run relevant checks, confirm all three conditions, and report completion accurately. She executes that continuation to establish that it did not modify the verifier or break the previously correct column ordering and BOM.
 
-前缀作为条件，纠正后的 assistant 动作作为训练目标；不要把冻结前缀中已有错误重新当正例。角色掩码、调用序列化、停止标记与截断规则沿用[工具学习](../../tools/01-function-calling/02-tool-learning.md)的说明，并检查训练模板能被部署端正确消费。
+The correct next action at the first-error boundary can form a short SFT example, or the example can retain the multi-turn trajectory from repair through delivery. Short examples focus on the boundary but cannot teach the complete repair alone. Longer examples cover recovery but more easily accumulate irrelevant operations and oversized contexts.
 
-### 偏好：标签必须对应真实行为
+Use the prefix as conditioning context and corrected assistant actions as training targets. Do not relabel existing mistakes in the frozen prefix as positive examples. Follow the role-mask, call-serialization, stop-marker, and truncation discussion in [Tool Learning](../../tools/01-function-calling/02-tool-learning.md), and check that deployment can consume the training template correctly.
 
-对下一步偏好，检查动作合法且确实针对缺项；对多轮续写偏好，还要分别恢复快照、执行两支，检查结果与副作用。两条都合理就不强分胜负，两条都不合格也不能仅因一条“稍好”便自动加入纠正数据。
+### Preferences: labels must describe actual behavior
 
-教师可以生成候选，但“我会验证”不等于已经调用工具。无依据的完成承诺应与调用事件、检查结果交叉核对；存在歧义的标签交人工复核，不把教师评价当客观执行记录。
+For next-action preferences, check that the action is permitted and genuinely addresses the missing requirement. For multi-turn continuation preferences, restore the snapshot separately for each branch, execute both, and inspect outcomes and side effects. Do not force a winner when both paths are reasonable. When neither is acceptable, one being “slightly better” does not automatically qualify the pair as corrective data.
 
-扩充数据时改变缺失条件、任务来源和工具组合，而不只是换文件名。也要覆盖已完成应收尾、信息不足应澄清、越权应拒绝的状态，否则模型可能学到“不结束总比结束安全”。
+A teacher may generate candidates, but “I will verify” is not a tool invocation. Cross-check unsupported completion promises against call events and check results. Ambiguous labels require human review; a teacher's judgment is not an objective execution record.
 
-### 小数据 DPO 的反例说明了什么
+When expanding the data, vary missing requirements, task origins, and tool combinations, not just filenames. Include states where work is complete and the agent should stop, where insufficient information requires clarification, and where unauthorized action requires refusal. Otherwise the model may learn that never stopping is always safer than stopping.
 
-李博杰配套的[“过早结束”教学实验](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter8/premature-completion-dpo/README.md)，在固定提交中使用合成的小规模偏好数据。README 报告固定候选比较有所改善，但自由生成出现过度谨慎，已完成任务的正常收尾明显退化。
+### What does the small-data DPO counterexample show?
 
-这不能表述为“DPO 已提升 Agent 总体可靠性”。候选打分只测指定两个回答的相对倾向，自由生成还受到措辞、长度与整个输出空间的影响；二者都不能替代实际执行。这里值得借鉴的是**未完成边界集和正常收尾保留集必须分开**，而不是复用实验数字作为收益承诺。
+At the pinned commit, Bojie Li's companion [premature-completion teaching experiment](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter8/premature-completion-dpo/README.md) uses a small synthetic preference dataset. Its README reports improvements in fixed-candidate comparisons, but excessive caution during free generation and a substantial deterioration in normal completion of already-finished tasks.
 
-## 25.6 多轮训练：把环境真正接进循环
+This does not establish that DPO improved overall agent reliability. Candidate scoring measures the relative preference between two specified responses; free generation also depends on wording, length, and the broader output space. Neither replaces actual execution. The useful lesson is to **separate unfinished-task boundary cases from a retention set for normal completion**, not to reuse the experiment's numbers as a promised benefit.
 
-上述单步样本直接针对收尾选择，不能据此判断后续修复能力。若助手知道要继续，却读错文件、重复修补或永远验证，就需要观察它在自己的动作之后会走到哪些新状态。
+## 25.6 Multi-turn training: put the environment inside the loop
+
+The single-step example directly targets the stopping decision; it says little about subsequent repair ability. If the assistant knows to continue but then reads the wrong file, repeats a patch, or verifies forever, inspect the new states reached after its own actions.
 
 ```mermaid
 flowchart TD
-    Q["训练任务与初始快照"] --> Z["Reset 隔离环境"]
-    Z --> S["固定采样版本生成动作"]
-    S --> X["权限检查与工具执行"]
-    X --> O["环境观察与事件记录"]
+    Q["Training task and initial snapshot"] --> Z["Reset an isolated environment"]
+    Z --> S["Generate actions with a fixed sampling version"]
+    S --> X["Permission checks and tool execution"]
+    X --> O["Environment observations and event records"]
     O --> S
-    O --> V["终止或预算耗尽时验证"]
-    V --> U["奖励、掩码与策略更新"]
-    U --> N["发布下一采样快照"]
+    O --> V["Verify at termination or budget exhaustion"]
+    V --> U["Rewards, masks, and policy update"]
+    U --> N["Publish the next sampling snapshot"]
     N --> Z
 ```
 
-图中的回路不是一边读结果一边随意改权重。一次采样应能追溯到确定策略版本，更新后再按训练方案同步采样器；独立验收不参与这个奖励循环。
+This loop does not mean changing weights arbitrarily while reading results. Each rollout must be traceable to a definite policy version; after an update, synchronize samplers according to the training design. Independent acceptance remains outside this reward loop.
 
-| 环节 | CSV 助手需要的具体契约 |
+| Stage | Concrete contract for the CSV assistant |
 |---|---|
-| Reset | 恢复任务初始文件、依赖和服务夹具；清除上次写入与缓存，核对快照 |
-| Rollout | 记录模型动作、工具观察、状态版本、预算消耗与终止原因 |
-| 执行 | 保留生产中相关的工具语义，但使用隔离文件与假数据，禁止真实业务副作用 |
-| 验证 | 读取真实导出结果，检查三项条件、禁止改动和完成声明 |
-| 优化 | 绑定奖励版本、动作 token 掩码、采样概率与所用算法配置 |
-| 验收 | 使用不参与采样和调参的任务、环境与验收数据 |
+| Reset | Restore initial task files, dependencies, and service fixtures; clear previous writes and caches; verify the snapshot |
+| Rollout | Record model actions, tool observations, state versions, budget consumption, and termination reasons |
+| Execution | Preserve relevant production tool semantics, but use isolated files and synthetic data; prohibit real business side effects |
+| Verification | Read the actual export, checking all three conditions, prohibited changes, and completion claims |
+| Optimization | Bind the reward version, action-token masks, sampling probabilities, and algorithm configuration |
+| Acceptance | Use tasks, environments, and acceptance data excluded from sampling and tuning |
 
-从中途前缀 reset，必须恢复**动作后的实际快照**，不能只把旧工具消息粘到全新工作区。并发 rollout 使用独立环境；外部服务无法可靠重放时，要么提供语义明确的夹具，要么将不可复现范围记入结论，不能声称严格可重现。
+Resetting to an intermediate prefix requires restoring the **actual snapshot after the preceding actions**, not pasting old tool messages into a fresh workspace. Concurrent rollouts need separate environments. If an external service cannot be replayed reliably, supply fixtures with explicit semantics or state the nonreproducible scope in the conclusions; do not claim strict reproducibility.
 
-环境观察 token 不是模型动作，不应被当作该策略采样的 token 计算策略概率比或策略梯度。观察仍会影响后续动作；屏蔽的是动作损失，不是从上下文删掉工具反馈。
+Environment-observation tokens are not model actions. Do not treat them as policy-sampled tokens when calculating policy probability ratios or policy gradients. Observations still affect later actions: masking excludes them from the action loss, not from the context.
 
-### 奖励如何找到真正该改的动作
+### How does a reward identify which action needs to change?
 
-如果只在最后给任务成功奖励，读取、修改、重复测试和收尾共享了粗糙的结果信号。它不会直接告诉模型“第几轮提前结束导致失败”。PPO 的价值估计或适当的回报分配可以缓解这一点，但不能把最终奖励解释成逐步因果标签。
+With only a final task-success reward, reading, editing, repeated tests, and stopping share a coarse outcome signal. It does not directly tell the model which premature-stopping decision caused failure. PPO value estimates or an appropriate allocation of returns may help, but the final reward is not a step-by-step causal label.
 
-小周可以为“准确识别尚缺条件”增加过程信号，但必须防止助手反复报告同一缺项刷分；奖励“运行测试”也可能诱导不断重跑已有通过项。过程信号应落在可核验、不可重复套利的事件上，并持续检查它是否损害最终完成率。
+Zhou could add a process signal for correctly identifying an unmet requirement, but must prevent repeated reports of the same omission from earning repeated rewards. Rewarding “run a test” can likewise induce endless reruns of checks that already pass. Process signals should correspond to verifiable events that cannot be repeatedly exploited for credit, and their effect on final completion rate must be monitored.
 
-路径约束则检查不允许做什么：改验收器、越权写文件、伪造执行结果。不能用足够多的成功奖励抵消严重越权；关键限制由沙箱直接阻止，违规事件另外记录。结果奖励与路径约束的组合可参考 RLVP 讨论，但这里不把一种奖励配方当作安全边界。
+Path constraints specify prohibited behavior: changing acceptance checks, writing files without authorization, or inventing execution results. Large success rewards must not compensate for serious authorization violations. A sandbox directly blocks critical violations, and violation events are recorded separately. RLVP offers a reference for combining outcome rewards with path constraints; no reward formula is treated here as a security boundary.
 
-每个约束都要有可达的合规路径。本例禁止修改测试，但允许修 `src/export.py` 并执行检查；如果连目标文件也只读，正确行为只能是说明阻塞或请求授权，不能仍要求“修复并交付”。若当前策略从不采到合规成功，可先补示范、调整任务难度；组内奖励相同的限制见 [LLM 第十章](../../llm/02-training-alignment/10-post-training.md) §10.4。
+Every constraint needs a reachable compliant path. This case prohibits test modifications but allows changes to `src/export.py` and execution of checks. If even the target file is read-only, the correct behavior is to explain the block or request authorization, not to meet an impossible “fix and deliver” demand. If the current policy never samples compliant success, first add demonstrations or adjust task difficulty. See [LLM Chapter 10](../../llm/02-training-alignment/10-post-training.md), §10.4, for the limitations of identical rewards within a group.
 
-### 失败、超时和未知要分别处理
+### Distinguish failure, timeout, and unknown outcomes
 
-| 终止情况 | 应保留的判定 |
+| Termination condition | Classification to preserve |
 |---|---|
-| 当前产物违反空表头条件 | 可复核的任务失败，按预定奖励规则处理 |
-| 一直重复检查直到用尽预算 | 策略未在预算内完成，记录动作与全部成本 |
-| 沙箱服务故障，产物无法验收 | 基础设施错误、结果未知；隔离、重跑并报告占比 |
-| 用户取消或权限不足 | 按取消、交接或澄清任务契约评价，不冒充正常完成 |
+| The current artifact violates the empty-header requirement | Reproducible task failure, handled under the predefined reward rules |
+| Repeated checking exhausts the budget | The policy did not finish within budget; retain all actions and costs |
+| A sandbox-service fault prevents artifact acceptance | Infrastructure error and unknown outcome; isolate, rerun, and report its frequency |
+| User cancellation or insufficient permissions | Evaluate under the cancellation, handoff, or clarification contract; do not count it as ordinary completion |
 
-不能把所有失败自动记为零，也不能跳过所有超时，只在顺利结束的样本上汇报成功率。策略截断、真正终止和基础设施异常要分开；是否 bootstrap、是否重采样、哪些样本进入优化，由算法和任务契约明确规定。
+Do not automatically score every failure as zero, or exclude every timeout and report success only for runs that end smoothly. Separate policy truncation, genuine termination, and infrastructure exceptions. The algorithm and task contract must explicitly determine bootstrapping, resampling, and inclusion in optimization.
 
-验证器必须在模型不可修改的信任边界运行，读真实状态而不是完成关键词。训练验证器可以提供学习反馈，最终验收器不得把留出答案回流给模型；“隐藏”指隔离验收实现与数据，不是隐藏用户应知的成功条件。
+The verifier must run across a trust boundary the model cannot modify, and inspect real state rather than completion keywords. A training verifier can provide learning feedback; the final acceptance verifier must not leak held-out answers back to the model. “Hidden” means isolating the acceptance implementation and data, not concealing success criteria the user should know.
 
-## 25.7 在轨蒸馏：学生走路，教师给监督
+## 25.7 On-policy distillation: the student explores, the teacher supervises
 
-示范往往很顺利，学生却可能在第一次编辑失败后进入没见过的状态。在轨蒸馏的出发点是让当前学生生成轨迹，再让教师在这些学生实际访问的前缀上提供监督，而不是只模仿教师自己走出的成功路线。
+Demonstrations often proceed smoothly, while a student can enter an unfamiliar state after its first failed edit. On-policy distillation starts with trajectories generated by the current student, then obtains teacher supervision at the prefixes the student actually visits. It does not rely solely on successful trajectories generated by the teacher.
 
-要把三个版本分清：**谁采样状态、谁提供教师信号、谁接受参数更新**。同时记录采样引擎、模板、tokenizer 与解码配置；核对更新前采样端和训练端的 log probabilities 是否在约定容差内一致。异步积压的旧轨迹需要有版本滞后策略，不能无限混用仍称严格在轨。
+Keep three versions distinct: **the policy that samples states, the model that supplies teacher signals, and the model whose parameters are updated**. Record the sampling engine, template, tokenizer, and decoding configuration as well. Before an update, check that sampler and trainer log probabilities agree within the specified tolerance. Asynchronously queued old trajectories need a version-lag policy; unlimited mixing of stale trajectories is not strictly on-policy.
 
-若采用逐 token 分布蒸馏，需要教师支持相应 logits 或 log probabilities、可兼容的词元空间与合法的数据使用授权。只有生成文本的 API 不能提供完整分布；只有 top-k 概率也不等于全词表分布，需要明确近似目标及未覆盖概率的处理。
+Token-distribution distillation requires a teacher interface that exposes the relevant logits or log probabilities, compatible token spaces, and authorized data use. A text-generation-only API cannot supply the full distribution. Top-k probabilities are not a full-vocabulary distribution either: specify the approximate objective and how uncovered probability mass is handled.
 
-拿不到分布时，可以在学生前缀上收集教师纠正文本，经执行校验后做监督学习；应称作这种数据采集与训练组合，不能伪称完成了分布级 KL 蒸馏。教师也可能误判空表头需求，因此教师信号不能替代最终产物验证。
+Without distribution access, collect teacher corrections on student prefixes, validate them through execution, and use supervised learning. Describe that data-collection and training procedure accurately; do not claim distribution-level KL distillation. A teacher can also misjudge the empty-header requirement, so its signal cannot replace verification of the final artifact.
 
-在轨蒸馏可能减少为获取反馈而额外探索的次数，但会增加教师推理开销。是否划算，要比较每次有效修复消耗的环境交互、教师调用和训练成本，不是看到密集监督就断言样本效率必然提高。
+On-policy distillation may reduce additional exploration needed to obtain feedback, but it adds teacher inference costs. Judge the tradeoff using environment interactions, teacher calls, and training cost per effective repair. Dense supervision alone does not guarantee better sample efficiency.
 
-## 25.8 上线前，不只问“还有没有提前结束”
+## 25.8 Before deployment, ask more than whether premature completion remains
 
-小周将数据先按任务来源、仓库或客户、模板家族与时间划分，再在各分区内扩充。来自同一失败的改名版本、同一会话的不同前缀、同一补丁的不同描述应归到同一组，避免近重复跨越训练和测试。
+Zhou first splits data by task origin, repository or customer, template family, and time, then expands examples within each partition. Renamed variants of the same failure, different prefixes from one conversation, and different descriptions of one patch belong in the same group so near-duplicates do not cross the train–test boundary.
 
-已经用于训练的失败可以保留为**已知问题回归**，但不能再称独立测试；被反复用于挑 checkpoint 的数据属于开发集。独立留出集不参与候选筛选、教师示范构造或奖励调参。
+Failures used for training may remain in a **known-issue regression set**, but no longer qualify as independent tests. Data repeatedly used to choose checkpoints forms a development set. An independent held-out set must not participate in candidate selection, teacher-demonstration construction, or reward tuning.
 
-| 验收层 | 要回答的问题 | 必须观察 |
+| Acceptance layer | Question | Required observations |
 |---|---|---|
-| 前缀回归 | 已知错误边界是否修复 | 允许动作命中、禁止动作、无证据完成声明 |
-| 端到端留出 | 从新任务起点能否真正完成 | 最终产物、完整性、路径合规、恢复能力 |
-| 原能力保留集 | 是否把正确行为一起改坏 | 正常收尾、必要澄清、合理拒绝、原有工具与通用能力 |
+| Prefix regression | Has the known erroneous decision boundary been repaired? | Allowed-action selection, prohibited actions, and unsupported completion claims |
+| End-to-end holdout | Can the agent actually finish from a new task's starting point? | Final artifact, completeness, path compliance, and recovery |
+| Capability retention | Were previously correct behaviors damaged? | Normal completion, necessary clarification, appropriate refusal, and existing tool and general capabilities |
 
-三层都应包含自由生成与适用的真实执行，而不只做固定候选比较。前缀回归允许多条合法路径；端到端通过不靠“已完成”关键词；保留集尤其要查已完成之后是否重复验证、无谓请求确认，或不再正常答复。
+All three layers should include free generation and actual execution where applicable, not just fixed-candidate comparisons. Prefix regression permits multiple valid paths. End-to-end acceptance does not hinge on a “completed” keyword. The retention set should specifically detect repeated verification after completion, needless confirmation requests, or loss of normal responses.
 
-对照至少保留原模型加原 Harness，以及原模型加运行时修复的方案，才能分清收益来自参数还是工具改动。固定任务预算和采样设置，报告分层计数、重复运行波动、总失败成本与每成功任务成本，避免用更多调用换分却不披露。
+Keep at least two baselines: the original model with the original harness, and the original model with runtime fixes. This separates benefits from parameter updates and tool changes. Hold task budgets and sampling settings fixed, and report stratified counts, variation across repeated runs, total failure costs, and cost per successful task. Do not hide extra calls behind an improved score.
 
-上线门槛应预先规定，而不是看完结果才挑有利指标：降低提前结束不能以明显增加过度拒绝、越权或预算耗尽为代价。低样本下没有观察到问题不等于证明可靠；保持版本可回退，用灰度反馈继续观察真实任务分布。指标细节见 [Agent 评估](../05-production/14-agent-evaluation.md)。
+Set release criteria in advance rather than select favorable metrics after seeing results. Reducing premature completion must not come at the cost of substantially more unnecessary refusals, authorization violations, or budget exhaustion. Observing no failures in a small sample does not prove reliability. Keep rollback available and use gradual-rollout feedback to monitor the real task distribution. See [Agent Evaluation](../05-production/14-agent-evaluation.md) for metric details.
 
-## 25.9 后训练与运行时反思各自留下什么
+## 25.9 What do post-training and runtime reflection each retain?
 
-[反思与自我改进](../02-reasoning-planning/12-agent-reflection.md)可以让助手在当前任务中发现空表头遗漏，把适用经验放入有作用域的记忆；这通常不更新模型权重。下一次若经验没被检索到，或上下文挤掉了它，收益就可能消失。
+[Reflection and Self-Improvement](../02-reasoning-planning/12-agent-reflection.md) can help the assistant discover the missing empty-data header during the current task and store applicable lessons in scoped memory. This generally does not update model weights. If the lesson is not retrieved next time, or is pushed out of context, the benefit may disappear.
 
-后训练把经验证的行为倾向写入参数，可能减少反复提示的成本，却更难按单条经验撤回，也可能影响无关任务。频繁变化的用户偏好、权限与业务规则更适合受治理的运行时配置；稳定、反复出现的策略缺陷才值得考虑训练。
+Post-training encodes validated behavioral tendencies in parameters. It may reduce repeated prompting costs, but retracting one particular lesson becomes harder and unrelated tasks can be affected. Frequently changing preferences, permissions, and business rules are better suited to governed runtime configuration. Stable, recurring policy defects are stronger training candidates.
 
-两条路可以配合：反思提供待复核的失败解释，回归确认边界，训练学习跨任务行为。不能让模型写一条“下次注意完成所有任务”，便自动把它存为事实、加入训练并宣布能力改善。
+The approaches can complement each other: reflection proposes explanations that require review, regression establishes the boundary, and training learns behavior across tasks. A model writing “next time, finish all tasks” is not enough to store the statement as fact, add it to training, or announce a capability improvement.
 
-回到小周的处理，她最终需要交出的不是一条下降的训练损失，而是一组能追溯的证据：原来在哪里错、为什么归给模型、同一状态允许做什么、新策略能否执行到正确结果，以及原来正确的行为有没有被破坏。
+Zhou's deliverable is therefore not simply a lower training loss. It is traceable evidence: where the original failure occurred, why it was attributed to the model, which actions are permitted in that same state, whether the new policy can execute through to a correct result, and whether previously correct behavior remains intact.
 
-## 参考资料
+## References
 
-- 李博杰，`ai-agent-book` 第七章：[失败归因、精确复制排查与轨迹前缀回归](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter7.md#L434-L535)。
-- 李博杰，第八章：[多轮信用分配、奖励与在轨蒸馏](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter8.md#L564-L706)，[从问题案例到后训练](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter8.md#L731-L792)。
-- 李博杰，配套实验：[过早结束的 DPO 修复 README](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter8/premature-completion-dpo/README.md)，重点参照数据、评估指标口径与可信根说明。
+- Bojie Li, `ai-agent-book`, Chapter 7: [failure attribution, exact-copy diagnosis, and trajectory-prefix regression](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter7.md#L434-L535).
+- Bojie Li, Chapter 8: [multi-turn credit assignment, rewards, and on-policy distillation](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter8.md#L564-L706), and [from failure cases to post-training](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/book/chapter8.md#L731-L792).
+- Bojie Li, companion experiment: [README for the premature-completion DPO repair](https://github.com/bojieli/ai-agent-book/blob/985a49d35b9f50937f1f757cf25867672991ded7/chapter8/premature-completion-dpo/README.md), particularly its data, metric definitions, and trust-boundary discussion.
 
-资料查阅于 2026-09-14，固定提交为 `985a49d35b9f50937f1f757cf25867672991ded7`。DPO 结果仅转述 README，未独立复现训练；其中候选比较与自由生成的差异不能外推为总体任务完成率提升。RLVP 等方法线索不代表本章完成了相应训练实验。
+Sources were consulted on 2026-09-14 at pinned commit `985a49d35b9f50937f1f757cf25867672991ded7`. DPO results are reported from the README; training was not independently reproduced. The difference between candidate comparisons and free generation cannot be extrapolated to improved overall task completion. References to methods such as RLVP do not mean that this chapter carried out those training experiments.

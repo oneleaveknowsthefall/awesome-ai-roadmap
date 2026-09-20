@@ -1,30 +1,30 @@
 ---
-description: 解释 Multi-Agent 的协作、路由、交接与共享状态，分析并行调度、预算和失败恢复，并区分语义协作与存储共识。
+description: Explain multi-agent coordination, routing, handoffs, and shared state, including parallel scheduling, budgets, failure recovery, and the distinction between semantic coordination and storage consensus.
 ---
 
-# 第十三章：Multi-Agent 协作、路由与动态切换
+# Chapter 13: Multi-Agent Coordination, Routing, and Dynamic Switching
 
-把任务交给多个 Agent 后，最难的往往不是“各自能不能做”，而是“结果如何接起来，出了错谁决定下一步”。本章从协作拓扑出发，逐步讨论消息、共享状态、路由和控制权转移。
+Once a task is assigned to multiple agents, the hardest question is often not whether each can do its part, but how their results fit together and who decides what happens when something goes wrong. This chapter starts with coordination topologies, then works through messages, shared state, routing, and control transfer.
 
-除明确标注框架或协议的部分外，JSON 均为应用层契约示例，字段名、数量和日期不是标准要求。讨论协作时需同时说明：模型提议什么、Runtime 强制什么、存储系统承诺什么。
+Unless a framework or protocol is explicitly identified, the JSON blocks illustrate application-level contracts; their field names, quantities, and dates are not standards requirements. Any discussion of coordination needs to distinguish what the model proposes, what the runtime enforces, and what the storage system guarantees.
 
-## 13.1 问题的本质
+## 13.1 The Core Problem
 
-多 Agent 分工只回答了：
+Dividing work among agents answers only:
 
-> **谁擅长做什么？**
+> **Who is good at what?**
 
-一个完整协作系统还必须回答：
+A complete coordination system must also answer:
 
-1. 任务如何描述和分配？
-2. Agent 之间如何传递结果？
-3. 状态由谁维护？
-4. 下一步由谁决定？
-5. 控制权是否需要转移？
-6. 失败、超时和循环如何处理？
-7. 如何追踪整条执行链路？
+1. How are tasks described and assigned?
+2. How do agents pass results to one another?
+3. Who maintains state?
+4. Who decides the next step?
+5. Does control need to transfer?
+6. How are failures, timeouts, and loops handled?
+7. How is the entire execution chain traced?
 
-这些问题可以分为四层：
+These questions fall into four layers:
 
 ```mermaid
 flowchart TB
@@ -40,64 +40,64 @@ flowchart TB
     CT --> HANDOFF[Handoff]
 ```
 
-## 13.2 协作拓扑
+## 13.2 Coordination Topologies
 
-可以将常见拓扑归纳为四类：
+Common topologies fall into four categories:
 
-1. Pipeline；
-2. Centralized Orchestrator；
-3. Shared Workspace / Blackboard；
-4. Peer-to-Peer / Negotiation。
+1. Pipeline;
+2. Centralized orchestrator;
+3. Shared workspace / blackboard;
+4. Peer-to-peer / negotiation.
 
-真实系统经常混合使用。
+Real systems often combine them.
 
 ## 13.3 Pipeline
 
-Agent 按预定义顺序依次执行：
+Agents execute in a predefined sequence:
 
 ```mermaid
 flowchart LR
     R[Research Agent] --> W[Writer Agent]
     W --> V[Reviewer Agent]
-    V --> G{验收与发布授权通过?}
-    G -->|是| P[Publisher]
-    G -->|否| RWORK[修订或停止]
+    V --> G{Accepted and Authorized to Publish?}
+    G -->|Yes| P[Publisher]
+    G -->|No| RWORK[Revise or Stop]
 ```
 
-### 13.3.1 适用场景
+### 13.3.1 When to Use It
 
-- 阶段顺序稳定；
-- 上下游接口明确；
-- 每个阶段具有不同专业上下文；
-- 需要清晰审计链路。
+- The order of stages is stable.
+- Interfaces between stages are well defined.
+- Each stage needs a different specialist context.
+- A clear audit trail is required.
 
-### 13.3.2 优势
+### 13.3.2 Advantages
 
-- 控制流简单；
-- 容易测试；
-- 状态和责任清晰；
-- 成本和延迟容易估算。
+- Simple control flow;
+- Easy testing;
+- Clear state and responsibility;
+- Costs and latency that are easy to estimate.
 
-### 13.3.3 风险
+### 13.3.3 Risks
 
-- 上游错误传播；
-- 中间 Agent 成为瓶颈；
-- 早期 Agent 可能不知道下游真正需要什么；
-- 固定流程难以处理例外。
+- Upstream errors propagate.
+- An intermediate agent becomes a bottleneck.
+- Earlier agents may not know what downstream stages actually need.
+- A fixed process struggles with exceptions.
 
-每个阶段应输出结构化 Artifact，并设置 Gate。
+Each stage should produce a structured artifact and have a validation gate.
 
 ## 13.4 Centralized Orchestrator
 
-Orchestrator 负责：
+The orchestrator is responsible for:
 
-- 理解全局目标；
-- 拆分任务；
-- 选择 Worker；
-- 管理依赖；
-- 跟踪状态；
-- 收集和验证结果；
-- 重试或重新规划。
+- Understanding the overall goal;
+- Decomposing tasks;
+- Selecting workers;
+- Managing dependencies;
+- Tracking state;
+- Collecting and validating results;
+- Retrying or replanning.
 
 ```mermaid
 flowchart TB
@@ -111,26 +111,26 @@ flowchart TB
     A --> O
 ```
 
-对单团队生产系统，中心化模式通常是比较稳妥的默认选项，因为：
+For a production system owned by a single team, centralized coordination is usually a reasonable default because:
 
-- 全局目标集中；
-- 路由可追踪；
-- 权限容易统一控制；
-- 失败路径容易定位；
-- 可以集中管理预算和并发。
+- The overall goal is managed in one place.
+- Routing is traceable.
+- Permissions are easier to control consistently.
+- Failure paths are easier to locate.
+- Budgets and concurrency can be managed centrally.
 
-但 Orchestrator 也可能成为：
+However, the orchestrator can also become:
 
-- 单点故障；
-- 调度瓶颈；
-- 大 Context 聚集点；
-- 全局错误来源。
+- A single point of failure;
+- A scheduling bottleneck;
+- A concentration point for large contexts;
+- A source of system-wide errors.
 
-顶层上下文或调度成为瓶颈时，可以采用分层 Orchestrator；但多一层也多一次交接和信息压缩，不能仅凭系统规模决定。逻辑上的单一调度权可以由可恢复的服务实现，不等于依赖一个不可恢复的模型会话。
+Hierarchical orchestrators are an option when top-level context or scheduling becomes a bottleneck. Each extra layer, however, adds another handoff and another round of information compression; system size alone should not decide the choice. A logically single scheduling authority can be implemented as a recoverable service. It need not depend on one unrecoverable model session.
 
 ## 13.5 Shared Workspace / Blackboard
 
-多个 Agent 通过共享工作区交换 Task、事实和 Artifact。
+Multiple agents exchange tasks, facts, and artifacts through a shared workspace.
 
 ```mermaid
 flowchart TB
@@ -140,26 +140,26 @@ flowchart TB
     A3[Agent C] <--> B
 ```
 
-优势：
+Advantages:
 
-- Agent 不需要互相传递完整对话；
-- 结果可被多个 Agent 复用；
-- 支持异步协作；
-- 新 Agent 可以读取当前状态后加入。
+- Agents do not need to pass entire conversations to one another.
+- Multiple agents can reuse the same results.
+- Asynchronous coordination is supported.
+- New agents can join after reading the current state.
 
-风险：
+Risks:
 
-- 并发写冲突；
-- 过期状态；
-- 未验证信息污染全局；
-- 责任边界模糊；
-- 权限范围过大。
+- Concurrent write conflicts;
+- Stale state;
+- Unverified information contaminating shared knowledge;
+- Unclear responsibility;
+- Overly broad permissions.
 
-共享工作区需要 Schema、版本、所有权和写入规则。
+A shared workspace needs schemas, versions, ownership, and write rules.
 
 ## 13.6 Peer-to-Peer / Negotiation
 
-Agent 之间直接通信、协商或委派：
+Agents communicate, negotiate, or delegate directly:
 
 ```mermaid
 flowchart LR
@@ -169,48 +169,48 @@ flowchart LR
     D <--> A
 ```
 
-适合：
+Suitable for:
 
-- 跨组织 Agent；
-- 开放生态；
-- 模拟与博弈；
-- 没有统一中央控制方；
-- 局部自治比全局一致更重要。
+- Agents spanning organizations;
+- Open ecosystems;
+- Simulations and games;
+- Systems without a single central controller;
+- Cases where local autonomy matters more than global consistency.
 
-它不是天然不可用于生产，但必须解决：
+This topology is not inherently unsuitable for production, but it must address:
 
-- Agent Discovery；
-- 身份和信任；
-- 任务所有权；
-- 重复领取；
-- 故障检测；
-- 消息幂等；
-- 冲突；
-- 全局完成判定；
-- 费用和权限。
+- Agent discovery;
+- Identity and trust;
+- Task ownership;
+- Duplicate task claims;
+- Failure detection;
+- Idempotent message handling;
+- Conflicts;
+- Determining global completion;
+- Costs and permissions.
 
-对单团队应用而言，这些分布式协调成本往往高于中心化模式。
+For an application owned by one team, these distributed coordination costs often exceed those of a centralized design.
 
-## 13.7 通信方式不是只有两种
+## 13.7 Communication Has More Than Two Forms
 
-“消息传递”和“共享状态”是两个重要思路，但消息传递本身包含多种模式：
+Message passing and shared state are two important approaches, but message passing itself includes several patterns:
 
-| 方式 | 特点 | 适用场景 |
+| Approach | Characteristics | Suitable uses |
 |---|---|---|
-| Request / Response | 调用方等待结果 | 短任务、强依赖 |
-| Queue | Worker 从队列领取任务 | 异步任务、削峰 |
-| Pub/Sub | 发布者不指定具体订阅者 | 事件广播、解耦 |
-| Event Stream | 在约定的分区或键范围保存有序事件 | 状态重建、审计 |
-| Shared State | 多节点读写状态 | 图工作流、紧密协作 |
-| Artifact Store | 通过 URI 交换大结果 | 文档、代码、数据集 |
+| Request / Response | The caller waits for a result | Short tasks, strong dependencies |
+| Queue | Workers claim tasks from a queue | Asynchronous tasks, smoothing traffic spikes |
+| Pub/Sub | The publisher does not name individual subscribers | Event broadcasting, decoupling |
+| Event Stream | Ordered events are retained within an agreed partition or key scope | State reconstruction, auditing |
+| Shared State | Multiple nodes read and write state | Graph workflows, close coordination |
+| Artifact Store | Large results are exchanged through URIs | Documents, code, datasets |
 
-生产系统常同时使用：
+Production systems often combine:
 
-> **消息触发执行 + State 保存任务状态及带来源的事实候选 + Artifact 传递大结果。**
+> **Messages trigger execution; state stores task status and candidate facts with provenance; artifacts carry large results.**
 
 ## 13.8 Request / Response
 
-调用方明确知道目标服务，并关联请求与响应；等待可以用同步阻塞，也可以用异步 I/O。不能把 Request/Response 等同于阻塞线程。
+The caller knows the target service and correlates requests with responses. Waiting can use synchronous blocking or asynchronous I/O. Request/response does not necessarily mean blocking a thread.
 
 ```mermaid
 sequenceDiagram
@@ -221,22 +221,22 @@ sequenceDiagram
     R-->>O: Research Result
 ```
 
-优势：
+Advantages:
 
-- 实现简单；
-- 错误可直接返回；
-- 适合短任务。
+- Simple implementation;
+- Errors can be returned directly;
+- Well suited to short tasks.
 
-限制：
+Limitations:
 
-- 若要使用返回值，后续依赖仍需等待；
-- 长任务容易超时；
-- 强耦合；
-- 断线恢复需要持久化 Task ID、查询接口和重试语义，单个 RPC 本身不够。
+- Downstream dependencies still have to wait if they need the return value.
+- Long tasks are prone to timeouts.
+- Components are tightly coupled.
+- Recovery after disconnection requires durable task IDs, a query interface, and retry semantics. A single RPC is not enough.
 
 ## 13.9 Queue
 
-Producer 将 Task 放入队列，Worker 竞争消费。
+A producer puts tasks into a queue, and workers compete to consume them.
 
 ```mermaid
 flowchart LR
@@ -246,30 +246,30 @@ flowchart LR
     Q --> W3[Worker N]
 ```
 
-适合：
+Suitable for:
 
-- 后台任务；
-- Worker Pool；
-- 弹性扩缩容；
-- 重试；
-- 流量削峰。
+- Background tasks;
+- Worker pools;
+- Elastic scaling;
+- Retries;
+- Smoothing traffic spikes.
 
-需要考虑：
+Consider:
 
-- At-least-once Delivery；
-- Idempotency；
-- Visibility Timeout；
-- Dead-letter Queue；
-- Retry Backoff；
-- Task Lease。
+- At-least-once delivery;
+- Idempotency;
+- Visibility timeouts;
+- Dead-letter queues;
+- Retry backoff;
+- Task leases.
 
-分布式系统中很难依赖“绝对只执行一次”，更常见做法是至少一次投递配合幂等执行。
+It is difficult to rely on an absolute promise of exactly-once execution in distributed systems. At-least-once delivery combined with idempotent execution is more common.
 
-例如 [SQS Standard Queue](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html)明确允许重复投递。ACK、消息去重与外部副作用是不同层次：Worker 退款成功后在 ACK 前崩溃，重投仍可能再次退款。应以稳定的业务操作 ID 调用支持幂等的退款 API，记录回执，并在超时后先查询结果。队列即使在自身边界内提供 exactly-once 处理，也不能自动覆盖外部系统的副作用。
+For example, [SQS Standard queues](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html) explicitly allow duplicate delivery. Acknowledgments, message deduplication, and external side effects belong to different layers: if a worker successfully issues a refund and crashes before acknowledging the message, redelivery may issue the refund again. Use a stable business-operation ID with a refund API that supports idempotency, record the receipt, and query the outcome before retrying after a timeout. Even a queue that provides exactly-once processing within its own boundary does not automatically extend that guarantee to external side effects.
 
 ## 13.10 Pub/Sub
 
-Publisher 将事件发送到 Topic，不需要知道具体订阅者：
+A publisher sends events to a topic without needing to know the individual subscribers:
 
 ```mermaid
 flowchart LR
@@ -279,24 +279,24 @@ flowchart LR
     T --> C[Subscriber C]
 ```
 
-“发送方不需要知道谁在等待结果”准确描述的是 Pub/Sub，而不是所有消息传递。
+“The sender does not need to know who is waiting for the result” accurately describes pub/sub, not all message passing.
 
-适合：
+Suitable for:
 
-- 多个 Agent 对同一事件做不同处理；
-- 审计、通知和监控；
-- 松耦合扩展。
+- Multiple agents handling the same event in different ways;
+- Auditing, notifications, and monitoring;
+- Loosely coupled extensions.
 
-风险：
+Risks:
 
-- 消费顺序；
-- 重复事件；
-- Schema 演进；
-- 难以知道所有下游是否完成。
+- Consumption order;
+- Duplicate events;
+- Schema evolution;
+- Difficulty determining whether all downstream consumers have finished.
 
 ## 13.11 Event Stream
 
-Event Stream 在定义好的顺序范围内保存事件；多分区不自动形成全局总序，生产者时间戳也不代表提交顺序：
+An event stream retains events within a defined ordering scope. Multiple partitions do not automatically produce a global total order, and producer timestamps do not establish commit order:
 
 ```json
 {
@@ -310,35 +310,35 @@ Event Stream 在定义好的顺序范围内保存事件；多分区不自动形�
 }
 ```
 
-优势：
+Advantages:
 
-- 可审计；
-- 可回放；
-- 可以从事件重建状态；
-- 便于多个消费者独立处理。
+- Auditable;
+- Replayable;
+- State can be reconstructed from events;
+- Multiple consumers can process events independently.
 
-需要：
+Requirements:
 
-- Event Schema；
-- 顺序键；
-- 幂等消费；
-- 保留策略；
-- 版本兼容。
+- Event schemas;
+- Ordering keys;
+- Idempotent consumption;
+- Retention policies;
+- Version compatibility.
 
-状态重建应折叠已经记录的事件，而不是重发邮件、付款或重新调用模型。消费者保存处理位置，并让状态更新与去重记录处于同一事务边界；保留窗口之外的事件需要快照或归档补足。缺失事件或不可重放的外部读取，会让“可回放”失去意义。
+State reconstruction should fold recorded events into state, not resend emails, repeat payments, or call the model again. Consumers should save their processing positions and place state updates and deduplication records within the same transaction boundary. Snapshots or archives must cover events outside the retention window. Missing events or external reads that cannot be replayed undermine the claim of replayability.
 
 ## 13.12 Artifact Store
 
-Agent 不应通过消息传递大型完整内容。
+Agents should not send large bodies of content in full through messages.
 
-推荐消息只包含：
+Prefer messages containing only:
 
-- 摘要；
-- Schema；
-- URI；
-- Hash；
-- 来源；
-- 权限。
+- A summary;
+- A schema;
+- A URI;
+- A hash;
+- Provenance;
+- Permissions.
 
 ```json
 {
@@ -350,16 +350,18 @@ Agent 不应通过消息传递大型完整内容。
 }
 ```
 
-接收 Agent 按需读取，避免：
+The example's Chinese `summary` means “Contains a comparison of products, pricing, and risks for three competitors.”
 
-- 消息体过大；
-- Context 重复；
-- 多次序列化；
-- 内容版本不一致。
+The receiving agent reads the artifact as needed, avoiding:
 
-URI 必须指向可定位的不可变版本；`latest` 指针会让 Worker 读取到不同内容。Hash 只能验证字节未变，不能证明来源可信或结论正确；读取时还要检查租户、授权、Schema 和输入版本，不能因为发来一个 URI 就信任其中的指令。
+- Oversized message bodies;
+- Duplicated context;
+- Repeated serialization;
+- Inconsistent content versions.
 
-## 13.13 共享状态如何分层
+The URI must identify a retrievable, immutable version. A `latest` pointer can cause workers to read different content. A hash only verifies that the bytes have not changed; it does not prove that the source is trustworthy or the conclusion correct. Reads must also check the tenant, authorization, schema, and input version. Receiving a URI does not make instructions inside its content trustworthy.
+
+## 13.13 Layers of Shared State
 
 ```mermaid
 flowchart TB
@@ -372,91 +374,91 @@ flowchart TB
 
 ### 13.13.1 Global State
 
-按任务相关性和权限暴露，而不是无条件向所有 Agent 开放：
+Expose global state according to task relevance and permissions, rather than unconditionally to every agent:
 
-- 用户原始目标；
-- 全局约束；
-- 总体进度；
-- 预算；
-- 最终输出引用。
+- The user's original goal;
+- Global constraints;
+- Overall progress;
+- Budget;
+- References to final outputs.
 
 ### 13.13.2 Task State
 
-某个子任务需要：
+A subtask needs:
 
-- 状态；
-- 输入；
-- 依赖；
-- Owner；
-- Deadline；
-- Result；
-- Error。
+- Status;
+- Inputs;
+- Dependencies;
+- Owner;
+- Deadline;
+- Result;
+- Error.
 
 ### 13.13.3 Private Agent State
 
-只供单个 Agent 使用：
+For use by a single agent:
 
-- 局部 Working Memory；
-- 临时候选；
-- 未验证笔记；
-- 局部工具状态。
+- Local working memory;
+- Temporary candidates;
+- Unverified notes;
+- Local tool state.
 
-私有状态不应默认暴露给其他 Agent。
+Private state should not be exposed to other agents by default.
 
 ### 13.13.4 Artifact State
 
-保存大体积、可版本化的产出引用。
+Stores references to large, versionable outputs.
 
 ### 13.13.5 Audit State
 
-保存不可随意修改的消息、路由和操作记录。
+Stores message, routing, and operation records that cannot be arbitrarily modified.
 
-## 13.14 状态写入不能简单概括为“只追加”
+## 13.14 State Writes Are Not Simply Append-Only
 
-Append-only 适合：
+Append-only storage is suitable for:
 
-- Event Log；
-- 审计记录；
-- 消息历史；
-- 不可变 Artifact 版本。
+- Event logs;
+- Audit records;
+- Message history;
+- Immutable artifact versions.
 
-但以下状态需要更新：
+However, the following state needs updates:
 
-- 当前 Owner；
-- 任务状态；
-- 剩余预算；
-- 当前计划版本；
-- Lease；
-- 最新有效结果。
+- Current owner;
+- Task status;
+- Remaining budget;
+- Current plan version;
+- Lease;
+- Latest valid result.
 
-更准确的策略是：
+A more precise policy is:
 
-| 数据 | 推荐更新方式 |
+| Data | Recommended update mechanism |
 |---|---|
 | Event / Audit | Append-only |
-| Current Status | 受版本控制地覆盖 |
-| Messages | Reducer 追加、替换或删除 |
+| Current Status | Version-checked overwrite |
+| Messages | Reducer that appends, replaces, or deletes |
 | Set / Tags | Union Reducer |
-| Counter | 原子增量；重复事件另行去重 |
-| Artifact | 新版本 + 不可变引用 |
+| Counter | Atomic increment; deduplicate repeated events separately |
+| Artifact | New version + immutable reference |
 | Task Owner | Compare-and-Swap / Lease |
 
-## 13.15 LangGraph State 的准确理解
+## 13.15 Understanding LangGraph State Precisely
 
-LangGraph 以 Graph、Node、Edge 和 State 构建工作流：
+LangGraph builds workflows from graphs, nodes, edges, and state:
 
-- Node 接收当前 State；
-- Node 返回部分 State Update；
-- 每个 State Channel 使用 Reducer 合并更新；
-- Edge 决定下一个 Node；
-- Checkpointer 可以持久化状态。
+- A node receives the current state.
+- A node returns a partial state update.
+- Each state channel uses a reducer to combine updates.
+- Edges determine the next node.
+- A checkpointer can persist state.
 
-LangGraph 并不是所有字段都“只追加”：
+Not every LangGraph field is append-only:
 
-- 没有自定义 Reducer 时，单次更新默认覆盖旧值；
-- 列表可以使用 Append Reducer；
-- 可以定义自定义 Reducer；
-- 某些场景可以显式 Overwrite。
+- Without a custom reducer, a single update overwrites the old value by default.
+- Lists can use an append reducer.
+- Custom reducers can be defined.
+- Some cases allow an explicit overwrite.
 
 ```mermaid
 flowchart LR
@@ -465,25 +467,25 @@ flowchart LR
     R --> NEW[New State Value]
 ```
 
-因此，必须为每个字段明确设计合并语义。
+The merge semantics of each field therefore need an explicit design.
 
-同一 super-step 的多个节点并行写入没有合并语义的同一字段，会触发 [`INVALID_CONCURRENT_GRAPH_UPDATE`](https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE)，不是“最后完成的节点覆盖其他节点”。`operator.add` 合并列表能处理并发追加，却不会自动去重；`add_messages` 则按消息 ID 支持新增和替换，并有删除机制，不能把它当作普通列表追加。
+When multiple nodes in the same super-step concurrently write to a field with no merge semantics, LangGraph raises [`INVALID_CONCURRENT_GRAPH_UPDATE`](https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE). It does not let the last node to finish overwrite the others. Merging lists with `operator.add` handles concurrent appends but does not automatically deduplicate them. By contrast, `add_messages` supports additions and replacements by message ID, as well as a deletion mechanism; it is not ordinary list concatenation.
 
-Reducer 是图运行时的状态合并函数，不是跨进程数据库事务或分布式锁。Checkpointer 的线程内恢复也不自动解决多个运行竞争业务资源的问题；内存 Checkpointer 在进程退出后不能恢复。所谓 Private State 是数据组织方式，不是访问控制或日志脱敏承诺，应单独审查流式输出、Trace 和存储权限。
+A reducer is a state-merge function in the graph runtime, not a cross-process database transaction or a distributed lock. A checkpointer's thread-scoped recovery does not automatically resolve competition for business resources across runs, either. An in-memory checkpointer cannot recover after process exit. “Private state” describes how data is organized, not a guarantee of access control or log redaction. Streaming output, traces, and storage permissions need separate review.
 
-## 13.16 并发写入
+## 13.16 Concurrent Writes
 
-多个 Agent 并行更新同一状态时，需要处理：
+When multiple agents update the same state in parallel, the system must handle:
 
-- Lost Update；
-- Dirty Read；
-- Write Conflict；
-- Ordering；
-- Duplicate Delivery。
+- Lost updates;
+- Dirty reads;
+- Write conflicts;
+- Ordering;
+- Duplicate delivery.
 
-### 13.16.1 字段所有权
+### 13.16.1 Field Ownership
 
-给每个字段明确唯一写入者：
+Assign an explicit, single writer to each field:
 
 ```text
 research_result  -> Research Agent
@@ -492,11 +494,11 @@ review_status    -> Review Agent
 global_status    -> Orchestrator
 ```
 
-这是较简单的冲突预防方式，但 Owner 的约束要由存储层执行。一个角色有多个副本，或旧 Worker 在超时后继续运行时，仍可能存在多个实际写入者。
+This is a relatively simple way to prevent conflicts, but the storage layer must enforce ownership. There can still be multiple actual writers if a role has several replicas or an old worker keeps running after a timeout.
 
 ### 13.16.2 Optimistic Concurrency
 
-写入时携带版本：
+Include a version with each write:
 
 ```json
 {
@@ -508,26 +510,26 @@ global_status    -> Orchestrator
 }
 ```
 
-提交时核对当前版本与预期版本、再写入更新，必须由存储系统原子执行，不能先在客户端比较再另发写入。版本不匹配后重新读取并重新判断业务前提，而不是仅把 `expected_version` 改成新值后盲目重试。
+At commit time, the storage system must atomically compare the current and expected versions and apply the update. Comparing on the client and sending a separate write is not enough. After a version mismatch, reread the state and reassess the business preconditions; do not simply replace `expected_version` with the new value and retry blindly.
 
-例如两个 Worker 同时把任务从 `running` 改为 `completed`，服务端要同时验证当前 `attempt_id`、Owner、计划版本、租约以及状态转换是否合法。已取消或已重新分配的任务不能被迟到的成功消息改回完成。
+For example, if two workers simultaneously try to move a task from `running` to `completed`, the server must also validate the current `attempt_id`, owner, plan version, lease, and legality of the state transition. A late success message must not mark a canceled or reassigned task as completed.
 
 ### 13.16.3 Reducer
 
-对于可合并数据，先说明事件是否可能乱序、重复，再选择规则：
+For mergeable data, first establish whether events can arrive out of order or be duplicated, then choose a rule:
 
-| 规则 | 能解决什么 | 边界 |
+| Rule | What it addresses | Limitations |
 |---|---|---|
-| List Append | 保存多个结果 | 顺序影响输出，重复投递会重复追加 |
-| Set Union / 按稳定 ID 合并 | 可交换地收集结果、去重 | 同 ID 不同内容应报冲突，不宜静默覆盖 |
-| Last Write Wins | 按明确定义的版本和决胜规则保留一个值 | 可能丢失业务信息；本机时间戳受时钟偏差影响 |
-| Domain-specific Merge | 例如保留不同来源的事实候选 | 事实是否兼容仍需领域验证 |
+| List Append | Retains multiple results | Order affects output; duplicate delivery causes duplicate appends |
+| Set Union / Merge by stable ID | Collects and deduplicates results in an order-independent way | Different content under the same ID should raise a conflict, not silently overwrite |
+| Last Write Wins | Retains one value using explicit version and tie-breaking rules | Can lose business information; local timestamps are affected by clock skew |
+| Domain-specific Merge | For example, retains candidate facts from different sources | Whether the facts are compatible still requires domain validation |
 
-跨副本、任意顺序合并时，常需结合律、交换律；要容忍重复还需幂等性，或在合并前去重。确定性函数本身不等于 CRDT，也不保证这些性质。选择“模型自报置信度最高”的值不可靠：不同模型的分数未必校准，更不能拿它解决权限或资金冲突。
+Merging across replicas in arbitrary order often requires associativity and commutativity. Tolerating duplicates also requires idempotency, or deduplication before merging. A deterministic function is not necessarily a CRDT and does not automatically have these properties. Selecting the value with the highest model-reported confidence is unreliable: different models' scores may not be calibrated, and certainly cannot resolve authorization or financial conflicts.
 
 ### 13.16.4 Lease
 
-一个 Agent 在有限时间内拥有 Task：
+An agent owns a task for a limited time:
 
 ```json
 {
@@ -538,28 +540,28 @@ global_status    -> Orchestrator
 }
 ```
 
-Agent 失联后 Lease 过期，任务可以重新分配。
+If the agent becomes unreachable and its lease expires, the task can be reassigned.
 
-Lease 过期不代表旧进程已经停止。暂停的 Worker 恢复后仍可能写入；每次领取应生成单调递增的 fencing token，由接受写入的存储或副作用网关原子地拒绝旧 token。只在 Prompt 中传入 token 没有约束力；外部 API 不支持 fencing 时，需要由可控网关串行化或使用业务幂等与对账，不能声称排除了全部晚到副作用。
+Lease expiry does not mean the old process has stopped. A paused worker may resume and write again. Each claim should generate a monotonically increasing fencing token, and the storage system or side-effect gateway receiving writes must atomically reject stale tokens. Putting a token in the prompt alone enforces nothing. If an external API does not support fencing, serialize operations through a gateway you control, or use business-level idempotency and reconciliation; do not claim that all late side effects have been eliminated.
 
-仅记住“见过的最大 token”的接收端，要先见到新 token 才能拒绝旧持有者；这不等于租约一过期就即时禁止写入。若要求后者，需要让提交原子地验证当前租约/Owner，例如 [etcd Lock 的事务保护方式](https://etcd.io/docs/v3.6/dev-guide/api_concurrency_reference_v3/)。跨系统副作用仍不在该事务保证内。
+A receiver that remembers only the highest token it has seen must first see a newer token before it can reject the old holder. That is not the same as immediately prohibiting writes when a lease expires. If immediate prohibition is required, commits must atomically validate the current lease or owner, as in [transactional protection with etcd Lock](https://etcd.io/docs/v3.6/dev-guide/api_concurrency_reference_v3/). Side effects in other systems remain outside that transaction's guarantee.
 
-### 13.16.5 强一致需要到哪一层
+### 13.16.5 Which Layers Need Strong Consistency?
 
-| 状态 | 需要的保证 |
+| State | Required guarantee |
 |---|---|
-| 任务领取、预算预留、唯一最终提交 | 在权威账本中原子检查并更新；跨字段不变量需要事务 |
-| 已提交 Artifact | 不可变版本；读取结果时核对输入与计划版本 |
-| 搜索候选、工作笔记、进度投影 | 可容忍一定陈旧度，但必须标注版本和来源 |
-| 互相矛盾的业务结论 | 留存证据，由规则或 Owner 裁决；数据库一致不等于事实正确 |
+| Task claims, budget reservations, a unique final commit | Atomic check-and-update in the authoritative ledger; cross-field invariants require transactions |
+| Committed artifacts | Immutable versions; check input and plan versions when reading results |
+| Search candidates, working notes, progress projections | Some staleness is tolerable, but versions and sources must be recorded |
+| Contradictory business conclusions | Retain evidence and let rules or the owner adjudicate; database consistency is not factual correctness |
 
-“三个 Agent 一致认为应该退款”只是应用层意见，不是 Raft/Paxos 共识。Raft 让副本对日志顺序达成一致，并不判断退款是否合规；要抵抗不可信 Agent，也不能直接套用 Raft 的崩溃故障假设。强共识、线性一致性和事务隔离是相关但不同的概念，应按底层 API 的实际保证设计。
+“Three agents agree that a refund should be issued” is an application-level opinion, not Raft/Paxos consensus. Raft makes replicas agree on log order; it does not determine whether a refund complies with policy. Nor can Raft's crash-fault assumptions simply be applied to defend against untrustworthy agents. Strong consensus, linearizability, and transaction isolation are related but distinct concepts. Design against the actual guarantees of the underlying API.
 
-例如 [etcd 的 API 保证](https://etcd.io/docs/v3.6/learning/api_guarantees/)区分 KV 的默认线性一致性与可能延迟的 Watch；收到某条 Watch 事件不等于此刻读取到了全局最新状态。预算扣减不能依赖可能过期的进度看板。丢失多数派时，依赖共识的提交可能无法推进；此时可继续只读探索，但不要绕过账本继续提交不可逆操作。
+For example, [etcd's API guarantees](https://etcd.io/docs/v3.6/learning/api_guarantees/) distinguish default linearizability for KV operations from potentially delayed Watch delivery. Receiving a Watch event does not mean reading the globally latest state at that moment. Budget deductions must not rely on a potentially stale progress dashboard. If a majority is unavailable, commits that depend on consensus may stop making progress. Read-only exploration can continue, but irreversible operations must not bypass the ledger.
 
-## 13.17 错误必须成为一等状态
+## 13.17 Errors Must Be First-Class State
 
-错误不能只写进日志或被静默吞掉。
+Errors must not be confined to logs or silently swallowed.
 
 ```json
 {
@@ -575,65 +577,65 @@ Lease 过期不代表旧进程已经停止。暂停的 Worker 恢复后仍可能
 }
 ```
 
-Orchestrator 可以据此：
+The orchestrator can use this information to:
 
-- 延迟重试；
-- 切换 Tool；
-- 切换 Agent；
-- 跳过可选任务；
-- 重规划；
-- 终止；
-- 请求人工处理。
+- Retry after a delay;
+- Switch tools;
+- Switch agents;
+- Skip optional tasks;
+- Replan;
+- Terminate;
+- Request human intervention.
 
-## 13.18 Routing 是什么
+## 13.18 What Is Routing?
 
-Routing 决定：
+Routing decides:
 
-> **当前状态下，应该由哪个 Agent 或节点处理下一步。**
+> **Which agent or node should handle the next step, given the current state.**
 
-Routing 不一定意味着控制权永久转移，也可能只是委派一个子任务。
+Routing need not mean a permanent transfer of control; it may simply delegate a subtask.
 
-常见策略：
+Common strategies:
 
-1. Static Rule；
-2. State-machine / Graph Edge；
-3. Capability-based；
-4. Score-based；
-5. LLM-based；
-6. Learned Router；
-7. Hybrid。
+1. Static rules;
+2. State-machine transitions / graph edges;
+3. Capability-based routing;
+4. Score-based routing;
+5. LLM-based routing;
+6. Learned routers;
+7. Hybrid routing.
 
 ## 13.19 Static Routing
 
-使用规则、状态机或固定 Edge：
+Use rules, a state machine, or fixed edges:
 
 ```mermaid
 flowchart LR
     I[Input] --> R{Intent}
-    R -->|退款| REF[Refund Agent]
-    R -->|技术问题| TECH[Technical Agent]
-    R -->|普通咨询| FAQ[FAQ Agent]
+    R -->|Refund| REF[Refund Agent]
+    R -->|Technical Issue| TECH[Technical Agent]
+    R -->|General Inquiry| FAQ[FAQ Agent]
 ```
 
-优势：
+Advantages:
 
-- 可预测；
-- 延迟低；
-- 易测试；
-- 适合安全和合规；
-- 不需要额外模型调用。
+- Predictable;
+- Low latency;
+- Easy to test;
+- Well suited to security and compliance requirements;
+- No extra model call required.
 
-限制：
+Limitations:
 
-- 只能处理已定义路径；
-- 规则增加后难以维护；
-- 模糊输入容易落入错误分支。
+- Only predefined paths are handled.
+- Rules become harder to maintain as their number grows.
+- Ambiguous input can easily take the wrong branch.
 
 ## 13.20 Capability-based Routing
 
-Router 根据 Agent Capability 选择目标。
+The router selects a target based on agent capabilities.
 
-Capability Registry 可以记录：
+A capability registry can record:
 
 ```json
 {
@@ -652,49 +654,49 @@ Capability Registry 可以记录：
 }
 ```
 
-选择时还需考虑：
+Selection must also consider:
 
-- 当前可用性；
-- 权限；
-- 成本；
-- 延迟；
-- 历史成功率；
-- 数据位置；
-- 风险。
+- Current availability;
+- Permissions;
+- Cost;
+- Latency;
+- Historical success rate;
+- Data location;
+- Risk.
 
 ## 13.21 Score-based Routing
 
-可以为每个候选 Agent 计算分数：
+A score can be calculated for each candidate agent:
 
 $$
 Score(a)=\alpha C_a+\beta Q_a+\gamma A_a-\delta L_a-\epsilon K_a-\zeta R_a
 $$
 
-其中：
+Where:
 
-- `Cₐ`：Capability Match；
-- `Qₐ`：历史质量；
-- `Aₐ`：Availability；
-- `Lₐ`：Latency；
-- `Kₐ`：Cost；
-- `Rₐ`：Risk。
+- `Cₐ`: capability match;
+- `Qₐ`: historical quality;
+- `Aₐ`: availability;
+- `Lₐ`: latency;
+- `Kₐ`: cost;
+- `Rₐ`: risk.
 
-评分可以由规则、统计模型或 LLM 辅助生成。
+Rules, statistical models, or an LLM can help generate scores.
 
-这只是候选排序的示意函数，不是优化正确性的保证。权限、数据驻留、协议版本和可用预算先做硬过滤，不能让“质量分高”抵消越权。剩余指标需统一量纲、按任务类别估计，并考虑数据量与置信区间；历史成功率会受路由选择偏差影响，不能把只接简单任务的 Agent 直接排在前面。
+This is an illustrative candidate-ranking function, not a guarantee that optimization is correct. Apply hard filters for permissions, data residency, protocol versions, and available budget first. A high quality score must not offset unauthorized access. Normalize the remaining metrics, estimate them by task category, and consider sample size and confidence intervals. Historical success rates are affected by routing selection bias: an agent that only receives easy tasks should not automatically rank first.
 
 ## 13.22 LLM-based Dynamic Routing
 
-LLM 根据：
+The LLM considers:
 
-- 当前目标；
-- 已完成工作；
-- 当前状态；
-- 候选 Agent；
-- 能力描述；
-- 权限和预算；
+- The current goal;
+- Completed work;
+- Current state;
+- Candidate agents;
+- Capability descriptions;
+- Permissions and budget;
 
-返回目标 Agent。
+and returns a proposed target agent.
 
 ```json
 {
@@ -708,41 +710,43 @@ LLM 根据：
 }
 ```
 
-### 13.22.1 优势
+The example's Chinese `reason` means “The code has been generated but has not yet passed independent review.”
 
-- 能处理模糊意图；
-- 可以综合多个信号；
-- 能覆盖部分未显式编码的组合情况。
+### 13.22.1 Advantages
 
-### 13.22.2 局限
+- Handles ambiguous intent;
+- Combines multiple signals;
+- Covers some combinations that have not been explicitly encoded.
 
-- 可能路由错误；
-- 输出具有概率性；
-- 增加 Token 和延迟；
-- 可能选择越权 Agent；
-- 候选过多时判断质量下降。
+### 13.22.2 Limitations
 
-示例中的 `confidence: 0.91` 是模型自报值，不表示已校准的 91% 成功概率。阈值应在独立标注的路由评测集上校准；没有校准时，把它视为辅助信号，依据可执行校验和拒绝策略决定是否派发。
+- May route incorrectly;
+- Produces probabilistic output;
+- Adds tokens and latency;
+- May select an unauthorized agent;
+- Makes poorer decisions when there are too many candidates.
 
-### 13.22.3 不一定额外增加一次模型调用
+The example's `confidence: 0.91` is self-reported by the model, not a calibrated 91% probability of success. Calibrate thresholds on an independently labeled routing evaluation set. Without calibration, treat confidence as a supporting signal and decide whether to dispatch through executable checks and rejection policies.
 
-如果 Orchestrator 当前模型调用本来就需要决定下一动作，可以让它同时返回 Route。
+### 13.22.3 Routing Does Not Always Require an Extra Model Call
 
-路由若作为每次必经的独立 LLM 节点，通常会新增调用；命中规则、缓存或批处理的设计则需另算。即使合并在已有调用里，候选描述、结构化输出和后续重试仍有成本。
+If the orchestrator's current model call already needs to choose the next action, it can return a route at the same time.
 
-## 13.23 Dynamic Routing 必须受约束
+A separate LLM routing node on every execution path will usually add a call. Designs that use rule matches, caching, or batching need separate accounting. Even when routing is folded into an existing call, candidate descriptions, structured output, and subsequent retries still have costs.
 
-动态不等于允许模型选择任意 Agent。
+## 13.23 Dynamic Routing Must Be Constrained
 
-Runtime 应：
+Dynamic routing does not mean allowing the model to choose any agent.
 
-- 只暴露允许的候选；
-- 检查输入输出 Schema；
-- 校验权限；
-- 检查目标 Agent 可用性；
-- 设置最大切换次数；
-- 提供安全 Fallback；
-- 记录路由原因和 Trace。
+The runtime should:
+
+- Expose only allowed candidates;
+- Check input and output schemas;
+- Validate permissions;
+- Check target-agent availability;
+- Limit the number of switches;
+- Provide a safe fallback;
+- Record routing reasons and traces.
 
 ```mermaid
 flowchart LR
@@ -755,42 +759,42 @@ flowchart LR
 
 ## 13.24 Hybrid Routing
 
-Hybrid Routing 将确定性控制与模型判断组合：
+Hybrid routing combines deterministic control with model judgment:
 
 ```mermaid
 flowchart TB
     S[Current State] --> H{High-risk or Fixed Path?}
-    H -->|是| STATIC[Static Route]
-    H -->|否| RULE{Rule Match?}
-    RULE -->|是| STATIC
+    H -->|Yes| STATIC[Static Route]
+    H -->|No| RULE{Rule Match?}
+    RULE -->|Yes| STATIC
     STATIC --> CHECK{Policy and Validation Pass?}
-    RULE -->|否| LLM[LLM Router within Allowlist]
+    RULE -->|No| LLM[LLM Router within Allowlist]
     LLM --> CHECK
-    CHECK -->|是| TARGET[Target Agent]
-    CHECK -->|否| SAFE[Safe Stop / Human / Orchestrator]
+    CHECK -->|Yes| TARGET[Target Agent]
+    CHECK -->|No| SAFE[Safe Stop / Human / Orchestrator]
 ```
 
-静态路由也必须经过授权、参数和预算检查；“路径预先写好”不等于当前请求获得了执行许可。
+Static routes must also pass authorization, parameter, and budget checks. A predefined path does not mean that the current request has permission to execute.
 
-需要修正一个常见说法：
+One common claim needs correcting:
 
-> 不是“静态负责保底，动态负责兜底所有异常”。
+> It is not “static routing provides the baseline, while dynamic routing handles every exception.”
 
-高风险异常的最终兜底应该是：
+The last resort for high-risk exceptions should be:
 
-- 安全停止；
-- 人工处理；
-- 确定性 Fallback；
+- A safe stop;
+- Human intervention;
+- A deterministic fallback;
 
-而不是无条件交给 LLM。
+not an unconditional transfer to an LLM.
 
-## 13.25 Delegation 与 Handoff
+## 13.25 Delegation and Handoff
 
-这两个概念都能让另一个 Agent 工作，但控制权不同。
+Both mechanisms let another agent do work, but they differ in who retains control.
 
 ### 13.25.1 Delegation
 
-当前 Agent 保留控制权，将一个子任务交给 Worker：
+The current agent retains control and assigns a subtask to a worker:
 
 ```mermaid
 sequenceDiagram
@@ -802,16 +806,16 @@ sequenceDiagram
     O->>O: Decide Next Step
 ```
 
-适合：
+Suitable when:
 
-- Orchestrator 需要保持全局视角；
-- 子任务边界明确；
-- 多个 Worker 并行；
-- 结果需要统一合并。
+- The orchestrator needs to maintain an overall view.
+- Subtask boundaries are clear.
+- Multiple workers run in parallel.
+- Results need to be merged centrally.
 
 ### 13.25.2 Handoff
 
-当前 Agent 将后续对话或任务控制权转给另一个 Agent：
+The current agent transfers control of the subsequent conversation or task to another agent:
 
 ```mermaid
 sequenceDiagram
@@ -819,56 +823,56 @@ sequenceDiagram
     participant T as Triage Agent
     participant R as Refund Agent
 
-    U->>T: 请求退款
+    U->>T: Request a Refund
     T->>R: Handoff + Structured Context
-    R->>U: 接管后续交互
+    R->>U: Take Over Subsequent Interaction
 ```
 
-适合：
+Suitable when:
 
-- 接收 Agent 应直接面向用户；
-- 专业 Agent 需要持续控制后续回合；
-- 任务边界稳定；
-- 不需要原 Agent 汇总结果。
+- The receiving agent should interact directly with the user.
+- A specialist needs to retain control over subsequent turns.
+- Task boundaries are stable.
+- The original agent does not need to aggregate results.
 
-### 13.25.3 对比
+### 13.25.3 Comparison
 
-这里按“谁在调用结束后决定下一步”作工程区分；SDK 文档可能广义地把 Handoff 也称为 delegation，应以控制流为准。进程内 Handoff 是 Runner 的执行转移；跨服务交接还需持久化接收确认和 Owner 变更，不能把一次网络发送当作控制权已成功转移。
+The engineering distinction here is who decides the next step after the call finishes. SDK documentation may also use “delegation” broadly to include handoffs; follow the actual control flow. An in-process handoff transfers execution within the runner. A cross-service handoff also requires a durable acknowledgment of receipt and an ownership change. Sending a network message alone does not establish that control has transferred successfully.
 
 | Delegation | Handoff |
 |---|---|
-| 调用方保留控制权 | 控制权转移 |
-| Worker 返回结果给调用方 | 接收 Agent 继续处理 |
-| 适合子任务 | 适合职责切换 |
-| 常用于 Orchestrator-Workers | 常用于客服分流 |
+| The caller retains control | Control transfers |
+| The worker returns its result to the caller | The receiving agent continues processing |
+| Suitable for subtasks | Suitable for switching responsibility |
+| Common in orchestrator-workers designs | Common in customer-support triage |
 
-## 13.26 OpenAI Swarm 与 Agents SDK
+## 13.26 OpenAI Swarm and the Agents SDK
 
-Swarm 是 OpenAI 早期用于展示 Handoff 的教育性、实验性框架。
+Swarm was an early educational and experimental OpenAI framework demonstrating handoffs.
 
-对于这一技术路线，OpenAI 官方建议从 Swarm 迁移至 Agents SDK，并将后者称为 production-ready upgrade。SDK 支持：
+For this approach, OpenAI officially recommends migrating from Swarm to the Agents SDK, which it describes as a production-ready upgrade. The SDK supports:
 
-- Agents；
-- Agents as Tools；
-- Handoffs；
-- Guardrails；
-- Sessions；
-- Human-in-the-loop；
-- Tracing。
+- Agents;
+- Agents as tools;
+- Handoffs;
+- Guardrails;
+- Sessions;
+- Human-in-the-loop;
+- Tracing.
 
-在 Agents SDK 中，Handoff 通常作为一种 Tool 暴露给模型，例如：
+In the Agents SDK, a handoff is typically exposed to the model as a tool, for example:
 
 ```text
 transfer_to_refund_agent
 ```
 
-模型选择该 Tool 后，Runtime 将控制权转给对应 Agent。
+After the model selects that tool, the runtime transfers control to the corresponding agent.
 
-框架提供这些能力不意味着默认完成所有授权和恢复。按 [Handoffs 文档](https://openai.github.io/openai-agents-python/handoffs/)，`input_type` 定义模型生成的交接参数，并不替换接收方的整段输入，也不是身份凭据；需要按参数授权时，在产生副作用前检查。`Agent.as_tool()` 更适合返回结果给原调用方，Handoff 则让接收 Agent 接管后续执行。具体参数与 Guardrail 覆盖范围应按部署时锁定的 SDK 版本确认。
+These framework features do not mean that all authorization and recovery are handled by default. According to the [Handoffs documentation](https://openai.github.io/openai-agents-python/handoffs/), `input_type` defines model-generated handoff arguments. It neither replaces the receiving agent's entire input nor serves as an identity credential. When authorization depends on those arguments, check them before any side effects. `Agent.as_tool()` is better suited to returning a result to the original caller; a handoff lets the receiving agent take over subsequent execution. Confirm exact parameters and guardrail coverage against the SDK version pinned for deployment.
 
 ## 13.27 Handoff Contract
 
-一个可靠 Handoff 不应只传一句“交给你了”。
+A reliable handoff needs more than “Over to you.”
 
 ```json
 {
@@ -890,41 +894,43 @@ transfer_to_refund_agent
 }
 ```
 
-至少包含：
+The Chinese example values say that the user reported a duplicate charge, the goal is to confirm the order and process a refund, and the context summary says the user has completed authentication. The constraint requires confirming the amount again before issuing the refund.
 
-- 来源和目标 Agent；
-- Goal；
-- Reason；
-- 已完成内容；
-- 未完成内容；
-- 必需 Artifact；
-- 约束；
-- 权限；
-- Deadline；
-- 返回或终止策略。
+A handoff should include at least:
 
-其中“用户已完成身份验证”是自然语言摘要，不能作为可信身份。接收方应从受信 Runtime 取得用户身份、租户、授权范围、验证有效期及审批回执，并重新检查订单归属。`return_policy` 等字段是应用约定，SDK 不会因 JSON 中出现它们就自动执行。
+- Source and target agents;
+- Goal;
+- Reason;
+- Completed work;
+- Outstanding work;
+- Required artifacts;
+- Constraints;
+- Permissions;
+- Deadline;
+- Return or termination policy.
+
+“The user has completed authentication” is a natural-language summary, not a trusted identity. The receiving agent should obtain the user identity, tenant, authorization scope, authentication validity period, and approval receipt from a trusted runtime, then recheck order ownership. Fields such as `return_policy` are application conventions; putting them in JSON does not make the SDK enforce them.
 
 ## 13.28 Handoff Context Filtering
 
-安全设计上应只传必需历史；但 OpenAI Agents SDK 的 Handoff 默认会让接收方看到此前会话，需显式配置 `input_filter` 等机制。这是推荐策略与框架默认行为的区别。
+A secure design should pass only necessary history. By default, however, an OpenAI Agents SDK handoff exposes the previous conversation to the recipient, so mechanisms such as `input_filter` must be configured explicitly. This is the distinction between a recommended policy and a framework default.
 
-可以传递：
+It is reasonable to pass:
 
-- 结构化摘要；
-- 当前目标；
-- 已验证事实；
-- 必要 Artifact；
-- 用户明确约束；
-- 相关最近消息。
+- A structured summary;
+- The current goal;
+- Verified facts;
+- Necessary artifacts;
+- Explicit user constraints;
+- Relevant recent messages.
 
-不应默认传递：
+Do not pass these by default:
 
-- 其他 Agent 的私有 Scratchpad；
-- 无关 Tool Result；
-- 敏感凭据；
-- 未验证推测；
-- 完整隐藏推理。
+- Another agent's private scratchpad;
+- Irrelevant tool results;
+- Sensitive credentials;
+- Unverified speculation;
+- Full hidden reasoning.
 
 ```mermaid
 flowchart LR
@@ -939,18 +945,18 @@ flowchart LR
     RECENT --> TARGET
 ```
 
-## 13.29 Handoff 循环
+## 13.29 Handoff Loops
 
-简单记录“访问过哪个 Agent”可以发现部分循环，但也可能误伤合法返回。
+Recording which agents have been visited can detect some loops, but may also reject legitimate returns.
 
-更稳健的检测信号：
+More robust detection signals include:
 
-- 总 Handoff 次数；
-- 同一 Agent 访问次数；
-- 相同 Task State Hash 重复出现；
-- 相同 Agent Pair 反复切换；
-- 多轮没有新 Artifact；
-- Goal Progress 没有变化。
+- Total handoff count;
+- Visits to the same agent;
+- Repeated occurrence of the same task-state hash;
+- Repeated switching between the same agent pair;
+- Multiple rounds with no new artifact;
+- No change in progress toward the goal.
 
 ```mermaid
 flowchart LR
@@ -960,18 +966,18 @@ flowchart LR
     A -.No Progress Detected.-> STOP[Stop / Orchestrator / Human]
 ```
 
-允许合理的回访，但要求：
+Allow reasonable revisits, but require:
 
-- 状态已经变化；
-- 有新的 Artifact；
-- 有明确返回原因；
-- 不超过预算。
+- A change in state;
+- New artifacts;
+- An explicit reason for returning;
+- Remaining within budget.
 
-检测状态时忽略时间戳、Token 计数等无关变化，否则每轮 Hash 都不同会掩盖循环；也不能只凭出现新文件就认定进展。进展应绑定尚未满足的验收项，并由 Runtime 设置最大修订、深度和总调用预算。
+Ignore irrelevant state changes such as timestamps and token counts when detecting loops. Otherwise, a different hash on every round can conceal a loop. A new file alone is not proof of progress, either. Tie progress to unmet acceptance criteria, and have the runtime impose limits on revisions, depth, and total calls.
 
 ## 13.30 Routing Fallback
 
-Router 无法可靠选择时，应返回：
+When the router cannot choose reliably, it should return:
 
 ```json
 {
@@ -981,16 +987,18 @@ Router 无法可靠选择时，应返回：
 }
 ```
 
-不要：
+The Chinese `reason` means “Neither agent has the capability to make the required legal judgment.”
 
-- 随机选择 Agent；
-- 静默落到权限最高的 Agent；
-- 无限重试 Router；
-- 把未知任务交给万能 Agent。
+Do not:
+
+- Pick an agent at random;
+- Silently default to the agent with the highest privileges;
+- Retry the router indefinitely;
+- Send an unknown task to an all-purpose agent.
 
 ## 13.31 Agent Discovery
 
-动态系统需要 Capability Registry：
+A dynamic system needs a capability registry:
 
 ```mermaid
 flowchart LR
@@ -1000,37 +1008,37 @@ flowchart LR
     C --> ROUTER[Router]
 ```
 
-Registry 应记录：
+The registry should record:
 
-- Agent ID；
-- Skills；
-- Input / Output Schema；
-- Endpoint；
-- Authentication；
-- Availability；
-- Cost；
-- Latency；
-- Version；
-- Trust Level。
+- Agent ID;
+- Skills;
+- Input / output schema;
+- Endpoint;
+- Authentication;
+- Availability;
+- Cost;
+- Latency;
+- Version;
+- Trust level.
 
-A2A Agent Card 可以承担跨系统能力描述，但系统内部仍可能需要运行时 Registry。
+An A2A Agent Card can describe capabilities across systems, but an internal runtime registry may still be needed.
 
-## 13.32 A2A 的作用
+## 13.32 The Role of A2A
 
-A2A 为独立 Agent 系统提供：
+A2A provides independent agent systems with:
 
-- Agent Card；
-- Task；
-- Message；
-- Artifact；
-- Streaming；
-- Push Notification；
-- Task Lifecycle；
-- 多种协议绑定。
+- Agent Cards;
+- Tasks;
+- Messages;
+- Artifacts;
+- Streaming;
+- Push notifications;
+- A task lifecycle;
+- Multiple protocol bindings.
 
-它允许 Agent 在不了解彼此内部 Memory、Tools 和实现细节的情况下协作。
+It lets agents collaborate without knowing one another's internal memory, tools, or implementation details.
 
-以 [v1.0.1 发布标签的规范](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)为例，线上协议版本为 `1.0`，与规范补丁号、SDK 和 Agent 软件版本分开。对接时固定协议绑定（binding），不能混用旧字段或 RPC 名。Streaming、Push Notification 等还要检查能力声明；发送 Message 可以返回 Task 或直接返回 Message，不是每次调用都创建任务。
+For example, in the [specification at the v1.0.1 release tag](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md), the wire protocol version is `1.0`, separate from the specification's patch number, the SDK version, and the agent software version. Pin the protocol binding when integrating; do not mix in older fields or RPC names. Features such as streaming and push notifications also require checking declared capabilities. Sending a message can return a task or a direct message response; not every call creates a task.
 
 ```mermaid
 sequenceDiagram
@@ -1040,29 +1048,29 @@ sequenceDiagram
     C->>S: Get Agent Card
     S-->>C: Capabilities + Auth
     C->>S: Send Message
-    alt 返回任务
-        S-->>C: Task + 当前状态与可用产物
-        C->>S: 查询进度或按能力订阅
-        S-->>C: 后续状态与产物
-    else 直接回复
+    alt Task Returned
+        S-->>C: Task + Current Status and Available Artifacts
+        C->>S: Query Progress or Subscribe if Supported
+        S-->>C: Subsequent Status and Artifacts
+    else Direct Reply
         S-->>C: Message
     end
 ```
 
-A2A 解决互操作协议，不替代：
+A2A supplies an interoperability protocol. It does not replace:
 
-- Orchestrator；
-- Task Decomposition；
-- Router；
-- 权限策略；
-- 费用结算；
-- 结果验证。
+- An orchestrator;
+- Task decomposition;
+- A router;
+- Authorization policies;
+- Cost settlement;
+- Result validation.
 
-A2A 的 binding、Agent Card 与 Task 状态机详见 [Tools：A2A 协议](../../tools/04-agent-communication/11-a2a-protocol.md)；跨组织身份、回调 SSRF、token audience 和 Card 信任边界详见 [Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md)。
+For A2A bindings, Agent Cards, and the task state machine, see [Tools: The A2A Protocol](../../tools/04-agent-communication/11-a2a-protocol.md). For cross-organization identity, callback SSRF, token audience, and Card trust boundaries, see [Tool Protocol Security](../../tools/02-mcp/15-tool-protocol-security.md).
 
-## 13.33 Agent 协作消息 Schema
+## 13.33 A Message Schema for Agent Coordination
 
-推荐消息字段：
+Recommended message fields:
 
 ```json
 {
@@ -1084,27 +1092,29 @@ A2A 的 binding、Agent Card 与 Task 状态机详见 [Tools：A2A 协议](../..
 }
 ```
 
-字段作用：
+The example's Chinese `goal` means “Research competitor A.”
 
-- `message_id`：唯一消息；
-- `task_id`：归属任务；
-- `correlation_id`：关联一次完整运行；
-- `causation_id`：追踪因果链；
-- `idempotency_key`：由接收端按业务操作保存、核验并去重，字段本身不会防重复；
-- `deadline`：由 Runtime 在派发、重试和提交前检查，不能自动终止远程副作用；
-- `trace_id`：可观测性。
+What the fields do:
 
-重投同一业务操作时保持幂等键稳定，不能每次重试都生成新键；新一轮执行使用独立 `attempt_id`，并附输入版本。相同幂等键却携带不同参数应拒绝。去重范围至少应区分租户和操作类型，保留时长要覆盖消息可能重放的窗口。
+- `message_id`: uniquely identifies the message;
+- `task_id`: identifies the task it belongs to;
+- `correlation_id`: correlates an entire run;
+- `causation_id`: tracks the causal chain;
+- `idempotency_key`: the receiver stores, checks, and deduplicates it by business operation; the field alone prevents nothing;
+- `deadline`: the runtime checks it before dispatch, retry, and commit; it cannot automatically stop remote side effects;
+- `trace_id`: supports observability.
 
-## 13.34 取消传播
+Keep the idempotency key stable when redelivering the same business operation; do not generate a new key on every retry. Use a separate `attempt_id` for a new execution attempt and include the input version. Reject different parameters supplied under the same idempotency key. At a minimum, deduplication must distinguish tenants and operation types, and retention must cover the window in which messages may be replayed.
 
-用户取消全局任务时，需要取消：
+## 13.34 Cancellation Propagation
 
-- 正在执行的 Worker；
-- 队列中的 Task；
-- 外部 Tool；
-- 后续依赖；
-- 尚未完成的 Handoff。
+When the user cancels the overall task, cancellation needs to reach:
+
+- Running workers;
+- Queued tasks;
+- External tools;
+- Downstream dependencies;
+- Incomplete handoffs.
 
 ```mermaid
 flowchart TB
@@ -1115,57 +1125,57 @@ flowchart TB
     O --> T[Cancel Tool Calls]
 ```
 
-对可控 Agent 和 Tool 应实现 Cancellation Token 或任务状态检查；外部服务未必支持取消，即使支持也可能来不及阻止已发生的副作用。先在权威账本持久化取消意图，再停止新增派发并向执行者传播；队列消息即使无法删除，领取时也应检查任务状态。迟到结果只留审计、不再推进下游。
+Implement cancellation tokens or task-status checks for agents and tools under your control. External services may not support cancellation, and even when they do, it may be too late to prevent side effects that have already occurred. First persist the cancellation intent in the authoritative ledger, then stop new dispatches and propagate it to executors. Even if queued messages cannot be removed, workers should check task status when claiming them. Retain late results only for auditing; they must not advance downstream work.
 
-取消不是回滚。已发送邮件无法“撤销执行”，已支付资金可能需要独立退款流程；补偿操作也要授权、幂等和记录失败。应分别记录“请求取消”“已确认停止”“副作用待对账”，不要用一个 `cancelled` 状态掩盖未知结果。
+Cancellation is not rollback. A sent email cannot be “unexecuted,” and a completed payment may need a separate refund process. Compensating operations also need authorization, idempotency, and failure records. Record “cancellation requested,” “stop confirmed,” and “side effects awaiting reconciliation” separately. Do not hide unknown outcomes behind a single `cancelled` status.
 
-## 13.35 超时与重试
+## 13.35 Timeouts and Retries
 
 ### 13.35.1 Timeout
 
-区分：
+Distinguish:
 
-- 单次 Tool Timeout；
-- Agent Step Timeout；
-- Task Timeout；
-- 全局 Run Timeout。
+- Timeout for a single tool call;
+- Agent-step timeout;
+- Task timeout;
+- Overall run timeout.
 
-子任务 Deadline 不应晚于父任务的剩余期限，并预留汇总或安全退出时间。客户端超时只说明未及时收到结果，不证明服务端没有完成操作。
+A subtask's deadline must not exceed the parent's remaining time, and should leave room for aggregation or a safe exit. A client timeout only means the result did not arrive in time; it does not prove that the server failed to complete the operation.
 
 ### 13.35.2 Retry
 
-只对可重试错误执行，并采用：
+Retry only retryable errors, using:
 
-- Exponential Backoff；
-- Jitter；
-- 最大次数；
-- 幂等键。
+- Exponential backoff;
+- Jitter;
+- A maximum attempt count;
+- Idempotency keys.
 
-由一层负责统筹重试，避免 SDK、Worker、Orchestrator 同时重试造成放大；重试也占预算和并发槽。429 或临时服务错误可以按服务提示延迟，Schema 错误、权限拒绝、确定性测试失败应修正原因或重规划，而不是原样反复调用。
+Let one layer coordinate retries so the SDK, worker, and orchestrator do not amplify load by retrying simultaneously. Retries also consume budget and concurrency slots. A 429 response or transient service error can be retried after the delay indicated by the service. Schema errors, permission denials, and deterministic test failures call for fixing the cause or replanning, not repeating the same call unchanged.
 
 ### 13.35.3 Fallback
 
-可以：
+Possible fallbacks include:
 
-- 切换 Agent；
-- 切换 Tool；
-- 降级模型；
-- 返回部分结果；
-- 请求人工处理。
+- Switching agents;
+- Switching tools;
+- Falling back to a less capable model;
+- Returning partial results;
+- Requesting human intervention.
 
-## 13.36 可观测性
+## 13.36 Observability
 
-Multi-Agent 必须记录：
+A multi-agent system must record:
 
-- 谁创建了 Task；
-- 谁路由给谁；
-- 为什么选择该 Agent；
-- 传递了哪些 Context 和 Artifact；
-- 每个 Agent 做了什么；
-- 哪个步骤失败；
-- Token、费用和延迟；
-- Handoff 次数；
-- 最终结果来源。
+- Who created the task;
+- Who routed work to whom;
+- Why that agent was selected;
+- Which context and artifacts were passed;
+- What each agent did;
+- Which step failed;
+- Tokens, costs, and latency;
+- Handoff count;
+- Where the final result came from.
 
 ```mermaid
 flowchart LR
@@ -1176,74 +1186,74 @@ flowchart LR
     T[Tools] -.Logs.-> OBS
 ```
 
-建议统一：
+Standardize:
 
-- Trace ID；
-- Span；
-- Task ID；
-- Agent ID；
-- Artifact ID；
-- Route Decision；
-- Error Code。
+- Trace IDs;
+- Spans;
+- Task IDs;
+- Agent IDs;
+- Artifact IDs;
+- Route decisions;
+- Error codes.
 
-保留输入版本、模型及工具版本、关键调度决定、验证回执和预算预留记录，才能区分计划错误、执行错误和验收错误。Trace 应脱敏并限制访问；不要求记录隐藏推理。重放已记录的工具结果有助于定位调度问题，重新调用模型或外部 API 则可能得到不同结果，不能据此承诺字节级复现。
+Retain input versions, model and tool versions, important scheduling decisions, validation receipts, and budget-reservation records so planning, execution, and acceptance errors can be distinguished. Redact traces and restrict access; recording hidden reasoning is not required. Replaying recorded tool results helps diagnose scheduling problems. Calling a model or external API again may produce different results, so it cannot support a promise of byte-for-byte reproducibility.
 
-## 13.37 安全
+## 13.37 Security
 
-动态切换会扩大权限边界。
+Dynamic switching extends authorization boundaries.
 
-必须检查：
+Check:
 
-- 来源 Agent 是否有权委派；
-- 目标 Agent 是否有权处理数据；
-- Handoff Payload 是否包含敏感信息；
-- 目标 Agent 是否被允许调用高风险 Tool；
-- 外部 Agent 身份是否可信；
-- 消息是否被篡改或重放。
+- Whether the source agent is allowed to delegate;
+- Whether the target agent is allowed to process the data;
+- Whether the handoff payload contains sensitive information;
+- Whether the target agent is allowed to call high-risk tools;
+- Whether the external agent's identity is trustworthy;
+- Whether messages have been tampered with or replayed.
 
 ### 13.37.1 Confused Deputy
 
-低权限 Agent 可能诱导高权限 Agent 代替它执行敏感操作。
+A low-privilege agent may induce a higher-privilege agent to perform sensitive operations on its behalf.
 
-防护：
+Defenses:
 
-- 每次 Tool Call 重新授权；
-- 不继承来源 Agent 的隐含权限；
-- 记录原始用户身份和意图；
-- 高风险操作重新确认；
-- Handoff 不自动升级权限。
+- Reauthorize every tool call;
+- Do not inherit implicit permissions from the source agent;
+- Record the original user's identity and intent;
+- Reconfirm high-risk operations;
+- Do not let handoffs automatically elevate privileges.
 
-## 13.38 客服系统示例
+## 13.38 Customer-Support Example
 
 ```mermaid
 flowchart TB
     U[User Request] --> T[Triage Workflow]
     T --> R{Static Rules}
 
-    R -->|订单查询| O[Order Agent]
-    R -->|退款| F[Refund Agent]
-    R -->|技术问题| X[Technical Agent]
-    R -->|无法识别| L[LLM Router]
+    R -->|Order Inquiry| O[Order Agent]
+    R -->|Refund| F[Refund Agent]
+    R -->|Technical Issue| X[Technical Agent]
+    R -->|Unrecognized| L[LLM Router]
 
     L --> C{Validated Route}
-    C -->|通过| TARGET[Allowed Agent]
-    C -->|未通过或无法确认| H[Human Support]
+    C -->|Pass| TARGET[Allowed Agent]
+    C -->|Fail or Uncertain| H[Human Support]
 
     F --> APPROVE{Refund Approval}
-    APPROVE -->|批准| TOOL[Refund Tool]
-    APPROVE -->|拒绝| H
+    APPROVE -->|Approved| TOOL[Refund Tool]
+    APPROVE -->|Rejected| H
 ```
 
-设计要点：
+Design points:
 
-- 常见意图使用静态路由；
-- 模糊意图在 Allowlist 内动态路由；
-- 退款 Handoff 传递订单 Artifact；
-- Refund Agent 不继承无限权限；
-- 执行退款前需要审批；
-- 未识别请求安全转人工。
+- Use static routes for common intents.
+- Route ambiguous intents dynamically within an allowlist.
+- Pass the order artifact in a refund handoff.
+- Do not give the refund agent unrestricted inherited permissions.
+- Require approval before executing a refund.
+- Safely escalate unrecognized requests to a person.
 
-## 13.39 代码协作示例
+## 13.39 Collaborative Coding Example
 
 ```mermaid
 flowchart TB
@@ -1252,46 +1262,46 @@ flowchart TB
     E --> A[Architecture Artifact]
     A --> C[Coding Agent]
     C --> D[Patch Artifact]
-    D --> TEST{必需测试通过?}
-    TEST -->|否，返回失败证据| C
-    TEST -->|是| R[Review Agent]
+    D --> TEST{Required Tests Pass?}
+    TEST -->|No - Return Failure Evidence| C
+    TEST -->|Yes| R[Review Agent]
     R --> V{Pass?}
-    V -->|否，返回有效 Finding| C
-    V -->|是| ACCEPT[Orchestrator 最终验收]
-    ACCEPT --> DONE[交付结果]
+    V -->|No - Return Valid Findings| C
+    V -->|Yes| ACCEPT[Final Acceptance by Orchestrator]
+    ACCEPT --> DONE[Deliver Results]
 ```
 
-图中先探索接口和依赖，再生成补丁；测试与审查各有失败出口。Orchestrator 管理整个流程，审查通过后进入最终验收，不是回到用户目标重新启动一轮探索。超预算、缺少权限或无法修复时则停止并报告未完成项。
+The diagram explores interfaces and dependencies before generating a patch. Testing and review each have a failure path. The orchestrator manages the whole process: a successful review leads to final acceptance, not back to the user goal for another round of exploration. If the process exceeds its budget, lacks permissions, or cannot fix a problem, it stops and reports unfinished work.
 
-推荐：
+Recommendations:
 
-- Explore Agent 只读；
-- Coding Agent 可修改工作区；
-- Review Agent 只读 Diff 及相关上下文、测试和依赖；
-- Orchestrator 保留最终控制；
-- Patch 和报告使用 Artifact；
-- Review Finding 使用结构化 Schema；
-- 最大修订次数由 Runtime 控制。
+- Give the explore agent read-only access.
+- Allow the coding agent to modify the workspace.
+- Give the review agent read-only access to the diff and relevant context, tests, and dependencies.
+- Keep final control with the orchestrator.
+- Use artifacts for patches and reports.
+- Use a structured schema for review findings.
+- Have the runtime enforce the maximum revision count.
 
-若扩展为并行 Coding Worker，先固定接口和基准提交，为各自提供独立工作区；用 Patch 及基准 SHA 交付，由一个合并者在集成分支执行测试。没有文本冲突不等于语义兼容，例如两个模块各自通过测试却使用不同的单位或错误约定；反复发生这种问题说明任务拆分边界需要调整。
+When extending this design to parallel coding workers, first fix the interfaces and base commit, then give each worker an isolated workspace. Deliver patches with their base SHA, and let one integrator run tests on an integration branch. A lack of textual conflicts does not imply semantic compatibility: two modules may pass their own tests while using different units or error conventions. Repeated problems of this kind indicate that task boundaries need to change.
 
-## 13.40 选型表
+## 13.40 Selection Guide
 
-| 场景 | 推荐机制 |
+| Scenario | Recommended mechanism |
 |---|---|
-| 固定顺序处理 | Pipeline |
-| 复杂任务统一调度 | Orchestrator |
-| 多 Worker 并发 | Queue + Task Ledger |
-| 多消费者响应事件 | Pub/Sub |
-| 多 Agent 复用结果 | Shared Workspace + Artifact |
-| 跨组织 Agent 互操作 | A2A |
-| 专业 Agent 接管用户会话 | Handoff |
-| Worker 完成子任务后返回 | Delegation |
-| 高风险或稳定主流程 | Static Routing |
-| 模糊、开放式低风险分流 | Constrained LLM Routing |
-| 顶层调度或上下文成为瓶颈 | 评估分层 Orchestrator |
+| Processing in a fixed sequence | Pipeline |
+| Central scheduling for complex tasks | Orchestrator |
+| Concurrent workers | Queue + Task Ledger |
+| Multiple consumers responding to events | Pub/Sub |
+| Multiple agents reusing results | Shared Workspace + Artifact |
+| Cross-organization agent interoperability | A2A |
+| A specialist taking over the user conversation | Handoff |
+| A worker returning after completing a subtask | Delegation |
+| High-risk or stable main paths | Static Routing |
+| Ambiguous, open-ended, low-risk triage | Constrained LLM Routing |
+| Top-level scheduling or context becoming a bottleneck | Evaluate hierarchical orchestrators |
 
-## 13.41 推荐生产架构
+## 13.41 A Recommended Production Architecture
 
 ```mermaid
 flowchart TB
@@ -1318,11 +1328,11 @@ flowchart TB
     EVENTS --> STATE[Materialized State]
     STATE -.Progress hints.-> ROUTER
     ART --> VERIFY[Verifier]
-    VERIFY -->|验收通过| JOIN[Result Aggregator]
-    VERIFY -->|失败或证据不足| WF
+    VERIFY -->|Accepted| JOIN[Result Aggregator]
+    VERIFY -->|Failed or Insufficient Evidence| WF
     JOIN --> WF
 
-    LEDGER -->|获准 Handoff| SPECIAL[Specialist Agent]
+    LEDGER -->|Authorized Handoff| SPECIAL[Specialist Agent]
     ROUTER -->|Unresolved or Invalid Route| HUMAN[Human Review]
 
     WF -.Trace.-> OBS[Observability]
@@ -1332,177 +1342,182 @@ flowchart TB
     AN -.Spans.-> OBS
 ```
 
-核心原则：
+Core principles:
 
-1. 确定性 Workflow 控制高层边界；
-2. Hybrid Router 在 Allowlist 内选择 Agent；
-3. Task Ledger 是任务状态真相源；
-4. Queue 负责异步分发；
-5. Artifact Store 传递大结果；
-6. Event Stream 保留审计和状态变化；
-7. Verifier 检查输出；
-8. Handoff 只用于真正需要转移控制权的场景；
-9. 无法可靠路由或未通过风险校验的请求安全停止或转人工。
+1. A deterministic workflow controls high-level boundaries.
+2. A hybrid router selects agents within an allowlist.
+3. The task ledger is the source of truth for task state.
+4. A queue handles asynchronous dispatch.
+5. An artifact store carries large results.
+6. An event stream retains audit records and state changes.
+7. A verifier checks outputs.
+8. Handoffs are used only where control genuinely needs to transfer.
+9. Requests that cannot be routed reliably or fail risk checks stop safely or go to a person.
 
-这是功能分解示意，不要求每项都部署成独立服务。尤其不要把异步 `Materialized State` 当作领取、预算或提交的授权依据；这些检查应回到权威 Task Ledger。若选用账本作为真相源，可用同一事务写入状态变化与待发送事件（[Transactional Outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)），再异步投递；否则“状态已提交但通知未发送”的崩溃窗口会造成任务遗漏。事件溯源则是另一种真相源选择，不能同时把两份可独立修改的数据都当权威。
+This is a functional decomposition, not a requirement to deploy every component as a separate service. In particular, asynchronous `Materialized State` must not authorize task claims, budget use, or commits; those checks belong in the authoritative task ledger. If the ledger is the source of truth, write the state change and the pending event in the same transaction using a [transactional outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html), then deliver the event asynchronously. Otherwise, a crash after committing state but before sending the notification can leave work undispatched. Event sourcing makes a different choice of source of truth; two independently mutable copies cannot both be authoritative.
 
-### 13.41.1 并行调度与 Join
+### 13.41.1 Parallel Scheduling and Joins
 
-模型提出 DAG 后，调度器检查依赖存在、无环、输出契约兼容；只有必需前置任务已验收通过，节点才进入 Ready 集合。随后原子领取租约、预留预算，再投递。不要先让模型调用发生，再事后发现没有额度。
+After the model proposes a DAG, the scheduler checks that dependencies exist, the graph is acyclic, and output contracts are compatible. A node enters the ready set only after its required predecessors pass acceptance checks. Then atomically claim the lease and reserve budget before dispatching. Do not make the model call first and discover afterward that no budget was available.
 
-并发上限需同时覆盖 Run、租户、模型端点和外部 Tool；限制 Worker 数不代表限制住 Worker 内部的并行调用。就绪任务较多时，兼顾关键路径优先级和公平性，避免一个大任务长期占满资源。队列用于背压，但排队耗时也计入端到端延迟。
+Concurrency limits must cover runs, tenants, model endpoints, and external tools. Limiting the number of workers does not limit parallel calls inside each worker. When many tasks are ready, balance critical-path priority with fairness so one large task does not monopolize resources. Queues provide backpressure, but queueing time still counts toward end-to-end latency.
 
-Join 的语义必须在执行前确定：
+Define join semantics before execution:
 
-- **All-required**：等待全部必需结果，逐项验收；可选任务失败可返回带缺口说明的部分结果。
-- **First-valid**：适合可互相替代的候选，采用第一个通过独立验证的结果，而非第一个返回文本的结果；剩余工作要取消并核算费用。
-- **K-of-N**：适合明确允许冗余的任务。达到数量阈值不等于事实正确，相同模型或相同来源的结果可能高度相关；更不等于存储系统的法定多数派提交。
+- **All-required**: Wait for all required results and validate each one. If optional tasks fail, partial results may be returned with the gaps stated.
+- **First-valid**: Suitable for interchangeable candidates. Accept the first result that passes independent validation, not the first to return text; cancel remaining work and account for its cost.
+- **K-of-N**: Suitable for tasks that explicitly allow redundancy. Reaching a numerical threshold does not establish factual correctness: results from the same model or source may be highly correlated. It is certainly not a storage-system quorum commit.
 
-Worker 报告 `completed` 后应先进入待验证状态。只有当前计划版本下所有必需验收项有证据、没有会影响结论的未决副作用，并且最终提交成功，Run 才算成功。任一分支永远等待、循环新增任务或静默遗漏依赖，都不能靠“队列暂时为空”判断完成。
+After a worker reports `completed`, its result should first enter a pending-validation state. A run succeeds only when evidence covers every required acceptance criterion for the current plan version, no unresolved side effect can change the conclusion, and the final commit succeeds. A temporarily empty queue does not establish completion if any branch waits forever, keeps creating tasks in a loop, or silently omits dependencies.
 
-### 13.41.2 预算预留与故障恢复
+### 13.41.2 Budget Reservation and Failure Recovery
 
-共享余额不能由每个 Worker 各自读一份后判断“还有钱”。在账本中维持已结算成本、在途预留和上限，例如：
+Workers must not each read the shared balance independently and conclude that money remains. Maintain settled costs, in-flight reservations, and limits in the ledger, for example:
 
 $$
 C_{spent}+C_{reserved}\le B_{run}
 $$
 
-这是一条调度不变量，不是对未知外部账单的数学保证。预留量应覆盖调用可控的最大 Token、工具次数和供应商计费约束；若无法给出硬上界，就不能承诺绝不超支，需要保守余量、供应商限额和超支处置。
+This is a scheduling invariant, not a mathematical guarantee about unknown external bills. Reservations should cover the controllable maximum token count, tool-call count, and provider billing constraints. Without a hard upper bound, a system cannot promise never to overspend; it needs conservative headroom, provider limits, and a policy for overruns.
 
-派发时原子增加预留，收到可信用量后原子结算并释放差额；不确定是否已经产生费用时保留预留，查询或对账后再释放。父任务为汇总和必要验证保留额度，子 Agent 无权自行扩大子树预算。限制总调用次数、递归深度、重试次数和截止时间，才能防止“每个 Agent 都没超局部预算、全局却超支”。
+Atomically increase the reservation at dispatch, then atomically settle costs and release the difference after receiving trustworthy usage data. If it is unclear whether a charge occurred, keep the reservation until a query or reconciliation resolves it. Parent tasks should retain budget for aggregation and required validation; child agents may not expand their subtree budgets themselves. Limits on total calls, recursion depth, retries, and deadlines prevent a system from overspending globally while every agent stays within its local budget.
 
-恢复时按持久化的 Run ID、Task ID、attempt 和输入版本识别已完成工作；先核对租约、回执与预算，再重派失联任务。不要把恢复写成重跑整个模型计划，否则已执行副作用可能重复。
+During recovery, use persisted run IDs, task IDs, attempts, and input versions to identify completed work. Check leases, receipts, and budgets before reassigning unreachable tasks. Do not implement recovery by rerunning the entire model-generated plan, which may repeat side effects that have already occurred.
 
-### 13.41.3 评测协作而不只是评测回答
+### 13.41.3 Evaluate Coordination, Not Just Answers
 
-除了[第九章 §9.31：评估 Multi-Agent 是否值得](09-single-vs-multi-agent.md)，还要测路由误派与拒绝是否合理、Handoff 约束保留率、必需依赖覆盖、陈旧结果拒收、重试放大、重复副作用和预算超限。质量、费用、端到端延迟及其尾部应一起报告，不能只展示成功样本的平均用时。
+Beyond [Chapter 9, §9.31: Evaluating Whether Multi-Agent Is Worthwhile](09-single-vs-multi-agent.md), test misrouting and the appropriateness of refusals, handoff constraint-retention rates, required-dependency coverage, rejection of stale results, retry amplification, duplicate side effects, and budget overruns. Report quality, costs, and end-to-end latency including its tail together, rather than only the average duration of successful cases.
 
-用固定故障时序验证不变量：领取后宕机、外部操作成功但回执丢失、旧 Worker 在重新分配后回包、取消与完成同时发生、账本提交后通知投递失败。记录系统是否安全终止、保留部分成果或正确重试，并把“无法确认副作用”单列，不能计作已恢复成功。
+Validate invariants using fixed failure sequences: a crash after claiming work; a successful external operation whose receipt is lost; an old worker returning after reassignment; simultaneous cancellation and completion; or failed notification delivery after a ledger commit. Record whether the system stops safely, preserves partial work, or retries correctly. Track “side effects cannot be confirmed” separately, rather than counting it as successful recovery.
 
-## 13.42 设计检查表
+## 13.42 Design Checklist
 
-### 13.42.1 协作拓扑
+### 13.42.1 Coordination Topology
 
-- 为什么选择 Pipeline、Orchestrator、Blackboard 或 P2P？
-- 是否存在不必要的 Agent？
-- 谁拥有全局目标和最终决策权？
+- Why choose a pipeline, orchestrator, blackboard, or P2P design?
+- Are any agents unnecessary?
+- Who owns the overall goal and final decision authority?
 
-### 13.42.2 通信
+### 13.42.2 Communication
 
-- 使用 Request/Response、Queue、Pub/Sub 还是 Event Stream？
-- 消息是否有 Schema 和版本？
-- 是否支持幂等、重试和取消？
-- 大结果是否使用 Artifact？
+- Does the system use request/response, queues, pub/sub, or event streams?
+- Do messages have schemas and versions?
+- Are idempotency, retries, and cancellation supported?
+- Are artifacts used for large results?
 
-### 13.42.3 状态
+### 13.42.3 State
 
-- Global、Task、Private State 是否分开？
-- 每个字段由谁写？
-- Reducer 是覆盖、追加还是自定义合并？
-- 并发冲突如何检测？
+- Are global, task, and private state separated?
+- Who writes each field?
+- Do reducers overwrite, append, or perform custom merges?
+- How are concurrent conflicts detected?
 
 ### 13.42.4 Routing
 
-- 静态规则能覆盖哪些路径？
-- LLM Router 的候选是否受 Allowlist 限制？
-- 权限、成本和可用性是否参与选择？
-- 低置信度如何安全退出？
+- Which paths do static rules cover?
+- Are the LLM router's candidates constrained by an allowlist?
+- Do permissions, costs, and availability influence selection?
+- How does the system exit safely when confidence is low?
 
 ### 13.42.5 Handoff
 
-- 是否真的需要转移控制权，还是 Delegation 足够？
-- Handoff Contract 是否完整？
-- 是否过滤无关或敏感 Context？
-- 如何检测循环和无进展？
+- Does control really need to transfer, or would delegation suffice?
+- Is the handoff contract complete?
+- Is irrelevant or sensitive context filtered?
+- How are loops and lack of progress detected?
 
 ### 13.42.6 Reliability
 
-- Agent 超时后谁接管？
-- Task Lease 如何过期？
-- Error 是否进入状态？
-- 是否支持局部重试和重新规划？
+- Who takes over after an agent times out?
+- How does a task lease expire?
+- Are errors represented in state?
+- Are local retries and replanning supported?
 
 ### 13.42.7 Security
 
-- Handoff 是否导致权限升级？
-- 外部 Agent 是否经过认证？
-- Shared State 是否存在跨租户泄露？
-- 高风险操作是否重新授权？
+- Can handoffs elevate privileges?
+- Are external agents authenticated?
+- Can shared state leak across tenants?
+- Are high-risk operations reauthorized?
 
 ### 13.42.8 Observability
 
-- 是否有统一 Trace ID？
-- 能否还原每次 Route 和 Handoff？
-- 能否统计 Agent 成功率、成本和延迟？
-- 能否定位循环、重复工作和消息丢失？
+- Is there a shared trace ID?
+- Can every route decision and handoff be reconstructed?
+- Can agent success rates, costs, and latency be measured?
+- Can loops, duplicated work, and lost messages be located?
 
-## 13.43 常见反模式
+## 13.43 Common Anti-Patterns
 
-### 13.43.1 所有 Agent 共享完整对话
+### 13.43.1 Sharing the Entire Conversation with Every Agent
 
-造成 Context 污染、隐私扩大和 Token 浪费。
+This contaminates context, broadens exposure of private information, and wastes tokens.
 
-### 13.43.2 所有 State 字段都追加
+### 13.43.2 Appending to Every State Field
 
-当前状态、Owner 和预算无法正确更新。
+Current status, ownership, and budgets cannot be updated correctly.
 
-### 13.43.3 所有 State 字段都覆盖
+### 13.43.3 Overwriting Every State Field
 
-并发结果和历史事件会丢失。
+Concurrent results and historical events are lost.
 
-### 13.43.4 Message Passing 等同 Pub/Sub
+### 13.43.4 Equating Message Passing with Pub/Sub
 
-忽略了 Request/Response、Queue 和 Event Stream 的不同语义。
+This ignores the different semantics of request/response, queues, and event streams.
 
-### 13.43.5 LLM Router 可以选择任意 Agent
+### 13.43.5 Letting an LLM Router Choose Any Agent
 
-容易越权、误路由和形成循环。
+This makes unauthorized access, misrouting, and loops more likely.
 
-### 13.43.6 动态路由作为所有异常的最终兜底
+### 13.43.6 Using Dynamic Routing as the Last Resort for Every Exception
 
-高风险未知情况应安全停止或转人工。
+Unknown high-risk situations should stop safely or be escalated to a person.
 
-### 13.43.7 Handoff 与 Delegation 混为一谈
+### 13.43.7 Conflating Handoff and Delegation
 
-导致控制权不清和结果无人汇总。
+Control becomes unclear, and no one is responsible for aggregating results.
 
-### 13.43.8 只记录经过的 Agent 名称防循环
+### 13.43.8 Preventing Loops Only by Recording Visited Agent Names
 
-无法区分合法回访与无进展循环。
+This cannot distinguish legitimate revisits from loops that make no progress.
 
-### 13.43.9 错误只写日志
+### 13.43.9 Recording Errors Only in Logs
 
-Router 和 Orchestrator 无法根据失败状态决策。
+The router and orchestrator cannot use failure state to make decisions.
 
-### 13.43.10 大结果通过消息反复复制
+### 13.43.10 Repeatedly Copying Large Results Through Messages
 
-造成传输和 Context 成本，应改用 Artifact。
+This increases transport and context costs. Use artifacts instead.
 
-## 13.44 本章总结
+## 13.44 Chapter Summary
 
-Multi-Agent 协作要把通信、状态、路由、控制权转移、可靠性、安全和可观测性一起设计清楚，少掉任何一项，系统一放大就容易出问题。
+Multi-agent coordination needs a coherent design for communication, state, routing, control transfer, reliability, security, and observability. Missing any one of these makes problems likely as the system scales.
 
-对需要异步多 Agent 协作的单团队系统，可以从以下组合中选取必要部分：
+For a single-team system that needs asynchronous multi-agent coordination, choose the necessary parts of this combination:
 
-> **Workflow 控制高层边界，Orchestrator 管理任务，Hybrid Router 选择 Worker，消息触发执行，State 记录任务状态，Artifact 传递结果，Verifier 检查质量。**
+> **A workflow controls high-level boundaries; an orchestrator manages tasks; a hybrid router selects workers; messages trigger execution; state records task status; artifacts carry results; a verifier checks quality.**
 
-Handoff 适合让专业 Agent 接管后续交互；Delegation 则把子任务结果交回原调用方。动态路由需要候选集、权限、预算和退出条件约束，模型自报置信度不能替代授权或验收。账本共识决定状态如何提交，证据验证决定业务结论是否可信；异步进度投影和多数 Agent 的意见都不能替代这两层保证。
+A handoff lets a specialist take over subsequent interaction; delegation returns a subtask's result to the original caller. Dynamic routing needs constraints on candidates, permissions, budgets, and exit conditions. Model-reported confidence cannot replace authorization or acceptance. Ledger consensus determines how state is committed; evidence validation determines whether a business conclusion is trustworthy. Neither asynchronous progress projections nor the opinions of a majority of agents can replace these two layers of assurance.
 
-## 参考资料
+## References
 
-框架行为按 2026-09-15 可访问的官方文档核对；实际部署仍需锁定 SDK 版本。A2A [v1.0.1 Release](https://github.com/a2aproject/A2A/releases/tag/v1.0.1)发布于 2026-05-28，但该标签中的规范页提示仍写 v1.0.0；本章按发布标签而非页面的 latest 提示确定规范版本。
+The Chinese source checked framework behavior against official documentation accessible on 2026-09-15; the English review rechecked the relevant documentation on 2026-09-20. Deployment still requires a pinned SDK version. The A2A [v1.0.1 release](https://github.com/a2aproject/A2A/releases/tag/v1.0.1) was published on 2026-05-28, although the specification page at that tag still labels v1.0.0 as the latest release. This chapter identifies the specification by its release tag, not by the page's “latest” notice.
+
+Live framework documentation and the LangGraph source checked during translation are not snapshots of a deployed SDK. Raft's replicated-log and non-Byzantine failure assumptions were checked against the authors' overview and Ongaro's thesis source, not the linked paper PDF. Anthropic's article now notes that its tooling discussion dates from December 2024; it is used here for architectural patterns, not current interface guarantees.
 
 - [LangGraph Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api)
-- [LangGraph：并行状态更新错误](https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE)
+- [LangGraph: Concurrent State Update Error](https://docs.langchain.com/oss/python/langgraph/errors/INVALID_CONCURRENT_GRAPH_UPDATE)
 - [LangGraph Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)
 - [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/)
-- [OpenAI Swarm：迁移至 Agents SDK 的官方说明](https://github.com/openai/swarm)
+- [OpenAI Swarm: Official Guidance on Migrating to the Agents SDK](https://github.com/openai/swarm)
 - [OpenAI Agents SDK: Handoffs](https://openai.github.io/openai-agents-python/handoffs/)
 - [A2A v1.0.1 Protocol Specification](https://github.com/a2aproject/A2A/blob/v1.0.1/docs/specification.md)
-- [Amazon SQS：至少一次投递](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html)
-- [etcd v3.6：API 一致性与租约保证](https://etcd.io/docs/v3.6/learning/api_guarantees/)
-- [etcd v3.6：Lock 与事务保护](https://etcd.io/docs/v3.6/dev-guide/api_concurrency_reference_v3/)
-- [AWS：Transactional Outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)
-- [Raft：作者维护的算法与论文入口](https://raft.github.io/)
+- [Amazon SQS: At-Least-Once Delivery](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html)
+- [etcd v3.6: API Consistency and Lease Guarantees](https://etcd.io/docs/v3.6/learning/api_guarantees/)
+- [etcd v3.6: Lock and Transactional Protection](https://etcd.io/docs/v3.6/dev-guide/api_concurrency_reference_v3/)
+- [AWS: Transactional Outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)
+- [Raft: Authors' Algorithm and Paper Resources](https://raft.github.io/)
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
+- [LangGraph: `add_messages` Implementation](https://raw.githubusercontent.com/langchain-ai/langgraph/main/libs/langgraph/langgraph/graph/message.py)
+- [OpenAI Agents SDK: Manager and Handoff Patterns](https://openai.github.io/openai-agents-python/agents/)
+- [Diego Ongaro's Thesis: Replicated State Machines and Failure Assumptions](https://raw.githubusercontent.com/ongardie/dissertation/master/motivation/problem.tex)

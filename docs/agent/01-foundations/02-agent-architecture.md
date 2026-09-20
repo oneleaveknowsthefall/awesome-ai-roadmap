@@ -1,41 +1,41 @@
 ---
-description: 给出 AI Agent 的现代系统架构，说明模型、规划、记忆、工具、运行时、安全和可观测性各自承担的职责。
+description: Presents a modern AI agent architecture and explains the responsibilities of the model, planning, memory, tools, runtime, safety controls, and observability.
 ---
 
-# 第二章：Agent 的现代系统架构
+# Chapter 2: Modern Agent System Architecture
 
-## 2.1 从“四组件模型”到生产级架构
+## 2.1 From the Four-Component Model to Production Architecture
 
-模型已经能选工具，为什么还要单独设计架构？因为调用失败后谁负责恢复、写入前谁检查权限、何时算完成，都不能靠一句 Prompt 解决。入门资料通常将 Agent 概括为四个组件：
+If a model can already select tools, why design a separate architecture? Because a prompt alone cannot decide who recovers from a failed call, who checks permissions before a write, or what counts as completion. Introductory material often describes an agent as four components:
 
-> **模型 + 工具 + 记忆 + 规划**
+> **Model + Tools + Memory + Planning**
 
-这个模型便于理解，但还不足以描述一个可运行、可控制、可观测的生产级 Agent。更完整的现代架构是：
+This is a useful starting point, but it does not fully describe a production agent that can be operated, controlled, and observed. A more complete modern architecture is:
 
 > **Model + Tools + State/Memory + Planning/Control + Runtime/Guardrails**
 
-各部分的职责如下：
+The responsibilities are:
 
-| 组件 | 核心职责 |
+| Component | Core responsibility |
 |---|---|
-| Model | 理解目标、推理、生成计划和选择动作 |
-| Tools | 查询信息或改变外部环境 |
-| State/Memory | 保存当前任务状态与可复用的历史信息 |
-| Planning/Control | 拆解任务、调度步骤、重规划并判断终止 |
-| Runtime/Guardrails | 执行工具、管理权限、限制资源并记录运行过程 |
+| Model | Interpret goals, reason, generate plans, and select actions |
+| Tools | Query information or change the external environment |
+| State/Memory | Preserve current task state and reusable historical information |
+| Planning/Control | Decompose tasks, schedule steps, replan, and determine when to stop |
+| Runtime/Guardrails | Execute tools, manage permissions, limit resources, and record execution |
 
-需要特别注意：LLM 并不会亲自访问数据库或执行代码。它只能提出一个工具调用请求，真正的执行由 Agent Runtime 完成。
+One distinction is essential: the LLM does not personally access a database or execute code. It proposes a tool call; the agent runtime performs the actual execution.
 
-## 2.2 组件如何协同工作
+## 2.2 How the Components Work Together
 
 ```mermaid
 flowchart TB
-    U[用户目标] --> RT[Agent Runtime / Orchestrator]
+    U[User goal] --> RT[Agent Runtime / Orchestrator]
 
-    subgraph Context[上下文与状态层]
-        ST[任务状态]
-        WM[工作记忆]
-        LM[长期记忆]
+    subgraph Context[Context and state layer]
+        ST[Task state]
+        WM[Working memory]
+        LM[Long-term memory]
         CB[Context Builder]
         ST --> CB
         WM --> CB
@@ -44,16 +44,16 @@ flowchart TB
 
     RT --> CB
     CB --> MP[Model + Planner]
-    MP --> DEC{下一步决策}
+    MP --> DEC{Next decision}
 
-    DEC -->|回答| OUT[结果验收与输出]
-    DEC -->|调用工具| PG[Policy / Permission Gate]
-    DEC -->|委派任务| DG[委派权限与预算检查]
-    DG --> A2A[其他 Agent]
+    DEC -->|Answer| OUT[Result acceptance and output]
+    DEC -->|Call a tool| PG[Policy / Permission Gate]
+    DEC -->|Delegate a task| DG[Delegation permission and budget checks]
+    DG --> A2A[Other agents]
 
     PG --> TR[Tool Registry / MCP Client]
     TR --> TS[Tool / MCP Server]
-    TS --> ENV[搜索、文件、数据库、代码、API]
+    TS --> ENV[Search, files, databases, code, APIs]
     ENV --> OBS[Observation]
 
     A2A --> OBS
@@ -62,58 +62,58 @@ flowchart TB
     RT --> WM
     RT --> LM
 
-    RT -.运行轨迹.-> OT[Tracing / Evaluation / Audit]
-    OUT -.结果评估.-> OT
+    RT -.Execution traces.-> OT[Tracing / Evaluation / Audit]
+    OUT -.Result evaluation.-> OT
 ```
 
-一次典型执行包含以下步骤：
+A typical execution proceeds as follows:
 
-1. Runtime 接收用户目标并初始化任务状态。
-2. Context Builder 从当前状态、工作记忆和长期记忆中组装上下文。
-3. 模型判断应该回答、调用工具、委派任务，还是重新规划。
-4. 工具调用先经过参数校验、权限检查和风险控制。
-5. Runtime 执行工具，并把结果作为 Observation 返回模型。
-6. 系统更新任务状态，按写入规则决定哪些信息进入记忆，再进入下一轮决策。
-7. 通过验收后结束；预算耗尽时报告未完成；需要审批时持久化状态并暂停，而不是把等待审批视为成功终止。
+1. The runtime receives the user's goal and initializes task state.
+2. The context builder assembles context from current state, working memory, and long-term memory.
+3. The model decides whether to answer, call a tool, delegate a task, or replan.
+4. A tool call first passes argument validation, permission checks, and risk controls.
+5. The runtime executes the tool and returns the result to the model as an observation.
+6. The system updates task state, applies its write policies to decide what enters memory, and starts the next decision cycle.
+7. It finishes after acceptance checks pass. If the budget is exhausted, it reports that the task is incomplete. If approval is needed, it persists state and pauses; waiting for approval is not successful completion.
 
-## 2.3 Model：推理与策略生成器
+## 2.3 Model: Reasoning and Policy Generation
 
-将 LLM 称为 Agent 的“大脑”是一种直观类比，但并不完全准确。现代模型可能同时处理文本、图像、音频等多种输入，因此它不只是“语言处理器”。
+Calling the LLM an agent's “brain” is intuitive, but not entirely accurate. Modern models may process text, images, audio, and other inputs, so they are more than language processors.
 
-在 Agent 中，模型主要负责：
+Within an agent, the model primarily:
 
-- 理解用户意图和约束；
-- 分析当前任务状态；
-- 生成或调整计划；
-- 选择工具并生成参数；
-- 根据工具反馈决定下一步；
-- 判断是否可以生成最终结果。
+- Interprets user intent and constraints;
+- Analyzes current task state;
+- Generates or revises plans;
+- Selects tools and generates arguments;
+- Determines the next step from tool feedback;
+- Decides whether it can produce the final result.
 
-模型能够生成工具调用请求，但默认不具备直接产生外部副作用的能力。它不能仅凭生成一段 JSON 就真的完成转账、发邮件或删除文件。
+The model can generate tool call requests, but by default it cannot directly produce external side effects. Generating JSON does not itself transfer money, send an email, or delete a file.
 
-> **模型负责提出动作，Runtime 负责验证和执行动作。**
+> **The model proposes actions; the runtime validates and executes them.**
 
-这种分工使系统能够在执行前加入权限检查、参数校验、人工确认和审计记录。
+This separation allows the system to add permission checks, argument validation, human confirmation, and audit records before execution.
 
-## 2.4 Tools：连接模型与外部世界
+## 2.4 Tools: Connecting the Model to the Outside World
 
-工具可以封装搜索、数据库查询、代码执行、文件操作和业务 API。原则上，能够通过稳定接口表达的外部能力都可以封装为工具。
+Tools can wrap search, database queries, code execution, file operations, and business APIs. In principle, any external capability that can be expressed through a stable interface can be exposed as a tool.
 
-但生产级工具不仅是一个函数，还应包含：
+A production tool is more than a function, however. It should also provide:
 
-- 唯一且清晰的名称；
-- 明确的功能描述；
-- 结构化输入输出 Schema；
-- 身份认证与权限范围；
-- 参数校验；
-- 超时、重试和取消机制；
-- 幂等性与副作用说明；
-- 可供模型理解的错误信息；
-- 日志和审计记录。
+- A unique, clear name;
+- A precise description of its purpose;
+- Structured input and output schemas;
+- Authentication and authorization scope;
+- Argument validation;
+- Timeout, retry, and cancellation mechanisms;
+- An explanation of idempotency and side effects;
+- Errors the model can interpret;
+- Logs and audit records.
 
-### 2.4.1 工具定义
+### 2.4.1 Defining a Tool
 
-下面是 OpenAI **Chat Completions API** 的函数工具定义片段，放在请求的 `tools` 数组中。它使用嵌套的 `function` 对象；Responses API 的同类字段放在工具对象顶层，不能原样混用：
+The following is a function tool definition for OpenAI's **Chat Completions API**, placed in the request's `tools` array. It uses a nested `function` object. The Responses API places the corresponding fields at the top level of the tool object, so the two formats are not interchangeable:
 
 ```json
 {
@@ -137,7 +137,9 @@ flowchart TB
 }
 ```
 
-`strict: true` 用于约束模型生成的参数符合受支持的 Schema，不代表参数中的事实、业务权限或执行结果正确。Runtime 仍须校验并授权。模型决定使用工具时，会返回调用意图；下面只表示核心语义，不是某个 API 的原始响应：
+The Chinese descriptions mean “Search public web pages and return results relevant to the query” for the tool and “Keywords to search for” for `query`.
+
+`strict: true` constrains generated arguments to conform to the supported schema. It does not guarantee factual accuracy, business authorization, or successful execution. The runtime must still validate and authorize the call. When the model decides to use a tool, it returns a call proposal. The following illustrates the core meaning, not the raw response from a particular API:
 
 ```json
 {
@@ -150,7 +152,9 @@ flowchart TB
 }
 ```
 
-应用程序随后执行以下流程：
+The sample query is Chinese for “the latest advances in agent technology in 2026.”
+
+The application then follows this flow:
 
 ```mermaid
 sequenceDiagram
@@ -159,41 +163,41 @@ sequenceDiagram
     participant M as Model
     participant T as Tool
 
-    U->>R: 提交目标
-    R->>M: 目标 + 上下文 + 工具定义
+    U->>R: Submit goal
+    R->>M: Goal + context + tool definitions
     M-->>R: Tool Call
-    R->>R: 校验参数与权限
-    R->>T: 执行工具
+    R->>R: Validate arguments and permissions
+    R->>T: Execute tool
     T-->>R: Tool Result
-    R->>M: 返回 Observation
-    M-->>R: 下一步动作或最终答案
-    R-->>U: 返回结果
+    R->>M: Return Observation
+    M-->>R: Next action or final answer
+    R-->>U: Return result
 ```
 
-### 2.4.2 工具调用的安全边界
+### 2.4.2 Safety Boundaries for Tool Calls
 
-并非所有工具调用都应该自动执行。生产系统通常按风险等级处理：
+Not every tool call should execute automatically. Production systems typically apply different controls by risk level:
 
-| 风险级别 | 示例 | 推荐策略 |
+| Risk level | Examples | Recommended policy |
 |---|---|---|
-| 只读 | 搜索、读取文档 | 先验证数据访问与出口权限，低敏且已授权时可自动执行 |
-| 可逆写入 | 创建草稿、修改临时文件 | 执行前展示变更或保留回滚能力 |
-| 高风险写入 | 发邮件、发布内容、修改生产数据 | 要求明确确认 |
-| 不可逆或敏感操作 | 转账、删除数据、修改权限 | 强认证、最小权限和人工审批 |
+| Read-only | Search, reading documents | Verify data access and egress permissions first; automatic execution may be appropriate for authorized access to low-sensitivity data |
+| Reversible writes | Creating drafts, modifying temporary files | Show changes before execution or retain a rollback capability |
+| High-risk writes | Sending email, publishing content, modifying production data | Require explicit confirmation |
+| Irreversible or sensitive operations | Transferring money, deleting data, changing permissions | Require strong authentication, least privilege, and human approval |
 
-## 2.5 MCP：标准化工具与上下文连接
+## 2.5 MCP: Standardizing Tool and Context Connections
 
-> 这里讨论架构集成边界；MCP 协议本身见[Tools：MCP](../../tools/02-mcp/04-what-is-mcp.md)，需要跨系统 Agent 协作时见[Tools：A2A](../../tools/04-agent-communication/11-a2a-protocol.md)。
+> This section focuses on architectural integration boundaries. For the protocol itself, see [Tools: MCP](../../tools/02-mcp/04-what-is-mcp.md). For agent collaboration across systems, see [Tools: A2A](../../tools/04-agent-communication/11-a2a-protocol.md).
 
-MCP（Model Context Protocol）为 AI 应用连接工具和数据源提供了标准协议。
+MCP (Model Context Protocol) provides a standard protocol for connecting AI applications to tools and data sources.
 
-MCP 最初由 Anthropic 在 2024 年提出，2025 年 12 月成为 Linux 基金会旗下 Agentic AI Foundation 的创始项目。基金会提供厂商中立的组织治理，协议的技术方向仍由 MCP 社区维护者管理。
+Anthropic introduced MCP in 2024. In December 2025, it became a founding project of the Agentic AI Foundation under the Linux Foundation. The foundation provides vendor-neutral organizational governance, while MCP community maintainers continue to manage the protocol's technical direction.
 
-MCP 包含三个主要角色：
+MCP has three main roles:
 
-- **Host**：面向用户的 AI 应用，负责模型、权限和整体交互；
-- **Client**：由 Host 创建和管理，维护与某个 MCP Server 的连接；
-- **Server**：向 Client 暴露 Tools、Resources 和 Prompts 等能力。
+- **Host**: the user-facing AI application, responsible for the model, permissions, and overall interaction;
+- **Client**: created and managed by the host to maintain a connection to a particular MCP server;
+- **Server**: exposes capabilities such as Tools, Resources, and Prompts to the client.
 
 ```mermaid
 flowchart LR
@@ -201,247 +205,247 @@ flowchart LR
     H --> C2[MCP Client]
     C1 <--> S1[MCP Server<br/>Files]
     C2 <--> S2[MCP Server<br/>Database]
-    S1 --> F[文件系统]
-    S2 --> D[数据库]
+    S1 --> F[File system]
+    S2 --> D[Database]
 ```
 
-“MCP 是工具世界的 USB-C”是一个有用的类比，但需要补充两个边界：
+“MCP is USB-C for tools” is a useful analogy, with two qualifications:
 
-1. MCP Server 通常仍需安装、配置或由 Host 建立连接，并不是自动发现互联网上的所有工具。
-2. 接口标准化不等于自动获得权限，认证、授权和用户确认仍由系统负责。
+1. MCP servers typically still need to be installed, configured, or connected by the host. MCP does not automatically discover every tool on the internet.
+2. A standardized interface does not grant permissions. The system remains responsible for authentication, authorization, and user confirmation.
 
-MCP 降低的是协议适配成本，而不是消除安全治理和业务集成。
+MCP reduces protocol adaptation effort; it does not eliminate security governance or business integration work.
 
-## 2.6 State 与 Memory：不要混为一谈
+## 2.6 State and Memory Are Not the Same
 
-### 2.6.1 任务状态
+### 2.6.1 Task State
 
-State 描述任务当前执行到哪里，例如：
+State describes where execution currently stands, including:
 
-- 原始目标；
-- 当前计划；
-- 已完成和待执行步骤；
-- 工具调用及其结果；
-- 错误、重试次数和预算；
-- 等待中的人工审批。
+- The original goal;
+- The current plan;
+- Completed and pending steps;
+- Tool calls and their results;
+- Errors, retry counts, and budgets;
+- Pending human approvals.
 
-状态通常需要结构化保存，并支持 checkpoint、恢复和并发控制。需要跨进程恢复的 Agent 应能从 checkpoint 继续执行，但恢复状态不等于外部动作只执行一次。例如退款已成功、进程却在保存结果前退出，恢复后直接重跑会重复退款；还需要查询业务状态或使用服务端支持的幂等键，详见[第六章](../02-reasoning-planning/06-task-decomposition.md) §6.17 的失败处理。
+State usually needs structured storage, with support for checkpoints, recovery, and concurrency control. An agent that must recover across processes should be able to resume from a checkpoint, but restoring state does not ensure that an external action happens exactly once. Suppose a refund succeeds, but the process exits before saving the result: blindly repeating the action after recovery could issue a second refund. The system must also query business state or use an idempotency key supported by the server. See the failure handling discussion in [Chapter 6](../02-reasoning-planning/06-task-decomposition.md), §6.17.
 
-### 2.6.2 工作记忆
+### 2.6.2 Working Memory
 
-工作记忆服务于当前任务，保存模型本轮决策所需的信息，例如最近的消息、关键观察和中间结论。
+Working memory serves the current task. It holds information the model needs for its current decision, such as recent messages, key observations, and intermediate conclusions.
 
-工作记忆受上下文窗口限制，但不一定在任务结束后立即销毁。系统可能将其摘要、归档或转化为长期记忆。
+Working memory is constrained by the context window, but it does not necessarily disappear as soon as the task ends. The system may summarize it, archive it, or convert it into long-term memory.
 
-### 2.6.3 长期记忆
+### 2.6.3 Long-Term Memory
 
-长期记忆保存跨任务可复用的信息。它并不等同于向量数据库，常见存储方式包括：
+Long-term memory preserves information that can be reused across tasks. It is not synonymous with a vector database. Common storage options include:
 
-- 关系数据库：用户资料、权限和结构化事实；
-- 键值或文档数据库：偏好、配置和任务快照；
-- 向量数据库：非结构化内容的语义检索；
-- 事件存储：完整操作历史和审计轨迹；
-- 知识图谱：实体关系和可解释的关联查询。
+- Relational databases: user profiles, permissions, and structured facts;
+- Key-value or document databases: preferences, configuration, and task snapshots;
+- Vector databases: semantic retrieval of unstructured content;
+- Event stores: complete operation histories and audit trails;
+- Knowledge graphs: entity relationships and explainable relationship queries.
 
-向量检索适合“语义相近”的召回，但精确事实、时间条件和权限约束通常需要 metadata 过滤或结构化查询配合。
+Vector retrieval is useful for finding semantically similar content. Exact facts, time constraints, and permission restrictions usually also require metadata filtering or structured queries.
 
-## 2.7 长期记忆的认知分类
+## 2.7 Cognitive Categories of Long-Term Memory
 
-可以借用认知科学中的分类理解 Agent 记忆，但它只是概念模型，不代表底层必须建立三个独立数据库。
+Categories borrowed from cognitive science can help explain agent memory. They are a conceptual model, not a requirement to build three separate databases.
 
-### 2.7.1 语义记忆（Semantic Memory）
+### 2.7.1 Semantic Memory
 
-保存可复用的事实和概念，例如：
+Semantic memory stores reusable facts and concepts, such as:
 
-- 用户从事金融行业；
-- 某 API 的调用限制是每分钟 60 次；
-- 项目使用 PostgreSQL 作为主数据库。
+- The user works in finance;
+- An API allows 60 calls per minute;
+- The project uses PostgreSQL as its primary database.
 
-### 2.7.2 情景记忆（Episodic Memory）
+### 2.7.2 Episodic Memory
 
-保存带有时间和上下文的具体经历，例如：
+Episodic memory stores specific experiences with their time and context, such as:
 
-- 上次处理退款任务时发现订单已超过退款期限；
-- 某次部署因为数据库迁移顺序错误而失败。
+- The previous refund task revealed that the order was outside its refund window;
+- A deployment failed because database migrations ran in the wrong order.
 
-### 2.7.3 程序性记忆（Procedural Memory）
+### 2.7.3 Procedural Memory
 
-保存“如何完成任务”的经验，例如：
+Procedural memory stores knowledge of how to perform tasks, such as:
 
-- 处理退款前先检查订单状态和支付渠道；
-- 发布版本前依次执行测试、构建和变更检查。
+- Check order status and the payment channel before processing a refund;
+- Run tests, build the project, and review changes in that order before a release.
 
-程序性记忆在工程上可能表现为工作流、Skill、策略模板或经过验证的操作手册，而不一定是普通的向量文本。
+In engineering practice, procedural memory may take the form of workflows, skills, policy templates, or validated runbooks, rather than ordinary text stored as vectors.
 
-## 2.8 Context Engineering：管理有限上下文
+## 2.8 Context Engineering: Managing Limited Context
 
-### 2.8.1 上下文是会耗尽的预算，不是可以填满的桶
+### 2.8.1 Context Is a Finite Budget, Not a Bucket to Fill
 
-复杂任务会产生大量工具结果。若将所有内容不断追加到 Prompt，会导致：
+Complex tasks produce large volumes of tool results. Continually appending everything to the prompt can:
 
-- 超出上下文窗口；
-- 推理成本和延迟增加；
-- 关键信息被噪音淹没；
-- 模型出现“中间遗忘”或关注错误内容。
+- Exceed the context window;
+- Increase inference cost and latency;
+- Bury critical information in noise;
+- Cause the model to lose track of information in the middle or attend to the wrong content.
 
-一个常见的误解是：上下文窗口越来越大，这个问题就自动消失了。
+A common misconception is that ever-larger context windows will automatically solve this problem.
 
-事实并非如此。Chroma 的 Context Rot 实验观察到，所测模型在不同任务上的性能可能随输入长度非均匀下降，且可能早于窗口上限；这不是所有模型和任务都遵循的单调定律。简单的字面“大海捞针”不能代表多跳检索、语义判断或长程执行，仍需按业务任务测试有效上下文长度。
+They do not. Chroma's Context Rot experiments observed that performance in the tested models could decline unevenly as input length increased across different tasks, sometimes before reaching the window limit. This is not a universal law of monotonic decline for every model and task. A simple lexical needle-in-a-haystack test does not stand in for multi-hop retrieval, semantic judgment, or long-horizon execution. Effective context length still needs to be tested on the actual business task.
 
-因此正确的心智模型是：
+A better mental model is:
 
-> **为当前决策保留必要的目标、约束和证据，按任务表现决定上下文取舍，而不是把窗口填满。**
+> **Retain the goals, constraints, and evidence needed for the current decision. Choose context based on task performance, rather than filling the window.**
 
-### 2.8.2 上下文失效的四种形态
+### 2.8.2 Four Ways Context Can Fail
 
-把“上下文太长”笼统当成一个问题，是无法定位故障的。工程上应该区分四种不同的失效模式，它们的成因和解法都不同：
+Treating “too much context” as one generic problem does not help locate a failure. Engineering diagnosis should distinguish four failure modes, each with different causes and remedies:
 
-| 失效模式 | 表现 | 成因 | 解法 |
+| Failure mode | Symptoms | Cause | Remedy |
 |---|---|---|---|
-| Context Poisoning（污染） | 一个幻觉或错误结论进入上下文后被反复引用，越滚越实 | 错误内容没有被校验就沉淀下来 | 活跃上下文撤下错误结论，保留来源、更正记录和审计历史 |
-| Context Distraction（分心） | 上下文过长后，模型过度依赖历史轨迹而不再灵活决策 | 历史信息权重压过了当前任务需求 | 压缩历史，突出当前目标 |
-| Context Confusion（混淆） | 无关的工具或文档内容干扰了选择 | 塞入了当前任务用不到的内容 | 按需加载工具与文档 |
-| Context Clash（冲突） | 上下文中存在互相矛盾的信息 | 多轮澄清、多来源信息未做合并 | 冲突检测与显式取舍，保留结论而非全部过程 |
+| Context Poisoning | A hallucination or mistaken conclusion enters context and gains apparent credibility through repeated citation | Incorrect content is retained without validation | Remove the mistaken conclusion from active context while retaining its source, correction record, and audit history |
+| Context Distraction | As context grows, the model relies excessively on past trajectories instead of adapting its decisions | Historical information outweighs the current task's needs | Compress history and emphasize the current goal |
+| Context Confusion | Irrelevant tools or documents interfere with selection | Context includes material the current task does not need | Load tools and documents on demand |
+| Context Clash | Context contains contradictory information | Clarifications across turns or information from multiple sources have not been reconciled | Detect conflicts and resolve them explicitly; retain conclusions rather than the entire process |
 
-工具集越大、描述越相似，选择和参数生成可能越难，但不存在通用的“几十个工具就失效”阈值。RAG-MCP 的实验支持在其模型与工具集上先检索候选工具；落到业务还要同时测候选召回率、最终调用正确率与额外检索延迟。小而稳定的工具集可以直接全量提供。
+Larger tool sets and more similar descriptions can make tool selection and argument generation harder, but there is no universal threshold at which “a few dozen tools cause failure.” RAG-MCP's experiments support retrieving candidate tools first for the models and tool sets it tested. A business deployment must also measure candidate recall, final call accuracy, and the additional retrieval latency. Small, stable tool sets can be provided in full.
 
-### 2.8.3 四类基本操作：Write / Select / Compress / Isolate
+### 2.8.3 Four Basic Operations: Write / Select / Compress / Isolate
 
-LangChain 的上下文工程文章用四类操作组织常见做法：
+LangChain's context engineering article organizes common techniques into four operations:
 
 ```mermaid
 flowchart TB
-    CE[Context Engineering] --> W[Write 写出去]
-    CE --> S[Select 选进来]
-    CE --> C[Compress 压缩]
-    CE --> I[Isolate 隔离]
+    CE[Context Engineering] --> W[Write]
+    CE --> S[Select]
+    CE --> C[Compress]
+    CE --> I[Isolate]
 
-    W --> W1[Scratchpad / 笔记文件]
-    W --> W2[长期记忆]
-    S --> S1[检索记忆与文档]
-    S --> S2[按需加载工具]
-    C --> C1[摘要 / Compaction]
-    C --> C2[结果裁剪]
-    I --> I1[Sub-Agent 独立上下文]
-    I --> I2[沙箱中处理大对象]
+    W --> W1[Scratchpad / note files]
+    W --> W2[Long-term memory]
+    S --> S1[Retrieve memories and documents]
+    S --> S2[Load tools on demand]
+    C --> C1[Summarization / Compaction]
+    C --> C2[Result trimming]
+    I --> I1[Separate sub-agent contexts]
+    I --> I2[Process large objects in a sandbox]
 ```
 
-| 操作 | 含义 | 典型做法 |
+| Operation | Meaning | Typical techniques |
 |---|---|---|
-| Write | 把信息存到上下文**之外** | 写入 `NOTES.md`、待办清单、长期记忆库 |
-| Select | 在需要时把信息**取回**上下文 | 记忆检索、文档检索、工具检索 |
-| Compress | 只保留必需的 Token | 摘要压缩、Compaction、结果裁剪 |
-| Isolate | 把上下文**拆开** | Sub-Agent、沙箱执行、多环境分区 |
+| Write | Store information **outside** the context window | Write to `NOTES.md`, task lists, or long-term memory stores |
+| Select | **Retrieve** information into context when needed | Memory retrieval, document retrieval, tool retrieval |
+| Compress | Retain only necessary tokens | Summarization, compaction, result trimming |
+| Isolate | **Separate** contexts | Sub-agents, sandbox execution, partitioning across environments |
 
-具体策略可以映射到这个框架里：
+Specific strategies map to this framework:
 
-| 策略 | 归类 | 做法 | 主要风险 |
+| Strategy | Category | Approach | Main risk |
 |---|---|---|---|
-| 滑动窗口 | Compress | 只保留最近若干轮 | 丢失早期关键约束 |
-| 摘要压缩 / Compaction | Compress | 将历史浓缩为摘要 | 摘要可能遗漏或扭曲信息 |
-| 选择性检索 | Select | 按当前任务召回相关内容 | 检索可能漏召回 |
-| 外部化 | Write | 将大结果写入文件或 Artifact | 需要可靠的引用与读取机制 |
-| 分层摘要 | Compress | 保存任务、阶段和步骤多级摘要 | 实现复杂度较高 |
-| Sub-Agent 隔离 | Isolate | 子任务使用独立上下文，只回传结论 | 主 Agent 丢失中间细节 |
+| Sliding window | Compress | Retain only the most recent turns | Losing critical early constraints |
+| Summarization / compaction | Compress | Condense history into a summary | Omitting or distorting information |
+| Selective retrieval | Select | Retrieve relevant content for the current task | Missing relevant information |
+| Externalization | Write | Store large results in files or artifacts | Requiring reliable references and read mechanisms |
+| Hierarchical summarization | Compress | Maintain summaries at task, phase, and step levels | Greater implementation complexity |
+| Sub-agent isolation | Isolate | Give subtasks separate contexts and return only conclusions | The main agent loses intermediate detail |
 
-### 2.8.4 Just-in-Time 检索：只维护引用，用时再取
+### 2.8.4 Just-in-Time Retrieval: Keep References, Fetch Content When Needed
 
-一种已被生产系统验证的做法是：**上下文里只保留轻量引用**（文件路径、查询语句、URL、ID），真正的内容在需要时通过工具动态加载。
+One approach already used successfully in production is to **keep only lightweight references in context**—file paths, queries, URLs, or IDs—and load the actual content dynamically through tools when needed.
 
-这模仿了人类使用文件系统的方式——你不会把整个代码库背下来，而是记住目录结构，需要时再打开具体文件。
+This mirrors how people use a file system: you do not memorize an entire codebase. You remember its directory structure and open specific files as needed.
 
-可以先尝试**混合模式**：
+A **hybrid approach** is a useful starting point:
 
-- **预加载**少量稳定且高价值的内容，例如项目约定文件（`AGENTS.md` / `CLAUDE.md`）、核心业务规则；
-- **JIT 加载**体量大或时效性强的内容，例如具体源文件、检索结果、数据库记录。
+- **Preload** a small amount of stable, high-value content, such as project instruction files (`AGENTS.md` / `CLAUDE.md`) and core business rules;
+- **Load just in time** content that is large or changes frequently, such as specific source files, search results, and database records.
 
-需要注意的是，JIT 检索本身也有成本：每次加载都要多一轮工具调用，会增加延迟。**对于每次任务都必然用到的内容，预加载反而更划算。**
+JIT retrieval has its own cost: every load adds a tool call round and increases latency. **If every task will inevitably need a piece of content, preloading it may be cheaper.**
 
-### 2.8.5 Compaction：接近上限时重建上下文
+### 2.8.5 Compaction: Rebuild Context Near the Limit
 
-当上下文接近窗口上限时，把历史压缩为摘要，然后用「摘要 + 少量最近工作集」重新初始化会话。典型的工作集包括最近访问的几个文件、当前待办清单、以及尚未验证的假设。
+When context approaches the window limit, compress the history into a summary and reinitialize the session with the summary plus a small recent working set. A typical working set includes a few recently accessed files, the current task list, and hypotheses that have not yet been verified.
 
-压缩时应先保留关键决策、约束与证据引用，再精简措辞。若原始记录仍可检索，摘要遗漏可以补取；若原文也被删除，就可能永久丢失。摘要不能替代持久化状态。
+Preserve key decisions, constraints, and evidence references before tightening the wording. If the original records remain retrievable, omitted details can be fetched again. If the originals have also been deleted, those details may be lost permanently. A summary cannot replace persistent state.
 
-Compaction 有两个必须知道的风险：
+Compaction has two important risks:
 
-1. **摘要可能把不确定的结论固化成事实**。例如某个命令因超时被中断、只输出了部分结果，摘要却把它记录成“已确认的执行结果”，后续会话便可能跳过验证。**缓解方式是在摘要中显式保留状态标记**（已验证 / 未验证 / 失败）和证据引用，而不是只记结论。
-2. **反复压缩会累积信息损耗**。长周期项目中，早期的关键决策经过多轮压缩后可能彻底丢失，形成难以追溯的“历史债”。**缓解方式是把重要决策同时写入外部文件**（Write 操作），而不是只依赖上下文内的摘要链。
+1. **A summary can turn an uncertain conclusion into an apparent fact.** A command might time out after producing only partial output, yet the summary could record it as a confirmed execution result, causing the next session to skip verification. **Preserve explicit status markers**—verified, unverified, or failed—and evidence references in the summary, rather than recording conclusions alone.
+2. **Repeated compaction accumulates information loss.** Over a long project, critical early decisions may disappear after multiple rounds of compaction, creating historical gaps that are difficult to reconstruct. **Also write important decisions to external files**—the Write operation—instead of relying solely on a chain of in-context summaries.
 
-### 2.8.6 结构化笔记：把状态放到上下文之外
+### 2.8.6 Structured Notes: Keep State Outside the Context Window
 
-让 Agent 维护外部笔记文件（进度、已确认事实、待办、失败尝试），可以跨越上下文压缩边界。前提是文件位于持久化存储，路径可恢复且后续会话有访问权限；临时沙箱里的文件也会随环境销毁而丢失。
+An agent can maintain external notes on progress, confirmed facts, pending work, and failed attempts to carry information across compaction boundaries. This requires persistent storage, recoverable paths, and access permissions for later sessions. Files in a temporary sandbox disappear when that environment is destroyed.
 
-重读笔记能恢复语义进度，但待执行调用、审批、幂等键和预算仍应由结构化 checkpoint 保存，不能从自然语言笔记猜测。
+Rereading notes can restore an understanding of task progress. Pending calls, approvals, idempotency keys, and budgets should still be preserved in structured checkpoints, not inferred from natural-language notes.
 
-### 2.8.7 Sub-Agent 隔离：用于分离关注点，而不只是并行
+### 2.8.7 Sub-Agent Isolation: Separation of Concerns, Not Just Parallelism
 
-把探索性的子任务交给 Sub-Agent，在独立上下文中工作，再回传结论、证据引用和未解决项。回传长度由任务需要决定，不应为固定 Token 数牺牲关键证据。
+Delegate exploratory subtasks to sub-agents working in independent contexts, then have them return conclusions, evidence references, and unresolved issues. The required response length depends on the task; do not sacrifice critical evidence to meet a fixed token count.
 
-Sub-Agent 可以用于上下文隔离，也可以用于并行，两者谁更重要取决于任务。即使串行执行，隔离探索过程也可能有收益；反过来，强依赖任务的交接成本可能超过隔离收益。
+Sub-agents can provide context isolation, parallelism, or both. Their relative value depends on the task. Isolating exploration may help even in serial execution; conversely, for tightly dependent tasks, handoff costs can outweigh the benefits of isolation.
 
-主 Agent 的上下文因此只包含「目标 + 各子任务结论」，而不是「目标 + 所有中间过程」，这让它在长任务中更不容易分心。
+The main agent's context then contains the goal and subtask conclusions, rather than the goal and every intermediate step. This helps it stay focused during long tasks.
 
-### 2.8.8 工具与知识的渐进式披露
+### 2.8.8 Progressive Disclosure of Tools and Knowledge
 
-对于工具和技能这类“可能用得上、但大多数任务用不到”的内容，可以采用**分级加载**：
+For material such as tools and skills that may be useful but is unnecessary for most tasks, use **tiered loading**:
 
-1. **一级**：只加载名称与一句话描述（判断相关性用）；
-2. **二级**：判定相关后，才加载完整说明与用法；
-3. **三级**：需要细节时，再读取绑定的参考文件或脚本。
+1. **Level one**: load only names and one-sentence descriptions to judge relevance;
+2. **Level two**: load full instructions and usage details after determining relevance;
+3. **Level three**: read associated reference files or scripts when further detail is needed.
 
-这样可以把大部分资料留在上下文之外，但索引、检索和存储仍有成本。Agent Skills 开放格式采用这一思路；具体何时触发、允许哪些工具，仍由宿主实现。
+This keeps most material outside the context window, although indexing, retrieval, and storage still cost resources. The Agent Skills open format follows this approach. Exactly when a skill is activated and which tools it may use remain host-specific.
 
-工具规模较大时，可以用 `search_tools` 先检索候选，也可以把工具暴露成代码 API，在受控执行环境中过滤和聚合结果。Anthropic 的 Code execution with MCP 文章给出的示例从 150,000 降到 2,000 Token；这是特定示例的上下文用量，不是所有任务的平均收益，也不等于端到端成本按同比例下降。
+For large tool sets, a `search_tools` tool can retrieve candidates first. Alternatively, tools can be exposed as code APIs, with results filtered and aggregated in a controlled execution environment. The example in Anthropic's Code execution with MCP article reduces token usage from 150,000 to 2,000. Those are context usage figures for a specific example, not average savings across all tasks, and they do not imply a proportional reduction in end-to-end cost.
 
-渐进式披露会引入漏召回和额外路由，不能只测省下多少 Token。应在同一任务集、模型和预算下，对比全量注入、工具检索、代码执行三种方式的成功率、延迟与调用成本；已有导航能力可能使新增路由的收益变小。
+Progressive disclosure introduces the risk of missing relevant candidates and the overhead of additional routing. Do not measure only the tokens saved. Compare full injection, tool retrieval, and code execution on success rate, latency, and call cost using the same task set, model, and budget. Existing navigation capabilities may reduce the benefit of an additional routing layer.
 
-### 2.8.9 小结
+### 2.8.9 Summary
 
-这些策略可以组合，但不必全部启用。短任务可能只需要保留近期消息和结构化状态；只有检索、摘要或隔离带来可测量收益时，才值得增加相应环节。
+These strategies can be combined, but they need not all be enabled. A short task may require only recent messages and structured state. Add retrieval, summarization, or isolation only when they provide measurable benefits.
 
-> 上下文工程的核心，不是“保存得越多越好”，而是在正确的时刻提供完成当前决策所需的最小充分上下文。
+> Context engineering is not about keeping as much as possible. It is about providing the smallest sufficient context for the current decision at the right time.
 
-## 2.9 记忆写入、检索与衰减
+## 2.9 Writing, Retrieving, and Decaying Memory
 
-### 2.9.1 什么值得保存
+### 2.9.1 What Is Worth Retaining?
 
-如果把所有内容都写入长期记忆，噪音、重复和错误信息会持续累积。写入前应考虑：
+Writing everything to long-term memory allows noise, duplication, and errors to accumulate. Before writing, consider:
 
-- 是否与未来任务有关；
-- 是否具有稳定性和可信来源；
-- 是否包含敏感或受监管数据；
-- 是否已经存在重复记录；
-- 是否需要用户同意；
-- 是否应该设置有效期。
+- Whether the information is relevant to future tasks;
+- Whether it is stable and has a trustworthy source;
+- Whether it contains sensitive or regulated data;
+- Whether a duplicate record already exists;
+- Whether user consent is required;
+- Whether it needs an expiration date.
 
-可以结合重要性、新颖性、可信度和可复用性决定是否持久化。
+Importance, novelty, trustworthiness, and reusability can jointly inform the decision to persist information.
 
-### 2.9.2 基础时间衰减
+### 2.9.2 Basic Time Decay
 
-一种简单的时间衰减函数是：
+A simple time-decay function is:
 
 $$
 D(\Delta t)=e^{-\lambda \Delta t}
 $$
 
-其中：
+Where:
 
-- $\Delta t$ 表示记忆距当前时间的间隔；
-- $\lambda$ 表示衰减速度；
-- $D(\Delta t)$ 表示时间权重。
+- $\Delta t$ is the elapsed time since the memory;
+- $\lambda$ controls the decay rate;
+- $D(\Delta t)$ is the time weight.
 
-最简单的检索分数可以写为：
+The simplest retrieval score can be written as:
 
 $$
 Score(m,q)=S(m,q)\cdot D(\Delta t)
 $$
 
-其中 $S(m,q)$ 是记忆 $m$ 与查询 $q$ 的非负相关性分数。若直接使用可能为负的余弦相似度，乘衰减反而可能把旧负分推向零，需要先约定归一化或重排语义。
+Here, $S(m,q)$ is a nonnegative relevance score between memory $m$ and query $q$. If cosine similarity is used directly and can be negative, multiplying by the decay factor can instead push an old negative score toward zero. Define the normalization or reranking semantics first.
 
-### 2.9.3 更稳健的生产级排序
+### 2.9.3 More Robust Production Ranking
 
-仅使用“相似度乘以时间衰减”可能错误地压低重要但久远的事实。更常见的思路是综合多个信号：
+Similarity multiplied by time decay can incorrectly downrank important older facts. A more common approach combines several signals:
 
 $$
 Score(m,q)=
@@ -452,89 +456,89 @@ Score(m,q)=
 +\epsilon S_{trust}
 $$
 
-这些信号分别表示语义相关性、时间新鲜度、重要性、任务匹配度和可信度。这只是启发式排序，需校准尺度与权重；租户、权限、撤销和有效期应先做硬过滤，不能被“高相关性”抵消。
+These signals represent semantic relevance, recency, importance, task fit, and trustworthiness. This is only a ranking heuristic; scales and weights require calibration. Tenant boundaries, permissions, revocation, and expiration must be enforced as hard filters first, not traded away for high relevance.
 
-不同业务应采用不同策略：
+Different applications need different policies:
 
-- 客服对话可以更强调新鲜度；
-- 用户长期偏好可以缓慢衰减；
-- 法律、审计和合规记录应按适用的保留期限处理，检索新鲜度分数不能决定是否销毁；
-- 安全策略应使用当前有效版本，不能仅靠提高可信度权重与旧版本竞争。
+- Customer support conversations may emphasize recency;
+- Long-term user preferences may decay slowly;
+- Legal, audit, and compliance records should follow the applicable retention periods; a retrieval freshness score must not decide whether to destroy them;
+- Security policies must use the currently valid version, rather than merely assigning it a higher trust weight to compete against obsolete versions.
 
-此外，还需要处理记忆更新、冲突、去重、删除、隐私和数据保留策略。
+Memory updates, conflicts, deduplication, deletion, privacy, and data retention policies also need explicit handling.
 
-## 2.10 Planning：从推理到可执行控制
+## 2.10 Planning: From Reasoning to Executable Control
 
-规划模块负责：
+Planning is responsible for:
 
-- 将目标拆解为子任务；
-- 识别步骤依赖；
-- 选择执行顺序和工具；
-- 跟踪完成状态；
-- 根据反馈重新规划；
-- 判断何时终止或请求人工帮助。
+- Decomposing goals into subtasks;
+- Identifying dependencies between steps;
+- Choosing execution order and tools;
+- Tracking completion;
+- Replanning from feedback;
+- Deciding when to stop or request human help.
 
-规划通常不是完全独立的单一模块，而是由模型、状态机、工作流引擎和 Runtime 共同实现。
+Planning is usually not a wholly independent module. It is implemented jointly by the model, state machines, workflow engines, and runtime.
 
-### 2.10.1 CoT：链式推理
+### 2.10.1 CoT: Chain of Thought
 
-CoT（Chain of Thought）通过中间推理步骤帮助模型解决复杂问题。历史上常使用“Let's think step by step”等提示触发逐步推理。
+CoT (Chain of Thought) helps models solve complex problems through intermediate reasoning steps. Historically, prompts such as “Let's think step by step” were commonly used to elicit stepwise reasoning.
 
-但在现代 Agent 系统中，需要区分：
+Modern agent systems need to distinguish:
 
-- **内部推理**：模型用于完成决策的内部计算；
-- **可展示依据**：提供给用户的简洁理由、证据和执行记录。
+- **Internal reasoning**: the model's internal computation used to reach a decision;
+- **User-facing rationale**: concise reasons, evidence, and execution records provided to the user.
 
-系统不应依赖模型向用户暴露完整的隐藏思维过程。更可靠的做法是要求模型输出结构化计划、引用证据、工具轨迹和可验证结论。
+A system should not depend on the model exposing its complete hidden reasoning to users. A more reliable approach is to request structured plans, evidence citations, tool traces, and verifiable conclusions.
 
-### 2.10.2 ToT：搜索多个候选路径
+### 2.10.2 ToT: Searching Multiple Candidate Paths
 
-ToT（Tree of Thoughts）在多个候选推理路径之间进行展开、评估和回溯：
+ToT (Tree of Thoughts) expands, evaluates, and backtracks among multiple candidate reasoning paths:
 
 ```mermaid
 flowchart TB
-    S[当前状态] --> A[候选路径 A]
-    S --> B[候选路径 B]
-    S --> C[候选路径 C]
-    A --> EA[评估]
-    B --> EB[评估]
-    C --> EC[评估]
-    EA --> BEST[选择或回溯]
+    S[Current state] --> A[Candidate path A]
+    S --> B[Candidate path B]
+    S --> C[Candidate path C]
+    A --> EA[Evaluate]
+    B --> EB[Evaluate]
+    C --> EC[Evaluate]
+    EA --> BEST[Select or backtrack]
     EB --> BEST
     EC --> BEST
 ```
 
-它适合搜索空间较大、存在多种方案的任务，但调用次数、延迟和成本通常高于线性推理。生产系统更常使用受预算约束的候选生成、评分和回退，而不是无限展开完整思维树。
+It suits tasks with large search spaces and multiple possible solutions, but typically requires more calls, latency, and cost than linear reasoning. Production systems more often use budget-constrained candidate generation, scoring, and fallback than unbounded expansion of a complete thought tree.
 
-## 2.11 两类基础执行模式
+## 2.11 Two Basic Execution Patterns
 
 ### 2.11.1 Plan-and-Execute
 
-Plan-and-Execute 先生成整体计划，再逐步执行：
+Plan-and-Execute generates an overall plan first, then executes it step by step:
 
 ```mermaid
 flowchart LR
-    G[目标] --> P[生成完整计划]
-    P --> S1[步骤 1]
-    S1 --> S2[步骤 2]
-    S2 --> S3[步骤 3]
-    S3 --> R[结果]
+    G[Goal] --> P[Generate a complete plan]
+    P --> S1[Step 1]
+    S1 --> S2[Step 2]
+    S2 --> S3[Step 3]
+    S3 --> R[Result]
 ```
 
-优点：
+Advantages:
 
-- 全局结构清晰；
-- 易于估算成本和依赖；
-- 可以在执行前进行人工审核。
+- A clear global structure;
+- Easier estimation of costs and dependencies;
+- Human review before execution.
 
-缺点：
+Disadvantages:
 
-- 早期计划可能建立在错误假设上；
-- 环境变化后需要局部或整体重规划。
+- The initial plan may rely on incorrect assumptions;
+- Environmental changes may require partial or complete replanning.
 
 ### 2.11.2 ReAct
 
-ReAct 将推理、行动和观察交替进行：
+ReAct interleaves reasoning, action, and observation:
 
 ```mermaid
 flowchart LR
@@ -543,115 +547,115 @@ flowchart LR
     O --> R
 ```
 
-优点：
+Advantages:
 
-- 能根据最新反馈动态调整；
-- 适合信息不完整或环境变化频繁的任务。
+- Dynamic adaptation to the latest feedback;
+- A good fit for tasks with incomplete information or frequently changing environments.
 
-缺点：
+Disadvantages:
 
-- 容易只关注局部下一步；
-- 可能循环、走偏或反复调用工具；
-- 成本和完成时间较难预估。
+- A tendency to focus only on the immediate next step;
+- Possible loops, drift, or repeated tool calls;
+- Less predictable costs and completion times.
 
-现代实现不一定向用户展示 ReAct 中完整的“Thought”，但会保留结构化的 Action、Observation 和运行轨迹。
+Modern implementations do not necessarily expose the complete ReAct “Thought” to users, but they retain structured actions, observations, and execution traces.
 
-### 2.11.3 分层混合规划
+### 2.11.3 Hierarchical Hybrid Planning
 
-当任务既需要全局依赖，又存在局部未知时，可以将两种模式结合：
+When a task has both global dependencies and local unknowns, the two patterns can be combined:
 
-1. 先生成高层里程碑和约束；
-2. 每个里程碑内部采用动态执行；
-3. 遇到失败或关键假设变化时重新规划；
-4. 持续检查目标、预算和终止条件。
+1. Generate high-level milestones and constraints;
+2. Execute dynamically within each milestone;
+3. Replan after failures or changes to critical assumptions;
+4. Continually check the goal, budget, and stopping conditions.
 
 ```mermaid
 flowchart TB
-    G[目标] --> HP[高层计划]
-    HP --> M1[里程碑 1]
-    HP --> M2[里程碑 2]
-    HP --> M3[里程碑 3]
+    G[Goal] --> HP[High-level plan]
+    HP --> M1[Milestone 1]
+    HP --> M2[Milestone 2]
+    HP --> M3[Milestone 3]
 
-    M1 --> L1[局部 Reason-Act-Observe 循环]
-    L1 --> C{里程碑完成?}
-    C -->|否| L1
-    C -->|是| M2
-    C -->|假设失效| HP
+    M1 --> L1[Local Reason-Act-Observe loop]
+    L1 --> C{Milestone complete?}
+    C -->|No| L1
+    C -->|Yes| M2
+    C -->|Assumption invalidated| HP
 ```
 
-这种方式保留全局方向和局部适应性，但增加计划维护开销；短小任务未必受益，需要与单纯 ReAct 或确定性工作流做同预算对照。
+This preserves global direction and local adaptability, but adds plan maintenance overhead. Short tasks may not benefit. Compare it against plain ReAct or deterministic workflows under the same budget.
 
-## 2.12 Runtime 与 Guardrails
+## 2.12 Runtime and Guardrails
 
-Runtime 是把模型能力变成可靠系统的执行层，通常负责：
+The runtime is the execution layer that turns model capabilities into a reliable system. Its responsibilities typically include:
 
-- 模型和工具调用调度；
-- 状态持久化与 checkpoint；
-- 超时、取消和重试；
-- 并发与队列管理；
-- Token、时间和费用预算；
-- 人工审批；
-- 错误传播和恢复；
-- Trace、日志和审计。
+- Scheduling model and tool calls;
+- Persisting state and checkpoints;
+- Timeouts, cancellation, and retries;
+- Concurrency and queue management;
+- Token, time, and monetary budgets;
+- Human approval;
+- Error propagation and recovery;
+- Traces, logs, and audits.
 
-Guardrails 则用于限制 Agent 可以做什么，包括：
+Guardrails constrain what the agent can do, through measures such as:
 
-- 输入输出校验；
-- 工具白名单；
-- 最小权限；
-- 敏感数据保护；
-- 高风险操作确认；
-- Prompt Injection 防护；
-- 沙箱和网络访问限制；
-- 最大步骤数和循环检测。
+- Input and output validation;
+- Tool allowlists;
+- Least privilege;
+- Sensitive data protection;
+- Confirmation of high-risk operations;
+- Prompt injection defenses;
+- Sandboxing and network access restrictions;
+- Maximum step counts and loop detection.
 
-只写提示词而没有执行层的权限、预算和恢复控制，难以满足生产要求；这些控制也不必由名为 Guardrails 的独立组件提供。尤其是模型判断式防护可能漏判，不能替代服务端授权和沙箱隔离。
+Prompts alone are unlikely to meet production requirements without execution-layer controls for permissions, budgets, and recovery. Those controls need not live in a separate component named “Guardrails.” In particular, model-based screening can miss problems and cannot replace server-side authorization or sandbox isolation.
 
-## 2.13 可观测性与评估
+## 2.13 Observability and Evaluation
 
-Agent 的结果具有非确定性，仅判断“最终有没有回答”通常不够。系统还应记录和评估：
+Agent outcomes are nondeterministic, so checking whether an answer was eventually produced is usually insufficient. The system should also record and evaluate:
 
-- 计划是否合理；
-- 工具选择是否正确；
-- 参数是否有效；
-- 是否出现无效循环；
-- 结果是否有证据支持；
-- 成功率、延迟和成本；
-- 是否违反权限或安全策略。
+- Whether the plan was sensible;
+- Whether the right tools were selected;
+- Whether arguments were valid;
+- Whether unproductive loops occurred;
+- Whether evidence supports the result;
+- Success rate, latency, and cost;
+- Whether permissions or safety policies were violated.
 
-常见评估层次包括：
+Common evaluation levels include:
 
-1. **结果评估**：最终任务是否完成；
-2. **轨迹评估**：执行路径是否正确、高效；
-3. **工具评估**：工具选择和参数是否合理；
-4. **安全评估**：是否越权或产生高风险副作用；
-5. **在线监控**：部署后的失败率、延迟和成本变化。
+1. **Outcome evaluation**: was the task actually completed?
+2. **Trajectory evaluation**: was the execution path correct and efficient?
+3. **Tool evaluation**: were tool selection and arguments appropriate?
+4. **Safety evaluation**: did execution exceed authorization or produce high-risk side effects?
+5. **Production monitoring**: how do failure rates, latency, and costs change after deployment?
 
-## 2.14 主流框架的侧重点
+## 2.14 Where Major Frameworks Focus
 
-不同框架都覆盖 Agent 的若干组件，但侧重点不同：
+Frameworks cover several agent components, but emphasize different areas:
 
-| 框架 | 主要侧重点 |
+| Framework | Primary focus |
 |---|---|
-| LangChain | 模型、工具、检索和 Agent 组件集成 |
-| LangGraph | 有状态工作流、图执行、checkpoint 和人工介入 |
-| LlamaIndex | 数据连接、索引、检索、Context Engineering 和 Agent |
-| Microsoft Agent Framework | 提供 Agent、Harness Agent、Workflow、状态、上下文提供器和集成；各语言与功能的发布阶段需单独核实 |
-| AutoGen / Semantic Kernel | 官方提供向 Microsoft Agent Framework 迁移的路径；维护策略、API 兼容与迁移成本应分别查对应项目，不能只凭框架新旧选型 |
+| LangChain | Integration of models, tools, retrieval, and agent components |
+| LangGraph | Stateful workflows, graph execution, checkpoints, and human-in-the-loop interaction |
+| LlamaIndex | Data connections, indexing, retrieval, context engineering, and agents |
+| Microsoft Agent Framework | Agents, Harness Agent, workflows, state, context providers, and integrations; verify the release stage of each language implementation and feature separately |
+| AutoGen / Semantic Kernel | Official migration paths to Microsoft Agent Framework are available; check maintenance policies, API compatibility, and migration costs for each project rather than choosing solely by framework age |
 
-框架只是实现手段。设计 Agent 时，应先明确状态、控制流、权限和评估方式，再选择合适的框架，而不是让框架替代系统架构设计。
+A framework is an implementation choice. First define state, control flow, permissions, and evaluation, then select an appropriate framework. Do not let a framework substitute for system architecture.
 
-## 2.15 本章总结
+## 2.15 Chapter Summary
 
-一个现代 Agent 通常按下面这条链路工作：
+A modern agent typically follows this chain:
 
-> **接收目标 → 读取状态与记忆 → 规划下一步 → 请求工具或 Agent → Runtime 安全执行 → 获取观察 → 更新状态 → 评估并继续**
+> **Receive goal → Read state and memory → Plan the next step → Request a tool or agent → Execute safely through the runtime → Receive observations → Update state → Evaluate and continue**
 
-四组件模型解释了 Agent 的基本能力，而 Runtime、Guardrails 和 Observability 决定了这些能力能否安全、稳定地运行在真实环境中。
+The four-component model explains an agent's basic capabilities. Runtime controls, guardrails, and observability determine whether those capabilities can operate safely and reliably in real environments.
 
-## 参考资料
+## References
 
-- [OpenAI: Function calling（Chat Completions 与 Responses 的工具定义、strict 模式）](https://developers.openai.com/api/docs/guides/function-calling)
+- [OpenAI: Function calling—Chat Completions and Responses tool definitions, strict mode](https://developers.openai.com/api/docs/guides/function-calling)
 - [MCP Governance and Stewardship](https://modelcontextprotocol.io/community/governance)
 - [MCP joins the Agentic AI Foundation](https://blog.modelcontextprotocol.io/posts/2025-12-09-mcp-joins-agentic-ai-foundation/)
 - [Microsoft Agent Framework Overview](https://learn.microsoft.com/en-us/agent-framework/overview/)

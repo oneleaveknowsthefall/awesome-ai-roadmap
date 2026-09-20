@@ -1,67 +1,67 @@
 ---
-description: 从大模型的知识、状态和行动限制出发定义 AI Agent，解释模型、工具、记忆与控制循环如何组成可执行系统。
+description: Defines AI agents through the limits of model knowledge, state, and action, explaining how models, tools, memory, and control loops form an executable system.
 ---
 
-# 第一章：从大模型到 AI Agent
+# Chapter 1: From Large Language Models to AI Agents
 
-## 1.1 普通大模型的三类局限
+## 1.1 Three Limitations of a Standalone Model
 
-模型已经能写邮件、分析订单，为什么还需要 Agent？因为“生成处理方案”和“把任务办完”之间，还隔着事实获取、状态保存和动作执行。单独的模型推理不会自动完成这三件事。
+If a model can already write emails and analyze orders, why do we need an agent? Because generating a proposed solution is not the same as completing the task. Acquiring facts, preserving state, and executing actions still need to happen. Model inference alone does not automatically do any of these.
 
-### 1.1.1 知识冻结
+### 1.1.1 Knowledge Is Frozen
 
-模型的参数知识主要来自训练数据，无法天然感知训练结束后发生的新事件。新信息必须由输入或外部系统提供，例如用户补充材料，或应用查询搜索引擎、数据库和 RAG 系统。接入检索也不等于获得实时事实：知识库是否更新、数据何时采集，仍需单独确认。
+A model's parametric knowledge comes primarily from its training data; it has no inherent awareness of events that occur after training ends. New information must come from its inputs or external systems: a user might supply additional material, or an application might query a search engine, database, or RAG system. Adding retrieval does not guarantee up-to-date facts, either. You still need to establish whether the knowledge base has been updated and when its data was collected.
 
-### 1.1.2 缺少持续状态
+### 1.1.2 No Automatic Persistent State
 
-普通推理调用不会自动写入跨请求的个人记忆。忽略服务端会话管理时，一次调用可以表示为：
+An ordinary inference call does not automatically write personal memories that persist across requests. Setting aside server-side session management, a single call can be expressed as:
 
 $$
 y_t \sim P_{\theta}(y\mid x_t)
 $$
 
-模型根据本次有效上下文 $x_t$ 生成输出 $y_t$。历史可以由应用重新传入，也可以由提供商的会话服务恢复；后者是 API/运行时保存状态，不代表模型参数因对话而更新。KV Cache 同样不是长期记忆。
+The model generates output $y_t$ from the effective context $x_t$ of that call. An application can supply the history again, or a provider's session service can restore it. The latter is state maintained by the API or runtime; it does not mean that the conversation updates the model's parameters. A KV cache is not long-term memory, either.
 
-### 1.1.3 无法直接行动
+### 1.1.3 No Direct Ability to Act
 
-单独的模型推理只能生成其支持的输出（文本、结构化请求或多模态内容）；没有执行层接入时，不能仅凭输出完成以下操作：
+Model inference on its own can only generate the outputs the model supports, such as text, structured requests, or multimodal content. Without an execution layer, those outputs alone cannot:
 
-- 查询实时数据；
-- 执行代码；
-- 访问数据库；
-- 调用业务 API；
-- 发送邮件或修改文件。
+- Query real-time data;
+- Execute code;
+- Access databases;
+- Call business APIs;
+- Send emails or modify files.
 
-因此，普通大模型主要解决的是：
+An ordinary model therefore primarily handles:
 
-> **输入 → 内容生成**
+> **Input → Content generation**
 
-而不是：
+Not:
 
-> **目标 → 现实世界中的任务完成**
+> **Goal → Task completion in the real world**
 
-## 1.2 什么是 Agent
+## 1.2 What Is an Agent?
 
-本主题讨论的 **LLM Agent**，是以大模型参与决策、围绕目标感知环境、选择行动并根据反馈调整的系统。广义 AI Agent 不要求使用 LLM；在 LLM 应用里，显式规划器、长期记忆和多 Agent 也都不是成立条件。一个受预算约束的“调用模型—执行工具—回传观察”循环就可以构成最小实现。
+The **LLM agents** discussed in this topic are systems in which a large language model participates in decision-making: they observe an environment, select actions toward a goal, and adapt to feedback. AI agents in the broader sense do not have to use LLMs. Even within LLM applications, an explicit planner, long-term memory, and multiple agents are not prerequisites. A budget-constrained loop of “call the model, execute a tool, return the observation” can be a minimal implementation.
 
-它的核心并不是某一次回答，而是一个持续运行的闭环：
+The core is not a single answer, but an ongoing feedback loop:
 
-> **感知 → 规划 → 行动 → 再感知**
+> **Observe → Plan → Act → Observe again**
 
-设 Agent 在时刻 $t$ 的状态为：
+Let the agent's state at time $t$ be:
 
 $$
 S_t=(G,O_t,M_t,H_t)
 $$
 
-其中：
+Where:
 
-- $G$：任务目标；
-- $O_t$：当前环境观察；
-- $M_t$：可用记忆；
-- $H_t$：此前的执行历史。
+- $G$: the task goal;
+- $O_t$: the current environmental observation;
+- $M_t$: available memory;
+- $H_t$: the execution history so far.
 
-Agent 根据当前状态选择动作。若把决策过程显式拆成规划和行动两步，可以写成：
+The agent selects an action based on its current state. If we explicitly separate decision-making into planning and action, we can write:
 
 $$
 P_t=\mathrm{Plan}(S_t)
@@ -71,204 +71,204 @@ $$
 A_t=\mathrm{Act}(S_t,P_t)
 $$
 
-执行动作后，环境返回新的观察。用 $E_t$ 表示环境真实状态；同一个动作在不同状态下可能得到不同结果，只读查询也不一定改变业务状态：
+After the action executes, the environment returns a new observation. Let $E_t$ represent the actual state of the environment. The same action can produce different results in different states, and a read-only query does not necessarily change business state:
 
 $$
 (E_{t+1},O_{t+1})\sim\mathrm{Environment}(\cdot\mid E_t,A_t)
 $$
 
-随后，Agent 更新自身状态并进入下一轮循环：
+The agent then updates its own state and starts the next iteration:
 
 $$
 S_{t+1}=\mathrm{Update}(S_t,A_t,O_{t+1})
 $$
 
-直到目标完成、达到资源限制，或者需要人工介入。这里的 $S_t$ 是 Agent 保存的记录，不是环境的完整真相；例如“请求已受理”不能直接记成“邮件已送达”。
+This continues until the goal is achieved, a resource limit is reached, or human intervention is needed. Here, $S_t$ is the record maintained by the agent, not a complete account of the outside world. For example, “request accepted” must not be recorded as “email delivered.”
 
-## 1.3 Agent 的三大核心能力
+## 1.3 Three Core Agent Capabilities
 
-### 1.3.1 工具调用（Tool Use）
+### 1.3.1 Tool Use
 
-工具调用是 Agent 从“会说话”走向“能做事”的关键。
+Tool use is what allows an agent to move from talking about a task to carrying it out.
 
-Agent 可以使用的工具包括：
+Tools available to an agent may include:
 
-- 搜索引擎；
-- 代码执行器；
-- 文件系统；
-- 数据库；
-- 浏览器；
-- 外部 API；
-- 邮件和企业业务系统。
+- Search engines;
+- Code executors;
+- File systems;
+- Databases;
+- Browsers;
+- External APIs;
+- Email and enterprise business systems.
 
-> **LLM + Tools → 可执行能力**
+> **LLM + Tools → Ability to execute**
 
-大模型负责理解目标、选择工具和生成参数，运行时校验请求并调用工具；工具负责查询信息或产生外部副作用。用户要求“先写一封邮件让我看”，只授权了草稿生成，并没有授权发送。模型即使生成了发送请求，执行层也应拦住它。
+The model interprets the goal, selects tools, and generates arguments. The runtime validates requests and invokes the tools, which query information or produce external side effects. A user who says “Draft an email for me to review first” has authorized drafting, not sending. Even if the model generates a send request, the execution layer should block it.
 
-### 1.3.2 记忆机制（Memory）
+### 1.3.2 Memory
 
-模型本身不会永久保存对话。Agent 的记忆能力来自模型之外的系统设计。
+The model itself does not permanently retain conversations. An agent's memory comes from systems designed around the model.
 
-#### 短期记忆
+#### Short-Term Memory
 
-短期记忆保存当前任务中的状态，例如：
+Short-term memory holds state for the current task, such as:
 
-- 当前目标；
-- 已完成的步骤；
-- 工具调用结果；
-- 中间计算结果；
-- 尚未解决的问题。
+- The current goal;
+- Completed steps;
+- Tool call results;
+- Intermediate calculations;
+- Unresolved questions.
 
-它通常存放在上下文窗口、任务状态或临时存储中。
+It is typically held in the context window, task state, or temporary storage.
 
-#### 长期记忆
+#### Long-Term Memory
 
-长期记忆保存跨任务信息，例如：
+Long-term memory holds information across tasks, such as:
 
-- 用户偏好；
-- 历史操作；
-- 领域知识；
-- 过去任务的经验。
+- User preferences;
+- Past operations;
+- Domain knowledge;
+- Lessons from previous tasks.
 
-长期记忆可以存储在关系数据库、文档数据库或向量数据库中，并通过关键词、条件查询或语义检索取回。
+Long-term memory can be stored in relational, document, or vector databases and retrieved through keywords, conditional queries, or semantic retrieval.
 
 > **Agent Memory = Short-term Memory + Long-term Memory**
 
-### 1.3.3 多步推理与自我纠错
+### 1.3.3 Multi-Step Reasoning and Self-Correction
 
-Agent 可以尝试把复杂目标拆解为多个步骤，并根据执行反馈调整策略：
+An agent can attempt to break a complex goal into multiple steps and adjust its strategy based on execution feedback:
 
-> **执行 → 反馈 → 分析 → 调整 → 重试**
+> **Execute → Receive feedback → Analyze → Adjust → Retry**
 
-例如：
+For example:
 
-- 搜索关键词无效时，重新生成查询词；
-- API 返回错误时，根据错误信息修改参数；
-- 代码执行失败时，分析异常并修正代码；
-- 当前方案不可行时，重新规划任务路径。
+- Generate new search terms when the original query is ineffective;
+- Modify arguments based on an API error;
+- Analyze an exception and fix code after execution fails;
+- Replan the task when the current approach is infeasible.
 
-固定自动化脚本也能重试、分支和根据反馈调整，因此不能仅凭“有反馈循环”判断它是不是 LLM Agent。更有用的区别是下一步策略由谁决定：
+Fixed automation scripts can also retry, branch, and adapt to feedback, so the presence of a feedback loop alone does not identify an LLM agent. A more useful distinction is who decides the next step:
 
-- **固定自动化脚本**：由开发者预先编码转移规则；
-- **LLM Agent**：允许模型在目标、权限和预算范围内动态选择行动。
+- **Fixed automation script**: the developer encodes transition rules in advance;
+- **LLM agent**: the model may dynamically select actions within the goal, authorization, and budget constraints.
 
-不过，自我纠错并不意味着 Agent 一定能解决问题。实际系统仍需设置最大重试次数、权限边界、资源预算和人工确认机制。
+Self-correction does not guarantee that an agent will solve the problem. Real systems still need retry limits, permission boundaries, resource budgets, and human confirmation mechanisms.
 
-## 1.4 从单 Agent 到 Agent 生态
+## 1.4 From Individual Agents to an Agent Ecosystem
 
-随着 Agent 和工具数量增加，两个新的问题随之出现：
+As the number of agents and tools grows, two additional questions arise:
 
-1. Agent 如何统一连接大量外部工具？
-2. 不同厂商、不同框架开发的 Agent 如何相互协作？
+1. How can an agent connect to many external tools through a consistent interface?
+2. How can agents built by different vendors with different frameworks collaborate?
 
-这两个问题分别推动了 MCP 和 A2A 协议的发展。
+These questions have driven the development of MCP and A2A, respectively.
 
-## 1.5 MCP：连接 Agent 与外部工具
+## 1.5 MCP: Connecting Agents to External Tools
 
-> 这里从 Agent 的使用视角切入；MCP 的生命周期、传输和安全规范详见[Tools：MCP](../../tools/02-mcp/04-what-is-mcp.md)，跨 Agent 协作协议详见[Tools：A2A](../../tools/04-agent-communication/11-a2a-protocol.md)。
+> This section takes the agent user's perspective. For MCP lifecycle, transport, and security specifications, see [Tools: MCP](../../tools/02-mcp/04-what-is-mcp.md). For cross-agent collaboration protocols, see [Tools: A2A](../../tools/04-agent-communication/11-a2a-protocol.md).
 
-Anthropic 在 2024 年 11 月提出了 MCP。2025 年 12 月，Anthropic 将 MCP 捐赠给 Linux 基金会旗下的 Agentic AI Foundation（AAIF）；MCP 由社区维护者负责技术治理，AAIF 提供厂商中立的组织与基础设施支持。
+Anthropic introduced MCP in November 2024. In December 2025, Anthropic donated MCP to the Agentic AI Foundation (AAIF) under the Linux Foundation. Community maintainers oversee MCP's technical governance, while AAIF provides vendor-neutral organizational and infrastructure support.
 
-**MCP = Model Context Protocol（模型上下文协议）**
+**MCP = Model Context Protocol**
 
-MCP 为 AI 应用连接外部工具和数据源提供了标准接口，可以将它类比为 AI 工具生态中的“USB-C 接口”。
+MCP provides a standard interface for connecting AI applications to external tools and data sources. A useful analogy is a “USB-C port” for the AI tool ecosystem.
 
 ```mermaid
 flowchart LR
-    A[AI 应用或 Agent] --> B[MCP Client]
+    A[AI application or agent] --> B[MCP Client]
     B --> C[MCP Server]
-    C --> D[工具]
-    C --> E[数据库]
-    C --> F[文件与资源]
-    C --> G[外部 API]
+    C --> D[Tools]
+    C --> E[Databases]
+    C --> F[Files and resources]
+    C --> G[External APIs]
 ```
 
-MCP 主要包含三个角色：
+MCP has three main roles:
 
-- **Host**：运行模型或 Agent 的 AI 应用；
-- **Client**：维护与 MCP Server 的连接；
-- **Server**：向 AI 应用暴露工具、资源和提示模板。
+- **Host**: the AI application running the model or agent;
+- **Client**: maintains a connection to an MCP server;
+- **Server**: exposes tools, resources, and prompt templates to the AI application.
 
-其核心价值是降低工具集成成本。原本 $N$ 个 Agent 与 $M$ 个工具之间可能需要：
+Its core value is reducing tool integration effort. Connecting $N$ agents to $M$ tools might otherwise require:
 
 $$
 N \times M
 $$
 
-组定制集成，而标准化之后可以分别实现为：
+custom integrations. With standardization, the two sides can instead be implemented as:
 
-**$N$ 个 MCP Client + $M$ 个 MCP Server**
+**$N$ MCP clients + $M$ MCP servers**
 
-这是理想化的适配关系计数，不是完整工程成本公式；一个 Server 可聚合多个工具，Host 仍需处理认证、版本兼容、权限和业务语义。
+This is an idealized count of adapters, not a formula for total engineering cost. One server can aggregate multiple tools, and the host must still handle authentication, version compatibility, authorization, and business semantics.
 
-## 1.6 A2A：连接 Agent 与 Agent
+## 1.6 A2A: Connecting Agents to Other Agents
 
-Google 在 2025 年 4 月推出了 A2A。2025 年 6 月，A2A 项目进入 Linux 基金会，以厂商中立的方式继续治理和发展：
+Google introduced A2A in April 2025. In June 2025, the project joined the Linux Foundation to continue its governance and development on a vendor-neutral basis:
 
-**A2A = Agent2Agent Protocol（Agent 间通信协议）**
+**A2A = Agent2Agent Protocol**
 
-如果说 MCP 解决的是“Agent 如何调用外部工具”，那么 A2A 解决的就是“Agent 如何发现并与另一个 Agent 协作”。
+If MCP addresses “How does an agent invoke external tools?”, A2A addresses “How does an agent discover and collaborate with another agent?”
 
-以 A2A 0.3.0 的核心对象为例：
+Consider the core objects in A2A 0.3.0:
 
-- **Agent Card**：描述 Agent 的身份、能力、技能、服务地址和认证要求；
-- **Task**：需要协作完成的任务及其生命周期；
-- **Message**：Agent 之间交换的消息；
-- **Artifact**：任务产生的交付物，可由文本、文件或结构化数据等内容部分组成。
+- **Agent Card**: describes the agent's identity, capabilities, skills, service endpoint, and authentication requirements;
+- **Task**: the work to be completed collaboratively and its lifecycle;
+- **Message**: a message exchanged between agents;
+- **Artifact**: a task deliverable, composed of content parts such as text, files, or structured data.
 
-> Agent Card 更像一份“能力名片”，而“正在做什么”和执行进度主要由 Task 等对象表达。
+> An Agent Card is more like a capability profile. Objects such as Task primarily describe what the agent is doing and its execution progress.
 
 ```mermaid
 sequenceDiagram
-    participant A as 调度 Agent
-    participant B as 专业 Agent
+    participant A as Orchestrator agent
+    participant B as Specialist agent
 
-    A->>B: 读取 Agent Card
-    B-->>A: 返回能力与协作方式
-    A->>B: 发送任务请求消息
-    B-->>A: 返回 Task 及当前状态
-    B-->>A: 按所选交互方式返回后续状态与 Artifact
+    A->>B: Read Agent Card
+    B-->>A: Return capabilities and interaction options
+    A->>B: Send a task request message
+    B-->>A: Return Task and current status
+    B-->>A: Return subsequent status and Artifact through the chosen interaction mode
 ```
 
-图中展示需要持续跟踪的任务。A2A 0.3.0 的消息发送也允许直接返回 Message，不是每次交互都必须创建 Task；具体消息字段和传输方式应按双方实现的版本核对。
+The diagram shows a task that requires ongoing tracking. In A2A 0.3.0, sending a message can also return a Message directly; not every interaction has to create a Task. Check the exact message fields and transports against the versions implemented by both parties.
 
-## 1.7 MCP 与 A2A 的关系
+## 1.7 How MCP and A2A Relate
 
-| 维度 | MCP | A2A |
+| Dimension | MCP | A2A |
 |---|---|---|
-| 连接对象 | Agent 与工具 | Agent 与 Agent |
-| 核心问题 | 如何使用外部能力 | 如何发现、委派和协作 |
-| 主要抽象 | Tools、Resources、Prompts | Agent Card、Task、Message、Artifact |
-| 典型场景 | 查询数据库、执行代码 | 多 Agent 分工与结果传递 |
-| 类比 | 使用工具 | 与同事协作 |
+| Participants connected | Agents and tools | Agents and agents |
+| Core question | How to use external capabilities | How to discover, delegate, and collaborate |
+| Main abstractions | Tools, Resources, Prompts | Agent Card, Task, Message, Artifact |
+| Typical uses | Database queries, code execution | Dividing work among agents and exchanging results |
+| Analogy | Using tools | Collaborating with colleagues |
 
-二者通常互补，但不是按服务内部“有没有模型”来划分：
+The two are often complementary, but the distinction is not whether a service contains a model:
 
-> 需要统一工具与上下文接口时考虑 MCP；需要远程 Agent 的任务、消息和产物互操作时考虑 A2A。
+> Consider MCP when you need consistent tool and context interfaces. Consider A2A when you need interoperability for a remote agent's tasks, messages, and artifacts.
 
-一个 MCP Tool 的背后也可以运行 Agent；A2A 服务也可以执行确定性工作流。二者都不自动解决任务分解、权限委派或分布式事务，多 Agent 系统也不必须同时采用这两个协议。
+An MCP tool can run an agent behind the scenes; an A2A service can execute a deterministic workflow. Neither protocol automatically solves task decomposition, delegated authorization, or distributed transactions, and a multi-agent system does not have to adopt both.
 
 ```mermaid
 flowchart TB
-    U[用户目标] --> O[调度 Agent]
+    U[User goal] --> O[Orchestrator agent]
 
-    O <-->|A2A| R[研究 Agent]
-    O <-->|A2A| C[编程 Agent]
-    O <-->|A2A| W[写作 Agent]
+    O <-->|A2A| R[Research agent]
+    O <-->|A2A| C[Coding agent]
+    O <-->|A2A| W[Writing agent]
 
-    O -->|MCP| T1[业务工具]
-    R -->|MCP| T2[搜索与知识库]
-    C -->|MCP| T3[代码执行器]
-    W -->|MCP| T4[文档系统]
+    O -->|MCP| T1[Business tools]
+    R -->|MCP| T2[Search and knowledge base]
+    C -->|MCP| T3[Code executor]
+    W -->|MCP| T4[Document system]
 ```
 
-MCP 让每个 Agent 能够方便地“伸手拿工具”，A2A 则让多个 Agent 能够“相互沟通与分工”。二者共同构成多 Agent 系统走向标准化和互操作的重要基础。
+MCP helps individual agents reach for tools, while A2A helps multiple agents communicate and divide the work. Together, they provide an important foundation for standardization and interoperability in multi-agent systems.
 
-## 参考资料
+## References
 
 - [Anthropic: Introducing the Model Context Protocol](https://www.anthropic.com/news/model-context-protocol)
 - [MCP joins the Agentic AI Foundation](https://blog.modelcontextprotocol.io/posts/2025-12-09-mcp-joins-agentic-ai-foundation/)
 - [Linux Foundation: Agent2Agent Protocol Project](https://www.linuxfoundation.org/press/linux-foundation-launches-the-agent2agent-protocol-project-to-enable-secure-intelligent-communication-between-ai-agents)
 - [A2A Protocol Specification](https://a2a-protocol.org/latest/specification/)
-- [A2A Protocol Specification 0.3.0：核心对象与消息发送](https://a2a-protocol.org/v0.3.0/specification/)
+- [A2A Protocol Specification 0.3.0: Core objects and message sending](https://a2a-protocol.org/v0.3.0/specification/)
 - [Anthropic: Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)

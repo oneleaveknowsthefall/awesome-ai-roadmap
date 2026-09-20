@@ -1,19 +1,19 @@
 ---
-description: 从 Agent 失败归因和决策前缀出发，组织监督、偏好与交互训练数据，并用独立验收约束策略更新。
+description: Use agent failure attribution and decision prefixes to build supervised, preference, and interactive training data, with independent acceptance criteria for policy updates.
 ---
 
-# Agent · 后训练工程
+# Agents · Post-Training Engineering
 
-把线上错误转成可复现的决策问题：先确定该修工具、上下文还是模型，再连接训练数据、交互环境、验证器和上线验收。
+Turn production failures into reproducible decision problems. First determine whether the tool, context, or model needs to change; then connect training data, interactive environments, verifiers, and release acceptance.
 
-## 章节
+## Chapters
 
-1. [第二十五章：Agent 后训练：从失败轨迹到可靠策略](25-agent-post-training.md)
+1. [Chapter 25: Agent Post-Training: From Failed Trajectories to Reliable Policies](25-agent-post-training.md)
 
-## 阅读衔接
+## Related reading
 
-- [工具学习](../../tools/01-function-calling/02-tool-learning.md)：工具轨迹与角色掩码。
-- [后训练方法](../../llm/02-training-alignment/10-post-training.md)：监督信号、优化方法与数据生成方式。
-- [Agent 评估](../05-production/14-agent-evaluation.md)：任务结果、行为约束和运行成本。
+- [Tool Learning](../../tools/01-function-calling/02-tool-learning.md): tool trajectories and role masks.
+- [Post-Training Methods](../../llm/02-training-alignment/10-post-training.md): supervision signals, optimization methods, and data generation.
+- [Agent Evaluation](../05-production/14-agent-evaluation.md): task outcomes, behavioral constraints, and operating costs.
 
-返回 [Agent 相关知识点](../README.md)。
+Back to [Agents](../README.md).

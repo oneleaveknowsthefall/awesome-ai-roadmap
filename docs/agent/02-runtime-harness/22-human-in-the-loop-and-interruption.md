@@ -1,71 +1,71 @@
 ---
-description: 解释人工审批的暂停与恢复机制，绑定操作参数、身份和版本，并处理审批过期、重复通知和环境变化。
+description: Explains how human approval pauses and resumes execution, binds operation arguments, identities, and versions, and handles expiry, duplicate notifications, and environmental changes.
 ---
 
-# 第二十二章：Human-in-the-loop、审批与可中断执行
+# Chapter 22: Human-in-the-Loop Approval and Interruptible Execution
 
-## 22.1 等待审批与执行失败有什么不同？
+## 22.1 How does waiting for approval differ from execution failure?
 
-等待审批是预期的控制状态，执行失败则说明某一步没有按约定完成。前者需要展示待批准操作并等待决定，不能被重试器当作异常反复执行。短暂停顿可以保留在进程内；若要跨进程、长时间等待，就与第 21 章一样，需要持久化状态并能恢复。第 20 章的 Ask 规则和审批回调是入口，但回调本身不自动提供持久化审批工作流。
+Waiting for approval is an expected control state; execution failure means a step did not complete as agreed. An approval wait must display the proposed operation and await a decision. A retry mechanism must not treat it as an exception and repeatedly execute it. A short pause can remain in-process. A long wait, or one that must survive process changes, needs persistent, recoverable state as in Chapter 21. The ask rules and approval callbacks in Chapter 20 are entry points, but a callback does not automatically provide a durable approval workflow.
 
-## 22.2 为什么需要人在环
+## 22.2 Why involve a human?
 
-[MCP 2026-07-28 Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)建议让人能够拒绝工具调用，并提供工具可见性、调用指示与确认提示，使用的是 **SHOULD**，同时明确不强制特定交互模型。这不是“所有调用必须弹窗”的协议要求，更不是工具获权凭证。Harness 需要按影响面与预授权范围选择自动执行、逐次确认或直接拒绝；完全自动化和每步询问都有代价。
+[MCP 2026-07-28 Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) recommends enabling people to deny tool calls and providing tool visibility, invocation indicators, and confirmation prompts. It uses **SHOULD** and explicitly does not mandate a particular interaction model. This is neither a protocol requirement to show a prompt for every call nor a credential that authorizes tool use. The harness must choose automatic execution, per-operation confirmation, or outright denial according to impact and preauthorized scope. Both complete automation and confirmation at every step have costs.
 
-## 22.3 中断点的设计：在哪里暂停
+## 22.3 Designing interruption points: where to pause
 
-不是所有节点都适合作为中断点。生产系统通常在这几类位置设置人在环检查点：
+Not every node is a useful interruption point. Production systems commonly place human checkpoints at the following boundaries:
 
-- **不可逆或高影响的操作之前**：发送外部通信、执行资金操作、删除数据、合并到主分支——这类操作一旦执行就无法简单撤销。
-- **权限判定链命中 Ask 规则或需要用户交互的工具**（第 20 章 20.2、20.3 节）——工具本身或组织策略声明了"这个操作永远需要确认"。
-- **模型对自己的判断置信度不足时**——例如反思机制（第十二章）判定任务存在重大不确定性,主动请求人工输入方向,而不是自行猜测继续执行。
-- **多 Agent 协作中的关键节点**——比如某个子任务的产出需要在被下游 Agent 使用前经过人工审核。
+- **Before irreversible or high-impact operations:** sending external communications, moving funds, deleting data, or merging into the main branch. Such actions cannot simply be undone after execution.
+- **When the permission chain matches an ask rule or a tool requires user interaction** (Sections 20.2 and 20.3): the tool or organizational policy declares that the operation always requires confirmation.
+- **When the model has insufficient confidence in its judgment:** for example, the reflection mechanism in Chapter 12 identifies significant uncertainty and asks a person for direction rather than guessing and continuing.
+- **At important multi-agent coordination points:** for example, when a subtask's output needs human review before a downstream agent uses it.
 
-中断点太少会缺乏审查，太多会造成确认疲劳。模型自报置信度不是经过校准的风险概率，审批触发还应依据操作影响、授权范围、证据缺失和策略规则。
+Too few interruption points leave work insufficiently reviewed; too many cause confirmation fatigue. A model's self-reported confidence is not a calibrated risk probability. Approval triggers should also consider operational impact, authorization scope, missing evidence, and policy rules.
 
-## 22.4 中断的实现机制：从异常到显式状态
+## 22.4 Implementing interruption: from exceptions to explicit state
 
-工程实现上，人在环中断通常有两种落地方式：
+Human-in-the-loop interruption commonly takes two implementation forms:
 
-- **回调式**：harness 在权限判定链的某一步（第 20 章 20.2 节的 `canUseTool` 回调）同步或异步地调用一个外部函数，等待其返回批准/拒绝结果,再决定是否继续执行——这种方式适合"暂停时间较短、调用方能同步等待"的场景。
-- **显式挂起状态**：把等待审批保存为第 17 章的 `Interrupted`，结束当前执行并释放可重建的计算资源。LangGraph 的 `interrupt()` 支持这种模式，但需要配置 checkpointer 和稳定的 `thread_id`；跨进程恢复必须用持久化后端。以同一线程和 `Command(resume=...)` 恢复时，**包含中断的节点从头进入**，到达 `interrupt()` 后才取得恢复值。因此中断之前的代码会再次运行，发送审批通知等动作也要去重，不能把暂停误当成任意代码位置的内存快照。
+- **Callback-based:** at a step in the permission chain, such as the `canUseTool` callback in Section 20.2, the harness synchronously or asynchronously calls an external function, waits for approval or rejection, and then decides whether to execute. This suits short pauses where the caller can remain waiting.
+- **Explicit suspension state:** save the approval wait as Chapter 17's `Interrupted` state, end the current execution, and release compute resources that can be reconstructed. LangGraph's `interrupt()` supports this pattern, but requires a checkpointer and a stable `thread_id`; cross-process recovery requires a durable backend. Resuming the same thread with `Command(resume=...)` **restarts the containing node from its beginning**. The resume value becomes available only when execution reaches `interrupt()`. Code before it therefore runs again. Actions such as sending approval notifications also need deduplication; a pause is not a memory snapshot at an arbitrary point in the program.
 
-## 22.5 审批载荷的设计
+## 22.5 Designing the approval payload
 
-审批界面应展示实际对象、参数、差异与影响范围，并给出简洁计划和证据，而不是要求隐藏思维链；同时说明批准与拒绝后的行为。审批返回值应使用有 Schema 的 `approve`、`reject`、`edit` 等明确动作，不能用 `bool("false")` 这类真假值转换解析。修改参数后的批准需重新校验，并把审批者、版本和来源写入持久化记录。
+The approval interface should show the actual objects, arguments, diff, and scope of impact, accompanied by a concise plan and evidence—not a request for hidden chain of thought. It should also explain what happens after approval or rejection. Return values should use explicit, schema-defined actions such as `approve`, `reject`, and `edit`, not truthiness conversions such as `bool("false")`. Approval after editing arguments requires revalidation, and the approver, version, and source must be written to the durable record.
 
-## 22.6 恢复执行：从中断点继续,而不是重新开始
+## 22.6 Resuming from the interruption rather than starting over
 
-审批应绑定任务 ID、工具及版本、规范化参数摘要、目标对象版本、审批者身份、有效期与单次使用标识。恢复时重新检查权限、预算和目标状态；不变时继续被批准的具体操作，而不是让模型生成一个新调用并继承旧批准。
+An approval should bind the task ID, tool and version, normalized-argument digest, target-object version, approver identity, expiry, and a single-use identifier. On resumption, recheck permissions, budget, and target state. If those remain valid, continue the specific approved operation rather than having the model generate a new call that inherits the old approval.
 
-若等待期间收款账户、文件版本或权限发生变化，原审批可能失效，应重新规划或重新审批。审批不等于永久授权；重复 Webhook 也不能让同一操作执行两次，需要消费记录与业务幂等配合。
+If a payee account, file version, or permission changes during the wait, the original approval may be invalid and require replanning or renewed approval. Approval is not permanent authorization. Duplicate webhooks must not execute the same operation twice either; combine an approval-consumption record with business idempotency.
 
-## 22.7 异步审批与长时间等待
+## 22.7 Asynchronous approval and long waits
 
-长审批通常不应占用整个会话进程。Harness 保存等待状态和待发送的审批通知后，由独立投递器通知审批者；收到回复，再触发恢复流程。若先保存后发通知，中间崩溃可能让任务永久等不到人；若先通知后保存，又可能收到无法关联的回复。可以把等待记录与通知意图写入同一事务，由 outbox（待投递记录）重试发送，再用审批 ID 去重。超时、拒绝和批准都要有可追溯的状态转移。
+Long approval waits should generally not occupy an entire session process. The harness saves the waiting state and the pending approval notification, then an independent dispatcher notifies the approver. A reply triggers recovery. Saving first and then sending can leave a task waiting forever if a crash occurs between the two; sending first and then saving can produce a reply that cannot be correlated. Store the waiting record and notification intent in the same transaction, retry delivery through an outbox of pending notifications, and deduplicate by approval ID. Timeout, rejection, and approval all need traceable state transitions.
 
-## 22.8 人在环的成本与效率权衡
+## 22.8 Balancing human attention, cost, and efficiency
 
-人在环会增加等待时间，也会占用审批者的注意力。低风险、已预授权的重复操作适合自动化，高影响操作保留针对具体对象的确认。扩大自动批准范围必须由有权的策略主体决定，不能只因模型最近成功率高就自行放权。第 20 章的权限模式是宿主提供的不同策略组合，不是一条可以随意往“更自动”方向拨动的效率刻度。
+Human involvement adds waiting time and consumes approver attention. Low-risk, preauthorized repetitive operations are good candidates for automation; high-impact operations should retain confirmation tied to their specific targets. Only an authorized policy owner may expand automatic approval. A recent improvement in the model's success rate is not sufficient grounds for it to grant itself more authority. The permission modes in Chapter 20 are different host-provided policy combinations, not an efficiency dial that can be freely turned toward “more automatic.”
 
-## 22.9 常见错误
+## 22.9 Common mistakes
 
-- **宽泛捕获并吞掉框架中断信号。** LangGraph 的 `interrupt()` 内部使用特殊异常控制暂停；业务代码不能把它当普通失败吞掉。需要持久化的暂停状态，不代表实现中不能使用异常机制。
-- **审批载荷只有摘要，没有实际对象、规范化参数、差异与证据。** 审批者无法判断影响范围，容易退化成习惯性批准；补充的是决策依据，不是私有思维链。
-- **把审批结果简单解析为布尔值。** 丢失了"批准但需要调整参数"这类更丰富的人类反馈。
-- **同步阻塞等待长时间审批。** 会占用不必要的计算资源，长时间等待的审批应该走 22.7 节的异步释放-恢复模式。
-- **重新规划后沿用旧审批。** 环境变化可以要求重规划，但新参数、新目标或新工具版本必须重新授权，不能继承旧操作的批准。
-- **中断点设置过多，退化为每步都问。** 会抵消自动化的效率优势，应按 22.3 节的风险分级设计中断点。
+- **Catching and swallowing the framework's interruption signal.** LangGraph's `interrupt()` uses a special exception internally to suspend execution. Business code must not swallow it as an ordinary failure. Requiring durable suspension state does not prohibit using exceptions to implement it.
+- **Showing only a summary, without actual objects, normalized arguments, diffs, or evidence.** The approver cannot judge the impact, and approval can become habitual. Supply the basis for the decision, not private chain of thought.
+- **Reducing the approval result to a Boolean.** This loses richer human feedback, such as “approved, but change these arguments.”
+- **Blocking synchronously throughout a long approval wait.** This occupies unnecessary compute resources. Use the asynchronous release-and-resume pattern from Section 22.7.
+- **Reusing old approval after replanning.** Environmental changes may require a new plan, but new arguments, targets, or tool versions require renewed authorization and cannot inherit the previous operation's approval.
+- **Adding so many interruption points that every step asks a question.** This cancels out the efficiency benefits of automation. Choose interruption points by risk, as in Section 22.3.
 
-## 22.10 本章总结
+## 22.10 Chapter summary
 
-人在环是可恢复的控制点，而不是简单的布尔开关。短暂停顿可用回调，长等待应持久化并释放资源；恢复时核验审批绑定的操作、权限与对象版本。环境变化可以要求重规划，但新操作不能继承旧批准。风险分级与明确参数比频繁弹窗更重要。
+Human-in-the-loop handling is a recoverable control point, not a simple Boolean switch. Callbacks work for short pauses; long waits should persist state and release resources. On recovery, verify the operation bound to the approval, its permissions, and its object versions. Environmental changes can require replanning, but a new operation cannot inherit an old approval. Risk-based decisions and explicit arguments matter more than frequent prompts.
 
-## 参考资料
+## References
 
 - [Model Context Protocol: Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
 - [Simon Willison: Designing agentic loops](https://simonwillison.net/2025/Sep/30/designing-agentic-loops/)
 - [Claude Agent SDK: Configure permissions](https://code.claude.com/docs/en/agent-sdk/permissions)
 - [LangGraph: Human-in-the-loop](https://docs.langchain.com/oss/python/langgraph/interrupts)
-- [AWS Prescriptive Guidance: Transactional outbox pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)：状态写入与通知投递的双写问题，以及重复消息的幂等处理。
-- [LangGraph 第十章：LangGraph 的核心优势](../../frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md)
+- [AWS Prescriptive Guidance: Transactional outbox pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html): the dual-write problem between state persistence and notification delivery, and idempotent handling of duplicate messages.
+- [LangGraph Chapter 10: Core Advantages of LangGraph](../../frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md)

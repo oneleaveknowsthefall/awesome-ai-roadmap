@@ -1,79 +1,79 @@
 ---
-description: 比较窗口裁剪、摘要、结构化抽取与外部化，说明压缩失真、恢复边界、Token 预算和缓存的区别及评测方法。
+description: Compare window trimming, summarization, structured extraction, and externalization, including compression distortion, recovery limits, token budgets, caching, and evaluation.
 ---
 
-# 第十章：Agent 记忆与上下文压缩
+# Chapter 10: Agent Memory and Context Compression
 
-本章讨论应用层上下文管理；JSON、时间、数量与预算均为教学示例，不是生产配置或实测结果。
+This chapter covers application-level context management. The JSON, times, quantities, and budgets are teaching examples, not production configurations or measured results.
 
-## 10.1 为什么需要记忆压缩
+## 10.1 Why Memory Compression Is Necessary
 
-上下文太长时，能不能直接总结一下再继续？可以，但要先区分两类信息：精确状态不能靠自由摘要维持，历史叙述则可以在保留证据入口的前提下压缩。例如，“付款结果未知，不要重试”应留在状态与约束中，不能变成一句“付款遇到问题”。
+When context gets too long, can we simply summarize it and continue? Yes, but first distinguish two kinds of information: precise state cannot be maintained through free-form summaries, while historical narrative can be compressed as long as the underlying evidence remains accessible. For example, “Payment outcome unknown; do not retry” belongs in state and constraints. It must not become “There was a problem with the payment.”
 
-Agent 在长任务中会持续产生：
+During long tasks, an agent continually produces:
 
-- 用户与模型消息；
-- Tool Call 与 Tool Result；
-- 计划和状态；
-- 搜索文档；
-- 代码、日志和表格；
-- 中间结论；
-- 错误与重试记录。
+- User and model messages;
+- Tool calls and tool results;
+- Plans and state;
+- Retrieved documents;
+- Code, logs, and tables;
+- Intermediate conclusions;
+- Error and retry records.
 
-如果将所有内容不断追加到 Context，可能遇到：
+Appending all of this to the context indefinitely can:
 
-- 超出模型 Context Window；
-- 输入 Token 成本增加；
-- Prefill（生成前处理输入）的开销增加，实际延迟还取决于缓存和服务实现；
-- 关键信息被噪音稀释；
-- 模型更难找到当前目标；
-- 旧错误和无关信息持续影响后续决策。
+- Exceed the model's context window;
+- Increase input token costs;
+- Increase prefill overhead—the work of processing input before generation—although actual latency also depends on caching and the serving implementation;
+- Bury important information in noise;
+- Make the current goal harder for the model to identify;
+- Allow old errors and irrelevant information to keep influencing later decisions.
 
-记忆压缩不是单纯把文本变短，更重要的是：
+Memory compression is not merely about shortening text. More importantly, it aims to:
 
-> **在有限 Token Budget 内，尽可能保留完成当前任务所需的信息。**
+> **Preserve as much of the information needed for the current task as possible within a limited token budget.**
 
-长窗口能容纳更多内容，但不能保证每项证据都被正确使用；反过来，短上下文也不天然更准确。删除必要的原文、多跳证据或反例会降低质量，应以具体模型和任务的对照实验选择压缩强度，而不是假设“越短越好”。
+A long window can hold more content, but it does not guarantee that every piece of evidence will be used correctly. Conversely, shorter context is not inherently more accurate. Removing necessary source text, multi-hop evidence, or counterexamples can reduce quality. Choose compression strength through controlled comparisons on the specific model and task, rather than assuming that “shorter is better.”
 
-写成一个简单目标函数，就是：
+A simple objective is:
 
 $$
 J(C)=U(C)-\lambda L(C)
 $$
 
-并满足：
+Subject to:
 
 $$
 L(C)\le B
 $$
 
-其中：
+Where:
 
-- `C` 是压缩后的 Context；
-- `U(C)` 是保留信息对当前任务的效用；
-- `L(C)` 是 Context 长度；
-- `B` 是可用 Token Budget；
-- `λ` 表示长度成本权重。
+- `C` is the compressed context;
+- `U(C)` is the utility of the retained information for the current task;
+- `L(C)` is the context length;
+- `B` is the available token budget;
+- `λ` weights the cost of length.
 
-这是设计目标的示意，不是可以直接计算出最优摘要的算法。`U(C)` 通常只能由下游任务表现近似评估，授权范围、必需证据及消息协议应先作为硬约束；高效用不能抵消违规。
+This illustrates a design objective; it is not an algorithm that directly computes an optimal summary. `U(C)` can usually only be approximated through downstream task performance. Authorization scope, required evidence, and message protocols should first be enforced as hard constraints: high utility cannot compensate for violating them.
 
-## 10.2 四类基础方法
+## 10.2 Four Basic Methods
 
-四种常见方法解决的是不同问题：
+Four common methods address different problems:
 
-| 方法 | 解决的问题 | 核心动作 | 是否有损 |
+| Method | Problem addressed | Main operation | Lossy? |
 |---|---|---|---:|
-| Sliding Window | 历史太长，保留哪一段 | 删除最早内容 | 是 |
-| Summarization | 历史太长，如何提炼 | 用摘要替换原文 | 是 |
-| Importance Filtering | 信息价值不同，保留什么 | 按任务价值选择 | 通常是 |
-| Structured Extraction | 对话文本是否是最佳表示 | 转换为结构化状态 | 一般有损；仅对完整可逆表示例外 |
+| Sliding window | Which part of a long history to retain | Remove the oldest content | Yes |
+| Summarization | How to distill a long history | Replace source text with a summary | Yes |
+| Importance filtering | What to retain when information has unequal value | Select by task value | Usually |
+| Structured extraction | Whether conversational text is the best representation | Convert it into structured state | Generally; except for complete, reversible representations |
 
 ```mermaid
 flowchart TB
-    H[Long Interaction History] --> W[Sliding Window<br/>按时间截断]
-    H --> S[Summarization<br/>语义压缩]
-    H --> I[Importance Filtering<br/>按价值选择]
-    H --> E[Structured Extraction<br/>改变表示]
+    H[Long Interaction History] --> W[Sliding Window<br/>Trim by Time]
+    H --> S[Summarization<br/>Semantic Compression]
+    H --> I[Importance Filtering<br/>Select by Value]
+    H --> E[Structured Extraction<br/>Change Representation]
 
     W --> C[Compact Context]
     S --> C
@@ -81,13 +81,13 @@ flowchart TB
     E --> C
 ```
 
-这四种方法通常组合使用，而不是互相替代。
+These methods are usually combined rather than treated as alternatives.
 
-外部化是把内容搬出活跃 Context，不一定减少总存储；从窗口移除也不等于从记忆库删除。应用层摘要、服务端 compaction、KV Cache 量化/淘汰分别改变文本表示、服务托管上下文或推理状态，不应统称为同一种“记忆压缩”。
+Externalization moves content out of the active context without necessarily reducing total storage. Removing something from the window is not the same as deleting it from a memory store. Application-level summaries, server-side compaction, and KV-cache quantization or eviction change text representations, service-managed context, and inference state, respectively. They should not all be treated as the same kind of “memory compression.”
 
-## 10.3 Sliding Window：按时间截断
+## 10.3 Sliding Window: Trimming by Time
 
-Sliding Window 只在活跃 Context 保留最近若干轮或若干 Token，移除更早内容；是否删除持久化原记录由另一套保留策略决定。
+A sliding window keeps only the most recent turns or tokens in the active context and removes earlier content. A separate retention policy determines whether the persisted originals are deleted.
 
 ```mermaid
 flowchart LR
@@ -97,64 +97,64 @@ flowchart LR
     M4 --> M5[Message 5]
     M5 --> M6[Message 6]
 
-    M1 -.丢弃.-> X[Evicted]
-    M2 -.丢弃.-> X
+    M1 -.Discard.-> X[Evicted]
+    M2 -.Discard.-> X
     M3 --> K[Current Window]
     M4 --> K
     M5 --> K
     M6 --> K
 ```
 
-### 10.3.1 常见实现
+### 10.3.1 Common Implementations
 
-#### 按消息轮数
+#### By Conversation Turn Count
 
-只保留最近 `N` 轮对话。
+Keep only the most recent `N` turns.
 
-优点：
+Advantages:
 
-- 实现简单；
-- 速度快；
-- 行为容易预测。
+- Simple to implement;
+- Fast;
+- Predictable behavior.
 
-缺点：
+Disadvantages:
 
-- 不同消息长度差异很大；
-- 不能精确控制 Token。
+- Message lengths can vary greatly;
+- Token usage cannot be controlled precisely.
 
-#### 按 Token 数
+#### By Token Count
 
-从最新消息向前装入，直到达到预算。
+Add messages from newest to oldest until the budget is reached.
 
-优点：
+Advantages:
 
-- 能控制模型输入大小；
-- 更适合不同长度的消息。
+- Controls model input size;
+- Handles messages of varying lengths more effectively.
 
-缺点：
+Disadvantages:
 
-- 仍然只按时间，不考虑价值；
-- 可能删除早期关键约束。
+- Still selects by time rather than value;
+- May remove important constraints stated early on.
 
-#### 按任务阶段
+#### By Task Stage
 
-保留当前阶段的详细记录，将已完成阶段移出活跃窗口。
+Keep detailed records of the current stage and move completed stages out of the active window.
 
-如果阶段之间的交接边界清楚，这比按轮数截断更容易保留完整过程。不过，“阶段完成”不代表其中证据再也无用；下一阶段依赖的结论、失败路径和来源仍要保留或能按需取回。
+When stage handoffs have clear boundaries, this makes it easier to preserve complete sequences of actions than trimming by turn count. However, a “completed stage” does not mean its evidence is no longer useful. Conclusions, failed approaches, and sources needed by the next stage must remain available or retrievable on demand.
 
-### 10.3.2 不能被普通窗口淘汰的信息
+### 10.3.2 Information That Ordinary Window Eviction Must Not Remove
 
-以下内容通常需要 Pin：
+The following usually needs to be pinned:
 
-- System Instructions；
-- 用户当前目标；
-- 安全和权限规则；
-- 成功标准；
-- 当前计划和状态；
-- 未解决问题；
-- 高风险操作约束。
+- System instructions;
+- The user's current goal;
+- Safety and authorization rules;
+- Success criteria;
+- The current plan and state;
+- Unresolved issues;
+- Constraints on high-risk operations.
 
-Pin 的是当前仍有效的受信内容，不是永久固定历史文本。用户改了目标或权限已撤销，应更新或撤销相应项；权限判断始终由运行时执行，不能只依靠上下文中的一句规则。若必需项本身超过预算，应拆分任务或停止请求，而不是静默截断。
+Pin trusted content that is still valid, not historical text forever. If the user changes the goal or permission is revoked, update or remove the corresponding item. Authorization must always be enforced by the runtime, not merely by a sentence in the context. If the required items alone exceed the budget, split the task or stop the request rather than silently truncating them.
 
 ```mermaid
 flowchart TB
@@ -163,31 +163,31 @@ flowchart TB
     RET[Retrieved Memory] --> CTX
 ```
 
-### 10.3.3 不要切断 Tool 交互
+### 10.3.3 Do Not Break Tool Interactions
 
-Tool Call 和对应 Tool Result 应视为一个逻辑单元。只保留调用、不保留结果，或只保留结果、不保留调用，都可能破坏上下文。
+A tool call and its corresponding tool result should be treated as one logical unit. Keeping the call without its result, or the result without its call, can break the context.
 
-还可能直接违反 API 的消息格式要求。并行调用要核对各个 call ID 与结果；未完成调用不能伪造为成功结果。某些 API 还要求保留特定 continuation/reasoning item，应遵循其协议。需要裁剪时，可整体移除已完成交互并保存摘要/引用，而不是留下悬空的 tool result。
+It may also directly violate an API's message-format requirements. For parallel calls, check each call ID against its result. Do not fabricate successful results for unfinished calls. Some APIs also require particular continuation or reasoning items to be retained; follow their protocols. When trimming is necessary, remove completed interactions as a whole and preserve a summary or reference rather than leaving an orphaned tool result.
 
-同样需要避免切断：
+Similarly, avoid separating:
 
-- 用户问题与 Agent 回答；
-- 错误与对应修复；
-- 计划步骤与执行结果；
-- 引用与其支持的结论。
+- A user question from the agent's answer;
+- An error from its corresponding fix;
+- A plan step from its execution result;
+- A citation from the conclusion it supports.
 
-### 10.3.4 Sliding Window 的适用场景
+### 10.3.4 When a Sliding Window Fits
 
-- 最近内容明显比早期内容重要；
-- 对话任务短；
-- 可以从外部 State 恢复关键信息；
-- 需要低成本、低延迟压缩。
+- Recent content is clearly more important than earlier content;
+- Conversations are short;
+- Essential information can be recovered from external state;
+- Compression must be inexpensive and low-latency.
 
-它是截断策略，不是理解策略。
+It is a truncation strategy, not a comprehension strategy.
 
-## 10.4 Summarization：用摘要替换历史
+## 10.4 Summarization: Replacing History with a Summary
 
-Summarization 在删除早期历史前，先提取重要信息形成更短表示。
+Before deleting earlier history, summarization extracts important information into a shorter representation.
 
 ```mermaid
 flowchart LR
@@ -199,29 +199,29 @@ flowchart LR
 
 ### 10.4.1 Rolling Summary
 
-维护一个持续更新的摘要：
+Maintain a continuously updated summary:
 
 ```text
 new_summary = summarize(old_summary + newly_evicted_messages)
 ```
 
-优点：
+Advantages:
 
-- 实现简单；
-- 可通过输出预算约束摘要长度；
-- 适合连续对话。
+- Simple to implement;
+- An output budget can constrain summary length;
+- Well suited to ongoing conversations.
 
-风险：
+Risks:
 
-- 多次重写会产生 Summary Drift；
-- 早期细节可能逐渐丢失；
-- 模型生成的错误可能进入后续摘要。
+- Repeated rewriting can cause summary drift;
+- Early details may gradually disappear;
+- Model-generated errors may enter later summaries.
 
-例如原文是“测试超时，支付结果未知，不要重试”，摘要变成“支付失败，可以重试”，既丢了不确定性，也反转了操作约束。后续再摘要不会自动恢复这些信息，必须回到原始事件或权威业务状态核对。
+For example, “The test timed out; payment outcome unknown; do not retry” might become “Payment failed; retry is allowed.” This loses uncertainty and reverses the operational constraint. Further summarization will not automatically recover either. The system must return to the original event or authoritative business state to check.
 
 ### 10.4.2 Hierarchical Summary
 
-先生成局部摘要，再合并成阶段或任务摘要：
+First generate local summaries, then combine them into stage or task summaries:
 
 ```mermaid
 flowchart TB
@@ -233,52 +233,52 @@ flowchart TB
     S3 --> T
 ```
 
-它比不断重写同一个摘要更容易：
+Compared with repeatedly rewriting one summary, this makes it easier to:
 
-- 保留来源；
-- 定位丢失信息；
-- 按阶段展开；
-- 支持长周期任务。
+- Preserve sources;
+- Locate missing information;
+- Expand individual stages;
+- Support long-running tasks.
 
-### 10.4.3 Query-focused Summary
+### 10.4.3 Query-Focused Summary
 
-摘要只保留与当前任务或阶段相关的信息。
+Retain only information relevant to the current task or stage.
 
-例如，Agent 从“资料收集”进入“报告撰写”阶段时，可以重点保留：
+For example, when an agent moves from “gathering material” to “writing the report,” the summary can focus on:
 
-- 已验证事实；
-- 来源；
-- 比较结论；
-- 未解决冲突。
+- Verified facts;
+- Sources;
+- Comparative conclusions;
+- Unresolved conflicts.
 
-不再保留每一次搜索尝试的详细过程。
+It no longer needs a detailed account of every search attempt.
 
-但应保留已排除路径及排除理由的简记，避免下一阶段重复失败搜索。任务切换后重新评估摘要，不能把针对旧问题生成的摘要当作通用知识索引。
+However, retain brief notes on rejected paths and why they were rejected, so the next stage does not repeat failed searches. Reassess the summary when the task changes. A summary prepared for an earlier question is not a general-purpose knowledge index.
 
 ### 10.4.4 Event Summary
 
-按关键事件总结：
+Summarize key events:
 
-- 决策；
-- Tool 成功或失败；
-- 计划变化；
-- 用户确认；
-- 发现的新约束。
+- Decisions;
+- Tool successes or failures;
+- Plan changes;
+- User confirmations;
+- Newly discovered constraints.
 
-### 10.4.5 高质量摘要应保留什么
+### 10.4.5 What a Good Summary Should Retain
 
-- 原始目标；
-- 用户明确约束；
-- 已完成和未完成步骤；
-- 关键事实；
-- 重要 Tool 结果；
-- 决策及依据；
-- 错误与恢复状态；
-- 来源和 Artifact 引用。
+- The original goal;
+- Explicit user constraints;
+- Completed and unfinished steps;
+- Key facts;
+- Important tool results;
+- Decisions and their rationale;
+- Errors and recovery status;
+- Source and artifact references.
 
 ### 10.4.6 Summary Drift
 
-多轮摘要可能发生：
+Repeated summarization can lead to:
 
 ```mermaid
 flowchart LR
@@ -288,96 +288,96 @@ flowchart LR
     S3 --> D[Meaning Drift]
 ```
 
-缓解方式：
+Mitigations:
 
-- 保存原始历史或 Artifact；
-- 摘要附带来源引用；
-- 不重复总结稳定结构化字段；
-- 周期性从原始数据重新生成摘要；
-- 对目标、权限和数字使用结构化状态；
-- 使用 Verifier 检查遗漏和矛盾。
+- Preserve the original history or artifacts;
+- Attach source references to summaries;
+- Do not repeatedly summarize stable structured fields;
+- Periodically regenerate summaries from original data;
+- Use structured state for goals, permissions, and numbers;
+- Use a verifier to check for omissions and contradictions.
 
-Verifier 也可能漏判，尤其当它与摘要器只读取同一份有缺陷的摘要时。需要把摘要和原始证据对照，精确核验 ID、数字、否定、时间范围及状态；对丢失项重新取回原文。引用还应带来源事件、版本或内容哈希，只有 URL 而网页已变化时，不能恢复当时证据。
+A verifier can also miss errors, especially if it and the summarizer read only the same flawed summary. Compare summaries with original evidence, checking IDs, numbers, negation, time ranges, and status precisely. Retrieve the original text for missing items. References should also identify source events, versions, or content hashes: a URL alone cannot recover the evidence as it existed at the time if the page has since changed.
 
-摘要是派生数据，权限通常不能宽于其所含来源的共同可读范围；若需要扩大读者范围，应经过独立脱敏与发布审核。来源被撤回、删除或替代后，要失效或重建依赖它的摘要，而不是只删向量记录。
+A summary is derived data. Its permissions generally must not allow a wider audience than the intersection of the read permissions on its included sources. Broadening its audience requires a separate sanitization and release review. When a source is withdrawn, deleted, or superseded, invalidate or rebuild summaries that depend on it rather than merely deleting vector records.
 
-## 10.5 Importance Filtering：按价值选择
+## 10.5 Importance Filtering: Selecting by Value
 
-时间顺序不代表信息价值。用户第一轮给出的安全约束，可能比最近十轮普通消息更重要。
+Chronological order does not determine information value. A safety constraint in the user's first turn may matter more than the last ten routine messages.
 
-Importance Filtering 根据当前任务选择应保留的内容。
+Importance filtering selects what to retain based on the current task.
 
 ```mermaid
 flowchart LR
     H[History Items] --> SCORE[Importance Scoring]
-    SCORE --> HIGH[High Value<br/>保留]
-    SCORE --> LOW[Low Value<br/>删除或外部化]
+    SCORE --> HIGH[High Value<br/>Retain]
+    SCORE --> LOW[Low Value<br/>Remove or Externalize]
 ```
 
-### 10.5.1 重要性信号
+### 10.5.1 Importance Signals
 
-- 与当前目标的相关性；
-- 是否为用户明确约束；
-- 是否影响安全和权限；
-- 是否是未解决问题；
-- 是否被后续任务依赖；
-- 来源可信度；
-- 是否包含独特信息；
-- 时间新鲜度；
-- 是否能从外部系统重新获取。
+- Relevance to the current goal;
+- Whether it is an explicit user constraint;
+- Whether it affects safety or authorization;
+- Whether it concerns an unresolved issue;
+- Whether later tasks depend on it;
+- Source trustworthiness;
+- Whether it contains unique information;
+- Freshness;
+- Whether it can be retrieved again from an external system.
 
-可以用一个基础效用分数表示：
+A basic utility score can be expressed as:
 
 $$
 U_i=\alpha R_i+\beta I_i+\gamma D_i+\delta T_i+\epsilon N_i-\zeta C_i
 $$
 
-其中：
+Where:
 
-- `Rᵢ`：Goal Relevance；
-- `Iᵢ`：Importance；
-- `Dᵢ`：Dependency Value；
-- `Tᵢ`：Trust；
-- `Nᵢ`：Novelty；
-- `Cᵢ`：Token Cost。
+- `Rᵢ`: Goal relevance;
+- `Iᵢ`: Importance;
+- `Dᵢ`: Dependency value;
+- `Tᵢ`: Trust;
+- `Nᵢ`: Novelty;
+- `Cᵢ`: Token cost.
 
-这些分量需要在任务样本上校准，公式并不意味着有现成准确的“重要性分数”。同一信息在不同问题下价值不同：摘要中的结论可用于概览，财务核对却可能必须读取整行账目和单位。
+These components need calibration on task samples. The formula does not imply that an accurate, ready-made “importance score” exists. The same information has different value for different questions: a summarized conclusion may suffice for an overview, while financial reconciliation may require the full ledger row and its units.
 
-### 10.5.2 Hard Rules 与 Model Scoring
+### 10.5.2 Hard Rules and Model Scoring
 
-不应让模型独自决定所有信息的重要性。
+The model should not decide the importance of every item on its own.
 
 #### Hard Rules
 
-必须保留：
+Always retain:
 
-- System Instructions；
-- 安全策略；
-- 用户明确目标；
-- 权限；
-- 当前任务状态；
-- 尚未解决的错误。
+- System instructions;
+- Safety policies;
+- Explicit user goals;
+- Permissions;
+- Current task state;
+- Unresolved errors.
 
 #### Model Scoring
 
-可以用于：
+Can be used to:
 
-- 判断历史事实与当前阶段的相关性；
-- 选择代表性 Episode；
-- 从重复 Tool 结果中提取重点。
+- Assess the relevance of historical facts to the current stage;
+- Select representative episodes;
+- Extract key points from repetitive tool results.
 
-### 10.5.3 Importance Filtering 的风险
+### 10.5.3 Risks of Importance Filtering
 
-- 模型错误删除真正重要的信息；
-- 当前看似无关的信息之后可能变得重要；
-- 重要性评分受当前 Prompt 偏置；
-- 恶意内容可能伪装成高优先级指令。
+- The model may remove genuinely important information;
+- Information that seems irrelevant now may matter later;
+- The current prompt may bias importance scores;
+- Malicious content may masquerade as high-priority instructions.
 
-因此，仍有合法用途的原文可按保留政策外部化，支持后续取回；敏感或未授权内容不能借“以后可能有用”永久保存。
+Original material that still has a legitimate purpose can therefore be externalized under a retention policy for later retrieval. Sensitive or unauthorized content must not be retained indefinitely merely because it “might be useful later.”
 
-## 10.6 Structured Extraction：改变信息表示
+## 10.6 Structured Extraction: Changing the Representation
 
-自然语言对话通常冗长、重复且难以精确更新。Structured Extraction 将历史转换为高密度状态。
+Natural-language conversations are often verbose, repetitive, and difficult to update precisely. Structured extraction converts history into a compact state representation.
 
 ```mermaid
 flowchart LR
@@ -390,16 +390,16 @@ flowchart LR
     EX --> ART[Artifact References]
 ```
 
-### 10.6.1 示例
+### 10.6.1 Example
 
-原始对话：
+Original conversation: the user says, “Do not create a PR; commit subsequent chapters directly to main.” The agent replies, “Understood; I will commit directly to main from now on.”
 
 ```text
 用户：不要创建 PR，直接把后续章节提交到 main。
 Agent：明白，后续直接提交到 main。
 ```
 
-结构化后：
+After structuring:
 
 ```json
 {
@@ -416,19 +416,21 @@ Agent：明白，后续直接提交到 main。
 }
 ```
 
-结构化表示：
+A structured representation:
 
-- 对冗长重复对话可能减少 Token，短句转 JSON 反而可能更长；
-- 更容易精确更新；
-- 更适合规则执行；
-- 更容易检测冲突；
-- 验证后可以按字段查询，不必每次重新解释整段对话。
+- May reduce tokens for verbose, repetitive conversations, although converting a short sentence into JSON may make it longer;
+- Is easier to update precisely;
+- Is better suited to rule enforcement;
+- Makes conflicts easier to detect;
+- Can be queried by field after validation, without reinterpreting the entire conversation each time.
 
-抽取本身仍可能误读。“用户偏好直接提交”不能变成绕过分支保护的权限。这里只有数据表示变化，没有发生发布，也没有证明用户拥有发布权限。
+Extraction can still misread the source. “The user prefers direct commits” must not become permission to bypass branch protection. Only the data representation has changed here: nothing has been published, and the user's authority to publish has not been established.
 
-### 10.6.2 适合抽取的内容
+### 10.6.2 Suitable Information to Extract
 
 #### Task State
+
+The example goal is to complete the agent knowledge graph.
 
 ```json
 {
@@ -443,6 +445,8 @@ Agent：明白，后续直接提交到 main。
 ```
 
 #### Decisions
+
+The reason given is that chapters need headings, lists, links, and code blocks.
 
 ```json
 {
@@ -472,41 +476,41 @@ Agent：明白，后续直接提交到 main。
 }
 ```
 
-### 10.6.3 Structured Extraction 的风险
+### 10.6.3 Risks of Structured Extraction
 
-- Schema 设计遗漏信息；
-- 模型抽取错误；
-- 难以表达模糊和不确定内容；
-- 结构化字段可能失去原始语境；
-- Schema 版本变化需要迁移。
+- The schema may omit information;
+- The model may extract incorrectly;
+- Ambiguity and uncertainty can be difficult to represent;
+- Structured fields may lose their original context;
+- Schema version changes require migration.
 
-因此，应保留来源引用，并允许在需要时返回原文。
+Retain source references so the system can return to the original text when necessary.
 
-Schema 合法只证明字段形状正确，不证明内容真实。运行状态应由执行器及工具确认结果更新；模型可提出补丁，但不能仅从“我准备执行”抽取出 `completed`。含糊的声明应保留 `unknown`、适用范围和原话，不能强行填成确定事实。
+Schema validity proves only that fields have the right shape, not that their contents are true. Runtime state should be updated by the executor and confirmed tool results. A model may propose a patch, but it must not extract `completed` merely from “I am about to do this.” Ambiguous statements should retain `unknown`, their scope, and the original wording rather than being forced into definite facts.
 
-## 10.7 四种方法如何组合
+## 10.7 Combining the Four Methods
 
-工程上通常把这几种方法串起来用：
+In practice, these methods are often arranged in a pipeline:
 
 ```mermaid
 flowchart TB
     H[Full History] --> PIN[Pin Hard Constraints]
     PIN --> EXT[Externalize Large Artifacts]
     EXT --> STR[Structured Extraction]
-    STR --> SPLIT[划分近期交互与较早历史]
-    SPLIT --> IMP[较早历史 Importance Filtering]
+    STR --> SPLIT[Separate Recent Interactions from Older History]
+    SPLIT --> IMP[Importance Filtering for Older History]
     IMP --> SUM[Summarize Older History]
     SPLIT --> WIN[Keep Recent Sliding Window]
     SUM --> PACK[Context Packing]
     WIN --> PACK[Context Packing]
-    PIN -->|有效约束| PACK
-    STR -->|核对后的状态| PACK
-    EXT -->|Artifact 引用| PACK
+    PIN -->|Valid Constraints| PACK
+    STR -->|Validated State| PACK
+    EXT -->|Artifact References| PACK
 ```
 
-图中的并行入口很重要：当前约束、结构化状态与 Artifact 引用直接参与装箱，不必先经过历史摘要器。历史摘要负责补充背景，不能成为恢复精确状态的唯一来源。
+The parallel inputs in this diagram matter: current constraints, structured state, and artifact references enter context packing directly without first passing through the history summarizer. Historical summaries supply background; they must not be the only source for recovering precise state.
 
-一种常见 Context 结构是：
+A common context structure is:
 
 ```text
 1. System and safety instructions
@@ -518,31 +522,31 @@ flowchart TB
 7. Current Tool results
 ```
 
-输出预算是请求配置和容量预留，不是要在 Prompt 中写入的一段文字。上述序号是组织示例，不是模型指令优先级；历史摘要与召回数据不能因放在前面就获得系统指令权限。
+The output budget is a request setting and a capacity reservation, not a passage to insert into the prompt. The numbering above illustrates organization, not the model's instruction hierarchy. Historical summaries and retrieved data do not gain system-instruction authority simply by appearing earlier.
 
-各方法分工如下：
+The methods divide the work as follows:
 
-- Sliding Window 保留近期细节；
-- Summary 保留早期整体语义；
-- Importance Filtering 保留跨时间的关键内容；
-- Structured Extraction 保留精确状态和事实；
-- External Artifact 保存大体积原始数据。
+- A sliding window preserves recent detail;
+- Summaries preserve the overall meaning of earlier history;
+- Importance filtering preserves key content across time;
+- Structured extraction preserves precise state and facts;
+- External artifacts preserve large volumes of raw data.
 
-## 10.8 额外方法：Deduplication
+## 10.8 Additional Method: Deduplication
 
-Agent 常产生大量重复内容：
+Agents often produce substantial repetition:
 
-- 多轮重复说明目标；
-- 搜索结果重复引用同一网页；
-- Tool 重试返回相同错误；
-- 多个 Agent 生成相似结论。
+- Restating the goal across turns;
+- Citing the same web page in multiple search results;
+- Receiving the same error on tool retries;
+- Producing similar conclusions across agents.
 
-Deduplication 可以：
+Deduplication can:
 
-- 使用内容哈希删除完全重复；
-- 使用 Embedding 识别近似重复；
-- 合并同一实体的相同事实；
-- 将重复来源折叠为引用列表。
+- Remove exact duplicates using content hashes;
+- Identify near-duplicates using embeddings;
+- Merge identical facts about the same entity;
+- Collapse repeated sources into a reference list.
 
 ```mermaid
 flowchart LR
@@ -552,28 +556,30 @@ flowchart LR
     E --> O[Deduplicated Items]
 ```
 
-去重时应避免误删：
+Avoid incorrectly removing:
 
-- 来自不同可信来源的相同结论；
-- 看似相似但时间不同的事件；
-- 数字不同的近似句子；
-- 正向与否定表达。
+- The same conclusion from different trustworthy sources;
+- Similar-looking events that occurred at different times;
+- Similar sentences containing different numbers;
+- Positive and negated statements.
 
-同一错误发生多次还可能说明故障持续，不能去重后丢掉发生次数和时间跨度。多个来源相同结论若都转载自同一原文，只能保留一条来源链，不能当作独立佐证。
+Repeated occurrences of the same error may indicate a persistent failure. Deduplication must not lose the occurrence count or time span. If several sources repeat the same conclusion by republishing one original, retain their provenance chain rather than counting them as independent corroboration.
 
-## 10.9 额外方法：Externalization
+## 10.9 Additional Method: Externalization
 
-Externalization 将大内容移出 Context，只保留摘要和引用。
+Externalization moves large content out of the context, keeping only summaries and references.
 
-适合：
+It is suitable for:
 
-- 长文档；
-- 代码库；
-- 日志；
-- 搜索结果；
-- 表格；
-- 图片和多模态数据；
-- 已完成阶段的详细轨迹。
+- Long documents;
+- Codebases;
+- Logs;
+- Search results;
+- Tables;
+- Images and multimodal data;
+- Detailed traces of completed stages.
+
+The example summary describes 200 search results, from which 12 highly trustworthy sources have been selected.
 
 ```json
 {
@@ -585,15 +591,15 @@ Externalization 将大内容移出 Context，只保留摘要和引用。
 }
 ```
 
-需要时通过 Tool 按片段重新读取。
+Use a tool to reread the relevant segments when needed.
 
-这种方法不是删除信息，而是将“始终在 Context 中”改为“按需加载”。
+Rather than deleting information, this changes access from “always in context” to “loaded on demand.”
 
-前提是引用可解析、有版本、未过期，且 Agent 有可用的读取工具。URI 和哈希不包含原文；对象已删、权限撤销、链接过期或检索失败时，恢复就不成立。按片段读取应返回位置、范围及是否截断，并在工具端鉴权；摘要泄露敏感结论也属于泄露，不能只保护原始对象。
+This requires references that resolve, identify a version, and have not expired, plus a read tool available to the agent. A URI and hash do not contain the source text. Recovery fails if an object has been deleted, access revoked, a link expired, or retrieval failed. Segment reads should return position, range, and truncation status, with authorization enforced by the tool. Leaking a sensitive conclusion through a summary is still a leak; protecting only the original object is not enough.
 
-## 10.10 额外方法：Hierarchical Memory
+## 10.10 Additional Method: Hierarchical Memory
 
-分层记忆同时保留不同粒度：
+Hierarchical memory retains multiple levels of detail:
 
 ```mermaid
 flowchart TB
@@ -605,15 +611,15 @@ flowchart TB
     S2 --> E4[Artifacts]
 ```
 
-Agent 先读取 Task Summary；只有需要细节时，才展开 Stage Summary 或 Raw Event。
+The agent first reads the task summary and expands a stage summary or raw event only when it needs details.
 
-这是一种 Progressive Disclosure，可能减少无关上下文，但会增加检索轮次和遗漏风险。概要若没提到关键细节，Agent 可能不会展开正确分支，因此要保留直接检索原文的路径，并测量端到端延迟。
+This is progressive disclosure. It may reduce irrelevant context, but it introduces additional retrieval rounds and a risk of omissions. If the overview leaves out a critical detail, the agent may never expand the correct branch. Preserve a path for directly retrieving the original material, and measure end-to-end latency.
 
-## 10.11 额外方法：Delta 与 State Compaction
+## 10.11 Additional Method: Deltas and State Compaction
 
-对持续变化的状态，不需要每次保存完整副本。
+Continuously changing state does not require a complete copy to be saved on every update.
 
-例如计划更新：
+For example, a plan update:
 
 ```json
 {
@@ -623,11 +629,11 @@ Agent 先读取 Task Summary；只有需要细节时，才展开 Stage Summary �
 }
 ```
 
-系统可以：
+The system can:
 
-- 用 Delta 记录变化；
-- 周期性生成 Snapshot；
-- 从 Snapshot + Delta 恢复当前状态。
+- Record changes as deltas;
+- Periodically create snapshots;
+- Recover current state from a snapshot plus deltas.
 
 ```mermaid
 flowchart LR
@@ -637,56 +643,56 @@ flowchart LR
     D3 --> NEW[New Snapshot]
 ```
 
-这种方法主要减少状态存储和传输，不等同于自然语言摘要。
+This mainly reduces state storage and transfer; it is not equivalent to natural-language summarization.
 
-恢复要有确定的事件顺序、稳定事件 ID、状态版本和幂等应用规则，且 Snapshot 与已纳入的日志位点一致。不能只凭时间戳推断所有并发事件的先后。事件回放也不应重新执行付款、发信等副作用；已发生的外部效果需要独立的执行记录与核对。
+Recovery requires a defined event order, stable event IDs, state versions, and idempotent application rules. A snapshot must also agree with the log position through which events have been incorporated. Timestamps alone cannot establish the order of every concurrent event. Event replay must not re-execute side effects such as payments or emails. External effects that have already occurred need separate execution records and reconciliation.
 
-## 10.12 压缩触发时机
+## 10.12 When to Trigger Compression
 
-### 10.12.1 Token 阈值
+### 10.12.1 Token Threshold
 
-当 Context 使用量接近预算时触发。
+Trigger compression when context usage approaches the budget.
 
-不应等到窗口完全耗尽，因为还需要为以下内容保留空间：
+Do not wait until the window is completely full, because space must remain for:
 
-- 新 Tool Result；
-- 模型输出；
-- 错误恢复；
-- 用户追加信息。
+- New tool results;
+- Model output;
+- Error recovery;
+- Additional user information.
 
-### 10.12.2 阶段切换
+### 10.12.2 Stage Transition
 
-一个里程碑完成后：
+After completing a milestone:
 
-- 生成阶段摘要；
-- 提取结构化状态；
-- 外部化 Artifact；
-- 清理阶段内临时消息。
+- Generate a stage summary;
+- Extract structured state;
+- Externalize artifacts;
+- Remove temporary messages from that stage.
 
-### 10.12.3 Tool Result 过大
+### 10.12.3 Oversized Tool Results
 
-大型 Tool 输出应立即外部化，而不是先塞入完整 Context 再压缩。
+Externalize large tool outputs immediately instead of inserting them into the context in full and only then compressing them.
 
 ### 10.12.4 Checkpoint
 
-任务暂停或转交 Agent 时可生成压缩交接信息，但保存 checkpoint 不应以 LLM 摘要成功为前提。先可靠保存精确状态、事件位点和工具结果，再异步生成可替换的摘要，避免压缩失败时连恢复点一起丢失。
+When a task pauses or transfers to another agent, compressed handoff information can be generated. However, saving a checkpoint must not depend on successful LLM summarization. First persist precise state, event positions, and tool results reliably. Then generate replaceable summaries asynchronously, so a compression failure does not also destroy the recovery point.
 
-### 10.12.5 Context 质量下降
+### 10.12.5 Declining Context Quality
 
-即使尚未接近长度上限，如果出现：
+Even before approaching the length limit, rebuild context if you observe:
 
-- 目标被遗忘；
-- 重复动作；
-- 无关历史持续干扰；
-- Tool 选择变差；
+- Forgotten goals;
+- Repeated actions;
+- Persistent interference from irrelevant history;
+- Deteriorating tool selection.
 
-也应重新构建 Context。
+These are reasons to reconsider the assembled context.
 
-这些只是诊断信号，也可能来自错误工具或不准确计划，不能一律归咎于上下文太长。重构失败时应保留旧状态与失败原因，回退到原文选择或分阶段执行，而不是继续基于不完整摘要行动。
+They are only diagnostic signals: incorrect tools or an inaccurate plan can also cause them. Do not automatically blame excessive context length. If reconstruction fails, preserve the old state and the reason for failure. Fall back to selecting original material or executing in stages rather than continuing to act on an incomplete summary.
 
-## 10.13 Token Budget 分配
+## 10.13 Allocating the Token Budget
 
-总 Context Budget 不应全部用于历史：
+History should not consume the entire context budget:
 
 $$
 B_{total}=
@@ -699,33 +705,33 @@ B_{instruction}
 +B_{output}
 $$
 
-其中：
+Where:
 
-- `B_instruction`：系统、安全和工具说明；
-- `B_goal`：目标与成功标准；
-- `B_state`：结构化状态；
-- `B_memory`：长期记忆；
-- `B_recent`：最近消息；
-- `B_tool`：当前 Tool 结果；
-- `B_output`：模型输出预留。
+- `B_instruction`: System, safety, and tool instructions;
+- `B_goal`: Goals and success criteria;
+- `B_state`: Structured state;
+- `B_memory`: Long-term memory;
+- `B_recent`: Recent messages;
+- `B_tool`: Current tool results;
+- `B_output`: Capacity reserved for model output.
 
-上式是预算分账示意：先确定该模型 API 的容量口径，再分配输入、输出与安全余量。某些推理模型还将推理 Token 计入输出额度或共享窗口；工具 Schema、图片/音频表示、消息封装也会消耗容量。应以实际 tokenizer 或服务端计数为准，不能按字符数估计后当作硬保证。
+This is an illustrative budget breakdown. First establish how the model API counts capacity, then allocate input, output, and safety margins. Some reasoning models count reasoning tokens toward the output allowance or a shared window. Tool schemas, image and audio representations, and message wrappers also consume capacity. Use the actual tokenizer or server-side counts; a character-based estimate is not a hard guarantee.
 
-`B_total` 是实际分配的预算，不必等于模型公布的最大窗口；未分配的容量用于计数误差和恢复余量。计入工具 Schema 等开销后若必需内容仍装不下，应分阶段执行，而不是继续压缩精确 ID 或未决状态来凑长度。
+`B_total` is the allocated budget, not necessarily the model's advertised maximum window. Unallocated capacity covers counting errors and recovery headroom. If required content still does not fit after accounting for overhead such as tool schemas, execute in stages rather than compressing exact IDs or unresolved state just to meet the length limit.
 
-设压缩触发阈值时，应预留最大可接受工具结果和下一轮输出，而不采用通用的“使用到某个百分比再压缩”。工具结果无上限时，应先限制、分页或外部化，避免一条响应挤爆窗口。
+When setting a compression trigger, reserve room for the largest acceptable tool result and the next output instead of applying a universal “compress at a certain percentage” rule. If tool results are unbounded, first cap, paginate, or externalize them so a single response cannot overflow the window.
 
-预算应随任务阶段动态调整。例如：
+Budgets should change with the task stage. For example:
 
-- 搜索阶段给 Tool Result 更多空间；
-- 写作阶段给 Evidence 和 Outline 更多空间；
-- 调试阶段给错误日志和代码更多空间。
+- Allocate more space to tool results during search;
+- Allocate more space to evidence and outlines during writing;
+- Allocate more space to error logs and code during debugging.
 
-## 10.14 Prompt Caching 是什么
+## 10.14 What Is Prompt Caching?
 
-> Prompt Caching 处理的是跨请求的前缀计算复用，不直接缓存 Embedding 或向量索引；与 RAG 入库时上下文增强的关系，见[RAG：语义被切断怎么办](../../rag/02-ingestion-indexing/05-semantic-truncation.md)。
+> Prompt caching reuses prefix computation across requests. It does not directly cache embeddings or vector indexes. For its relationship to context enrichment during RAG ingestion, see [RAG: What to Do When Semantic Context Is Cut Off](../../rag/02-ingestion-indexing/05-semantic-truncation.md).
 
-Prompt Caching 缓存重复 Prompt 前缀的中间计算结果，使后续请求可以复用。
+Prompt caching saves intermediate computation for repeated prompt prefixes so later requests can reuse it.
 
 ```mermaid
 sequenceDiagram
@@ -734,39 +740,39 @@ sequenceDiagram
     participant M as Model
 
     A->>M: Stable Prefix + New Suffix
-    M->>C: 缓存稳定前缀计算
+    M->>C: Cache stable-prefix computation
     A->>M: Same Prefix + Another Suffix
-    C-->>M: 复用前缀计算
-    M-->>A: 命中时可减少重复 Prefill 开销
+    C-->>M: Reuse prefix computation
+    M-->>A: A hit can reduce repeated prefill work
 ```
 
-适合缓存：
+Good caching candidates include:
 
-- 长 System Prompt；
-- Tool Definitions；
-- 稳定项目说明；
-- 大段重复文档；
-- 多轮共享的固定前缀。
+- Long system prompts;
+- Tool definitions;
+- Stable project descriptions;
+- Large, repeated documents;
+- Fixed prefixes shared across turns.
 
-## 10.15 Prompt Caching 与记忆压缩的区别
+## 10.15 Prompt Caching Versus Memory Compression
 
-| 维度 | Memory Compression | Prompt Caching |
+| Dimension | Memory compression | Prompt caching |
 |---|---|---|
-| 优化层次 | 信息层 | 计算层 |
-| 核心问题 | 带哪些信息进入 Context | 重复 Context 如何少算一次 |
-| 是否减少 Context 长度 | 目标是减少；需实测，结构化后也可能更长 | 否 |
-| 是否改变信息内容 | 可能改变或删除 | 不改变 |
-| 是否释放 Context Window | 只有实际减少输入 Token 时才释放 | 否 |
-| 是否降低重复 Prefill 成本 | 可能间接降低，需计入压缩本身成本 | 命中时可降低重复计算，总费用取决于写入和读取规则 |
-| 是否解决噪音问题 | 可能减少噪音，也可能误删证据 | 否 |
+| Optimization layer | Information | Computation |
+| Core question | Which information belongs in the context? | How can repeated context avoid repeated computation? |
+| Reduces context length? | That is the aim, but measure it; structured representations can be longer | No |
+| Changes information content? | May change or remove it | No |
+| Frees context-window capacity? | Only when it actually reduces input tokens | No |
+| Reduces repeated prefill cost? | Possibly indirectly; include the cost of compression itself | A hit can reduce repeated computation; total charges depend on write and read rules |
+| Addresses noise? | May reduce noise or mistakenly remove evidence | No |
 
-这里最容易被误解的是：
+The most common misunderstanding is:
 
-> **Prompt Caching 通常不会让 Context Window 变大，缓存 Token 仍属于模型输入上下文。**
+> **Prompt caching generally does not enlarge the context window. Cached tokens still belong to the model's input context.**
 
-即使缓存命中，模型仍然“看到”相同内容，只是服务端可能复用计算，从而降低成本或延迟。
+Even with a cache hit, the model still “sees” the same content. The server may simply reuse computation to reduce cost or latency.
 
-## 10.16 Prompt Caching 与压缩如何配合
+## 10.16 Combining Prompt Caching and Compression
 
 ```mermaid
 flowchart LR
@@ -776,65 +782,65 @@ flowchart LR
     CACHE --> MODEL[Model]
 ```
 
-实践里通常先做两步：
+In practice, start with two steps:
 
-1. 先决定哪些信息真正需要进入 Context；
-2. 再对其中稳定、重复的前缀使用 Prompt Caching。
+1. Decide which information actually needs to enter the context;
+2. Apply prompt caching to its stable, repeated prefixes.
 
-例如：
+For example:
 
-- System Instructions 和 Tool Definitions：适合缓存；
-- 当前任务状态：需要压缩和动态更新；
-- 旧对话：需要摘要或过滤；
-- 大型 Artifact：需要外部化和按需检索。
+- System instructions and tool definitions are good caching candidates;
+- Current task state needs compression and dynamic updates;
+- Old conversations need summarization or filtering;
+- Large artifacts need externalization and on-demand retrieval.
 
-不要只比较“本轮输入少了多少”。如果摘要花费超过后续调用节省的费用，或频繁重写摘要使稳定前缀失效，总成本反而可能上升。可以先测一次压缩的成本，再看剩余任务预计会复用多少轮；任务快结束时，简单裁剪往往更值得作为对照。
+Do not compare only “how much smaller this turn's input became.” Total cost may rise if summarization costs more than it saves on later calls, or if frequent summary rewrites invalidate stable prefixes. Measure the cost of one compression pass, then estimate how many remaining turns will reuse it. Near the end of a task, simple trimming is often a more useful baseline.
 
-## 10.17 Prompt Caching 的限制
+## 10.17 Limitations of Prompt Caching
 
-- 对这里讨论的前缀缓存，要求可复用前缀精确匹配，而不是语义相似或“高度一致”；
-- 缓存有生命周期；
-- 不同模型或配置可能不能共享；
-- 动态内容放在前缀中会降低命中率；
-- 不能消除 Context 中的错误和噪音；
-- 不能替代权限过滤；
-- 不能替代长期记忆；
-- 具体费用和缓存规则由模型服务商决定。
+- The prefix caching discussed here requires an exact match of the reusable prefix, not semantic similarity or “high consistency”;
+- Cache entries have a lifetime;
+- Different models or configurations may not share cache entries;
+- Dynamic content in the prefix reduces hit rates;
+- Caching does not remove errors or noise from context;
+- It does not replace authorization filtering;
+- It does not replace long-term memory;
+- The model provider defines the actual pricing and caching rules.
 
-Prompt 设计时通常将稳定内容放在前面，动态内容放在后面，以提高缓存复用。
+Prompt designs usually place stable content first and dynamic content later to improve cache reuse.
 
-[OpenAI 官方文档](https://developers.openai.com/api/docs/guides/prompt-caching)说明，需匹配实际渲染的前缀；模型、工具 Schema、顺序及相关设置变化都可能改变可复用部分。缓存最低长度、断点方式、写入费用和保留时间依模型与服务版本而异，不能把某个型号的数字推广为统一规则。
+The [official OpenAI documentation](https://developers.openai.com/api/docs/guides/prompt-caching) explains that the actual rendered prefix must match. Changes to the model, tool schemas, ordering, or relevant settings can change the reusable portion. Minimum cacheable lengths, breakpoint mechanisms, write charges, and retention periods vary by model and service version. Numbers for one model must not be generalized into universal rules.
 
-频繁改写前面的摘要可能使后续缓存失效，压缩调用自身也有成本。对照总账单和首 Token 延迟，分别测量冷缓存、热缓存及压缩后的请求；不要为了缓存命中继续发送失效权限或过期敏感数据。
+Frequent rewrites of an early summary can invalidate the cache for later content, and compression calls themselves cost money. Compare total bills and time to first token, measuring cold-cache, warm-cache, and post-compression requests separately. Do not keep sending revoked permissions or expired sensitive data merely to preserve cache hits.
 
-## 10.18 KV Cache 与 Prompt Caching
+## 10.18 KV Cache and Prompt Caching
 
-KV Cache 是 Transformer 推理中缓存 Attention Key/Value 状态的底层机制。
+A KV cache is the underlying mechanism that caches attention key/value state during Transformer inference.
 
-Prompt Caching 是模型服务对应用暴露的跨请求复用能力，底层可能利用 KV 或其他缓存实现。
+Prompt caching is the cross-request reuse capability a model service exposes to applications. Its implementation may use KV state or other caches.
 
-| KV Cache | Prompt Caching |
+| KV cache | Prompt caching |
 |---|---|
-| 模型推理内部机制 | 服务或 API 产品能力 |
-| 常用于一次生成过程 | 通常跨请求复用前缀 |
-| 开发者未必直接控制 | 开发者可以通过 Prompt 结构优化命中 |
+| Internal model-inference mechanism | Service or API product capability |
+| Commonly used within one generation | Usually reuses prefixes across requests |
+| Developers may not control it directly | Developers can improve hit rates through prompt structure |
 
-两者都属于计算优化，不属于语义记忆压缩。
+Both are computational optimizations, not semantic memory compression.
 
-但 KV Cache 的量化、淘汰、卸载又是另一组推理系统技术，它们可能改变精度、显存与延迟，并不等价于生成可审计摘要。应用若只使用托管 API，不应假定能操作这些底层状态。
+KV-cache quantization, eviction, and offloading are another set of inference-system techniques. They may affect accuracy, GPU memory use, and latency, but are not equivalent to producing an auditable summary. An application using only a hosted API should not assume that it can manipulate these underlying states.
 
-### 10.18.1 服务端 Compaction 也不等于 Prompt Cache
+### 10.18.1 Server-Side Compaction Is Not a Prompt Cache Either
 
-[OpenAI Responses 的 Compaction](https://developers.openai.com/api/docs/guides/compaction)会产生不透明的加密 compaction item，供后续请求继续使用。这是缩减后续 Context 的服务能力，不是仅复用前缀计算，也不能假定其内部就是可读的自然语言摘要。
+[Compaction in OpenAI Responses](https://developers.openai.com/api/docs/guides/compaction) produces an opaque, encrypted compaction item for subsequent requests. This service capability reduces later context rather than merely reusing prefix computation. Nor should its internal representation be assumed to be a readable natural-language summary.
 
-要区分两条接口路径：
+Distinguish two API paths:
 
-- **显式调用 `/responses/compact`**：提交的窗口必须仍能装入所用模型。返回值是新的完整压缩窗口，除了 compaction item，还可能保留其他消息；应整体作为后续请求的基础，不能只取出加密 item 就丢弃其余输出。
-- **在 `/responses` 中启用服务端自动压缩**：由服务端按配置阈值触发。无状态数组续接和 `previous_response_id` 续接有不同的历史传递规则，不能混用手工裁剪逻辑。
+- **Explicit calls to `/responses/compact`**: The submitted window must still fit within the chosen model's window. The response is a complete new compacted window. It may retain other messages in addition to the compaction item. Use the entire returned window as the basis for later requests, rather than extracting only the encrypted item and discarding the rest.
+- **Server-side automatic compaction enabled in `/responses`**: The server triggers compaction at a configured threshold. Stateless input-array chaining and continuation through `previous_response_id` have different rules for passing history. Do not mix their manual-trimming logic.
 
-应用不应解析或改写加密 item；模型支持范围及服务端状态保留选项需查对应接口文档。这两种方式都不能替代应用自己的任务状态、事实来源、权限及删除管理，也不能当成跨供应商可移植的审计记录。
+Applications should not parse or rewrite the encrypted item. Consult the documentation for the relevant endpoint to check model support and server-side state-retention options. Neither path replaces the application's own task state, factual sources, authorization, or deletion management. Neither is a portable, cross-provider audit record.
 
-## 10.19 压缩质量怎么评估
+## 10.19 Evaluating Compression Quality
 
 ### 10.19.1 Compression Ratio
 
@@ -842,160 +848,160 @@ $$
 CR=1-\frac{L_{after}}{L_{before}}
 $$
 
-这里将 `CR` 定义为 Token 减少率，要求 `L_before` 为正；若摘要或 JSON 比原文更长，`CR` 会为负，不能把它报告成节省。其他资料可能将压缩比定义为 `L_before / L_after`，报告时必须注明口径。
+Here, `CR` is defined as the token reduction rate, with `L_before` required to be positive. If a summary or JSON representation is longer than the original, `CR` is negative and must not be reported as a saving. Other sources may define compression ratio as `L_before / L_after`; always state the definition used.
 
-计数应使用同一 tokenizer、相同内容边界。这个指标只描述当前上下文缩短了多少；若要声称端到端节省，还必须计入摘要生成、外部化后重新读取和额外模型调用的费用。
+Use the same tokenizer and content boundaries for both counts. This metric describes only how much the current context shrank. Claims of end-to-end savings must also include summary generation, rereading externalized material, and additional model calls.
 
-压缩比例高不代表质量高。如果关键约束被删除，再短也没有价值。
+A high compression ratio does not imply high quality. If key constraints are lost, even a very short result has no value.
 
 ### 10.19.2 Constraint Retention
 
-检查：
+Check whether the compressed context still retains:
 
-- 用户目标；
-- 安全规则；
-- 验收条件；
-- 未解决问题；
-- 关键数字和实体；
+- User goals;
+- Safety rules;
+- Acceptance criteria;
+- Unresolved issues;
+- Key numbers and entities.
 
-是否仍然保留。
+All of these need to survive compression.
 
 ### 10.19.3 State Accuracy
 
-压缩后的状态是否准确反映：
+Does the compressed state accurately reflect:
 
-- 已完成步骤；
-- 当前步骤；
-- 待执行步骤；
-- 错误和重试；
-- Artifact。
+- Completed steps;
+- The current step;
+- Pending steps;
+- Errors and retries;
+- Artifacts?
 
 ### 10.19.4 Task Success
 
-比较压缩前后：
+Compare before and after compression:
 
-- 任务成功率；
-- Tool 选择正确率；
-- 重复调用；
-- 幻觉率；
-- 成本和延迟。
+- Task success rate;
+- Correct tool-selection rate;
+- Repeated calls;
+- Hallucination rate;
+- Cost and latency.
 
 ### 10.19.5 Recoverability
 
-Agent 能否从压缩后的 Context 和外部 State：
+Can the agent use the compressed context and external state to:
 
-- 恢复任务；
-- 解释已完成内容；
-- 找到原始证据；
-- 继续下一步。
+- Resume the task;
+- Explain what has been completed;
+- Find original evidence;
+- Continue to the next step?
 
-## 10.20 压缩测试方法
+## 10.20 Testing Compression
 
 ### 10.20.1 Needle Test
 
-在长历史中放入关键约束，检查压缩后是否保留并正确使用。
+Place a key constraint in a long history and check whether it survives compression and is used correctly.
 
-单个 needle 测试不足以证明长程推理能力，还要覆盖多个相关证据、干扰项、时间更新、否定和没有答案的情况。
+A single needle test does not establish long-range reasoning ability. Also cover multiple related pieces of evidence, distractors, temporal updates, negation, and cases with no answer.
 
 ### 10.20.2 Replay Test
 
-从 Checkpoint 和压缩 Context 恢复 Agent，观察能否继续任务。
+Restore an agent from a checkpoint and compressed context, then observe whether it can continue the task.
 
-分别在“工具执行前”“执行后但状态落盘前”“摘要生成中”中断；断言不会重复副作用、不会把未知结果改为成功、不会读取已撤销权限的 Artifact。恢复正确性应检查实际状态，不只检查回答文本。
+Interrupt separately “before tool execution,” “after execution but before state is persisted,” and “during summary generation.” Assert that side effects are not repeated, unknown outcomes are not converted into successes, and artifacts with revoked access are not read. Recovery correctness must be checked against actual state, not just the response text.
 
 ### 10.20.3 Differential Test
 
-使用完整历史和压缩历史分别执行相同任务，比较结果差异。
+Run the same task with full history and compressed history, then compare the results.
 
-完整历史必须能装入模型，并说明是否发生服务端裁剪；它是基线，不是正确答案。再加入无记忆、近期窗口、直接提供人工标注证据的对照，固定模型版本及任务分布，多次运行并报告波动。除了最终正确率，还统计约束保留、证据可追溯性和压缩造成的退化。
+The full history must fit within the model, and any server-side truncation must be disclosed. It is a baseline, not ground truth. Add comparisons with no memory, a recent window, and directly supplied human-annotated evidence. Fix the model version and task distribution, run multiple trials, and report variation. In addition to final accuracy, measure constraint retention, evidence traceability, and degradation caused by compression.
 
 ### 10.20.4 Adversarial Test
 
-测试：
+Test:
 
-- 早期安全约束；
-- 后期冲突指令；
-- 重复噪音；
-- 恶意 Prompt Injection；
-- 关键数字和否定关系。
+- Early safety constraints;
+- Later conflicting instructions;
+- Repeated noise;
+- Malicious prompt injection;
+- Key numbers and negation relationships.
 
-### 10.20.5 Long-horizon Test
+### 10.20.5 Long-Horizon Test
 
-让 Agent 执行几十或上百步，检查：
+Have the agent execute dozens or hundreds of steps, checking for:
 
-- Summary Drift；
-- 目标遗忘；
-- 状态错乱；
-- 重复动作；
-- Artifact 丢失。
+- Summary drift;
+- Forgotten goals;
+- Corrupted task state;
+- Repeated actions;
+- Lost artifacts.
 
-测试步数来自业务轨迹分布，不是可靠性的统一门槛。要记录累计压缩次数，检查远期信息是否逐轮丢失；总成本应包含摘要生成、写入索引、额外检索和恢复调用。
+The number of test steps should come from the distribution of business-task traces, not a universal reliability threshold. Record the cumulative number of compression passes and check whether older information disappears over successive rounds. Total cost should include summary generation, index writes, extra retrieval, and recovery calls.
 
-公开数据可以参考 [LoCoMo](https://github.com/snap-research/locomo) 的事件摘要与问答、[LongMemEval](https://github.com/xiaowu0162/LongMemEval) 的知识更新与弃答，以及 [LongMemEval-V2](https://github.com/xiaowu0162/LongMemEval-V2) 的轨迹经验检索。它们不直接验证你自己的 checkpoint、ACL 或副作用恢复；固定数据版本，按会话/轨迹分组统计，避免把相关问题当作独立用户样本。
+For public datasets, consider [LoCoMo](https://github.com/snap-research/locomo) for event summarization and question answering, [LongMemEval](https://github.com/xiaowu0162/LongMemEval) for knowledge updates and abstention, and [LongMemEval-V2](https://github.com/xiaowu0162/LongMemEval-V2) for retrieving experience from trajectories. They do not directly validate your own checkpoints, ACLs, or side-effect recovery. Pin dataset versions and group statistics by conversation or trajectory rather than treating related questions as independent user samples.
 
-## 10.21 常见反模式
+## 10.21 Common Antipatterns
 
-### 10.21.1 只保留最近 N 轮
+### 10.21.1 Keeping Only the Last N Turns
 
-可能删除最初目标和安全约束。
+This may remove the initial goal and safety constraints.
 
-### 10.21.2 每轮都重写一个总摘要
+### 10.21.2 Rewriting One Overall Summary Every Turn
 
-容易产生累积失真。
+This invites cumulative distortion.
 
-### 10.21.3 让模型自由判断什么都可以删
+### 10.21.3 Letting the Model Freely Decide That Anything Can Be Removed
 
-缺少 Hard Rules 和结构化状态保护。
+This lacks hard rules and protection for structured state.
 
-### 10.21.4 把代码和错误日志全部摘要
+### 10.21.4 Summarizing All Code and Error Logs
 
-可能丢失精确行号、错误码和调用栈。应外部化并保留引用。
+This can lose exact line numbers, error codes, and stack traces. Externalize them and retain references instead.
 
-### 10.21.5 压缩后删除所有原始数据
+### 10.21.5 Deleting All Original Data After Compression
 
-如果后续仍需精确取证，却只留下有损摘要，就无法审计、验证或重新生成。但这不是无限保留原文的理由；应按合法用途设定保留期，到期后清理原文及派生数据，并明确哪些恢复能力随之结束。
+If precise evidence is still needed later, retaining only a lossy summary makes auditing, verification, and regeneration impossible. That is not a reason to retain originals forever, however. Set retention periods according to legitimate purposes, delete originals and derived data when they expire, and make clear which recovery capabilities end with them.
 
-### 10.21.6 把 Prompt Caching 当作扩展窗口
+### 10.21.6 Treating Prompt Caching as a Larger Window
 
-缓存不减少输入长度，也不会消除信息噪音。
+Caching neither reduces input length nor removes information noise.
 
-### 10.21.7 只追求最高 Compression Ratio
+### 10.21.7 Pursuing Only the Highest Compression Ratio
 
-会鼓励系统删除真正有价值的信息。
+This encourages the system to delete genuinely valuable information.
 
-### 10.21.8 摘要把「未验证的结论」写成「已确认的事实」
+### 10.21.8 Turning “Unverified Conclusions” into “Confirmed Facts”
 
-这种失效容易在多轮任务中传播，尤其会影响下一步操作判断。
+This failure can propagate easily in multi-turn tasks, especially when deciding the next action.
 
-典型场景：某个命令因超时或被中断而只输出了部分结果，摘要却把它记录为「已执行成功，结果为 X」。如果后续没有独立验证，这条虚假的确定性就可能传播到后面的计划和操作。
+A typical case: a command times out or is interrupted after producing only partial output, but the summary records “Executed successfully; result is X.” Without independent verification later, this false certainty can spread into subsequent plans and operations.
 
-缓解方式有三条：
+Three mitigations are:
 
-1. 分开保留执行状态（`pending` / `succeeded` / `failed` / `unknown`）与结论验证状态（`verified` / `unverified`），而不是只记结论；
-2. 保留工具调用的退出码与截断标记，不要在摘要阶段丢弃；
-3. 对关键结论保留原始引用（日志位置、文件路径），使其可被重新核对。
+1. Retain execution status (`pending` / `succeeded` / `failed` / `unknown`) separately from conclusion-verification status (`verified` / `unverified`), rather than recording only the conclusion;
+2. Preserve tool-call exit codes and truncation flags instead of dropping them during summarization;
+3. Retain original references for important conclusions—log locations and file paths—so they can be checked again.
 
-### 10.21.9 只依赖上下文内的摘要链承载长期决策
+### 10.21.9 Relying Only on In-Context Summary Chains for Long-Term Decisions
 
-多轮压缩会累积信息损耗，早期的关键决策与约束在若干轮压缩后可能彻底消失，形成难以追溯的「历史债」。
+Repeated compression accumulates information loss. Important early decisions and constraints may vanish completely after several passes, creating “historical debt” that is difficult to trace.
 
-可将重要决策同时写入外部文件或结构化状态（即 10.9 节的 Externalization），并保存来源、版本和适用范围。外部保存不代表模型自动能读到它，还需有稳定加载入口和读回校验；决策变化时同步失效旧记录，不能让旧文件一直充当有效约束。
+Also write important decisions to external files or structured state—the externalization described in Section 10.9—and retain their sources, versions, and scope. External storage does not mean the model can automatically read the information. A stable loading entry point and read-back validation are still required. When decisions change, invalidate old records as well rather than allowing an old file to remain an active constraint indefinitely.
 
-## 10.22 推荐的生产级压缩管道
+## 10.22 A Recommended Production Compression Pipeline
 
 ```mermaid
 flowchart TB
     INPUT[Messages + Tool Results + State] --> CLASS[Classify]
 
-    CLASS --> PIN[当前有效的 Pinned Constraints]
-    CLASS --> STATE[经执行证据核对的 Structured State]
+    CLASS --> PIN[Currently Valid Pinned Constraints]
+    CLASS --> STATE[Structured State Checked Against Execution Evidence]
     CLASS --> LARGE[Large Artifacts]
     CLASS --> HISTORY[Historical Messages]
 
     LARGE --> EXT[Externalize + Reference]
-    HISTORY --> SPLIT[按完整交互与阶段分组]
-    SPLIT --> RECENT[近期完整交互]
-    SPLIT --> DEDUP[较早历史去重]
+    HISTORY --> SPLIT[Group by Complete Interactions and Stages]
+    SPLIT --> RECENT[Recent Complete Interactions]
+    SPLIT --> DEDUP[Deduplicate Older History]
     DEDUP --> IMP[Importance Filter]
     IMP --> SUM[Hierarchical Summary]
 
@@ -1004,7 +1010,7 @@ flowchart TB
     EXT --> PACK
     SUM --> PACK
     RECENT --> PACK
-    RET[经权限与版本复核的 Long-term Memory] --> PACK
+    RET[Long-term Memory with Permissions and Versions Rechecked] --> PACK
 
     PACK --> CACHE[Prompt Cache Stable Prefix]
     CACHE --> MODEL[Model]
@@ -1013,60 +1019,60 @@ flowchart TB
     OBS --> INPUT
 ```
 
-可按任务需要选择以下组合；短任务不一定需要摘要和分层存储：
+Choose combinations from the following according to the task. Short tasks do not necessarily need summaries or hierarchical storage:
 
-1. 保留当前有效的系统、安全、目标和成功标准，并随权限和目标变化更新；
-2. 将任务状态抽取为结构化数据，并用执行证据核对；
-3. 大型 Tool Result 立即外部化；
-4. 对历史做去重和重要性过滤；
-5. 已完成阶段使用分层摘要；
-6. 保留最近交互窗口；
-7. 长期记忆按当前任务检索；
-8. 按 Token Budget 组装 Context；
-9. 对稳定前缀使用 Prompt Caching；
-10. 在授权与保留期限内保留原始来源，验证引用可读和恢复路径可用。
+1. Retain currently valid system instructions, safety rules, goals, and success criteria, updating them as permissions and goals change;
+2. Extract task state into structured data and check it against execution evidence;
+3. Externalize large tool results immediately;
+4. Deduplicate history and apply importance filtering;
+5. Use hierarchical summaries for completed stages;
+6. Keep a recent interaction window;
+7. Retrieve long-term memory for the current task;
+8. Assemble context within the token budget;
+9. Use prompt caching for stable prefixes;
+10. Retain original sources within authorization and retention limits, and verify that references remain readable and recovery paths work.
 
-## 10.23 方法选择表
+## 10.23 Method Selection
 
-| 问题 | 推荐方法 |
+| Problem | Recommended method |
 |---|---|
-| 最近对话最重要 | Sliding Window |
-| 需要保留早期整体语义 | Summarization |
-| 关键内容分散在整个历史 | Importance Filtering |
-| 需要精确状态和事实 | Structured Extraction |
-| 存在大量重复信息 | Deduplication |
-| Tool Result 或文档太大 | Externalization |
-| 任务跨多个阶段 | Hierarchical Memory |
-| 状态频繁变化 | Delta + Snapshot |
-| 重复使用稳定 Prompt 前缀 | Prompt Caching |
+| Recent conversation matters most | Sliding window |
+| The overall meaning of earlier history must survive | Summarization |
+| Key content is scattered throughout the history | Importance filtering |
+| Precise state and facts are needed | Structured extraction |
+| Information contains substantial repetition | Deduplication |
+| Tool results or documents are too large | Externalization |
+| A task spans multiple stages | Hierarchical memory |
+| State changes frequently | Delta + snapshot |
+| A stable prompt prefix is reused | Prompt caching |
 
-## 10.24 本章总结
+## 10.24 Chapter Summary
 
-四种基础压缩方法解决不同维度：
+The four basic compression methods address different dimensions:
 
-1. **Sliding Window**：按时间截断历史；
-2. **Summarization**：在截断前提炼语义；
-3. **Importance Filtering**：打破时间顺序，按价值选择；
-4. **Structured Extraction**：提取候选状态并核对证据；Schema 合法不保证事实正确，也不保证 Token 更少。
+1. **Sliding window**: Trim history by time;
+2. **Summarization**: Distill meaning before trimming;
+3. **Importance filtering**: Select by value rather than chronology;
+4. **Structured extraction**: Extract candidate state and check the evidence. Schema validity guarantees neither factual correctness nor fewer tokens.
 
-现代系统通常还会结合：
+Modern systems often also combine:
 
-- Deduplication；
-- Artifact Externalization；
-- Hierarchical Memory；
-- Delta 与 Snapshot；
-- Retrieval；
-- Token Budget Packing。
+- Deduplication;
+- Artifact externalization;
+- Hierarchical memory;
+- Deltas and snapshots;
+- Retrieval;
+- Token-budget packing.
 
-Prompt Caching 与这些方法位于不同层次：
+Prompt caching operates at a different layer:
 
-> **记忆压缩决定带什么信息，Prompt Caching 决定重复信息如何减少计算。**
+> **Memory compression decides what information to carry; prompt caching decides how to reduce computation for repeated information.**
 
-两者互补，但 Prompt Caching 不会释放 Context Window，也不能替代摘要、过滤和结构化抽取。
+They complement each other, but prompt caching does not free context-window capacity or replace summarization, filtering, and structured extraction.
 
-压缩后至少核对一次目标、未决状态、关键证据和引用可读性。若这些无法恢复，应回到原始记录或明确报告信息不足，而不是把流畅的摘要当作完整历史。
+After compression, check the goal, unresolved state, key evidence, and readability of references at least once. If these cannot be recovered, return to original records or explicitly report insufficient information rather than treating a fluent summary as a complete history.
 
-## 参考资料
+## References
 
 - [MemGPT: Towards LLMs as Operating Systems](https://arxiv.org/abs/2310.08560)
 - [Anthropic: Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
@@ -1076,8 +1082,8 @@ Prompt Caching 与这些方法位于不同层次：
 - [OpenAI Prompt Caching](https://developers.openai.com/api/docs/guides/prompt-caching)
 - [OpenAI Compaction](https://developers.openai.com/api/docs/guides/compaction)
 - [LangGraph Memory](https://docs.langchain.com/oss/python/langgraph/add-memory)
-- [LoCoMo 官方发布说明快照 9228632](https://github.com/snap-research/locomo/blob/92286325a40764bee61f77824ddb95233b11c4d6/README.md)（ACL 2024 的 `locomo10.json`）
-- [LongMemEval 官方说明快照 9e0b455](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/README.md)（区分原始版与 2025 年 9 月清洗版）
-- [LongMemEval-V2 官方说明快照 2cc8c54](https://github.com/xiaowu0162/LongMemEval-V2/blob/2cc8c540bdb87fe6761629b585e727e1c4704520/README.md)
+- [LoCoMo official release notes, snapshot 9228632](https://github.com/snap-research/locomo/blob/92286325a40764bee61f77824ddb95233b11c4d6/README.MD) (ACL 2024 release; this snapshot distributes per-conversation JSON files in `data/locomo10.zip`, rather than a single `locomo10.json`)
+- [LongMemEval official documentation, snapshot 9e0b455](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/README.md) (distinguishes the original release from the September 2025 cleaned release)
+- [LongMemEval-V2 official documentation, snapshot 2cc8c54](https://github.com/xiaowu0162/LongMemEval-V2/blob/2cc8c540bdb87fe6761629b585e727e1c4704520/README.md)
 
-资料核对：2026-09-15。OpenAI 缓存与 Compaction 引用的是 Responses API 滚动文档，不承诺跨模型或跨版本相同的价格、阈值与历史传递规则；本次未实测服务端接口。Anthropic 缓存条目保留为补充阅读，未据此新增具体参数结论。
+Source review recorded in the original manuscript: 2026-09-15. The OpenAI caching and compaction references are rolling Responses API documentation and do not promise identical pricing, thresholds, or history-passing rules across models or versions. The server-side APIs were not tested in that review. The Anthropic caching entry remains supplementary reading; it was not used to add conclusions about specific parameters.
