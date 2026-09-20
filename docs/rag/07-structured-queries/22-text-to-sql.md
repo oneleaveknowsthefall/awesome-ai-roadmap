@@ -184,7 +184,9 @@ The exact result is below. The application may convert fen to yuan for display w
 | C1 | 2 | 10 | 7000 |
 | C2 | 1 | 2 | 4000 |
 
-On first reviewing the draft, Lin notices that `COUNT(*)` immediately after the join would count O101 as two orders. `SUM(o.total_amount_cents)` would also count its 10000 fen twice. `SUM(DISTINCT amount)` is not a general remedy: O102 and O106 each have a contract value of 4000 fen, so deduplicating their amounts would turn 8000 fen into 4000 fen. Establish the row granularity first rather than adding `DISTINCT` whenever a number looks too large.
+On first reviewing the draft, Lin notices that `COUNT(*)` immediately after the join would count O101 as two orders. `SUM(o.total_amount_cents)` would also count its 10000 fen twice.
+
+`SUM(DISTINCT amount)` is not a general remedy: if O102 and O106 were summed across customers in one aggregate, their equal contract values of 4000 fen would turn an 8000-fen total into 4000 fen. They belong to different customers, so this does not happen between their separate groups in the query above; aggregate `DISTINCT` removes duplicates within each group. A regression case for that query should include two distinct orders with equal unshipped totals for the same customer. Establish the row granularity first rather than adding `DISTINCT` whenever a number looks too large.
 
 This request displays only customers with unshipped quantities, so customers with none have no result row. To list every authorized customer, including those with zero outstanding shipments, start from the authorized customer set, left-join the aggregates, and fill in zeros according to the business definition. [SQLite's `SUM`](https://www.sqlite.org/lang_aggfunc.html) returns `NULL` when there are no non-null inputs. An empty result, unknown data, and zero must not be treated as the same thing.
 

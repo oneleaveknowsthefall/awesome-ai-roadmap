@@ -88,7 +88,7 @@ Some instances in the original dataset had underspecified issue descriptions or 
 
 ### 14.3.2 Web and Retrieval
 
-**WebArena** provides reproducible, self-hosted website environments, including e-commerce, forums, and code hosting. Tasks are judged with programmatic state assertions, not by what the model says.
+**WebArena** provides reproducible, self-hosted website environments, including e-commerce, forums, and code hosting. Its [official evaluators](https://github.com/web-arena-x/webarena/blob/73d9de71c25af3f5037c722ede9cabe25a8c77c2/evaluation_harness/evaluators.py) check answers, URLs, or page content according to the task. Information-seeking tasks can use exact answer matching, required phrases, or model-based fuzzy matching. An answer is a legitimate task output to grade; an agent merely saying “I completed the action” is not evidence that the required website state changed.
 
 **BrowseComp** takes a different approach: answers are short and easy to verify, but finding them requires **deep, multi-hop web retrieval**. It specifically measures the ability to keep searching and cross-check information.
 
@@ -117,7 +117,7 @@ Some instances in the original dataset had underspecified issue descriptions or 
 | SWE-bench | Code repair | Unit tests | Repository navigation + code modification |
 | SWE-Lancer | Software tasks | Tests for implementation tasks; proposal selection for managerial tasks; payment amounts provide value weighting | Software delivery and implementation judgment |
 | Terminal-Bench | Terminal operations | State assertions | Command-line and system skills |
-| WebArena | Web operations | State assertions | Multistep web interaction |
+| WebArena | Web operations | Answer, URL, or page-content checks, depending on the task | Multistep web interaction |
 | BrowseComp | Deep retrieval | Grading against short reference answers; the official implementation uses a model judge | Finding hard-to-retrieve information and verifying evidence |
 | OSWorld | Desktop GUIs | File/system state | Long-horizon operations across applications |
 | tau-bench | Customer-support conversations | Primarily final database-state comparison | Tools + clarification + handling requests under policy constraints |

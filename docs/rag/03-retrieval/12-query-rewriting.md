@@ -100,10 +100,10 @@ The cost is an additional generation call. Its latency depends on the model, gen
 
 Step-back questioning first **abstracts a specific question into a broader one**, retrieves background knowledge, and then returns to the original question.
 
-“XX 型号电池在零下 20 度的续航衰减多少”
+“XX 型号电池在零下 20 摄氏度的续航衰减多少”
 → First ask “锂电池在低温下的性能特性是什么”
 
-In English: “How much does the battery runtime of model XX decline at −20 degrees?” → “How do lithium batteries perform at low temperatures?”
+In English: “How much does the battery runtime of model XX decline at −20 °C?” → “How do lithium batteries perform at low temperatures?” This example explicitly uses Celsius; if a user gives only “degrees” and the scale is not established by context, clarify it rather than guessing during rewriting.
 
 General principles can explain contributing factors, but “cold affects lithium batteries” cannot establish the exact decline for a particular model. A numerical answer still requires data for the relevant model, temperature, and test conditions. Without that data, explain that the value cannot be determined rather than presenting a general principle as a product-specific fact.
 

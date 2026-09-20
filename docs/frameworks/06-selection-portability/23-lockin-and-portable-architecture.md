@@ -87,17 +87,19 @@ Combining frameworks is an option, not an inevitable answer to complexity. If on
 If an existing system is deeply tied to one framework, a wholesale rewrite is a risky way to reduce lock-in or switch frameworks. A safer approach draws on established system-migration patterns:
 
 1. **Write contract tests first.** Before migrating code, capture the existing system's input/output behavior in framework-independent tests, reusing the evaluation dataset described in Section 23.2. Make behavior before and after migration comparable.
-2. **Use the Strangler Fig pattern.** Rather than switching the entire system at once, route a small share of new traffic to equivalent functionality implemented in the new framework while the old implementation handles the rest. Increase that share gradually instead of scheduling a big-bang cutover.
+2. **Replace one business capability at a time with the Strangler Fig pattern.** Identify a boundary where a routing facade or adapter can direct that capability to the new implementation; leave unmigrated capabilities on the old system. Repeat until the old dependencies can be retired. This is incremental functional replacement, not merely a traffic-percentage change. Each migrated capability can also use a **canary release** to increase its new implementation's traffic gradually.
 3. **Align observability while both implementations run.** Compare quality, cost, latency, and errors using the same data, model configuration, and metrics. Shadow runs should default to read-only operations, recorded replay, or simulated tools; the old and new implementations must not both send emails, charge accounts, or create orders.
 4. **Design state migration separately.** Distinguish completed history, active tasks, and externally hosted sessions. Active tasks can often finish on the old runtime. If they must move, re-enter from confirmed business state and check approvals, idempotency keys, and pending events. A format-conversion script alone does not make migration safe.
 
 ```mermaid
-flowchart LR
+flowchart TB
     A["Old implementation<br/>Handles all traffic"] --> B["Capture the behavior baseline<br/>in contract tests"]
-    B --> C["New implementation<br/>Handles a small traffic share"]
-    C --> D["Compare both implementations<br/>using the same evaluation criteria"]
-    D --> E["Gradually increase the new traffic share"]
-    E --> F["Drain or migrate active tasks under control<br/>Retire the old system only after<br/>rollback conditions are satisfied"]
+    B --> C["Implement one capability<br/>behind a facade or adapter"]
+    C --> D["Validate and release that capability<br/>Use canary traffic if appropriate"]
+    D --> E["Route the accepted capability to the new system<br/>Keep unmigrated capabilities on the old system"]
+    E --> G{"More capabilities to migrate?"}
+    G -->|Yes| C
+    G -->|No| F["Drain or migrate active tasks under control<br/>Retire old dependencies only when<br/>acceptance and rollback conditions are satisfied"]
 ```
 
 ## 23.5 Common mistakes
@@ -134,7 +136,7 @@ If asked, "Does exposing every tool through MCP eliminate lock-in?", distinguish
 1. **Common technical lock-in falls into three groups**: state formats, orchestration contracts, and operational assets. Include service dependencies and the team's migration costs as well.
 2. **Portable architecture separates the business core—tool definitions and evaluation criteria—from framework details such as the orchestration engine.** Adapters isolate framework-specific code, but the investment should be proportionate to the system's expected lifetime; not every project needs it.
 3. **Filter by business constraints, then verify maintenance status and actual runtime behavior.** Combining frameworks also needs a clear additional benefit.
-4. **Contract tests should precede migration.** Use staged Strangler Fig migration when traffic can be split, or a controlled downtime-based cutover for small systems. Historical state and rollback still need separate designs.
+4. **Contract tests should precede migration.** Strangler Fig replaces business capabilities incrementally; canary releases can control traffic within each migrated capability. A small system may instead use a controlled downtime-based cutover. Historical state and rollback still need separate designs.
 5. **Selection ultimately returns to the same engineering dimensions.** Decide from state models, persistence granularity, tool-contract portability, evaluation, and observability—together with project lifetime and team constraints—not framework names and feature lists.
 
 > Long-term portability depends on managing assets separately: keep tool definitions, evaluation criteria, and business rules independent, and prefer staged migration to a big-bang rewrite. That makes switching frameworks a controllable engineering task.
@@ -149,4 +151,5 @@ If asked, "Does exposing every tool through MCP eliminate lock-in?", distinguish
 - [PydanticAI: Durable Execution](https://pydantic.dev/docs/ai/capabilities/durable_execution/overview/)
 - [OpenTelemetry Generative AI semantic-conventions repository](https://github.com/open-telemetry/semantic-conventions-genai)
 - [Martin Fowler: StranglerFigApplication](https://martinfowler.com/bliki/StranglerFigApplication.html)
+- [Martin Fowler: CanaryRelease](https://martinfowler.com/bliki/CanaryRelease.html)
 - [Alistair Cockburn: Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/)

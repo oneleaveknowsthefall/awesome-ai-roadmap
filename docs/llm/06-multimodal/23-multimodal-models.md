@@ -85,7 +85,9 @@ Training objectives can be grouped as follows, without implying that every model
 2. **Generative pretraining**: predict text, discrete modality tokens, or cross-modal targets.
 3. **Multimodal instruction tuning and preference alignment**: use appropriate data to learn question following, evidence citation, or refusal; adding a modality does not automatically confer these behaviors.
 
-Specify which parameters are updated at each stage. Original LLaVA first freezes the vision encoder and LLM and trains the projection layer for feature alignment. Its instruction stage trains the projection and LLM while keeping the vision encoder frozen. BLIP-2 pretraining instead uses a Q-Former with frozen models at both ends. Freezing backbones saves training resources and preserves existing capabilities, but a connector alone may not overcome domain differences. Unfreezing more parameters increases adaptation capacity while also increasing resource usage, overfitting, and forgetting risks.
+Specify which parameters are updated at each stage. Original LLaVA first freezes the vision encoder and LLM and trains the projection layer for feature alignment. Its instruction stage trains the projection and LLM while keeping the vision encoder frozen. BLIP-2 pretraining instead uses a Q-Former with frozen models at both ends.
+
+Freezing backbones saves training resources and leaves their pretrained parameters unchanged. It can reduce forgetting, but trainable connectors or inserted branches still change the combined system's behavior, so retention of existing capabilities needs evaluation. A connector alone may also be insufficient to overcome domain differences. Unfreezing more parameters increases adaptation capacity while also increasing resource usage, overfitting, and forgetting risks.
 
 Record training-data sources, licenses, languages, sampling methods, and annotation processes. Mismatched image–text pairs, ASR noise, misaligned video timing, and synthetic-data biases can teach incorrect associations. A model that uses only language priors in the question and ignores the image may still score well on a biased dataset.
 
