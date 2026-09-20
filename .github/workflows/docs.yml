@@ -9,8 +9,8 @@ on:
       - "book/**"
       - "overrides/**"
       - "scripts/**"
-      - "README.md"
-      - "CONTRIBUTING.md"
+      - "README*.md"
+      - "CONTRIBUTING*.md"
       - "package.json"
       - "package-lock.json"
       - "mkdocs.yml"
@@ -22,8 +22,8 @@ on:
       - "book/**"
       - "overrides/**"
       - "scripts/**"
-      - "README.md"
-      - "CONTRIBUTING.md"
+      - "README*.md"
+      - "CONTRIBUTING*.md"
       - "package.json"
       - "package-lock.json"
       - "mkdocs.yml"
@@ -68,17 +68,24 @@ jobs:
       - name: Check chapters and manuscript
         run: |
           python scripts/check_docs.py
+          python scripts/localize_zh_links.py
+          python scripts/check_translations.py
           npm run check:mermaid
-          python -m unittest discover -s scripts/tests -p 'test_*.py'
-          python scripts/build_book.py --check --check-index
-          python scripts/build_book.py
+          python -B -m unittest discover -s scripts/tests -p 'test_*.py'
+          python -B scripts/tests/bilingual_site_integration.py
+          python scripts/build_book.py --language en --check --check-index
+          python scripts/build_book.py --language zh-CN --check --check-index
+          python scripts/build_book.py --language en
+          python scripts/build_book.py --language zh-CN
           mkdocs build --strict
 
       - name: Attach review manuscript
         uses: actions/upload-artifact@v4
         with:
-          name: chinese-manuscript
-          path: book/zh-CN/generated/
+          name: bilingual-manuscript
+          path: |
+            book/en/generated/
+            book/zh-CN/generated/
           if-no-files-found: error
           retention-days: 14
 

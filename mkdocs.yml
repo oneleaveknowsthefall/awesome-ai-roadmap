@@ -1,5 +1,5 @@
 site_name: Awesome AI Roadmap
-site_description: 面向 AI 工程面试准备，梳理 LLM、多模态、Tools、Agent、RAG、框架、LLMOps、安全治理与 FDE 的原理和工程取舍
+site_description: AI engineering interview preparation covering LLMs, multimodal AI, tools, agents, RAG, frameworks, LLMOps, safety, and forward-deployed engineering.
 site_author: Polo Li
 site_url: https://zongyangbigpolo.github.io/awesome-ai-roadmap/
 repo_url: https://github.com/zongyangbigpolo/awesome-ai-roadmap
@@ -9,7 +9,7 @@ edit_uri: edit/main/docs/
 theme:
   name: material
   custom_dir: overrides
-  language: zh
+  language: en
   features:
     - content.code.copy
     - content.action.edit
@@ -29,24 +29,111 @@ theme:
       accent: indigo
       toggle:
         icon: material/brightness-7
-        name: 切换到深色模式
+        name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: indigo
       accent: indigo
       toggle:
         icon: material/brightness-4
-        name: 切换到浅色模式
+        name: Switch to light mode
 
 plugins:
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: false
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: en
+          name: English
+          default: true
+          build: true
+        - locale: zh
+          name: 简体中文
+          build: true
+          site_name: AI 工程学习路线
+          site_description: 面向 AI 工程面试准备，梳理 LLM、多模态、Tools、Agent、RAG、框架、LLMOps、安全治理与 FDE 的原理和工程取舍
+          theme:
+            palette:
+              - toggle:
+                  name: 切换到深色模式
+              - toggle:
+                  name: 切换到浅色模式
+          nav_translations:
+            Book: 书稿
+            About: 关于
+            LLM: LLM
+            Foundations: 基础原理
+            Training and alignment: 训练与对齐
+            Inference and serving: 推理与部署
+            Prompting and reliability: Prompt 与可靠性
+            Evaluation and selection: 评测与选型
+            Multimodal: 多模态
+            Multimodal AI: 多模态 AI
+            Foundations and architecture: 基础与架构
+            Vision and document intelligence: 视觉与文档智能
+            Speech and audio: 语音与音频
+            Multimodal generation: 多模态生成
+            Training, evaluation, and serving: 训练、评测与服务
+            Tools: 工具
+            Function Calling: Function Calling
+            MCP: MCP
+            Skills: Skills
+            Agent communication: Agent 通信
+            Transports and gateways: 传输与网关
+            Agents: Agent
+            Runtime and harness: Runtime 与 Harness
+            Reasoning, planning, and reflection: 推理、规划与反思
+            Memory and context: 记忆与上下文
+            Multi-agent systems: 多智能体系统
+            Evaluation and safety: 评估与安全
+            Coding agents: Coding Agent 工程
+            Agent post-training: Agent 后训练
+            RAG: RAG
+            Foundations and selection: 基础与选型
+            Ingestion and indexing: 摄取与索引
+            Online retrieval: 在线检索
+            Advanced and multimodal RAG: 高级与多模态
+            Generation and evaluation: 生成与评估
+            Operations and security: 运维与安全
+            Structured queries: 结构化查询
+            Frameworks and orchestration: 框架与编排
+            LangChain ecosystem: LangChain 生态
+            Core architecture: 基础架构
+            Building agents: Agent 构建
+            Ecosystem and evolution: 生态与演进
+            LangGraph: LangGraph
+            Production feedback loop: 生产闭环
+            LlamaIndex: LlamaIndex
+            DSPy: DSPy
+            Semantic Kernel: Semantic Kernel
+            Lightweight agent frameworks: 轻量级 Agent 框架
+            Selection and portability: 选型与可移植架构
+            AI Engineering: AI 工程
+            Foundations and production architecture: 基础与生产架构
+            Request reliability: 请求路径可靠性
+            Output quality and safety: 输出质量与安全
+            Evaluation and observability: 评测与可观测性
+            Versioning and releases: 版本管理与发布
+            Performance, cost, and operations: 性能、成本与运营
+            AI safety and governance: AI 安全与治理
+            Threat modeling: 威胁建模
+            Prompt and content attacks: 提示与内容层攻击
+            Data and model supply chains: 数据与模型供应链
+            Agents and execution environments: Agent 与执行环境
+            Evaluation, governance, and assurance: 评测、治理与保障
+            FDE: FDE
+            Foundations and delivery: 基础与交付方法
+            Field practice and lessons: 现场经验与踩坑
   - search:
       lang:
-        - zh
         - en
+        - zh
   - git-revision-date-localized:
       type: iso_date
       timezone: Asia/Shanghai
-      locale: zh
+      locale: en
       enable_creation_date: true
       enable_git_follow: false
       strict: true
@@ -119,285 +206,285 @@ extra:
       name: Awesome AI Roadmap on GitHub
 
 nav:
-  - 首页: README.md
-  - 中文书稿:
-      - 阅读目录: book/README.md
-      - 扉页: book/title-page.md
-      - 前言: book/preface.md
-      - 阅读说明: book/how-to-read.md
-      - 致谢: book/acknowledgments.md
-      - 书末说明: book/colophon.md
-  - 关于:
-      - 作者与项目: about.md
-      - 编辑、引用与纠错规范: editorial-policy.md
+  - README.md
+  - Book:
+      - book/README.md
+      - book/title-page.md
+      - book/preface.md
+      - book/how-to-read.md
+      - book/acknowledgments.md
+      - book/colophon.md
+  - About:
+      - about.md
+      - editorial-policy.md
   - LLM:
-      - 主题导览: llm/README.md
-      - 基础原理:
-          - 模块导览: llm/01-foundations/README.md
-          - 大语言模型与传统 NLP: llm/01-foundations/01-what-is-llm.md
-          - Transformer 架构: llm/01-foundations/02-transformer-architecture.md
-          - Attention 变体: llm/01-foundations/03-attention-variants.md
-          - 位置编码: llm/01-foundations/04-position-encoding.md
-          - Tokenizer: llm/01-foundations/05-tokenizer.md
-      - 训练与对齐:
-          - 模块导览: llm/02-training-alignment/README.md
-          - 三阶段训练流程: llm/02-training-alignment/06-llm-training.md
-          - Scaling Law 与涌现: llm/02-training-alignment/07-scaling-law-emergence.md
-          - 大模型微调: llm/02-training-alignment/08-finetuning.md
-          - LoRA: llm/02-training-alignment/09-lora.md
-          - Post-Training: llm/02-training-alignment/10-post-training.md
-          - DPO vs PPO: llm/02-training-alignment/11-dpo-vs-ppo.md
-      - 推理与部署:
-          - 模块导览: llm/03-inference-serving/README.md
-          - 解码策略: llm/03-inference-serving/12-decoding-strategies.md
-          - Temperature、Top-P、Top-K: llm/03-inference-serving/13-temperature-top-p-top-k.md
-          - KV Cache 与 Prompt Caching: llm/03-inference-serving/14-kv-cache.md
-          - 模型量化: llm/03-inference-serving/15-quantization.md
-          - MoE: llm/03-inference-serving/19-moe.md
-          - 部署框架选型: llm/03-inference-serving/20-deployment-frameworks.md
-      - Prompt 与可靠性:
-          - 模块导览: llm/04-prompt-reliability/README.md
-          - Prompt 工程: llm/04-prompt-reliability/16-prompt-engineering.md
-          - CoT 思维链: llm/04-prompt-reliability/17-cot.md
-          - 幻觉的成因与缓解: llm/04-prompt-reliability/18-hallucination.md
-      - 评测与选型:
-          - 模块导览: llm/05-evaluation-selection/README.md
-          - 能力评测指标: llm/05-evaluation-selection/21-evaluation-metrics.md
-          - 模型选型实践: llm/05-evaluation-selection/22-model-selection.md
-      - 多模态:
-          - 模块导览: llm/06-multimodal/README.md
-          - 多模态模型: llm/06-multimodal/23-multimodal-models.md
-  - 多模态 AI:
-      - 主题导览: multimodal/README.md
-      - 基础与架构:
-          - 模块导览: multimodal/01-foundations/README.md
-          - 多模态表征与融合架构: multimodal/01-foundations/01-multimodal-fusion-architecture.md
-      - 视觉与文档智能:
-          - 模块导览: multimodal/02-vision-document/README.md
-          - 视觉语言模型与 Grounding: multimodal/02-vision-document/02-vlm-grounding.md
-          - OCR 与 Document AI: multimodal/02-vision-document/03-ocr-document-ai.md
-          - Computer Use 与 GUI Agent: multimodal/02-vision-document/04-computer-use.md
-      - 语音与音频:
-          - 模块导览: multimodal/03-speech-audio/README.md
-          - ASR、TTS 与音频语言模型: multimodal/03-speech-audio/05-asr-tts-audio-lm.md
-          - 实时全双工语音: multimodal/03-speech-audio/06-realtime-duplex-voice.md
-      - 多模态生成:
-          - 模块导览: multimodal/04-generation/README.md
-          - 扩散、Flow Matching 与图像生成: multimodal/04-generation/07-diffusion-flow-matching-image.md
-          - 视频生成模型: multimodal/04-generation/08-video-generation.md
-      - 训练、评测与服务:
-          - 模块导览: multimodal/05-data-training-evaluation/README.md
-          - 多模态训练数据与对齐: multimodal/05-data-training-evaluation/09-multimodal-data-alignment.md
-          - 多模态评测、安全与服务: multimodal/05-data-training-evaluation/10-evaluation-safety-serving.md
+      - llm/README.md
+      - Foundations:
+          - llm/01-foundations/README.md
+          - llm/01-foundations/01-what-is-llm.md
+          - llm/01-foundations/02-transformer-architecture.md
+          - llm/01-foundations/03-attention-variants.md
+          - llm/01-foundations/04-position-encoding.md
+          - llm/01-foundations/05-tokenizer.md
+      - Training and alignment:
+          - llm/02-training-alignment/README.md
+          - llm/02-training-alignment/06-llm-training.md
+          - llm/02-training-alignment/07-scaling-law-emergence.md
+          - llm/02-training-alignment/08-finetuning.md
+          - llm/02-training-alignment/09-lora.md
+          - llm/02-training-alignment/10-post-training.md
+          - llm/02-training-alignment/11-dpo-vs-ppo.md
+      - Inference and serving:
+          - llm/03-inference-serving/README.md
+          - llm/03-inference-serving/12-decoding-strategies.md
+          - llm/03-inference-serving/13-temperature-top-p-top-k.md
+          - llm/03-inference-serving/14-kv-cache.md
+          - llm/03-inference-serving/15-quantization.md
+          - llm/03-inference-serving/19-moe.md
+          - llm/03-inference-serving/20-deployment-frameworks.md
+      - Prompting and reliability:
+          - llm/04-prompt-reliability/README.md
+          - llm/04-prompt-reliability/16-prompt-engineering.md
+          - llm/04-prompt-reliability/17-cot.md
+          - llm/04-prompt-reliability/18-hallucination.md
+      - Evaluation and selection:
+          - llm/05-evaluation-selection/README.md
+          - llm/05-evaluation-selection/21-evaluation-metrics.md
+          - llm/05-evaluation-selection/22-model-selection.md
+      - Multimodal:
+          - llm/06-multimodal/README.md
+          - llm/06-multimodal/23-multimodal-models.md
+  - Multimodal AI:
+      - multimodal/README.md
+      - Foundations and architecture:
+          - multimodal/01-foundations/README.md
+          - multimodal/01-foundations/01-multimodal-fusion-architecture.md
+      - Vision and document intelligence:
+          - multimodal/02-vision-document/README.md
+          - multimodal/02-vision-document/02-vlm-grounding.md
+          - multimodal/02-vision-document/03-ocr-document-ai.md
+          - multimodal/02-vision-document/04-computer-use.md
+      - Speech and audio:
+          - multimodal/03-speech-audio/README.md
+          - multimodal/03-speech-audio/05-asr-tts-audio-lm.md
+          - multimodal/03-speech-audio/06-realtime-duplex-voice.md
+      - Multimodal generation:
+          - multimodal/04-generation/README.md
+          - multimodal/04-generation/07-diffusion-flow-matching-image.md
+          - multimodal/04-generation/08-video-generation.md
+      - Training, evaluation, and serving:
+          - multimodal/05-data-training-evaluation/README.md
+          - multimodal/05-data-training-evaluation/09-multimodal-data-alignment.md
+          - multimodal/05-data-training-evaluation/10-evaluation-safety-serving.md
   - Tools:
-      - 主题导览: tools/README.md
+      - tools/README.md
       - Function Calling:
-          - 模块导览: tools/01-function-calling/README.md
-          - Function Calling 原理: tools/01-function-calling/01-function-calling.md
-          - LLM 如何学会调用工具: tools/01-function-calling/02-tool-learning.md
-          - 工具定义与 Schema 工程: tools/01-function-calling/03-tool-schema-design.md
-          - 推理模型与 MCP: tools/01-function-calling/07-reasoning-models-and-tools.md
+          - tools/01-function-calling/README.md
+          - tools/01-function-calling/01-function-calling.md
+          - tools/01-function-calling/02-tool-learning.md
+          - tools/01-function-calling/03-tool-schema-design.md
+          - tools/01-function-calling/07-reasoning-models-and-tools.md
       - MCP:
-          - 模块导览: tools/02-mcp/README.md
-          - MCP 核心内容: tools/02-mcp/04-what-is-mcp.md
-          - MCP 三层组成: tools/02-mcp/05-mcp-components.md
-          - MCP 与 Function Calling: tools/02-mcp/06-mcp-vs-function-calling.md
-          - MCP 传输层: tools/02-mcp/12-mcp-transport.md
-          - Tool Protocol 安全: tools/02-mcp/15-tool-protocol-security.md
+          - tools/02-mcp/README.md
+          - tools/02-mcp/04-what-is-mcp.md
+          - tools/02-mcp/05-mcp-components.md
+          - tools/02-mcp/06-mcp-vs-function-calling.md
+          - tools/02-mcp/12-mcp-transport.md
+          - tools/02-mcp/15-tool-protocol-security.md
       - Skills:
-          - 模块导览: tools/03-skills/README.md
-          - Skill 是什么: tools/03-skills/08-what-is-skill.md
-          - Skill 与 MCP: tools/03-skills/09-skill-vs-mcp.md
-          - Function Calling、MCP、Skill: tools/03-skills/10-fc-skill-mcp.md
-      - Agent 通信:
-          - 模块导览: tools/04-agent-communication/README.md
-          - A2A 协议: tools/04-agent-communication/11-a2a-protocol.md
-      - 传输与网关:
-          - 模块导览: tools/05-transport-gateway/README.md
-          - SSE、WebSocket 与 WebRTC: tools/05-transport-gateway/13-sse-websocket-webrtc.md
-          - LLM 网关: tools/05-transport-gateway/14-llm-gateway.md
-  - Agent:
-      - 主题导览: agent/README.md
-      - 基础与架构:
-          - 模块导览: agent/01-foundations/README.md
-          - 从大模型到 AI Agent: agent/01-foundations/01-agent-foundations.md
-          - Agent 现代系统架构: agent/01-foundations/02-agent-architecture.md
-          - Agentic Building Blocks: agent/01-foundations/03-agentic-building-blocks.md
-      - Runtime 与 Harness:
-          - 模块导览: agent/02-runtime-harness/README.md
-          - Harness 定义、边界与分层: agent/02-runtime-harness/16-harness-definition-and-boundaries.md
-          - Agent Loop 与运行时状态机: agent/02-runtime-harness/17-agent-loop-and-runtime-state-machine.md
-          - Context Engineering 与装配: agent/02-runtime-harness/18-context-engineering-assembly.md
-          - Tool Registry 与执行管线: agent/02-runtime-harness/19-tool-registry-and-execution-pipeline.md
-          - 权限、沙箱与隔离: agent/02-runtime-harness/20-permissions-sandbox-isolation.md
-          - Checkpoint、持久化与恢复: agent/02-runtime-harness/21-checkpoint-persistence-recovery.md
-          - Human-in-the-loop 与中断: agent/02-runtime-harness/22-human-in-the-loop-and-interruption.md
-          - Tracing、评测与 Coding Agent: agent/02-runtime-harness/23-tracing-evaluation-cost-and-coding-agent-case-study.md
-      - 推理、规划与反思:
-          - 模块导览: agent/02-reasoning-planning/README.md
-          - Agent 设计范式: agent/02-reasoning-planning/04-agent-design-patterns.md
-          - 模型推理与搜索方法: agent/02-reasoning-planning/05-agent-reasoning-methods.md
-          - 复杂任务拆分与调度: agent/02-reasoning-planning/06-task-decomposition.md
-          - LLM 与 Agent 规划能力: agent/02-reasoning-planning/11-llm-agent-planning.md
-          - 反思、验证与自我改进: agent/02-reasoning-planning/12-agent-reflection.md
-      - 记忆与上下文:
-          - 模块导览: agent/03-memory-context/README.md
-          - Agent 记忆机制: agent/03-memory-context/07-agent-memory.md
-          - 长短期记忆工程实现: agent/03-memory-context/08-agent-memory-implementation.md
-          - 记忆与上下文压缩: agent/03-memory-context/10-agent-memory-compression.md
-      - 多智能体系统:
-          - 模块导览: agent/04-multi-agent/README.md
-          - Single-Agent 与 Multi-Agent: agent/04-multi-agent/09-single-vs-multi-agent.md
-          - Multi-Agent 协作与路由: agent/04-multi-agent/13-multi-agent-coordination.md
-      - 评估与安全:
-          - 模块导览: agent/05-production/README.md
-          - Agent 评估与 Benchmark: agent/05-production/14-agent-evaluation.md
-          - Agent 安全与 Prompt Injection: agent/05-production/15-agent-security.md
-      - Coding Agent 工程:
-          - 模块导览: agent/06-coding-agents/README.md
-          - 代码搜索、编辑与验证: agent/06-coding-agents/24-code-search-edit-verification.md
-      - Agent 后训练:
-          - 模块导览: agent/07-post-training/README.md
-          - 从失败轨迹到可靠策略: agent/07-post-training/25-agent-post-training.md
+          - tools/03-skills/README.md
+          - tools/03-skills/08-what-is-skill.md
+          - tools/03-skills/09-skill-vs-mcp.md
+          - tools/03-skills/10-fc-skill-mcp.md
+      - Agent communication:
+          - tools/04-agent-communication/README.md
+          - tools/04-agent-communication/11-a2a-protocol.md
+      - Transports and gateways:
+          - tools/05-transport-gateway/README.md
+          - tools/05-transport-gateway/13-sse-websocket-webrtc.md
+          - tools/05-transport-gateway/14-llm-gateway.md
+  - Agents:
+      - agent/README.md
+      - Foundations and architecture:
+          - agent/01-foundations/README.md
+          - agent/01-foundations/01-agent-foundations.md
+          - agent/01-foundations/02-agent-architecture.md
+          - agent/01-foundations/03-agentic-building-blocks.md
+      - Runtime and harness:
+          - agent/02-runtime-harness/README.md
+          - agent/02-runtime-harness/16-harness-definition-and-boundaries.md
+          - agent/02-runtime-harness/17-agent-loop-and-runtime-state-machine.md
+          - agent/02-runtime-harness/18-context-engineering-assembly.md
+          - agent/02-runtime-harness/19-tool-registry-and-execution-pipeline.md
+          - agent/02-runtime-harness/20-permissions-sandbox-isolation.md
+          - agent/02-runtime-harness/21-checkpoint-persistence-recovery.md
+          - agent/02-runtime-harness/22-human-in-the-loop-and-interruption.md
+          - agent/02-runtime-harness/23-tracing-evaluation-cost-and-coding-agent-case-study.md
+      - Reasoning, planning, and reflection:
+          - agent/02-reasoning-planning/README.md
+          - agent/02-reasoning-planning/04-agent-design-patterns.md
+          - agent/02-reasoning-planning/05-agent-reasoning-methods.md
+          - agent/02-reasoning-planning/06-task-decomposition.md
+          - agent/02-reasoning-planning/11-llm-agent-planning.md
+          - agent/02-reasoning-planning/12-agent-reflection.md
+      - Memory and context:
+          - agent/03-memory-context/README.md
+          - agent/03-memory-context/07-agent-memory.md
+          - agent/03-memory-context/08-agent-memory-implementation.md
+          - agent/03-memory-context/10-agent-memory-compression.md
+      - Multi-agent systems:
+          - agent/04-multi-agent/README.md
+          - agent/04-multi-agent/09-single-vs-multi-agent.md
+          - agent/04-multi-agent/13-multi-agent-coordination.md
+      - Evaluation and safety:
+          - agent/05-production/README.md
+          - agent/05-production/14-agent-evaluation.md
+          - agent/05-production/15-agent-security.md
+      - Coding agents:
+          - agent/06-coding-agents/README.md
+          - agent/06-coding-agents/24-code-search-edit-verification.md
+      - Agent post-training:
+          - agent/07-post-training/README.md
+          - agent/07-post-training/25-agent-post-training.md
   - RAG:
-      - 主题导览: rag/README.md
-      - 基础与选型:
-          - 模块导览: rag/01-foundations/README.md
-          - RAG 是什么: rag/01-foundations/01-what-is-rag.md
-          - RAG、微调与长上下文: rag/01-foundations/02-rag-finetune-longcontext.md
-      - 摄取与索引:
-          - 模块导览: rag/02-ingestion-indexing/README.md
-          - 文档解析与预处理: rag/02-ingestion-indexing/03-document-parsing.md
-          - Chunking 策略: rag/02-ingestion-indexing/04-chunking-strategy.md
-          - 语义被切断怎么办: rag/02-ingestion-indexing/05-semantic-truncation.md
-          - Embedding 原理: rag/02-ingestion-indexing/06-embedding-principles.md
-          - Embedding 选型与评估: rag/02-ingestion-indexing/07-embedding-selection.md
-          - 向量数据库与 ANN: rag/02-ingestion-indexing/08-vector-database.md
-          - 向量库生产实践: rag/02-ingestion-indexing/09-vectordb-production.md
-      - 在线检索:
-          - 模块导览: rag/03-retrieval/README.md
-          - RAG 在线链路: rag/03-retrieval/10-online-pipeline.md
-          - 检索范式: rag/03-retrieval/11-retrieval-paradigms.md
-          - Query 理解与改写: rag/03-retrieval/12-query-rewriting.md
-          - 多路召回、RRF 与 Rerank: rag/03-retrieval/13-hybrid-retrieval-rerank.md
-          - RAG 优化五层框架: rag/03-retrieval/14-retrieval-optimization.md
-      - 高级与多模态:
-          - 模块导览: rag/04-advanced/README.md
-          - 高级 RAG 范式: rag/04-advanced/15-advanced-rag-paradigms.md
-          - GraphRAG 与图检索: rag/04-advanced/16-graphrag.md
-          - 多模态 RAG: rag/04-advanced/21-multimodal-rag.md
-      - 生成与评估:
-          - 模块导览: rag/05-generation-evaluation/README.md
-          - 生成、Grounding 与幻觉: rag/05-generation-evaluation/17-generation-hallucination.md
-          - RAG 评估体系: rag/05-generation-evaluation/18-rag-evaluation.md
-      - 运维与安全:
-          - 模块导览: rag/06-operations-security/README.md
-          - 动态更新与增量索引: rag/06-operations-security/19-dynamic-update.md
-          - RAG 落地难点与安全: rag/06-operations-security/20-rag-challenges-security.md
-      - 结构化查询:
-          - 模块导览: rag/07-structured-queries/README.md
-          - Text-to-SQL 业务问答: rag/07-structured-queries/22-text-to-sql.md
-  - 框架与编排:
-      - 主题导览: frameworks/README.md
-      - LangChain 生态:
-          - 模块导览: frameworks/01-langchain/README.md
-          - 基础架构:
-              - 模块导览: frameworks/01-langchain/01-foundations/README.md
-              - Agent 框架概览: frameworks/01-langchain/01-foundations/01-agent-frameworks.md
-              - Chain 与 LCEL: frameworks/01-langchain/01-foundations/02-chain-and-lcel.md
-              - LangChain v1 架构: frameworks/01-langchain/01-foundations/03-langchain-architecture.md
-          - Agent 构建:
-              - 模块导览: frameworks/01-langchain/02-agent-building/README.md
-              - 构建生产级 Agent: frameworks/01-langchain/02-agent-building/04-build-agent.md
-              - Tool 注册与工具契约: frameworks/01-langchain/02-agent-building/05-tool-registration.md
-              - 短期与长期记忆: frameworks/01-langchain/02-agent-building/06-memory.md
-          - 生态与演进:
-              - 模块导览: frameworks/01-langchain/03-ecosystem/README.md
-              - LangChain 与 LlamaIndex: frameworks/01-langchain/03-ecosystem/07-langchain-vs-llamaindex.md
-              - LangChain4j: frameworks/01-langchain/03-ecosystem/08-langchain4j.md
-              - LangChain 版本演进: frameworks/01-langchain/03-ecosystem/11-version-evolution.md
+      - rag/README.md
+      - Foundations and selection:
+          - rag/01-foundations/README.md
+          - rag/01-foundations/01-what-is-rag.md
+          - rag/01-foundations/02-rag-finetune-longcontext.md
+      - Ingestion and indexing:
+          - rag/02-ingestion-indexing/README.md
+          - rag/02-ingestion-indexing/03-document-parsing.md
+          - rag/02-ingestion-indexing/04-chunking-strategy.md
+          - rag/02-ingestion-indexing/05-semantic-truncation.md
+          - rag/02-ingestion-indexing/06-embedding-principles.md
+          - rag/02-ingestion-indexing/07-embedding-selection.md
+          - rag/02-ingestion-indexing/08-vector-database.md
+          - rag/02-ingestion-indexing/09-vectordb-production.md
+      - Online retrieval:
+          - rag/03-retrieval/README.md
+          - rag/03-retrieval/10-online-pipeline.md
+          - rag/03-retrieval/11-retrieval-paradigms.md
+          - rag/03-retrieval/12-query-rewriting.md
+          - rag/03-retrieval/13-hybrid-retrieval-rerank.md
+          - rag/03-retrieval/14-retrieval-optimization.md
+      - Advanced and multimodal RAG:
+          - rag/04-advanced/README.md
+          - rag/04-advanced/15-advanced-rag-paradigms.md
+          - rag/04-advanced/16-graphrag.md
+          - rag/04-advanced/21-multimodal-rag.md
+      - Generation and evaluation:
+          - rag/05-generation-evaluation/README.md
+          - rag/05-generation-evaluation/17-generation-hallucination.md
+          - rag/05-generation-evaluation/18-rag-evaluation.md
+      - Operations and security:
+          - rag/06-operations-security/README.md
+          - rag/06-operations-security/19-dynamic-update.md
+          - rag/06-operations-security/20-rag-challenges-security.md
+      - Structured queries:
+          - rag/07-structured-queries/README.md
+          - rag/07-structured-queries/22-text-to-sql.md
+  - Frameworks and orchestration:
+      - frameworks/README.md
+      - LangChain ecosystem:
+          - frameworks/01-langchain/README.md
+          - Core architecture:
+              - frameworks/01-langchain/01-foundations/README.md
+              - frameworks/01-langchain/01-foundations/01-agent-frameworks.md
+              - frameworks/01-langchain/01-foundations/02-chain-and-lcel.md
+              - frameworks/01-langchain/01-foundations/03-langchain-architecture.md
+          - Building agents:
+              - frameworks/01-langchain/02-agent-building/README.md
+              - frameworks/01-langchain/02-agent-building/04-build-agent.md
+              - frameworks/01-langchain/02-agent-building/05-tool-registration.md
+              - frameworks/01-langchain/02-agent-building/06-memory.md
+          - Ecosystem and evolution:
+              - frameworks/01-langchain/03-ecosystem/README.md
+              - frameworks/01-langchain/03-ecosystem/07-langchain-vs-llamaindex.md
+              - frameworks/01-langchain/03-ecosystem/08-langchain4j.md
+              - frameworks/01-langchain/03-ecosystem/11-version-evolution.md
           - LangGraph:
-              - 模块导览: frameworks/01-langchain/04-langgraph/README.md
-              - LangChain 与 LangGraph: frameworks/01-langchain/04-langgraph/09-langchain-vs-langgraph.md
-              - LangGraph 核心优势: frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md
-          - 生产闭环:
-              - 模块导览: frameworks/01-langchain/05-production/README.md
-              - Deep Research 实现逻辑: frameworks/01-langchain/05-production/12-deep-research.md
-              - LangSmith 生产质量闭环: frameworks/01-langchain/05-production/13-langsmith-production-loop.md
+              - frameworks/01-langchain/04-langgraph/README.md
+              - frameworks/01-langchain/04-langgraph/09-langchain-vs-langgraph.md
+              - frameworks/01-langchain/04-langgraph/10-langgraph-advantages.md
+          - Production feedback loop:
+              - frameworks/01-langchain/05-production/README.md
+              - frameworks/01-langchain/05-production/12-deep-research.md
+              - frameworks/01-langchain/05-production/13-langsmith-production-loop.md
       - LlamaIndex:
-          - 模块导览: frameworks/02-llamaindex/README.md
-          - 数据与索引抽象: frameworks/02-llamaindex/14-data-index-abstractions.md
-          - 查询引擎与 Workflows: frameworks/02-llamaindex/15-query-engine-workflows.md
+          - frameworks/02-llamaindex/README.md
+          - frameworks/02-llamaindex/14-data-index-abstractions.md
+          - frameworks/02-llamaindex/15-query-engine-workflows.md
       - DSPy:
-          - 模块导览: frameworks/03-dspy/README.md
-          - 声明式编程模型: frameworks/03-dspy/16-declarative-programming-model.md
-          - 编译器与优化器: frameworks/03-dspy/17-compiler-and-optimizers.md
+          - frameworks/03-dspy/README.md
+          - frameworks/03-dspy/16-declarative-programming-model.md
+          - frameworks/03-dspy/17-compiler-and-optimizers.md
       - Semantic Kernel:
-          - 模块导览: frameworks/04-semantic-kernel/README.md
-          - Kernel、Plugin 与 Planner: frameworks/04-semantic-kernel/18-kernel-plugin-planner.md
-          - Process 与 Agent Framework: frameworks/04-semantic-kernel/19-process-and-agent-framework.md
-      - 轻量级 Agent 框架:
-          - 模块导览: frameworks/05-lightweight-agent-frameworks/README.md
-          - AutoGen 与 CrewAI: frameworks/05-lightweight-agent-frameworks/20-autogen-and-crewai.md
-          - PydanticAI 与选型矩阵: frameworks/05-lightweight-agent-frameworks/21-pydanticai-and-decision-matrix.md
-      - 选型与可移植架构:
-          - 模块导览: frameworks/06-selection-portability/README.md
-          - 跨框架技术解构: frameworks/06-selection-portability/22-cross-framework-technical-taxonomy.md
-          - Lock-in 与迁移策略: frameworks/06-selection-portability/23-lockin-and-portable-architecture.md
+          - frameworks/04-semantic-kernel/README.md
+          - frameworks/04-semantic-kernel/18-kernel-plugin-planner.md
+          - frameworks/04-semantic-kernel/19-process-and-agent-framework.md
+      - Lightweight agent frameworks:
+          - frameworks/05-lightweight-agent-frameworks/README.md
+          - frameworks/05-lightweight-agent-frameworks/20-autogen-and-crewai.md
+          - frameworks/05-lightweight-agent-frameworks/21-pydanticai-and-decision-matrix.md
+      - Selection and portability:
+          - frameworks/06-selection-portability/README.md
+          - frameworks/06-selection-portability/22-cross-framework-technical-taxonomy.md
+          - frameworks/06-selection-portability/23-lockin-and-portable-architecture.md
   - AI Engineering:
-      - 主题导览: engineering/README.md
-      - 基础与生产架构:
-          - 模块导览: engineering/01-foundations/README.md
-          - LLMOps、MLOps 与 DevOps: engineering/01-foundations/01-llmops-vs-mlops-devops.md
-          - AI 应用生产架构: engineering/01-foundations/02-production-architecture-overview.md
-      - 请求路径可靠性:
-          - 模块导览: engineering/02-request-reliability/README.md
-          - 模型网关、路由与回退: engineering/02-request-reliability/03-model-gateway-routing-fallback.md
-          - 重试、超时、幂等与熔断: engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md
-      - 输出质量与安全:
-          - 模块导览: engineering/03-output-safety/README.md
-          - 结构化输出与契约校验: engineering/03-output-safety/05-structured-output-contracts.md
-          - Guardrails 与降级: engineering/03-output-safety/06-guardrails-degradation.md
-      - 评测与可观测性:
-          - 模块导览: engineering/04-evaluation-observability/README.md
-          - 离线评测与 EDD: engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md
-          - 在线可观测性与 Tracing: engineering/04-evaluation-observability/08-online-observability-tracing.md
-      - 版本管理与发布:
-          - 模块导览: engineering/05-release-pipeline/README.md
-          - Prompt、模型与数据版本: engineering/05-release-pipeline/09-prompt-model-data-versioning.md
-          - LLM CI/CD 与灰度发布: engineering/05-release-pipeline/10-llm-cicd-canary-ab.md
-      - 性能、成本与运营:
-          - 模块导览: engineering/06-performance-operations/README.md
-          - 缓存、批处理与成本: engineering/06-performance-operations/11-caching-batching-throughput-cost.md
-          - SLO、容量与事故响应: engineering/06-performance-operations/12-slo-capacity-incident-response.md
-          - 反馈闭环与数据飞轮: engineering/06-performance-operations/13-feedback-loop-data-flywheel.md
-  - AI 安全与治理:
-      - 主题导览: safety/README.md
-      - 威胁建模:
-          - 模块导览: safety/01-threat-modeling/README.md
-          - AI 威胁建模与攻击面: safety/01-threat-modeling/01-ai-threat-modeling-attack-surface.md
-      - 提示与内容层攻击:
-          - 模块导览: safety/02-prompt-content-attacks/README.md
-          - Prompt Injection 与 Jailbreak: safety/02-prompt-content-attacks/02-prompt-injection-jailbreak-system-prompt-leakage.md
-          - 输出处理与 Secret Exfiltration: safety/02-prompt-content-attacks/03-output-handling-secret-exfiltration.md
-      - 数据与模型供应链:
-          - 模块导览: safety/03-data-model-supply-chain/README.md
-          - 训练、微调与 RAG 投毒: safety/03-data-model-supply-chain/04-training-finetuning-rag-poisoning.md
-          - 模型供应链与序列化风险: safety/03-data-model-supply-chain/05-model-supply-chain-serialization-risks.md
-          - 隐私、PII 与记忆泄漏: safety/03-data-model-supply-chain/06-privacy-pii-memory-leakage.md
-      - Agent 与执行环境:
-          - 模块导览: safety/04-agent-execution-isolation/README.md
-          - 最小权限与身份治理: safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md
-          - 代码与浏览器沙箱: safety/04-agent-execution-isolation/08-code-execution-browser-computer-use-sandboxing.md
-      - 评测、治理与保障:
-          - 模块导览: safety/05-assurance-governance/README.md
-          - 安全评测、红队与持续保障: safety/05-assurance-governance/09-security-evaluation-red-teaming-continuous-assurance.md
-          - 风险分级、审计与内容出处: safety/05-assurance-governance/10-ai-governance-risk-classification-audit-provenance.md
+      - engineering/README.md
+      - Foundations and production architecture:
+          - engineering/01-foundations/README.md
+          - engineering/01-foundations/01-llmops-vs-mlops-devops.md
+          - engineering/01-foundations/02-production-architecture-overview.md
+      - Request reliability:
+          - engineering/02-request-reliability/README.md
+          - engineering/02-request-reliability/03-model-gateway-routing-fallback.md
+          - engineering/02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md
+      - Output quality and safety:
+          - engineering/03-output-safety/README.md
+          - engineering/03-output-safety/05-structured-output-contracts.md
+          - engineering/03-output-safety/06-guardrails-degradation.md
+      - Evaluation and observability:
+          - engineering/04-evaluation-observability/README.md
+          - engineering/04-evaluation-observability/07-offline-eval-eval-driven-development.md
+          - engineering/04-evaluation-observability/08-online-observability-tracing.md
+      - Versioning and releases:
+          - engineering/05-release-pipeline/README.md
+          - engineering/05-release-pipeline/09-prompt-model-data-versioning.md
+          - engineering/05-release-pipeline/10-llm-cicd-canary-ab.md
+      - Performance, cost, and operations:
+          - engineering/06-performance-operations/README.md
+          - engineering/06-performance-operations/11-caching-batching-throughput-cost.md
+          - engineering/06-performance-operations/12-slo-capacity-incident-response.md
+          - engineering/06-performance-operations/13-feedback-loop-data-flywheel.md
+  - AI safety and governance:
+      - safety/README.md
+      - Threat modeling:
+          - safety/01-threat-modeling/README.md
+          - safety/01-threat-modeling/01-ai-threat-modeling-attack-surface.md
+      - Prompt and content attacks:
+          - safety/02-prompt-content-attacks/README.md
+          - safety/02-prompt-content-attacks/02-prompt-injection-jailbreak-system-prompt-leakage.md
+          - safety/02-prompt-content-attacks/03-output-handling-secret-exfiltration.md
+      - Data and model supply chains:
+          - safety/03-data-model-supply-chain/README.md
+          - safety/03-data-model-supply-chain/04-training-finetuning-rag-poisoning.md
+          - safety/03-data-model-supply-chain/05-model-supply-chain-serialization-risks.md
+          - safety/03-data-model-supply-chain/06-privacy-pii-memory-leakage.md
+      - Agents and execution environments:
+          - safety/04-agent-execution-isolation/README.md
+          - safety/04-agent-execution-isolation/07-agent-tool-mcp-a2a-least-privilege-identity.md
+          - safety/04-agent-execution-isolation/08-code-execution-browser-computer-use-sandboxing.md
+      - Evaluation, governance, and assurance:
+          - safety/05-assurance-governance/README.md
+          - safety/05-assurance-governance/09-security-evaluation-red-teaming-continuous-assurance.md
+          - safety/05-assurance-governance/10-ai-governance-risk-classification-audit-provenance.md
   - FDE:
-      - 主题导览: fde/README.md
-      - 基础与交付方法:
-          - 模块导览: fde/01-foundations/README.md
-          - 从业务问题到可复用生产系统: fde/01-foundations/01-forward-deployed-engineering.md
-      - 现场经验与踩坑:
-          - 模块导览: fde/02-field-practice/README.md
-          - FDE 项目踩坑与交付经验: fde/02-field-practice/02-delivery-lessons.md
+      - fde/README.md
+      - Foundations and delivery:
+          - fde/01-foundations/README.md
+          - fde/01-foundations/01-forward-deployed-engineering.md
+      - Field practice and lessons:
+          - fde/02-field-practice/README.md
+          - fde/02-field-practice/02-delivery-lessons.md
