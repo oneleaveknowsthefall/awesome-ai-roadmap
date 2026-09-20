@@ -44,6 +44,22 @@ def markup_url(raw):
     return "".join(characters), offsets
 
 
+def language_switch_target(source: str, label: str | None) -> str | None:
+    """Resolve a plain inline language label to this page's exact companion."""
+    if label is None:
+        return None
+    if source.endswith(".zh.md"):
+        return source[:-6] + ".md" if label.strip().casefold() == "english" else None
+    if source.endswith(".md") and label.strip() == "简体中文":
+        return source[:-3] + ".zh.md"
+    return None
+
+
+def is_language_switch(source: str, target: str, label: str | None) -> bool:
+    expected = language_switch_target(source, label)
+    return expected is not None and target == expected
+
+
 def _escaped(text, position):
     start = position
     while start and text[start - 1] == "\\":
@@ -114,6 +130,7 @@ class _Links:
         self.text = text
         self.path = path
         self.spans = []
+        self.labels = {}
 
     def error(self, position, message):
         line = self.text.count("\n", 0, position) + 1
@@ -368,26 +385,33 @@ class _Links:
             if text[position] == "[":
                 brackets.append(position)
             elif text[position] == "]" and brackets:
-                brackets.pop()
+                opening = brackets.pop()
                 if text[position + 1:position + 2] == "(":
+                    label = text[opening + 1:position]
+                    image = opening > 0 and text[opening - 1] == "!" and not _escaped(text, opening - 1)
                     start, end, position = self.destination(position + 2)
                     self.spans.append((start, end))
+                    if not image:
+                        self.labels[(start, end)] = label
                     continue
             position += 1
         return sorted(self.spans)
 
 
-def rewrite_links(text: str, path: str, rewrite: Callable[[str], str]) -> str:
-    """Rewrite actual URL tokens, preserving every other source character.
+def rewrite_labeled_links(
+    text: str, path: str, rewrite: Callable[[str, str | None], str],
+) -> str:
+    """Rewrite URL tokens with their raw inline label, or None for other syntax.
 
     ``path`` is used only for diagnostics. The callback receives raw source URL
     text, without ``<...>`` or HTML attribute quotes. Code, math, comments and
     YAML front matter are excluded. Parsing finishes before callbacks execute.
     """
-    spans = _Links(text, path).parse()
+    links = _Links(text, path)
+    spans = links.parse()
     pieces, position = [], 0
     for start, end in spans:
-        replacement = rewrite(text[start:end])
+        replacement = rewrite(text[start:end], links.labels.get((start, end)))
         if not isinstance(replacement, str):
             raise MarkdownLinkError(f"{path}: link callback must return a string")
         pieces.extend((text[position:start], replacement))
@@ -396,6 +420,18 @@ def rewrite_links(text: str, path: str, rewrite: Callable[[str], str]) -> str:
     return "".join(pieces)
 
 
+def rewrite_links(text: str, path: str, rewrite: Callable[[str], str]) -> str:
+    """Rewrite actual URL tokens, preserving every other source character."""
+    return rewrite_labeled_links(text, path, lambda url, label: rewrite(url))
+
+
+def labeled_link_destinations(text: str, path: str) -> list[tuple[str, str | None]]:
+    """Return raw URL tokens and inline labels; references/HTML/images have no label."""
+    links = _Links(text, path)
+    return [(text[start:end], links.labels.get((start, end)))
+            for start, end in links.parse()]
+
+
 def link_destinations(text: str, path: str) -> list[str]:
     """Return destination tokens in source order, with escapes left intact."""
-    return [text[start:end] for start, end in _Links(text, path).parse()]
+    return [url for url, _ in labeled_link_destinations(text, path)]

@@ -15,7 +15,7 @@ from check_translations import (
     CONFIG, TranslationError, content_problems, headings, inventory, load_config,
     source_name, translation_name,
 )
-from markdown_links import MarkdownLinkError, link_destinations, markup_url
+from markdown_links import MarkdownLinkError, is_language_switch, labeled_link_destinations, markup_url
 
 
 issues: list[str] = []
@@ -102,7 +102,7 @@ def check_chapter(path, text):
 
 def check_links(root, path, text, sources):
     targets = set()
-    for url in link_destinations(text, path):
+    for url, label in labeled_link_destinations(text, path):
         decoded_url, _ = markup_url(url)
         parsed = urlsplit(decoded_url)
         if parsed.scheme or parsed.netloc or not parsed.path:
@@ -120,7 +120,8 @@ def check_links(root, path, text, sources):
         if not target.is_file():
             report(path, f"missing internal link target: {url}")
         if source_name(logical) in sources:
-            if path.endswith(".zh.md") != logical.endswith(".zh.md"):
+            if (path.endswith(".zh.md") != logical.endswith(".zh.md") and
+                    not is_language_switch(path, logical, label)):
                 report(path, f"cross-language internal link: {url}")
     return targets
 

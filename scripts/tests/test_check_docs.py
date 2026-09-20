@@ -130,6 +130,39 @@ class ReviewCoverageTests(unittest.TestCase):
         self.assertIn("cross-language internal link", result.stdout)
         self.assertNotEqual(result.returncode, 0)
 
+    def test_explicit_language_switches_only_to_current_companion_pass(self):
+        self.review([self.entry()])
+        for name in ("README.md", "CONTRIBUTING.md", CHAPTER):
+            chinese = name[:-3] + ".zh.md"
+            self.write(name, (self.root / name).read_text() +
+                       f"\n[简体中文](./{Path(chinese).name})\n")
+            self.write(chinese, (self.root / chinese).read_text() +
+                       f"\n[English](./{Path(name).name})\n")
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_language_label_does_not_allow_other_pages_or_wrong_direction(self):
+        self.review([self.entry()])
+        original = (self.root / "README.md").read_text()
+        for link in (
+            "[简体中文](CONTRIBUTING.zh.md)",
+            "[English](README.zh.md)",
+            "[Read this](README.zh.md)",
+            "![简体中文](README.zh.md)",
+            "[简体中文](README.zh.md)\n[Read this](README.zh.md)",
+        ):
+            with self.subTest(link=link):
+                self.write("README.md", original + "\n" + link + "\n")
+                result = self.run_check()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("cross-language internal link", result.stdout)
+        self.write("README.md", original)
+        name = "README.zh.md"
+        self.write(name, (self.root / name).read_text() + "\n[English](CONTRIBUTING.md)\n")
+        result = self.run_check()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("cross-language internal link", result.stdout)
+
     def test_each_language_needs_an_index_link(self):
         self.review([self.entry()])
         self.write("docs/llm/01-foundations/README.zh.md", "# 基础\n\n中文目录缺章。\n")

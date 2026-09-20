@@ -14,10 +14,34 @@ SCRIPTS = Path(__file__).absolute().parents[1]
 sys.path.insert(0, str(SCRIPTS))
 
 import localize_zh_links as localize
-from markdown_links import MarkdownLinkError, link_destinations, rewrite_links
+from markdown_links import (
+    MarkdownLinkError, is_language_switch, labeled_link_destinations,
+    link_destinations, rewrite_links,
+)
 
 
 class MarkdownLinksTests(unittest.TestCase):
+    def test_language_switch_labels_are_per_inline_link_not_per_url(self):
+        text = (
+            "[English](README.md)\n[正文](README.md)\n"
+            "![English](README.md)\n[English]: README.md\n"
+            '<a href="README.md">English</a>\n'
+            "`[English](README.md)`\n"
+        )
+        links = labeled_link_destinations(text, "README.zh.md")
+        self.assertEqual(links, [
+            ("README.md", "English"), ("README.md", "正文"),
+            ("README.md", None), ("README.md", None), ("README.md", None),
+        ])
+        self.assertEqual(
+            [is_language_switch("README.zh.md", target, label) for target, label in links],
+            [True, False, False, False, False],
+        )
+        self.assertTrue(is_language_switch("README.md", "README.zh.md", "简体中文"))
+        self.assertFalse(is_language_switch("README.md", "CONTRIBUTING.zh.md", "简体中文"))
+        self.assertFalse(is_language_switch("README.zh.md", "CONTRIBUTING.md", "English"))
+        self.assertFalse(is_language_switch("README.md", "README.zh.md", "English"))
+
     def test_code_labels_keep_real_links_but_code_examples_are_protected(self):
         text = (
             "[`docs/topic/`](docs/topic/README.md)\n"
@@ -210,6 +234,43 @@ class LocalizeTests(unittest.TestCase):
         self.assertEqual(source.stat().st_ino, before.st_ino)
         self.assertEqual(source.stat().st_mtime_ns, before.st_mtime_ns)
         self.assert_clean_siblings()
+
+    def test_explicit_english_switch_is_preserved_but_same_url_prose_is_localized(self):
+        raw = (
+            "[English](./source.md?raw=1#overview)\r\n"
+            "[正文](./source.md?raw=1#overview)\r\n"
+            "[章节](target.md)\r\n"
+            "`[English](source.md)`\r\n"
+        )
+        source = self.write("docs/topic/source.zh.md", raw)
+        before = source.read_bytes()
+        code, out, err = self.run_main()
+        self.assertEqual(code, 1, out + err)
+        self.assertEqual(source.read_bytes(), before)
+        code, out, err = self.run_main("--write")
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(source.read_bytes(), (
+            "[English](./source.md?raw=1#overview)\r\n"
+            "[正文](./source.zh.md?raw=1#overview)\r\n"
+            "[章节](target.zh.md)\r\n"
+            "`[English](source.md)`\r\n"
+        ).encode("utf-8"))
+        self.assertEqual(self.run_main()[0], 0)
+
+    def test_root_and_maintenance_english_switches_stay_read_only(self):
+        for normal in ("README.md", "CONTRIBUTING.md", "book/README.md"):
+            self.write(normal[:-3] + ".zh.md", f"[English](./{Path(normal).name})\n")
+        before = {path: path.read_bytes() for path in self.root.rglob("*.md")}
+        code, out, err = self.run_main()
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(before, {path: path.read_bytes() for path in self.root.rglob("*.md")})
+
+    def test_language_label_never_exempts_a_different_page(self):
+        source = self.write("docs/topic/source.zh.md", "[English](target.md)\n")
+        code, out, err = self.run_main("--write")
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("exact companion", err)
+        self.assertEqual(source.read_text(), "[English](target.md)\n")
 
     def test_explicit_paths_leave_other_translations_untouched(self):
         first = self.write("docs/topic/source.zh.md", "[x](target.md)")

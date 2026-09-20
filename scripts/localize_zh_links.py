@@ -12,9 +12,9 @@ import tempfile
 from urllib.parse import unquote
 
 try:
-    from .markdown_links import MarkdownLinkError, markup_url, rewrite_links
+    from .markdown_links import MarkdownLinkError, language_switch_target, markup_url, rewrite_labeled_links
 except ImportError:
-    from markdown_links import MarkdownLinkError, markup_url, rewrite_links
+    from markdown_links import MarkdownLinkError, language_switch_target, markup_url, rewrite_labeled_links
 
 
 ROOT = Path(__file__).absolute().parents[1]
@@ -140,7 +140,7 @@ class _Plan:
         self.checked.add((relative, file))
         return path
 
-    def rewrite(self, source, raw):
+    def rewrite(self, source, raw, label=None):
         url, offsets = markup_url(raw)
         if (not url or url.startswith(("#", "?", "//")) or
                 re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", url) or
@@ -158,6 +158,11 @@ class _Plan:
         target = _relative_target(source, decoded)
         self.check(target, file=target.endswith(".md"))
         if not target.endswith(".md"):
+            return raw
+        expected_switch = language_switch_target(source, label)
+        if expected_switch is not None:
+            if target != expected_switch:
+                raise MigrationError(f"language switch must target this page's exact companion: {expected_switch}")
             return raw
         if target.endswith(".zh.md"):
             self.check(_normal(target), file=True)
@@ -244,6 +249,7 @@ def main(argv=None):
             "docs/**/*.zh.md, root README.zh.md/CONTRIBUTING.zh.md and book/README.zh.md without writing. "
             "Only local .md destinations with existing .zh.md companions change; "
             "reader links under docs/, root README/CONTRIBUTING and book/README require companions. "
+            "An inline [English] link to the current page's exact English companion is preserved. "
             "Code, math, comments, front matter, labels, titles and URL suffixes stay intact. "
             "All inputs and targets are checked before atomic sibling replacements; "
             "a write failure rolls back the complete batch."
@@ -274,13 +280,13 @@ def main(argv=None):
             text = before.decode("utf-8")
             count = 0
 
-            def rewrite(url):
+            def rewrite(url, label):
                 nonlocal count
-                result = plan.rewrite(relative, url)
+                result = plan.rewrite(relative, url, label)
                 count += result != url
                 return result
 
-            after = rewrite_links(text, relative, rewrite).encode("utf-8")
+            after = rewrite_labeled_links(text, relative, rewrite).encode("utf-8")
             if before != after:
                 changes.append(Change(path, before, after, stat.S_IMODE(path.stat().st_mode), count))
         except (MigrationError, MarkdownLinkError, OSError, UnicodeError) as error:
