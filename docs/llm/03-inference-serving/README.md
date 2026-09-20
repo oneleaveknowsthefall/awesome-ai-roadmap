@@ -1,22 +1,22 @@
 ---
-description: 汇集解码、采样、KV 与前缀缓存、量化、MoE 和推理框架章节，按概率机制、内存估算及服务指标梳理部署取舍。
+description: Explore decoding, sampling, KV and prefix caching, quantization, MoE, and inference runtimes through probability mechanisms, memory estimates, and serving metrics.
 ---
 
-# LLM · 推理与部署
+# LLM · Inference and Serving
 
-覆盖解码、采样、KV Cache、量化、MoE 与推理服务框架。
+This module covers decoding, sampling, KV caching, quantization, MoE, and inference serving frameworks.
 
-阅读时区分三个层次：**输出选择是否改变目标分布、模型结构与精度如何影响资源、服务调度能否满足延迟与吞吐约束**。参数量、位宽和框架名称都不能单独推导端到端性能。
+Keep three questions separate as you read: **Does output selection change the target distribution? How do architecture and precision affect resource requirements? Can serving schedules meet latency and throughput constraints?** Parameter count, bit width, or a framework name alone cannot determine end-to-end performance.
 
-## 章节
+## Chapters
 
-1. [第十二章：解码策略](12-decoding-strategies.md)
-2. [第十三章：Temperature、Top-P、Top-K 调参](13-temperature-top-p-top-k.md)
-3. [第十四章：KV Cache 与 Prompt Caching](14-kv-cache.md)
-4. [第十五章：模型量化](15-quantization.md)
-5. [第十九章：MoE 混合专家模型](19-moe.md)
-6. [第二十章：部署框架选型](20-deployment-frameworks.md)
+1. [Chapter 12: Decoding Strategies](12-decoding-strategies.md)
+2. [Chapter 13: Tuning Temperature, Top-P, and Top-K](13-temperature-top-p-top-k.md)
+3. [Chapter 14: KV Cache and Prompt Caching](14-kv-cache.md)
+4. [Chapter 15: Model Quantization](15-quantization.md)
+5. [Chapter 19: Mixture-of-Experts Models](19-moe.md)
+6. [Chapter 20: Choosing a Serving Framework](20-deployment-frameworks.md)
 
-返回 [LLM 相关知识点](../README.md)。
+Return to [LLM Topics](../README.md).
 
-模型架构示例保留明确版本；API 默认值、缓存价格与框架支持矩阵以各章所引官方资料及实际部署版本为准，不将历史实验数值当作当前性能保证。
+Architecture examples retain explicit model versions. API defaults, cache prices, and framework support matrices depend on the official sources cited in each chapter and the deployed version; historical experimental results are not guarantees of current performance.

@@ -1,53 +1,57 @@
 ---
-description: 系统整理 Prompt 的指令、上下文、示例和输出约束，说明如何调试提示词并避免把模型问题误判为 Prompt 问题。
+description: Organize prompt instructions, context, examples, and output constraints, and learn how to debug prompts without mistaking model limitations for prompting problems.
 ---
 
-# 第十六章：Prompt 工程
+# Chapter 16: Prompt Engineering
 
-## 16.1 Prompt 能改变什么，不能改变什么
+## 16.1 What prompts can and cannot change
 
-Prompt 为模型提供任务条件，会影响它调用已有能力的方式，但不能保证补足缺失知识、可靠计算能力或工具权限。效果差异取决于模型、任务与评测口径，不存在通用的「质量提升一个数量级」。
+A prompt supplies the conditions for a task and influences how a model uses its existing capabilities. It cannot guarantee missing knowledge, reliable computation, or tool permissions. Results depend on the model, task, and evaluation criteria; there is no universal “order-of-magnitude improvement in quality.”
 
-先区分失败来源：要求没说清，可以改指令；资料缺失，应补检索；金额算错，应接计算工具；调用越权，应修权限校验。把所有失败都归为 Prompt 问题，容易得到越来越长、却没有解决根因的提示词。
+First identify the source of failure. Unclear requirements call for better instructions; missing information calls for retrieval; incorrect monetary calculations call for a calculation tool; unauthorized calls call for authorization checks. Treating every failure as a prompting problem tends to produce longer prompts without fixing the underlying cause.
 
-### 16.1.1 新手最常见的三个问题
+### 16.1.1 Three common beginner problems
 
-| 问题 | 表现 |
+| Problem | What it looks like |
 |---|---|
-| **指令不清晰** | 「帮我写一篇文章」 vs 「写一篇面向高中生的 800 字科普文章，解释黑洞是如何形成的」 |
-| **缺少关键上下文** | 模型不知道你是什么行业、你的用户是谁 |
-| **没有格式约束** | 模型自由发挥格式，导致下游解析出错 |
+| **Unclear instructions** | “Help me write an article” versus “Write an 800-character popular-science article for high-school students explaining how black holes form” |
+| **Missing essential context** | The model does not know your industry or who your users are |
+| **No format constraints** | The model chooses its own format, breaking downstream parsing |
 
-> **Prompt 写不好通常不是因为太短，而是因为「模糊」。**
+> **A weak prompt is usually too vague, not simply too short.**
 
-下面的五个要素是检查表，不是必须凑齐的模板；简单分类任务可能只需要任务、标签定义和输入。
+The following five elements are a checklist, not a mandatory template. A simple classification task may need only a task description, label definitions, and an input.
 
-## 16.2 怎样把模糊请求改成可执行、可验收的任务？
+## 16.2 How do you turn a vague request into a task that can be executed and evaluated?
 
-把职责、任务、背景、格式和示例逐项对照，补上真正缺失的信息。下面的五个要素不是固定套话：每增加一项，都应能说明它解决了哪个歧义或验收问题。
+Review the responsibilities, task, background, format, and examples, and add only the information that is genuinely missing. These five elements are not stock phrases. For each addition, explain which ambiguity or acceptance problem it resolves.
 
 ```mermaid
 flowchart LR
-    Q["按任务选择检查项"] --> R["Role<br/>职责与观察角度"]
-    Q --> T["Task<br/>目标与边界"]
-    Q --> C["Context<br/>相关背景与证据"]
-    Q --> F["Format<br/>输出契约"]
-    Q --> E["Examples<br/>必要时提供代表性示例"]
+    Q["Choose checks for the task"] --> R["Role<br/>Responsibilities and perspective"]
+    Q --> T["Task<br/>Goal and boundaries"]
+    Q --> C["Context<br/>Relevant background and evidence"]
+    Q --> F["Format<br/>Output contract"]
+    Q --> E["Examples<br/>Representative examples when needed"]
 
     style E fill:#e6f4ea
 ```
 
-### 16.2.1 Role：角色设定
+### 16.2.1 Role: defining responsibilities
 
-角色设定可以提示观察角度与表达风格，但「有十年经验」不会赋予模型真实资历或额外知识。优先描述可执行的职责和判断标准。
+A role can suggest a perspective and writing style, but saying “ten years of experience” does not give a model real credentials or extra knowledge. Prefer actionable responsibilities and decision criteria.
 
-❌ **差**：
+The prompt inputs below remain in their original Chinese, with English explanations. Their length limits count Chinese characters, not English words.
+
+❌ **Weak**:
 
 ```
 你是一个助手，帮我分析这段代码。
 ```
 
-✅ **好**：
+This asks only: “You are an assistant. Help me analyze this code.”
+
+✅ **Better**:
 
 ```
 请审查以下 Python 后端代码，重点检查输入校验、异常处理和重复数据库查询。
@@ -55,38 +59,46 @@ flowchart LR
 不能从现有代码确认的问题，列为待核实项，不当成已确认缺陷。
 ```
 
-第二版的可取之处是限定了审查范围和证据要求，而不是给模型安上专家头衔。是否改善漏报和误报，仍要用已标注案例检验。
+This asks for a review of Python backend code focused on input validation, exception handling, and repeated database queries. Each finding must include its code location, triggering conditions, and a suggested change. Issues that cannot be confirmed from the available code must be listed as requiring verification, not as confirmed defects.
 
-### 16.2.2 Task：任务描述
+The improvement is the explicit review scope and evidence requirements, not an expert title assigned to the model. Whether it reduces missed findings and false positives still needs testing against labeled cases.
 
-用清晰的动词说明任务边界。复杂任务可拆成可验证的子任务，但拆分也会增加上下文传递成本，并可能丢失全局约束；并非步骤越多越好。
+### 16.2.2 Task: stating the work
 
-❌ **差**：
+Use clear verbs to define the task boundaries. Complex tasks can be split into verifiable subtasks, but decomposition also adds context-transfer costs and may lose global constraints. More steps are not automatically better.
+
+❌ **Weak**:
 
 ```
 帮我写一篇文章。
 ```
 
-✅ **好**：
+This simply asks: “Help me write an article.”
+
+✅ **Better**:
 
 ```
 写一篇面向高中生的 800 字科普文章，主题是「为什么黑洞会弯曲时空」。
 用日常生活类比帮助读者理解，避免数学公式，结尾给一个思考题。
 ```
 
-「帮我写一篇文章」给了模型太多自由度——写什么风格？多长？给谁看？好的写法把**受众、字数、主题、风格、结构**都点清楚。
+This asks for an 800-character popular-science article for high-school students on why black holes bend spacetime, using everyday analogies, avoiding mathematical formulas, and ending with a question for reflection.
 
-### 16.2.3 Context：背景信息
+“Help me write an article” leaves too many decisions open: what style, how long, and for whom? The better version specifies the **audience, length, topic, style, and structure**.
 
-模型不会自动知道你的业务规则，应提供与任务相关、获准使用的背景；不相关材料会增加成本，敏感材料不能因为「有助回答」就直接发送。
+### 16.2.3 Context: providing background
 
-❌ **差**：
+The model does not automatically know your business rules. Supply relevant background that you are authorized to use. Irrelevant material adds cost, and sensitive material must not be sent merely because it would help the answer.
+
+❌ **Weak**:
 
 ```
 把这段话翻译成英文。
 ```
 
-✅ **好**：
+This asks only to translate the passage into English.
+
+✅ **Better**:
 
 ```
 这是一份面向海外投资者的商业计划书摘要，需要翻译成英文。
@@ -95,19 +107,23 @@ flowchart LR
 [原文内容]
 ```
 
-第二版让受众、用途和术语要求可以被检查。若有专门译法，应提供术语表；业务规则有版本时，应给出适用日期和优先级。
+This identifies the source as a business-plan summary for overseas investors and requests formal business English, preservation of all technical terms, no colloquial language, and the original paragraph structure. The final placeholder marks the source text.
 
-### 16.2.4 Format：输出格式
+The second version makes the audience, purpose, and terminology requirements testable. Supply a glossary when specific translations are required. If business rules are versioned, include their effective dates and precedence.
 
-程序消费的输出不仅需要格式要求，还需要运行时校验。
+### 16.2.4 Format: defining the output
 
-❌ **差**：
+Output consumed by software needs runtime validation, not just formatting instructions.
+
+❌ **Weak**:
 
 ```
 分析这条用户评论的情感。
 ```
 
-✅ **好**：
+This asks to analyze the sentiment of a user review.
+
+✅ **Better**:
 
 ```
 分析以下用户评论，以 JSON 格式输出，包含以下字段：
@@ -118,29 +134,31 @@ flowchart LR
 [用户评论]
 ```
 
-这里的 JSON 只是自然语言要求，不是格式保证。需要区分三层：
+This requests JSON with a `summary` of at most 20 Chinese characters, a `sentiment` chosen from the original labels `正面` / `中性` / `负面` (positive / neutral / negative), and a `keywords` list containing at most 3 entries. The placeholder is the user review.
 
-| 层次 | 能约束什么 | 仍需处理什么 |
+Here, JSON is only a natural-language request, not a formatting guarantee. Distinguish three levels:
+
+| Level | What it constrains | What still needs handling |
 |---|---|---|
-| Prompt 中要求 JSON | 提示输出形式 | Markdown 围栏、漏字段、类型错误 |
-| JSON mode | 在接口规定条件下生成合法 JSON | 不保证符合具体 schema |
-| Structured Outputs / 约束解码 | 在支持的 schema 范围内约束结构 | 拒答、输出截断、接口错误，以及值的业务正确性 |
+| Asking for JSON in a prompt | Suggests an output format | Markdown fences, missing fields, incorrect types |
+| JSON mode | Produces valid JSON under the interface's stated conditions | Does not guarantee adherence to a particular schema |
+| Structured Outputs / constrained decoding | Constrains structure within the supported schema subset | Refusals, truncated output, API errors, and the business correctness of values |
 
-即使 `sentiment` 是合法枚举，也可能分类错误；即使金额是合法数字，也可能算错。应用应校验业务不变量，区分「重试可恢复」与「需要补充信息」，限制重试次数。严格 schema 的功能和限制应查具体模型、端点与后端版本。
+A valid `sentiment` enum can still be the wrong classification, and a valid number can still be the wrong amount. Applications should validate business invariants, distinguish recoverable retries from cases requiring more information, and limit retries. Check strict-schema capabilities and limitations for the specific model, endpoint, and backend version.
 
-### 16.2.5 Examples：Few-shot 示例
+### 16.2.5 Examples: few-shot prompting
 
-示例通过上下文学习传递输入与输出的对应关系，不会像微调一样更新模型权重。
+Examples communicate input–output relationships through in-context learning. They do not update model weights as fine-tuning does.
 
-示例适合传达抽象描述难以说清的格式、标签边界或风格。数量不是固定配方：从零示例基线开始，再比较代表性示例带来的收益与 token 开销。
+Examples are useful for formats, label boundaries, or styles that are hard to describe abstractly. There is no fixed recipe for their number: start with a zero-example baseline, then compare the benefits and token costs of representative examples.
 
-分类示例应覆盖相近标签、缺失信息和拒答情况，避免全是同一标签。错误示例、示例顺序和与测试题过度相似的内容都可能扭曲结果；不能把测试集答案放进 Prompt 后再声称泛化提升。
+Classification examples should cover neighboring labels, missing information, and refusal cases rather than using the same label throughout. Incorrect examples, example order, and content overly similar to test questions can all distort results. Putting test answers into the prompt does not demonstrate better generalization.
 
-## 16.3 端到端改造示例
+## 16.3 An end-to-end revision example
 
-场景：给一篇技术博客生成摘要。
+Scenario: generate a summary of a technical blog post.
 
-### 16.3.1 第一版（差）
+### 16.3.1 Version one: weak
 
 ```
 帮我总结一下这篇文章。
@@ -148,9 +166,11 @@ flowchart LR
 {文章内容}
 ```
 
-**待明确之处**：给谁看、哪些信息必须保留、是否允许补充常识、如何验收长度与格式。没有角色本身不构成缺陷。
+This asks to summarize the article supplied in the placeholder.
 
-### 16.3.2 第二版（加了 Role + Task）
+**Still unspecified**: the audience, information that must be retained, whether general knowledge may be added, and how length and format will be evaluated. The absence of a role is not itself a defect.
+
+### 16.3.2 Version two: adding role and task
 
 ```
 你是一位技术文档编辑。
@@ -160,9 +180,11 @@ flowchart LR
 {文章内容}
 ```
 
-有进步，但「提炼核心观点」还是太模糊——输出多长？格式是什么？给谁看？
+This assigns the role of technical documentation editor and asks for a summary highlighting the article's central points.
 
-### 16.3.3 第三版（完整）
+It is an improvement, but “highlight the central points” is still too vague. How long should the output be, in what format, and for whom?
+
+### 16.3.3 Version three: complete
 
 ```
 你是一位技术内容编辑，负责为工程师受众提炼文章精华。
@@ -183,21 +205,23 @@ flowchart LR
 {文章内容}
 ```
 
-第三版明确了验收条件，但仍未提供 Few-shot，也不需要为了形式完整而补一个。模型更换、服务端版本变化和采样参数变化后，都需要回归测试；长度要求尤其不能只依赖模型自行计数。
+This assigns a technical content editor to summarize a technical blog for engineers. It specifies a total of 100–150 Chinese characters for backend engineers with 2–3 years of experience who already know the basics. The summary must not add numbers or conclusions absent from the source and must identify contradictions in it. The required structure is a one-sentence conclusion of at most 20 characters stating the central claim, 3 key points of at most 30 characters each, and one sentence identifying the readers who would benefit most.
 
-## 16.4 三个进阶技巧
+The third version defines acceptance criteria but still contains no few-shot examples—and does not need one just to complete a template. Model changes, server-side version changes, and sampling-parameter changes all require regression tests. Length limits in particular should not rely solely on the model counting for itself.
 
-### 16.4.1 CoT 触发词
+## 16.4 Three advanced techniques
 
-在早期通用语言模型上，分步推导提示改善了部分数学和逻辑任务；对已训练为内部推理的模型，这类触发词可能多余，甚至干扰表现。应按模型官方指导，比较直接回答、分解任务与推理预算设置（详见 [第十七章](17-cot.md)）。
+### 16.4.1 CoT trigger phrases
 
-> **但不建议默认把完整推理链原样展示给最终用户**：生成的推导可能有错误，也不一定忠实反映模型内部过程。应按任务展示可核查的依据，而不是把长推导当作可信证明。
+Step-by-step prompting improved some mathematical and logical tasks on early general-purpose language models. For models trained to reason internally, those trigger phrases may be redundant or even harmful. Follow the model's official guidance and compare direct answers, task decomposition, and reasoning-budget settings; see [Chapter 17](17-cot.md).
+
+> **Do not default to showing end users the entire chain of thought verbatim.** Generated reasoning can be wrong and need not faithfully reflect the model's internal process. Show task-appropriate, verifiable evidence rather than treating a long derivation as trustworthy proof.
 >
-> 需要分开控制推理预算与展示长度。即使最终只展示简洁结论，已经生成的内部推理 token 仍可能计入用量；不展示并不会自动省掉这部分计算。
+> Control reasoning budget and display length separately. Even if the final response is concise, internal reasoning tokens already generated may still count toward usage. Hiding them does not automatically avoid that computation.
 
-### 16.4.2 XML 标签包裹内容
+### 16.4.2 Wrapping content in XML tags
 
-当 Prompt 包含多个部分时，Markdown 标题或 XML 标签可帮助区分结构，但不是安全隔离机制：
+When a prompt has several parts, Markdown headings or XML tags can clarify its structure, but they are not a security isolation mechanism:
 
 ```xml
 <document>
@@ -209,107 +233,109 @@ flowchart LR
 </task>
 ```
 
-### 16.4.3 将指令与不可信材料分开
+The `document` placeholder holds the document to analyze. The `task` asks for every date mentioned in that document and its corresponding event, returned as a table.
 
-业务指令放在接口支持的高优先级指令位置，用户文档、检索结果、网页与工具返回视为数据。文档里的「忽略之前要求」不是新指令；但仅在 Prompt 里声明这一点，不能保证抵抗提示注入。
+### 16.4.3 Separating instructions from untrusted material
 
-应用仍要限制工具权限、校验参数、隔离密钥，并对转账、删除等高影响操作独立审批。分隔符改善可读性，不能把低可信文本变成可信内容，也不能替代授权检查。
+Put business instructions in the high-priority instruction position supported by the interface. Treat user documents, retrieved results, web pages, and tool results as data. “Ignore the previous requirements” inside a document is not a new instruction, but stating this in a prompt alone does not guarantee resistance to prompt injection.
 
-## 16.5 迭代方法论：Prompt 是工程问题
+Applications still need restricted tool permissions, parameter validation, isolated secrets, and independent approval for high-impact operations such as transfers or deletions. Delimiters improve readability; they neither make low-trust text trustworthy nor replace authorization checks.
 
-**Prompt 工程更像「提出假设 → 测试 → 优化」的循环，不是一次写完就完事。**
+## 16.5 Iteration: prompts are an engineering problem
+
+**Prompt engineering is a cycle of forming hypotheses, testing, and improving—not a one-time writing exercise.**
 
 ```mermaid
 flowchart LR
-    A["分离开发集与保留测试集<br/>覆盖正常、边缘和攻击输入"] --> B["提出可检验的修改假设"]
-    B --> C["在开发集上比较<br/>质量、成本与分层指标"]
-    C --> D{"是否达到验收目标?"}
-    D -->|整体变好| E["保留改动"]
-    D -->|有些变好有些变差| F["分析任务分层与失败原因<br/>再决定是否拆分支"]
+    A["Separate development<br/>and held-out test sets<br/>Cover normal, edge,<br/>and adversarial inputs"] --> B["Propose a testable change"]
+    B --> C["Compare on the development set<br/>Quality, cost, and metrics<br/>by task group"]
+    C --> D{"Acceptance targets met?"}
+    D -->|Overall improvement| E["Keep the change"]
+    D -->|Mixed results| F["Analyze task groups<br/>and failure causes<br/>Then decide whether to branch"]
     E --> B
     F --> B
-    E -->|候选冻结后| H["使用保留测试集阶段验收<br/>不反复用于调参"]
+    E -->|After freezing the candidate| H["Run milestone acceptance<br/>on the held-out set<br/>Do not reuse it repeatedly<br/>for tuning"]
 
     style B fill:#e8f0fe
 ```
 
-固定模型快照、解码参数、输入数据和评分标准。单因素修改便于归因，但不是硬规则；多项修改可以用消融实验或因子实验辨别贡献。保留测试集不能反复用于改 Prompt，否则也会被间接过拟合。
+Fix the model snapshot, decoding parameters, input data, and scoring criteria. Changing one factor at a time helps attribution but is not a rigid rule. Ablation or factorial experiments can distinguish the contributions of multiple changes. Repeatedly using the held-out test set to revise a prompt will indirectly overfit that set too.
 
-验收要分开记录任务正确率、格式通过率、无依据断言、拒答率、成本与尾延迟。一个小样本开发集适合定位问题，不足以证明罕见高风险错误已经消失。
+Record task accuracy, format pass rate, unsupported assertions, refusal rate, cost, and tail latency separately. A small development set can help diagnose problems, but it cannot establish that rare, high-risk errors have disappeared.
 
-## 16.6 进阶：Prompt 压缩
+## 16.6 Advanced topic: prompt compression
 
-### 16.6.1 为什么要压
+### 16.6.1 Why compress?
 
-| 原因 | 说明 |
+| Reason | Explanation |
 |---|---|
-| **费用** | 同一计费档位内输入费用随 token 数增加；缓存、批处理和上下文档位可能改变单价 |
-| **延迟与容量** | 长输入增加预处理、prefill 和 KV 占用；首 token 延迟还受硬件、排队、缓存和推理预算影响，没有通用的每千 token 毫秒数 |
+| **Cost** | Within a pricing tier, input cost grows with token count; caching, batching, and context-length tiers can change the unit price |
+| **Latency and capacity** | Long inputs increase preprocessing, prefill, and KV memory usage; time to first token also depends on hardware, queuing, caching, and reasoning budget, so there is no universal milliseconds-per-thousand-tokens figure |
 
-先移除无关文档和重复示例，再考虑自动压缩。否定词、时间范围、例外条款、数字与引用标识虽短，却可能决定答案，不能按字数或表面重复直接删除。
+Remove irrelevant documents and repeated examples before considering automatic compression. Negations, time ranges, exceptions, numbers, and citation identifiers may be short yet determine the answer. Do not remove them simply because of length or apparent repetition.
 
-### 16.6.2 两类方案
+### 16.6.2 Two approaches
 
-| 方案 | 机制 | 适用边界 |
+| Approach | Mechanism | Applicability and limits |
 |---|---|---|
-| **离散文本压缩：LLMLingua / LongLLMLingua** | LLMLingua 结合预算控制、小模型困惑度与迭代 token 筛选；LongLLMLingua 进一步考虑问题相关性和文档位置 | 输出仍是文本，可送入目标 LLM；需计入压缩模型开销，原论文实验收益不能套用到任意业务 |
-| **Soft Prompt / Prompt Tuning** | 冻结主模型，通过反向传播学习任务专用的连续提示向量 | 这是参数高效适配，不等于把任意长文档无损编码成固定向量；需要训练与 embedding 输入能力，普通文本 API 通常不能直接使用 |
+| **Discrete text compression: LLMLingua / LongLLMLingua** | LLMLingua combines budget control, small-model perplexity, and iterative token selection; LongLLMLingua additionally considers question relevance and document position | The output remains text that can be sent to a target LLM; include the compression model's overhead, and do not assume the original papers' gains apply to every workload |
+| **Soft prompts / prompt tuning** | Freeze the main model and learn task-specific continuous prompt vectors through backpropagation | This is parameter-efficient adaptation, not lossless encoding of arbitrary long documents into fixed vectors; it requires training and embedding-input access and usually cannot be used directly through ordinary text APIs |
 
-### 16.6.3 适合的两类场景
+### 16.6.3 Two suitable workloads
 
-- **长上下文 RAG**：先检查召回与证据覆盖，再比较重排、片段提取和压缩；
-- **重复的 Few-shot 工作负载**：先选择代表性示例；固定前缀还可考虑提示缓存，它复用计算，不是语义压缩。
+- **Long-context RAG**: check retrieval recall and evidence coverage first, then compare reranking, span extraction, and compression.
+- **Repeated few-shot workloads**: select representative examples first. For fixed prefixes, also consider prompt caching, which reuses computation rather than compressing meaning.
 
-压缩有丢失证据的风险，但准确率不一定随压缩率单调下降：移除干扰材料也可能改善表现。应画出质量、输入 token 数、端到端成本与延迟的曲线，而不是承诺固定损失百分比。
+Compression risks losing evidence, but accuracy need not decrease monotonically as compression increases: removing distracting material may improve results. Plot quality, input tokens, end-to-end cost, and latency rather than promising a fixed percentage of quality loss.
 
-## 16.7 常见错误
+## 16.7 Common mistakes
 
-### 16.7.1 认为「Prompt 写长一点就行」
+### 16.7.1 Assuming a longer prompt is enough
 
-长度不是充分条件。应先判断失败来自指令歧义、证据缺失、模型能力还是系统集成。
+Length alone is insufficient. First determine whether the failure comes from ambiguous instructions, missing evidence, model capability, or system integration.
 
-### 16.7.2 忽略 Format 约束
+### 16.7.2 Ignoring format constraints
 
-仅写「输出 JSON」不等于 schema 保证；格式合法也不等于业务正确。
+“Output JSON” is not a schema guarantee, and valid structure is not the same as business correctness.
 
-### 16.7.3 用大段文字描述格式而不给示例
+### 16.7.3 Describing a format at length without examples
 
-复杂标签边界可用示例澄清，但要验证示例的准确性、代表性和增益；并非每个任务都需要示例。
+Examples can clarify complex label boundaries, but validate their accuracy, representativeness, and actual benefit. Not every task needs examples.
 
-### 16.7.4 把完整推理链直接展示给用户
+### 16.7.4 Showing users the entire chain of thought
 
-推导可能有错，也可能是不忠实的解释。**按任务展示简要依据或可核查结论**；展示更短不等于内部推理用量减少。
+The reasoning may be wrong or unfaithful. **Show concise supporting evidence or verifiable conclusions appropriate to the task.** A shorter display does not imply less internal reasoning usage.
 
-### 16.7.5 一次改多处 Prompt
+### 16.7.5 Changing many parts of a prompt at once
 
-无法仅从一次总分变化归因；可用单因素修改或消融实验，而不是把多项改动全部归功于某句「神奇提示词」。
+A single change in the aggregate score cannot establish which edit helped. Use one-factor changes or ablation experiments instead of crediting every improvement to one “magic phrase.”
 
-### 16.7.6 没有测试集，靠「感觉变好了」判断
+### 16.7.6 Judging improvement by feel, without a test set
 
-需要开发集、保留测试集与分层指标；样本规模由效果差异、风险和标注预算决定，没有通用的最低条数。
+Use a development set, a held-out test set, and metrics broken down by task group. Sample size depends on effect size, risk, and labeling budget; there is no universal minimum.
 
-### 16.7.7 把 Prompt 压缩当成无损优化
+### 16.7.7 Treating prompt compression as lossless optimization
 
-应逐项核查关键证据和限定条件是否保留，并把压缩本身的计算成本算进去。
+Check that each critical piece of evidence and each qualification survives, and include the cost of compression itself.
 
-## 16.8 本章总结
+## 16.8 Summary
 
-1. Prompt 用于表达任务和提供证据，不能替代知识更新、计算工具或权限系统。
-2. 角色、任务、上下文、格式、示例是可选检查项；每项都应对应可检验的需求。
-3. 区分格式提示、JSON mode、schema 约束与业务校验。
-4. 推理模型不一定需要 CoT 触发词；分隔符也不是提示注入防线。
-5. 用固定配置、保留测试集和分层指标验证修改；压缩与软提示适配是不同方法。
+1. Prompts express tasks and provide evidence. They do not replace knowledge updates, calculation tools, or authorization systems.
+2. Role, task, context, format, and examples are optional checks. Each should address a testable requirement.
+3. Distinguish format instructions, JSON mode, schema constraints, and business validation.
+4. Reasoning models do not necessarily need CoT trigger phrases, and delimiters are not a defense against prompt injection.
+5. Validate changes with fixed configurations, held-out tests, and task-specific breakdowns. Compression and soft-prompt adaptation are different methods.
 
-> 写 Prompt 不是堆辞藻，而是把角色、上下文、格式和示例交代清楚，再用测试集验证这些约束能不能稳定产出想要的结果。
+> Writing a prompt is not about elaborate wording. Make the responsibilities, context, format, and examples clear, then use a test set to determine whether those constraints reliably produce the intended result.
 
-## 参考资料
+## References
 
-- [Language Models are Few-Shot Learners（GPT-3，Few-shot）](https://arxiv.org/abs/2005.14165)
-- [Calibrate Before Use: Improving Few-Shot Performance of Language Models（示例与顺序偏差）](https://arxiv.org/abs/2102.09690)
+- [Language Models are Few-Shot Learners (GPT-3, few-shot learning)](https://arxiv.org/abs/2005.14165)
+- [Calibrate Before Use: Improving Few-Shot Performance of Language Models (example and ordering biases)](https://arxiv.org/abs/2102.09690)
 - [Chain-of-Thought Prompting Elicits Reasoning in Large Language Models](https://arxiv.org/abs/2201.11903)
-- [Large Language Models are Zero-Shot Reasoners（Let's think step by step）](https://arxiv.org/abs/2205.11916)
+- [Large Language Models are Zero-Shot Reasoners (Let's think step by step)](https://arxiv.org/abs/2205.11916)
 - [LLMLingua: Compressing Prompts for Accelerated Inference of Large Language Models](https://arxiv.org/abs/2310.05736)
 - [LongLLMLingua: Accelerating and Enhancing LLMs in Long Context Scenarios via Prompt Compression](https://arxiv.org/abs/2310.06839)
-- [The Power of Scale for Parameter-Efficient Prompt Tuning（Soft Prompt）](https://arxiv.org/abs/2104.08691)
-- [OpenAI: Reasoning best practices（含分隔符与 CoT 提示的适用边界）](https://developers.openai.com/api/docs/guides/reasoning-best-practices)
+- [The Power of Scale for Parameter-Efficient Prompt Tuning (soft prompts)](https://arxiv.org/abs/2104.08691)
+- [OpenAI: Reasoning best practices (including the scope of delimiters and CoT prompts)](https://developers.openai.com/api/docs/guides/reasoning-best-practices)
 - [OpenAI: Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)

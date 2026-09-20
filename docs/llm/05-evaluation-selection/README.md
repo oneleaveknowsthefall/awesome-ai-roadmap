@@ -1,16 +1,16 @@
 ---
-description: 说明公开基准、业务保留集和线上指标如何支撑模型选择，并比较任务成功率、数据约束、总成本与尾延迟。
+description: Explain how public benchmarks, held-out task data, and production metrics support model selection, comparing task success, data constraints, total cost, and tail latency.
 ---
 
-# LLM · 评测与选型
+# LLM · Evaluation and Model Selection
 
-建立从能力指标到业务模型选型的可审计决策方法。
+Build an auditable decision process from capability metrics to model selection for real applications.
 
-先定义任务与评分口径，再比较候选配置。注意区分模型能力与 Agent 系统成绩、至少一次成功与重复执行可靠性、token 单价与成功任务成本；不能用品牌标签或单一榜单代替验收。
+Define tasks and scoring criteria before comparing candidate configurations. Distinguish model capability from agent-system scores, success at least once from reliability across repeated runs, and token prices from cost per successful task. Brand labels and individual leaderboards cannot replace acceptance testing.
 
-## 章节
+## Chapters
 
-1. [第二十一章：能力评测指标](21-evaluation-metrics.md)
-2. [第二十二章：模型选型实践](22-model-selection.md)
+1. [Chapter 21: Capability Evaluation Metrics](21-evaluation-metrics.md)
+2. [Chapter 22: Practical Model Selection](22-model-selection.md)
 
-返回 [LLM 相关知识点](../README.md)。
+Return to [LLM Topics](../README.md).

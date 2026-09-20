@@ -1,180 +1,180 @@
 ---
-description: 用可计算的概率示例解释温度与 Top-K、Top-P 的重归一化、执行顺序、边界值和可复现条件，避免通用调参口诀。
+description: Work through temperature, Top-K, and Top-P probability examples to explain renormalization, operation ordering, boundary values, and reproducibility without universal tuning recipes.
 ---
 
-# 第十三章：Temperature、Top-P、Top-K 调参
+# Chapter 13: Tuning Temperature, Top-P, and Top-K
 
-> [第十二章](12-decoding-strategies.md)讨论生成策略。本章重点是：给出一组 logits 和参数后，最终采样分布怎样得到，怎样验证参数是否真的生效。
+> [Chapter 12](12-decoding-strategies.md) discusses generation strategies. This chapter focuses on how logits and parameter settings produce the final sampling distribution, and how to verify that the settings actually take effect.
 
-## 13.1 三个参数控制什么
+## 13.1 What the three parameters control
 
-| 参数 | 操作 | 不改变或不保证的事 |
+| Parameter | Operation | What it does not change or guarantee |
 |---|---|---|
-| Temperature | 对 logits 做正温度缩放，改变相对概率 | 不改变 token 排序，不提供新知识 |
-| Top-K | 保留概率最高的 K 个 token | 不保证剩下的都是合理答案 |
-| Top-P | 保留累计概率至少达到 P 的最小高概率集合 | 不保证保留 P 比例的 token，也不表示答案置信度 |
+| Temperature | Scale logits by a positive temperature to change relative probabilities | Does not change token ranking or supply new knowledge |
+| Top-K | Keep the K highest-probability tokens | Does not ensure that all remaining candidates are reasonable answers |
+| Top-P | Keep the smallest high-probability set whose cumulative probability reaches at least P | Does not retain P of the token count or represent answer confidence |
 
 ```mermaid
 flowchart TB
-    D["模型 logits"] --> T["Temperature 缩放"]
-    T --> K["Top-K 截断"]
-    K --> P["在当前分布上做 Top-P 截断"]
-    P --> N["重新归一化并采样"]
+    D["Model logits"] --> T["Temperature scaling"]
+    T --> K["Top-K truncation"]
+    K --> P["Top-P truncation<br/>on the current distribution"]
+    P --> N["Renormalize and sample"]
 ```
 
-这是一种常见顺序，不是跨框架标准。重复惩罚、语法掩码、最小长度、`min_p` 等处理也可能参与。迁移服务时应检查实际的 logits processor / sampler 链，而不能只比较同名参数。
+This is a common order, not a cross-framework standard. Repetition penalties, grammar masks, minimum length, `min_p`, and other processors may also participate. When migrating services, inspect the actual logits processor / sampler chain rather than comparing identically named parameters alone.
 
 ```python
 import torch
 
 
 def sample_next(logits, temperature=1.0, top_k=0, top_p=1.0):
-    # logits: (V,) 单个位置的原始分数，按上图顺序依次处理
-    logits = logits / temperature  # 只改变相对概率，不改变排序
+    # logits: (V,) raw scores for one position; apply the diagram's order.
+    logits = logits / temperature  # Change relative probabilities, not ranking.
     if top_k > 0:
         kth = logits.topk(min(top_k, logits.size(-1))).values[-1]
-        # 概率并列时，这种写法会保留多于 K 个候选
+        # With tied probabilities, this threshold can retain more than K candidates.
         logits = logits.masked_fill(logits < kth, float("-inf"))
     probs = logits.softmax(dim=-1)
     if top_p < 1.0:
         order = probs.argsort(descending=True)
-        # 不含自身的前缀累计概率：以它为判据，跨过阈值的那一项会被保留
+        # Exclude the current item from the prefix sum to retain the threshold-crossing item.
         exclusive = probs[order].cumsum(dim=-1) - probs[order]
         probs = probs.clone()
         probs[order[exclusive >= top_p]] = 0.0
-    probs = probs / probs.sum()  # 截断后重新归一化，再按概率采样
+    probs = probs / probs.sum()  # Renormalize after truncation, then sample by probability.
     return torch.multinomial(probs, num_samples=1)
 ```
 
 
-## 13.2 Temperature：概率比怎样变化
+## 13.2 Temperature: how probability ratios change
 
-仅讨论正温度 T：
+Consider only positive temperature T:
 
 $$
 p_i(T)=\frac{\exp(z_i/T)}{\sum_j\exp(z_j/T)}
 $$
 
-若 p 是未经温度缩放的 softmax 分布，也可以写成：
+If p is the softmax distribution before temperature scaling, this is also:
 
 $$
 p_i(T)=\frac{p_i^{1/T}}{\sum_j p_j^{1/T}}
 $$
 
-因此两个 token 的概率比由 `p_i/p_j` 变为它的 `1/T` 次方。温度低于 1 时放大差距，高于 1 时缩小差距。
+The probability ratio `p_i/p_j` therefore becomes that ratio raised to `1/T`. Temperatures below 1 amplify the difference; temperatures above 1 reduce it.
 
-### 13.2.1 一个可手算的例子
+### 13.2.1 An example you can calculate by hand
 
-设原分布为 `[0.6, 0.3, 0.1]`，没有其他 logits 处理：
+Let the original distribution be `[0.6, 0.3, 0.1]`, with no other logits processing:
 
-| 温度 | 计算 | 最终分布（近似） |
+| Temperature | Calculation | Final distribution, approximately |
 |---|---|---|
-| T=1 | 不变 | `[0.600, 0.300, 0.100]` |
-| T=0.5 | 各项平方后除以 0.46 | `[0.783, 0.196, 0.022]` |
-| T=2 | 各项开平方后归一化 | `[0.473, 0.334, 0.193]` |
+| T=1 | Unchanged | `[0.600, 0.300, 0.100]` |
+| T=0.5 | Square each value and divide by 0.46 | `[0.783, 0.196, 0.022]` |
+| T=2 | Take square roots and normalize | `[0.473, 0.334, 0.193]` |
 
-升温后第三项更容易被采到，但它可能是好创意，也可能是错误。温度控制的是分布，不是「聪明程度」。
+Increasing temperature makes the third token more likely to be sampled, but it could represent either a useful creative choice or an error. Temperature controls a distribution, not intelligence.
 
-### 13.2.2 T=0 与极限
+### 13.2.2 T=0 and limiting behavior
 
-T=0 会使公式除零；部分 API 将 `temperature=0` 特判为贪心。在本节讨论的基本解码设置中，Transformers 用 `num_beams=1` 且 `do_sample=False` 选择贪心；若保持不采样而将束宽设为大于 1，则使用束搜索。不要把零传给要求正温度的 TemperatureLogitsWarper，也不要把“关闭采样”直接等同于“关闭搜索”。
+T=0 causes division by zero in the formula; some APIs interpret `temperature=0` as a special request for greedy decoding. In the basic decoding settings discussed here, Transformers uses greedy decoding when `num_beams=1` and `do_sample=False`. Keeping sampling disabled but increasing beam width above 1 selects beam search. Do not pass zero to a TemperatureLogitsWarper that requires positive temperature, or equate disabling sampling with disabling search.
 
-当正温度趋近 0 且最大 logit 唯一时，概率集中到该 token；若有多个并列最大值，数学极限会在它们之间分配概率，不等同于某个实现的固定并列值选择。
+As positive temperature approaches 0, probability concentrates on the largest logit if it is unique. If several logits tie for the maximum, the mathematical limit distributes probability among them; that is not equivalent to an implementation's fixed tie-breaking choice.
 
-温度趋向无穷大时，**未被屏蔽的有限 logits** 趋近均匀分布。语法或截断屏蔽掉的 token 不会因此回来。
+As temperature approaches infinity, **unmasked finite logits** approach a uniform distribution. Tokens masked by grammar constraints or truncation do not reappear.
 
-## 13.3 Top-K：截断后仍按概率采样
+## 13.3 Top-K: sampling remains probability-weighted after truncation
 
-假设原分布为 `[0.6, 0.3, 0.1]`，K=2，则最终分布是 `[2/3, 1/3, 0]`，不是 `[1/2, 1/2, 0]`。
+For an original distribution of `[0.6, 0.3, 0.1]` and K=2, the final distribution is `[2/3, 1/3, 0]`, not `[1/2, 1/2, 0]`.
 
-如果最高概率 token 已占 99%，K=50 虽然可能保留很多低概率候选，**仍会主要采到最高概率项**，不是有 49/50 的概率选错。概率数字是示例，实际的「北京」也未必对应单个 token。
+If the most probable token already holds 99% of the probability mass, K=50 may retain many low-probability candidates, but **sampling will still mostly select the top token**. It does not create a 49/50 chance of an error. These probabilities are illustrative; the Chinese text “北京” (“Beijing”) does not necessarily correspond to a single token.
 
-固定 K 的问题是不能适应当前分布：平坦分布可能被过度截断，尖锐分布仍会保留低概率尾部。优点是候选规模有明确上限，行为容易检查。
+A fixed K cannot adapt to the current distribution. It may truncate a flat distribution too aggressively while retaining a low-probability tail in a sharp one. Its advantage is an explicit candidate-count limit and behavior that is easy to inspect.
 
-边界需查实现：
+Check the implementation's boundary behavior:
 
-- K=1 在不考虑并列处理差异时等价于贪心。
-- K 大于词表大小时，框架可能裁剪或报错。
-- 0、-1 或不传参数中，哪种表示禁用 Top-K，不能跨 API 照搬。
-- 概率并列时，某些阈值实现可能保留超过 K 个 token。
+- K=1 is equivalent to greedy decoding if differences in tie handling are ignored.
+- If K exceeds the vocabulary size, the framework may clamp it or raise an error.
+- Whether 0, -1, or omission disables Top-K is API-specific.
+- Some threshold implementations retain more than K tokens when probabilities tie.
 
-## 13.4 Top-P：概率质量不等于 token 数量
+## 13.4 Top-P: probability mass is not a token count
 
-把概率降序排列，取累计概率**至少达到** P 的最小前缀，并将其重新归一化。必须保留使累积值跨过阈值的那一项。
+Sort probabilities in descending order, retain the smallest prefix whose cumulative probability **reaches at least** P, and renormalize it. The item that takes the cumulative sum across the threshold must be retained.
 
-原分布仍为 `[0.6, 0.3, 0.1]`：
+Again, start with `[0.6, 0.3, 0.1]`:
 
-| P | 保留集合 | 归一化后 |
+| P | Retained set | After normalization |
 |---|---|---|
-| 0.5 | 第一项 | `[1, 0, 0]` |
-| 0.8 | 前两项，累计 0.9 | `[2/3, 1/3, 0]` |
-| 0.95 | 三项 | `[0.6, 0.3, 0.1]` |
+| 0.5 | First item | `[1, 0, 0]` |
+| 0.8 | First two items, totaling 0.9 | `[2/3, 1/3, 0]` |
+| 0.95 | All three items | `[0.6, 0.3, 0.1]` |
 
-`top_p=0.5` 不是「截掉一半词表」。数学定义下达到边界即足够；浮点误差、并列值与 `min_tokens_to_keep` 等实现约定可能影响边界行为。P=1 通常表示不做 nucleus 截断，P=0 是否允许及如何处理由 API 决定。
+`top_p=0.5` does not mean “remove half the vocabulary.” Under the mathematical definition, reaching the boundary is sufficient. Floating-point error, ties, and conventions such as `min_tokens_to_keep` can affect boundary behavior. P=1 usually disables nucleus truncation; whether P=0 is accepted, and how it behaves, depends on the API.
 
-Top-P 会随分布形状调整候选数，但无法区分「模型很确定地答错」和「真的有确定答案」。它不普遍优于 Top-K；一些模型的官方配置会同时使用二者。
+Top-P adapts the candidate count to the distribution's shape, but it cannot distinguish a model confidently giving a wrong answer from a genuinely unambiguous answer. It is not universally better than Top-K; official settings for some models use both.
 
-## 13.5 顺序如何影响结果
+## 13.5 How operation order affects the result
 
-### 13.5.1 高温与低 Top-P 并非不可预测
+### 13.5.1 High temperature and low Top-P are not inherently unpredictable
 
-对 `[0.6, 0.3, 0.1]` 先做 T=2，得到约 `[0.473, 0.334, 0.193]`。再做 P=0.5，需要保留前两项，归一化后约为 `[0.586, 0.414, 0]`。
+Applying T=2 to `[0.6, 0.3, 0.1]` first gives approximately `[0.473, 0.334, 0.193]`. Applying P=0.5 then requires keeping the first two items, yielding approximately `[0.586, 0.414, 0]` after normalization.
 
-如果先做 P=0.5，只剩第一项，此后怎么升温都还是第一项。因此两个操作通常不交换；只要顺序已知，组合就是可计算的，不是「参数打架、完全不可预测」。
+If P=0.5 is applied first, only the first item remains; raising temperature afterward cannot bring back the others. The operations therefore do not generally commute. Once their order is known, the combination is calculable, not a case of “conflicting parameters with completely unpredictable effects.”
 
-### 13.5.2 Top-K 与 Top-P 可以同时使用
+### 13.5.2 Top-K and Top-P can be used together
 
-设分布为 `[0.4, 0.3, 0.2, 0.1]`：
+Consider `[0.4, 0.3, 0.2, 0.1]`:
 
-- 先 K=2，再在重归一化分布 `[0.571, 0.429]` 上应用 P=0.5，只留第一项。
-- 先 P=0.5，原分布需要前两项累计到 0.7；再做 K=2，仍保留两项。
+- Apply K=2, then P=0.5 to the renormalized distribution `[0.571, 0.429]`: only the first item remains.
+- Apply P=0.5 first: the original distribution needs the first two items to reach 0.7. Applying K=2 afterward retains both.
 
-Temperature 与 Top-K 的候选排序在正温度下相同，但最终采样概率仍受温度影响；Top-P 的候选集合则直接受温度和前面截断后的归一化影响。
+Positive temperature does not change the ranking used by Top-K, but it still changes the final sampling probabilities. Top-P's candidate set is directly affected by temperature and by normalization after preceding truncation.
 
-## 13.6 工程调参：先确认模型与接口
+## 13.6 Practical tuning starts with the model and interface
 
-### 13.6.1 不使用跨模型的三档温度表
+### 13.6.1 Avoid a universal three-level temperature table
 
-先记录：模型修订、thinking/non-thinking 模式、框架版本、实际生效的生成配置、是否采样和输出长度上限。有些推理模型不接受全部采样参数；发送成功也不一定意味着参数没有被默认值或服务端配置覆盖。
+First record the model revision, thinking/non-thinking mode, framework version, effective generation configuration, sampling status, and output-length limit. Some reasoning models do not accept every sampling parameter. A successful request does not prove that defaults or server configuration have not overridden a parameter.
 
-Qwen3-30B-A3B 原版官方模型卡提供了一个明确反例：
+The original Qwen3-30B-A3B model card provides a clear counterexample:
 
-| 模式 | 模型卡给出的配置 |
+| Mode | Model-card configuration |
 |---|---|
-| thinking | Temperature=0.6，TopP=0.95，TopK=20，MinP=0；明确不建议贪心 |
-| non-thinking | Temperature=0.7，TopP=0.8，TopK=20，MinP=0 |
+| thinking | Temperature=0.6, TopP=0.95, TopK=20, MinP=0; explicitly discourages greedy decoding |
+| non-thinking | Temperature=0.7, TopP=0.8, TopK=20, MinP=0 |
 
-这不是其他 Qwen 修订或其他模型的通用推荐，而是说明「精确任务一律 T=0」「禁止同时用 Top-K/Top-P」都不成立。
+These are not universal recommendations for other Qwen revisions or other models. They demonstrate why neither “always use T=0 for precise tasks” nor “never combine Top-K and Top-P” holds.
 
-### 13.6.2 怎样做一次有解释力的实验
+### 13.6.2 Designing an interpretable experiment
 
-1. 用模型卡建议作为基线，固定提示、模板、约束和输出预算。
-2. 一次改变一个主要变量，观察正确率、格式通过率、重复率和平均输出长度；需要分析交互时再做小范围联合实验。
-3. 每个设置跑多个样本或随机种子，报告波动，不从一次好回答推出结论。
-4. 在业务测试集上确认收益，保留模型版本和失败样本；代码任务用执行测试，而不是只看文字是否自信。
+1. Use the model-card recommendation as the baseline, fixing prompts, templates, constraints, and output budgets.
+2. Change one main variable at a time and observe accuracy, format pass rate, repetition, and average output length. Use a small joint experiment when interactions need investigation.
+3. Run multiple samples or seeds for each setting and report variation. Do not infer a general conclusion from one good response.
+4. Confirm improvements on the business test set, retaining model versions and failure cases. For code tasks, use execution tests rather than judging confident wording.
 
-「一次改一个变量」是方便诊断的实验方法，不是禁止组合参数的算法限制。
+Changing one variable at a time is an experimental method that helps diagnosis, not an algorithmic prohibition on combining parameters.
 
-## 13.7 参数之外的两个边界
+## 13.7 Two limits beyond the parameters
 
-### 13.7.1 采样不能代替约束与验证
+### 13.7.1 Sampling cannot replace constraints and verification
 
-JSON 解析失败要区分语法不合法、输出被截断、字段含义错误。grammar/schema 可以限制合法 token 路径，不能保证事实正确；调低温度也不能替代它们。
+When JSON processing fails, distinguish invalid syntax, truncated output, and incorrect field semantics. A grammar or schema can constrain valid token paths, but cannot guarantee factual correctness; lower temperature cannot replace these constraints either.
 
-同样，停止 token、stop string、最大长度、重复惩罚会改变生成结果。输出很短时不应直接认定温度过低，先查 EOS 和停止配置。
+Stop tokens, stop strings, maximum length, and repetition penalties also change generation. If an output is unexpectedly short, check EOS and stopping settings before blaming a low temperature.
 
-### 13.7.2 固定 seed 不是完整的复现协议
+### 13.7.2 A fixed seed is not a complete reproducibility protocol
 
-seed 控制伪随机数序列；模型计算的非确定性仍可改变被采样的分布。贪心虽然不用随机采样，但也受浮点、批次与模型版本影响。需要可复现时，固定运行环境并检查框架的确定性或 batch invariance 支持及代价。
+A seed controls the pseudorandom sequence; nondeterminism in model computation can still change the distribution being sampled. Greedy decoding does not use random sampling, but floating-point behavior, batching, and model versions still affect it. For reproducibility, fix the execution environment and check the framework's determinism or batch invariance support and its costs.
 
-## 13.8 本章总结
+## 13.8 Chapter summary
 
-Temperature 改概率比，Top-K 限制候选数，Top-P 限制累计概率质量；截断后都要重新归一化。它们的组合不是禁忌，真正需要确认的是执行顺序、边界值与模型推荐配置。调参结论应来自任务评测，而不是把高温等同于创意、低温等同于正确。
+Temperature changes probability ratios, Top-K limits candidate count, and Top-P limits cumulative probability mass; truncation requires renormalization. Combining them is not forbidden. What matters is operation order, boundary behavior, and model-recommended settings. Tuning conclusions should come from task evaluation, not from equating high temperature with creativity or low temperature with correctness.
 
-## 参考资料
+## References
 
 - [The Curious Case of Neural Text Degeneration](https://arxiv.org/abs/1904.09751)
-- [Transformers：Generation Utilities，含 Temperature/TopK/TopP LogitsWarper](https://huggingface.co/docs/transformers/main/en/internal/generation_utils)
-- [Transformers v4.56.2：贪心、采样与束搜索的配置条件](https://huggingface.co/docs/transformers/v4.56.2/en/generation_strategies)
-- [Qwen3-30B-A3B 官方模型卡与采样建议](https://huggingface.co/Qwen/Qwen3-30B-A3B)
-- [vLLM：Batch Invariance](https://docs.vllm.ai/en/stable/features/batch_invariance/)
+- [Transformers: Generation Utilities, including Temperature/TopK/TopP LogitsWarper](https://huggingface.co/docs/transformers/main/en/internal/generation_utils)
+- [Transformers v4.56.2: configuration conditions for greedy decoding, sampling, and beam search](https://huggingface.co/docs/transformers/v4.56.2/en/generation_strategies)
+- [Qwen3-30B-A3B official model card and sampling recommendations](https://huggingface.co/Qwen/Qwen3-30B-A3B)
+- [vLLM: Batch Invariance](https://docs.vllm.ai/en/stable/features/batch_invariance/)

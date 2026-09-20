@@ -1,232 +1,232 @@
 ---
-description: 区分事实性、来源忠实性与推理错误，解释数据和学习目标的影响，并比较 RAG、证据校验、置信校准与选择性回答。
+description: Distinguish factuality, source faithfulness, and reasoning errors; explain the effects of data and learning objectives; and compare RAG, evidence verification, confidence calibration, and selective answering.
 ---
 
-# 第十八章：幻觉的成因与缓解
+# Chapter 18: Hallucinations—Causes and Mitigation
 
-## 18.1 幻觉到底是什么
+## 18.1 What is a hallucination?
 
-幻觉通常指生成内容不受给定来源支持，或与可核实事实不符。不同研究对边界的划分不完全一致；评测前要明确是检查「对外部事实正确」，还是「忠实于输入材料」。
+A hallucination usually means generated content that is unsupported by a supplied source or inconsistent with verifiable facts. Research does not use a single boundary for the term. Before evaluating, specify whether you are checking correctness against external facts or faithfulness to the input material.
 
-两者可能分离：
+These properties can diverge:
 
-1. 摘要忠实转述了一份过时报告，但该报告的结论已不符合当前事实；
-2. 回答补充了真实的常识，但任务要求「只根据给定资料」，资料并不支持这条补充。
+1. A summary faithfully restates an outdated report whose conclusions no longer match current facts.
+2. An answer adds true general knowledge, but the task requires using only the supplied material, which does not support that addition.
 
-语言流畅会增加误信风险，但不是判定幻觉的必要条件。「训练数据里写过」也不等于事实正确。本文将算术和逻辑错误单独列为可靠性问题，不把所有输出错误都统称为幻觉。
+Fluency can make an error more convincing, but it is not a necessary condition for hallucination. Appearing in training data does not make a statement true either. This chapter treats arithmetic and logical errors as separate reliability problems rather than calling every output error a hallucination.
 
-### 18.1.1 几个典型例子
+### 18.1.1 Typical examples
 
-- 推荐一本书，给出书名和作者，听起来像那么回事，但那位作者从没写过这本书；
-- 让模型解释某个从未举办过的赛事有哪些项目，模型一本正经列出十几项；
-- 写医学综述时引用「Smith et al., 2018」，去 PubMed 查根本不存在。
+- A book recommendation gives a plausible title and author, but that author never wrote the book.
+- Asked to describe the events in a competition that never took place, the model confidently lists more than a dozen.
+- A medical review cites “Smith et al., 2018,” but no such reference exists in PubMed.
 
-## 18.2 生成概率不是事实验证
+## 18.2 Generation probability is not fact verification
 
 ```mermaid
 flowchart TB
-    subgraph DB["数据库"]
-        D1["输入查询"] --> D2["返回精确匹配的记录"]
-        D2 --> D3["按接口契约返回记录或空结果<br/>记录本身也可能过时"]
+    subgraph DB["Database"]
+        D1["Input query"] --> D2["Return exact-match records"]
+        D2 --> D3["Return records or an empty result<br/>under the API contract<br/>The records themselves may be outdated"]
     end
     subgraph LLM["LLM"]
-        L1["输入上下文"] --> L2["根据学习到的条件分布生成 token"]
-        L2 --> L3["可生成回答或拒答<br/>但概率不等于事实真实性"]
+        L1["Input context"] --> L2["Generate tokens from a learned<br/>conditional distribution"]
+        L2 --> L3["May answer or decline<br/>Probability is not factual truth"]
     end
 
     style D3 fill:#e6f4ea
     style L3 fill:#fdecea
 ```
 
-自回归生成没有内置的外部事实证明；但模型可以学会输出「不知道」、调用工具，应用也可以在证据不足时阻止生成。不能由「预测下一个 token」推出「永远会编一个答案」。
+Autoregressive generation has no built-in proof of external facts. Yet a model can learn to say “I don't know” or call tools, and an application can block generation when evidence is insufficient. “Predicts the next token” does not imply “always makes up an answer.”
 
-需要区分三个环节：模型掌握了什么、生成目标鼓励什么、系统允许哪些未经验证的结论到达用户。单独解释训练数据或采样机制，都不足以覆盖所有失败。
+Distinguish three stages: what the model knows, what the generation objective encourages, and which unverified conclusions the system allows to reach the user. Training data or sampling mechanisms alone cannot explain every failure.
 
-## 18.3 根因一：训练数据本身就有错
+## 18.3 Root cause one: errors in training data
 
-训练数据可能来自网页、书籍、代码或专门采集的数据，具体规模与配方因模型而异。常见问题包括：
+Training data may come from web pages, books, code, or purpose-built collections; scale and composition vary by model. Common problems include:
 
-- 百科里有过时的、错误的、被破坏的版本；
-- 新闻里有谣言、虚假报道、带立场的扭曲叙述；
-- 论坛和博客可能包含未经验证的推断或常见误解；
-- **不同来源互相矛盾**（同一事件的不同说法、同一数据的不同版本）；
-- **时间过期的信息**（十年前的「最新研究」）。
+- Outdated, incorrect, or vandalized encyclopedia versions.
+- Rumors, false reporting, and biased accounts in news.
+- Unverified inferences or common misconceptions in forums and blogs.
+- **Conflicting sources**, such as different accounts of one event or different versions of the same data.
+- **Stale information**, such as “the latest research” from ten years ago.
 
-预训练优化文本预测，不会逐条验证来源。模型也可能学到事实辨别能力，但没有把所有语料原样存入参数，更不保证从冲突材料中学到正确版本。
+Pretraining optimizes text prediction; it does not verify every source. Models may learn to distinguish facts, but they do not store the entire corpus verbatim in their parameters, nor are they guaranteed to learn the correct account from conflicting material.
 
-即使数据经过认真清洗，有限覆盖、有限模型容量、泛化误差和问题歧义仍会造成无依据回答。不能把「清洗训练集」当成充分解决方案。
+Even careful cleaning leaves limited coverage, finite model capacity, generalization error, and ambiguous questions that can produce unsupported answers. Cleaning the training set is not a sufficient solution.
 
-## 18.4 根因二：生成机制是「续写」不是「查询」
+## 18.4 Root cause two: generation continues text rather than querying records
 
-模型需要从分布式表示中生成具体答案。预测一个常见、合理的续接，与证明某条事实成立是不同目标。
+The model must generate a specific answer from distributed representations. Predicting a common, plausible continuation is a different objective from proving a fact.
 
-### 18.4.1 不确定性信号存在，但未必校准
+### 18.4.1 Uncertainty signals may exist without being calibrated
 
-问「鲁迅是谁的笔名」时，纯参数化回答通常不是在一个显式人名表里做数据库查询，而是由上下文与模型权重共同决定输出分布。
+For the question “鲁迅是谁的笔名” (“Whose pen name is Lu Xun?”), a purely parametric answer usually does not query an explicit table of names. Instead, the context and model weights jointly determine the output distribution.
 
-- 信息频次、语境、来源冲突和训练方式都会影响答案，不能用「出现一两次」推断必然记不住；
-- token 概率衡量局部续接可能性，不直接等于整条事实正确的概率；
-- 模型自报的「90% 把握」也要在同类任务上做校准，不能直接当可信概率。
+- Information frequency, context, conflicting sources, and training all affect the answer. Seeing a fact “once or twice” does not establish that the model must fail to retain it.
+- Token probability measures the likelihood of a local continuation, not directly the probability that an entire factual claim is correct.
+- A model's self-reported “90% confidence” also needs calibration on comparable tasks before it can be treated as a trustworthy probability.
 
-### 18.4.2 反直觉的推论：Temperature=0 也会幻觉
+### 18.4.2 A counterintuitive consequence: Temperature=0 can still hallucinate
 
-在采用贪心语义的解码实现中，Temperature=0 取最高概率 token。**概率最高不等于事实正确**；概率还受后训练、当前上下文和约束影响，不只是训练词频。部分推理接口不接受温度设置，应以实际 API 为准。
+In decoding implementations where zero temperature means greedy selection, Temperature=0 selects the highest-probability token. **Highest probability does not mean factual correctness.** Probabilities also depend on post-training, the current context, and constraints—not just training frequencies. Some reasoning interfaces do not accept a temperature setting; follow the actual API.
 
-下面是仅用于解释机制的假设分布，不是模型实测值，也不代表真实 tokenizer 的切分：
+The following hypothetical distribution illustrates the mechanism. It is not a model measurement and does not represent the segmentation of a real tokenizer. The original Chinese character candidates are retained:
 
 ```
 茅 35%  |  周 32%  |  鲁 18%  |  巴 15%
 ```
 
-若候选与分布确实如此，贪心会选「茅」。这说明局部概率最大仍可出错，而不是证明模型有人的「自信」体验。
+If these were the candidates and probabilities, greedy decoding would select `茅`. The point is that the highest local probability can still be wrong, not that the model experiences human-like confidence.
 
-降低温度会改变候选分布，可能减少某些错误，也可能稳定复现错误，不是事实核查。即使温度为零，服务端模型版本、批处理和数值实现也可能影响可复现性。
+Lowering temperature changes the candidate distribution. It may reduce some errors or reproduce an error more consistently, but it is not fact-checking. Even at zero temperature, server-side model versions, batching, and numerical implementations can affect reproducibility.
 
-### 18.4.3 参数化知识 vs 检索式知识
+### 18.4.3 Parametric knowledge versus retrieved knowledge
 
-| | 参数化知识（LLM 权重） | 检索式知识（RAG） |
+| | Parametric knowledge: LLM weights | Retrieved knowledge: RAG |
 |---|---|---|
-| **精确度** | 可以准确回忆，也可能混淆、过时；精度不是只由频次决定 | 可能召回无关、过时或错误文档，生成器也可能误读 |
-| **更新方式** | 通常依赖训练或其他模型更新方法 | 可更新文档和索引，但需要版本与权限管理 |
-| **可验证性** | 可用外部来源验证答案，但一般无法仅凭输出确定训练出处 | 可保存检索片段及版本，进一步验证声明是否被支持 |
-| **证据不足** | 可以回答、表达不确定或拒答，取决于训练与系统策略 | Top-k 搜索仍可能返回若干低相关结果；需额外判定证据是否足够 |
+| **Accuracy** | May recall facts correctly, confuse them, or be outdated; accuracy is not determined solely by frequency | May retrieve irrelevant, outdated, or incorrect documents, and the generator may misread them |
+| **Updates** | Usually requires training or another model-update method | Documents and indexes can be updated, but need version and permission management |
+| **Verifiability** | External sources can verify answers, but output alone generally cannot identify the training source | Retrieved passages and versions can be retained to check whether claims are supported |
+| **Insufficient evidence** | May answer, express uncertainty, or decline, depending on training and system policy | Top-k search may still return several weakly relevant results; evidence sufficiency needs a separate check |
 
-RAG 为生成增加可更新、可追溯的证据，不是把参数记忆完全「换掉」。模型仍可能优先使用内部知识，因此要同时检查检索召回与回答对证据的忠实性。
+RAG adds updatable, traceable evidence to generation; it does not completely replace parametric memory. A model may still prioritize internal knowledge, so assess both retrieval recall and answer faithfulness to the evidence.
 
-## 18.5 根因三：对齐目标的副作用
+## 18.5 Root cause three: side effects of alignment objectives
 
-对齐训练可以改善真实性与拒答，也可能放大不良偏好，取决于示例、奖励与评估方式。不能笼统地说 SFT 或 RLHF 必然使幻觉增加。
+Alignment training can improve truthfulness and refusals, or amplify undesirable preferences, depending on examples, rewards, and evaluation. It is inaccurate to claim that SFT or RLHF necessarily increases hallucinations.
 
 ```mermaid
 flowchart TB
-    A["训练或评价中<br/>未充分奖励证据与恰当弃答"]
-    A --> B["流畅、迎合用户的错误回答<br/>有时获得较高偏好分"]
-    B --> C["奖励或偏好优化<br/>可能强化这些代理特征"]
-    C --> F["在部分任务上<br/>出现迎合或无依据断言"]
+    A["Training or evaluation<br/>Under-rewards evidence<br/>and appropriate abstention"]
+    A --> B["Fluent but incorrect answers<br/>that agree with the user<br/>Sometimes receive higher<br/>preference scores"]
+    B --> C["Reward or preference optimization<br/>May reinforce these proxy features"]
+    C --> F["On some tasks<br/>Sycophancy or unsupported assertions"]
 
     style F fill:#fdecea
 ```
 
-《Towards Understanding Sycophancy in Language Models》观察到，人类与偏好模型有时偏爱迎合用户观点的回答，即便回答错误。它支持「存在此风险」，并不支持「谨慎回答几乎永远得低分」或某种优化算法必然造成幻觉。
+*Towards Understanding Sycophancy in Language Models* observed that humans and preference models sometimes prefer answers that agree with users' views even when those answers are wrong. This supports the existence of a risk—not the claim that cautious answers almost always score poorly, or that a particular optimization algorithm inevitably causes hallucinations.
 
-### 18.5.1 校准与选择性回答
+### 18.5.1 Calibration and selective answering
 
-《Language Models (Mostly) Know What They Know》研究了对候选答案正确性的 `P(True)`，以及不依赖特定候选的 `P(IK)`（知道答案的概率）。结果显示某些设置下存在有用的自评信号，但跨新任务的校准仍困难；它不是一个直接命名为「Calibrated Refusal」的通用生产流程。
+*Language Models (Mostly) Know What They Know* studied `P(True)`, the probability that a candidate answer is correct, and `P(IK)`, the probability of knowing the answer independently of a specific candidate. Useful self-evaluation signals appeared in some settings, but calibration on new tasks remained difficult. The paper does not define a universal production workflow specifically named “Calibrated Refusal.”
 
-选择性回答是在验证集上选定阈值，证据或置信不足时弃答、澄清或转人工。要同时报告**回答覆盖率**与**已回答部分的错误率**：全部拒答可以让错误输出很少，却没有实用价值。知识不足的弃答与安全政策拒答，也应分开统计。
+Selective answering chooses thresholds on a validation set and abstains, asks for clarification, or hands off to a person when evidence or confidence is insufficient. Report both **answer coverage** and **error rate among answered questions**. Refusing everything produces few erroneous answers but little practical value. Track abstention due to insufficient knowledge separately from safety-policy refusals.
 
-## 18.6 区分事实、忠实性与其他错误
+## 18.6 Distinguishing factuality, faithfulness, and other errors
 
-| 类型 | 特征 | 例子 |
+| Type | Characteristic | Examples |
 |---|---|---|
-| **事实性问题** | 与可核实的外部事实冲突 | 编造论文；错写作者、时间或地点 |
-| **忠实性问题** | 与输入矛盾，或加入来源不支持的内容 | 原文说「可能增长」，摘要写成「已增长」；文档未提价格却补出数字 |
-| **推理、指令与安全错误** | 不一定属于同一种幻觉，需要单独验收 | 算术错误用计算核查；字段缺失用 schema 检查；泄密用权限与信息流控制 |
+| **Factuality problem** | Conflicts with verifiable external facts | Fabricated papers; incorrect authors, dates, or places |
+| **Faithfulness problem** | Contradicts the input or adds unsupported content | The source says “may grow,” but the summary says “has grown”; the document gives no price, yet the answer supplies one |
+| **Reasoning, instruction-following, and safety errors** | Not necessarily the same kind of hallucination; require separate acceptance checks | Verify arithmetic with computation, missing fields with schema checks, and information leaks with authorization and information-flow controls |
 
-## 18.7 缓解方案：三层组合
+## 18.7 Mitigation at three levels
 
 ```mermaid
 flowchart LR
-    T["训练层<br/>改进数据与学习目标"] --> I["推理层<br/>分配采样与验证预算"] --> S["系统层<br/>检索、证据校验与风险控制"]
+    T["Training<br/>Improve data<br/>and learning objectives"] --> I["Inference<br/>Allocate sampling<br/>and verification budgets"] --> S["System<br/>Retrieval, evidence checks,<br/>and risk controls"]
 
     style S fill:#e6f4ea
 ```
 
-### 18.7.1 训练层
+### 18.7.1 Training level
 
-| 做法 | 说明 |
+| Approach | Explanation |
 |---|---|
-| **改进训练数据** | 修正来源冲突和过时信息；同时提供可回答、应澄清与证据不足的案例，防止一味拒答 |
-| **真实性与校准目标** | 使用经核实的标签，区分正确回答、错误断言与恰当弃答；仍需在目标分布验证校准 |
-| **筛选与偏好训练** | 以检索、规则或人工核查形成反馈；普通奖励模型分数本身不是事实证明 |
+| **Improve training data** | Correct conflicting sources and stale information; include answerable cases, cases needing clarification, and cases with insufficient evidence to avoid blanket refusal |
+| **Truthfulness and calibration objectives** | Use verified labels and distinguish correct answers, false assertions, and appropriate abstention; calibration still needs validation on the target distribution |
+| **Filtering and preference training** | Build feedback from retrieval, rules, or human checks; a standard reward-model score is not itself proof of a fact |
 
-这些方法改变模型行为，但不能保证消除知识盲区；成本、标签质量与分布变化都会限制收益。
+These methods change model behavior but cannot guarantee the elimination of knowledge gaps. Cost, label quality, and distribution shifts all limit their benefits.
 
-### 18.7.2 推理层（不改模型）
+### 18.7.2 Inference level: without changing the model
 
-| 做法 | 针对 | 说明 |
+| Approach | Target | Explanation |
 |---|---|---|
-| **分步处理 + 外部验证** | 多步推导或计算 | 中间结果便于工具核查；CoT 文本本身不保证正确或忠实（见 [第十七章](17-cot.md)） |
-| **解码参数调整** | 采样引入的部分错误 | 用业务集比较温度和截断参数；没有通用的事实问答温度区间（见 [第十三章](../03-inference-serving/13-temperature-top-p-top-k.md)） |
-| **Self-Consistency** | 有可聚合答案的推理任务 | 多路径聚合可能改善结果，但相关错误也会得到高票 |
-| **约束解码** | 语法与结构错误 | 按语法或 schema 动态限制合法 token；只能约束支持范围内的结构，不能保证值正确，并需处理拒答和截断 |
+| **Stepwise processing plus external verification** | Multistep reasoning or calculation | Intermediate results make tool checks easier; CoT text does not itself guarantee correctness or faithfulness; see [Chapter 17](17-cot.md) |
+| **Adjust decoding parameters** | Some errors introduced by sampling | Compare temperature and truncation settings on task-specific data; there is no universal temperature range for factual question answering; see [Chapter 13](../03-inference-serving/13-temperature-top-p-top-k.md) |
+| **Self-consistency** | Reasoning tasks whose answers can be aggregated | Aggregating paths may improve results, but correlated errors can also win many votes |
+| **Constrained decoding** | Syntax and structure errors | Dynamically restrict valid tokens according to a grammar or schema; only supported structures are constrained, values are not guaranteed correct, and refusals and truncation still need handling |
 
-这些做法不直接更新参数知识；若缺少事实依据，优先补充证据，而不是仅增加采样次数。
+These methods do not directly update parametric knowledge. If factual evidence is missing, add evidence before merely increasing the sample count.
 
-### 18.7.3 系统层（把 LLM 当成会犯错的组件，外面加防护栏）
+### 18.7.3 System level: guardrails around a fallible component
 
-| 做法 | 说明 |
+| Approach | Explanation |
 |---|---|
-| **RAG** | 提供可追溯证据；分别评估检索是否覆盖答案、材料是否可靠、生成是否忠实（详见 [RAG 主题](../../rag/README.md)） |
-| **工具与事实核查** | 数值用计算器、状态用权威业务 API；将文本拆成原子声明，逐条检查证据。核查模型可能共享同样的错误，不能只换一个 LLM 就视为独立证明 |
-| **引用与证据绑定** | 校验来源存在、片段可定位、版本适用、片段确实支持声明；引用编号合法不等于内容被支持 |
-| **选择性回答** | 找不到充分证据时给出可回答部分、请求澄清或转人工，避免强行补全 |
+| **RAG** | Supply traceable evidence; separately assess whether retrieval covers the answer, whether the material is reliable, and whether generation is faithful; see the [RAG topic](../../rag/README.md) |
+| **Tools and fact-checking** | Use calculators for numbers and authoritative business APIs for state; split text into atomic claims and check their evidence individually. A checking model may share the same errors, so switching to another LLM is not independent proof |
+| **Binding citations to evidence** | Verify that the source exists, the passage can be located, the version applies, and the passage actually supports the claim; a valid citation number does not establish support |
+| **Selective answering** | When evidence is insufficient, return the answerable part, ask for clarification, or hand off to a person instead of forcing a complete answer |
 
-系统措施能增加可观测性和控制点，但也引入检索噪声、延迟、访问控制与提示注入风险。SelfCheckGPT 的多次采样一致性适合用作筛查信号；CoVe 的独立验证问题可减少草稿对核查的影响，但两者都不是外部事实真值。
+System measures add observability and control points, but also introduce retrieval noise, latency, access-control concerns, and prompt-injection risks. SelfCheckGPT's agreement across samples can serve as a screening signal. CoVe's independent verification questions can reduce the draft's influence on checking. Neither supplies external ground truth.
 
-例如报告声称「公司去年营收增长 12%」，应检查公司主体、财年、币种、增长口径和对应表格，再复算数字。如果只找到同公司另一个年度的文档，即使模型附上了真实链接，也不算验证通过。
+For example, a report claiming that a company's revenue grew 12% last year should be checked against the company entity, fiscal year, currency, growth definition, and relevant table, followed by recalculation. A genuine link to the same company's report for a different year does not make the claim verified.
 
-## 18.8 为什么不能对开放域回答承诺零错误
+## 18.8 Why zero errors cannot be promised for open-domain answers
 
-开放域问题涉及未知事实、资料冲突、时间变化和评估盲区，有限测试无法证明所有未来输入都正确。这里是保证范围的问题，而不是仅凭「概率生成」就证明任何系统必然出错。
+Open-domain questions involve unknown facts, conflicting sources, changing information, and blind spots in evaluation. Finite tests cannot prove correctness for every future input. This is a question of the scope of a guarantee; probabilistic generation alone is not proof that every conceivable system must fail.
 
-受限任务可以提供更强保证：只允许输出经过验证的数据库记录、对形式化命题给出可检查证明，或在无法验证时拒绝输出。保证仍取决于数据库、验证器与规格是否正确，不能扩展成对所有自然语言事实的承诺。
+Restricted tasks can provide stronger guarantees: return only verified database records, supply checkable proofs of formal statements, or decline to produce unverifiable output. Such guarantees still depend on the database, verifier, and specification being correct. They cannot be extended to every natural-language fact.
 
-### 18.8.1 现实的工程目标
+### 18.8.1 Realistic engineering goals
 
-| 目标 | 说明 |
+| Goal | Explanation |
 |---|---|
-| **测量并降低风险** | 明确按回答还是按原子声明计错，报告分母、样本量、严重性与置信区间 |
-| **保留可核查证据** | 引用需验证支持关系；未经校准的可信度标记不能当保证 |
-| **限制高影响动作** | 医疗、法律、财务等场景按风险与适用规则设置专业复核和操作权限，人工复核本身也需质量控制 |
+| **Measure and reduce risk** | Specify whether errors are counted per answer or per atomic claim; report the denominator, sample size, severity, and confidence intervals |
+| **Retain verifiable evidence** | Check that citations support claims; uncalibrated confidence labels are not guarantees |
+| **Limit high-impact actions** | In medical, legal, financial, and similar settings, set professional review and action permissions according to risk and applicable rules; human review itself also needs quality control |
 
-> 工程上更实际的目标是：把幻觉率压低，让用户看得出哪些内容需要核查，并在高风险场景加人工复核。
+> A more practical engineering goal is to reduce the hallucination rate, make it clear which content needs checking, and add human review in high-risk situations.
 
-## 18.9 常见错误
+## 18.9 Common mistakes
 
-### 18.9.1 把幻觉说成「模型出错」
+### 18.9.1 Defining hallucination as any model error
 
-先说明事实性与来源忠实性的判定口径；不要用流畅与否作为唯一边界，也不要把泄密、格式和算术问题混成一个指标。
+Specify the criteria for factuality and source faithfulness first. Do not use fluency as the sole boundary or merge information leaks, format errors, and arithmetic errors into one metric.
 
-### 18.9.2 只说训练数据有噪声
+### 18.9.2 Blaming only noisy training data
 
-还要考虑知识覆盖、目标函数、泛化、输入证据和系统是否允许无依据输出。
+Also consider knowledge coverage, objectives, generalization, input evidence, and whether the system permits unsupported output.
 
-### 18.9.3 认为把 Temperature 调到 0 就能解决
+### 18.9.3 Assuming Temperature=0 solves the problem
 
-概率最高的 token 不等于正确的 token。最高概率路径本身错误时，Temperature=0 也可能稳定复现该错误。
+The most probable token need not be the correct one. If the highest-probability path is wrong, Temperature=0 may reproduce that error consistently.
 
-### 18.9.4 忽略对齐训练的副作用
+### 18.9.4 Ignoring side effects of alignment training
 
-偏好反馈可能鼓励迎合，也可以奖励真实性和恰当弃答；应说明数据与奖励条件，而不是断言 RLHF 必然有害。
+Preference feedback can encourage sycophancy, but it can also reward truthfulness and appropriate abstention. Explain the relevant data and reward conditions instead of claiming that RLHF is inherently harmful.
 
-### 18.9.5 认为 RAG 能根除幻觉
+### 18.9.5 Assuming RAG eliminates hallucinations
 
-RAG 可能召回错误资料，生成器也可能违背资料；引用存在、引用支持与回答覆盖要分别检查。
+RAG may retrieve incorrect material, and the generator may contradict it. Check citation existence, citation support, and answer coverage separately.
 
-### 18.9.6 只讲一层缓解方案
+### 18.9.6 Discussing mitigation at only one level
 
-按失败类型选措施；使用托管 API 的团队也可只在推理和系统层改进，不必为了形式完整而训练模型。
+Choose measures based on the failure type. Teams using hosted APIs may improve only inference and system behavior; they need not train a model just to complete a three-level template.
 
-### 18.9.7 断言某闭源模型用了某套具体流程
+### 18.9.7 Claiming a closed model uses a specific unpublished process
 
-未公开的流程不推断；「更强的拒答校准」也需要同条件的评测证据，不能换一种措辞继续猜测。
+Do not infer undisclosed processes. Claims of “better refusal calibration” also require evaluations under comparable conditions; rephrasing speculation does not make it evidence.
 
-### 18.9.8 承诺「能彻底消除幻觉」
+### 18.9.8 Promising to eliminate hallucinations completely
 
-限定任务、输出空间和验证条件后可以讨论保证；对开放域所有事实承诺零错误则缺乏依据。
+Guarantees can be discussed after defining the task, output space, and verification conditions. A zero-error promise for all open-domain facts is unsupported.
 
-## 18.10 本章总结
+## 18.10 Summary
 
-1. 先确定事实性、来源忠实性与其他可靠性错误的边界。
-2. 生成概率不是事实证明，但模型可以具备不确定性信号并学会弃答。
-3. 数据、学习目标与系统证据链都会影响幻觉；低温、RLHF 或 RAG 都没有无条件结论。
-4. 引用与自我核查必须验证支持关系，样本一致不等于真实。
-5. 同时衡量回答覆盖率、错误率和严重性，在明确任务边界内提供可审计的保证。
+1. Define the boundaries between factuality, source faithfulness, and other reliability errors.
+2. Generation probability is not proof of a fact, but models may have uncertainty signals and can learn to abstain.
+3. Data, learning objectives, and the system's evidence chain all affect hallucinations. Low temperature, RLHF, and RAG offer no unconditional conclusions.
+4. Citations and self-checks require verification of evidential support. Agreement across samples does not establish truth.
+5. Measure answer coverage, error rate, and severity together, and offer auditable guarantees within explicit task boundaries.
 
-> 面对一个错误回答，先找出是哪条声明缺证据、证据在哪一步丢失，再决定修改数据、推理流程还是系统校验。
+> When an answer is wrong, identify the unsupported claim and the point where evidence was lost before deciding whether to change the data, reasoning process, or system checks.
 
-## 参考资料
+## References
 
 - [On Faithfulness and Factuality in Abstractive Summarization](https://arxiv.org/abs/2005.00661)
 - [Survey of Hallucination in Natural Language Generation](https://arxiv.org/abs/2202.03629)
@@ -238,4 +238,4 @@ RAG 可能召回错误资料，生成器也可能违背资料；引用存在、�
 - [Chain-of-Verification Reduces Hallucination in Large Language Models](https://arxiv.org/abs/2309.11495)
 - [Constitutional AI: Harmlessness from AI Feedback](https://arxiv.org/abs/2212.08073)
 - [Towards Understanding Sycophancy in Language Models](https://arxiv.org/abs/2310.13548)
-- [OpenAI: Structured Outputs（结构保证与内容错误的区别）](https://developers.openai.com/api/docs/guides/structured-outputs)
+- [OpenAI: Structured Outputs (structural guarantees versus content errors)](https://developers.openai.com/api/docs/guides/structured-outputs)

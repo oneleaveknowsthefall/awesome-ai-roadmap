@@ -1,25 +1,25 @@
 ---
-description: 图像与视频生成学习索引，连接扩散、Flow Matching、采样引导与视频时序表示，关注成本和可验证的生成质量。
+description: Connect diffusion, flow matching, sampling guidance, and temporal video representations, with attention to cost and verifiable generation quality.
 ---
 
-# 多模态 · 生成
+# Multimodal · Generation
 
-覆盖图像与视频生成背后的扩散模型、Flow Matching 生成范式，以及视频生成在时序一致性和计算成本上引入的额外问题。
+This module covers diffusion models and flow matching for image and video generation, plus the additional temporal-consistency and compute-cost problems introduced by video.
 
-## 章节
+## Chapters
 
-1. [第七章：扩散模型、Flow Matching 与图像生成](07-diffusion-flow-matching-image.md)
-2. [第八章：视频生成模型](08-video-generation.md)
+1. [Chapter 7: Diffusion Models, Flow Matching, and Image Generation](07-diffusion-flow-matching-image.md)
+2. [Chapter 8: Video Generation Models](08-video-generation.md)
 
-## 模块内关系
+## Connections within the module
 
 ```mermaid
 flowchart LR
-    D[扩散模型 / Flow Matching<br/>与图像生成] --> V[视频生成模型]
+    D[Diffusion / Flow Matching<br/>and Image Generation] --> V[Video Generation Models]
 ```
 
-视频可以复用图像生成的训练目标和骨干，但还需时间表示、视频压缩、运动监督与历史条件；并非所有模型都用 Transformer，也不能由时空 patch 推断训练目标必为 Flow Matching。
+Video can reuse image-generation objectives and backbones, but also needs temporal representations, video compression, motion supervision, and history conditioning. Not every model uses a Transformer, and spatiotemporal patches do not imply a flow-matching objective.
 
-第七章重点区分训练路径、预测参数化、采样器和条件引导；第八章增加主体身份、运动及长时序一致性。直线条件路径不保证一步生成，画面平滑也不保证有正确运动，这两类反例是理解方法边界的切入点。
+Chapter 7 distinguishes training paths, prediction parameterizations, samplers, and conditional guidance. Chapter 8 adds subject identity, motion, and long-range temporal consistency. Straight conditional paths do not guarantee one-step generation, and smooth images do not guarantee correct motion. These counterexamples help clarify the methods' limits.
 
-返回 [多模态相关知识点](../README.md)。
+Return to [Multimodal Topics](../README.md).

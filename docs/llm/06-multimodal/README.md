@@ -1,15 +1,15 @@
 ---
-description: 理解图像、音频和视频接入语言模型的方式，关注感知证据、时空信息、模态成本以及理解与行动的安全边界。
+description: Understand how images, audio, and video connect to language models, focusing on perceptual evidence, spatial and temporal information, modality costs, and safety boundaries for understanding and action.
 ---
 
-# LLM · 多模态
+# LLM · Multimodality
 
-梳理视觉、音频、视频模型的表示、训练、推理、评测与安全。
+Review representation, training, inference, evaluation, and safety in vision, audio, and video models.
 
-从输入与输出模态的区别入手，再分析编码器、连接模块和语言模型各自承担什么。对同一个失败案例，尝试区分感知丢失、推理错误和证据不足，而不是只看多模态总分。
+Start by distinguishing input and output modalities, then examine the responsibilities of encoders, connectors, and language models. For any failure, distinguish lost perceptual information, reasoning errors, and insufficient evidence instead of relying only on an aggregate multimodal score.
 
-## 章节
+## Chapters
 
-1. [第二十三章：多模态模型](23-multimodal-models.md)
+1. [Chapter 23: Multimodal Models](23-multimodal-models.md)
 
-返回 [LLM 相关知识点](../README.md)。
+Return to [LLM Topics](../README.md).

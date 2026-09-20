@@ -1,31 +1,31 @@
 ---
-description: 解释 token 级 MoE 路由、激活与总参数的统计口径、负载均衡及专家容量，结合已发布模型分析通信、显存和服务延迟。
+description: Explain token-level MoE routing, active versus total parameter counts, load balancing, and expert capacity, using released models to analyze communication, memory, and serving latency.
 ---
 
-# 第十九章：MoE 混合专家模型
+# Chapter 19: Mixture-of-Experts Models
 
-## 19.1 Dense 的成本为何与参数有关，但不成简单正比
+## 19.1 Why dense-model cost relates to parameter count, but is not simply proportional
 
-Dense Transformer 的每个 token 通常经过各层 attention 与 FFN，不进行稀疏专家选择。不能字面理解成「所有参数都参与相同数量的运算」：输入 embedding 是查表，attention 成本随上下文变化，输出头也有单独的开销。
+Each token in a dense Transformer typically passes through every layer's attention and FFN without sparse expert selection. This does not literally mean every parameter performs the same amount of computation: input embeddings use lookup, attention cost varies with context length, and the output head has its own overhead.
 
-扩大 Dense 模型往往增加计算和权重存储，但端到端延迟还受带宽、batch、并行、精度和 KV 影响，**参数加倍不意味着延迟、显存和训练费用全部严格加倍**。能否放入一台服务器也取决于每卡容量，不能只按「8 卡」判断。
+Scaling a dense model generally increases computation and weight storage, but end-to-end latency also depends on bandwidth, batch size, parallelism, precision, and KV state. **Doubling parameters does not exactly double latency, memory, and training cost alike.** Whether a model fits on one server also depends on per-GPU capacity, not merely on having “8 GPUs.”
 
-## 19.2 MoE 解耦总容量与每 token 的部分计算
+## 19.2 MoE separates total capacity from part of the per-token computation
 
-本章讨论稀疏、token-choice 的 FFN MoE：在选定的 Transformer 层中设置 N 个 routed experts，每个 token 的隐藏状态只送往其中 K 个。其他层或共享专家仍然计算。
+This chapter discusses sparse, token-choice FFN MoE: selected Transformer layers contain N routed experts, and each token's hidden state goes to only K of them. Other layers and shared experts still execute.
 
 ```mermaid
 flowchart LR
-    T["当前层 token 隐藏状态"] --> R["Router 选 K 个专家"]
-    R --> E1["专家 1"]
-    R -.未选中.-> E2["专家 2"]
-    R --> E3["专家 3"]
-    R -.未选中.-> EN["其余专家"]
-    E1 --> O["按 gate 权重求和"]
+    T["Token hidden state<br/>at the current layer"] --> R["Router selects<br/>K experts"]
+    R --> E1["Expert 1"]
+    R -.Not selected.-> E2["Expert 2"]
+    R --> E3["Expert 3"]
+    R -.Not selected.-> EN["Other experts"]
+    E1 --> O["Sum with gate weights"]
     E3 --> O
 ```
 
-设 P_shared 是整个模型始终参与的非路由部分，P_experts 是所有层的 routed expert 总参数，且各层专家大小相同、选取比例为 K/N，则可粗略写成：
+Let P_shared denote all non-routed parameters that always participate, and P_experts the total routed-expert parameters across layers. Assuming equally sized experts across layers and a selection ratio K/N, approximately:
 
 $$
 P_{\mathrm{total}}=P_{\mathrm{shared}}+P_{\mathrm{experts}}
@@ -35,23 +35,23 @@ $$
 P_{\mathrm{active}}\approx P_{\mathrm{shared}}+\frac{K}{N}P_{\mathrm{experts}}
 $$
 
-这些是参数统计，不是精确 FLOPs 或延迟公式。**K/N 只描述 routed 部分的选取比例**，不能直接说整个模型推理成本只剩 K/N。总参数也不是可直接测量的「知识量」；能力仍依赖训练数据、优化和架构。
+These are parameter counts, not exact FLOP or latency formulas. **K/N describes the selection ratio only for the routed component**; it does not imply that total inference cost falls to K/N. Total parameters are not a directly measurable quantity of knowledge either. Capability still depends on training data, optimization, and architecture.
 
-## 19.3 专家、Router 与负载均衡
+## 19.3 Experts, routers, and load balancing
 
-### 19.3.1 专家不是独立的领域聊天模型
+### 19.3.1 Experts are not independent domain-specific chat models
 
-常见 expert 是结构相同、参数独立的 FFN；attention 不一定复制。MoE 可以只出现在部分层，而不是每层必然都是 MoE。
+A typical expert is an FFN with the same structure as its peers but independent parameters; attention is not necessarily replicated. MoE may appear in only some layers rather than every layer.
 
-选择在**每层、每 token**进行，同一句话甚至同一 token 在不同层都可选择不同专家。Router 看的是上下文化隐藏状态，不是先读懂整道问题再挑一个「数学模型」。
+Selection happens **per token, per layer**. Tokens in the same sentence—and even the same token at different layers—can select different experts. The router reads a contextual hidden state; it does not first understand the entire question and choose a “math model.”
 
-专家可能表现出语法、位置、token 类型或领域上的偏好，但不保证按人工学科整齐分工。Mixtral 论文的路由分析发现明显的局部和句法特征，不能把专家名称当作其能力标签。
+Experts may develop preferences for syntax, position, token type, or domain, but they need not specialize neatly along human academic categories. Mixtral's routing analysis found clear locality and syntactic patterns; expert names should not be treated as capability labels.
 
-固定 K 和单专家大小而增加 N，主要增加参数容量与存储，也增加路由、通信和训练覆盖压力；若固定总参数而增加 N，则专家会变小，是另一种实验。比较专家数之前必须先说清固定什么预算。
+Increasing N while fixing K and expert size mainly increases parameter capacity and storage, along with routing, communication, and training-coverage pressure. Increasing N at fixed total parameters makes experts smaller, which is a different experiment. State which budget is fixed before comparing expert counts.
 
-### 19.3.2 Router 的一条实际计算路径
+### 19.3.2 A concrete router computation
 
-以下是单 token、Mixtral 风格 Top-2 的示意，不代表所有 MoE 都用 softmax：
+The following illustrates Mixtral-style Top-2 routing for one token; it does not imply that every MoE uses softmax:
 
 ```python
 gate_logits = hidden_state @ W_router
@@ -63,150 +63,150 @@ output = sum(
 )
 ```
 
-对所选 logits 做 softmax，等价于对全部 logits 做 softmax 后取 Top-K 再重新归一化。Switch 的 Top-1 gating 和 DeepSeek-V3 的 sigmoid affinity 有各自定义，不能把这段代码套给所有模型。
+Applying softmax to the selected logits is equivalent to applying softmax to all logits, selecting Top-K, and renormalizing. Switch's Top-1 gating and DeepSeek-V3's sigmoid affinity have their own definitions; this code is not universal.
 
-K 越大通常增加专家计算与 token 分发量；K=1 并不保证任何实现上都最快，也未必达到所需质量。K、专家宽度和共享部分要共同考虑。
+A larger K usually increases expert computation and token dispatch volume. K=1 is not guaranteed to be fastest in every implementation and may not meet quality requirements. Consider K, expert width, and the shared component together.
 
-### 19.3.3 负载均衡为何不能只看概率方差
+### 19.3.3 Why probability variance alone cannot describe load balancing
 
-Router 早期的偏好可能让少数专家收到更多 token、得到更多任务梯度，其余专家训练不足；热门专家还会使设备过载。**平均路由概率与实际 Top-K 分配量并不是一回事**。
+Early router preferences can send more tokens and task gradients to a few experts, leaving others undertrained. Popular experts may also overload their devices. **Average routing probability is not the same as actual Top-K assignment count**.
 
-以 Switch 的 Top-1 辅助损失为例，T 个 token、N 个专家：
+For example, Switch's Top-1 auxiliary loss for T tokens and N experts is:
 
 $$
 L_{\mathrm{aux}}=\alpha N\sum_{i=1}^{N}f_iP_i
 $$
 
-f_i 是实际路由到专家 i 的 token 比例，P_i 是整个 batch 对专家 i 的平均路由概率。离散分配比例通常不反传，梯度通过概率项作用于 Router。均匀时各项分布均衡，但系数 α 过大会干扰主任务；它不是保证每个 batch 严格均匀的约束。
+Here f_i is the fraction of tokens actually routed to expert i, and P_i is the batch's average routing probability for that expert. The discrete assignment fraction normally does not receive backpropagation; gradients reach the router through the probability term. Uniform distributions balance these quantities, but an excessively large α can interfere with the main task. This is not a constraint that guarantees perfect balance in every batch.
 
-### 19.3.4 DeepSeek-V3 的 “Auxiliary-Loss-Free” 要完整解释
+### 19.3.4 Explaining DeepSeek-V3's “auxiliary-loss-free” approach completely
 
-V3 用专家偏置修正**用于 Top-K 选择的分数**：过载专家的偏置调低，低载专家调高。输出混合权重仍来自原始 affinity，不直接把均衡偏置乘进专家输出。
+V3 uses expert biases to adjust **the scores used for Top-K selection**: lower the bias for overloaded experts and raise it for underloaded ones. Output mixing weights still come from the original affinities; the balancing bias does not directly multiply expert outputs.
 
-这减少了对传统全局辅助均衡损失的依赖；**V3 仍保留小权重的 sequence-wise 辅助均衡损失**，防止单序列内极端失衡。说「V3 完全没有任何辅助损失」会遗漏技术报告中的这一项。
+This reduces reliance on a conventional global auxiliary balancing loss. However, **V3 retains a small sequence-wise auxiliary balancing loss** to prevent extreme imbalance within an individual sequence. Saying that V3 has no auxiliary loss whatsoever omits this term from the technical report.
 
-## 19.4 总参数、激活参数、常驻容量与延迟
+## 19.4 Total parameters, active parameters, resident capacity, and latency
 
-DeepSeek-V3 原版技术报告给出 671B 总参数、每 token 37B 激活参数。由位宽只能推导裸存储：
+The original DeepSeek-V3 technical report gives 671B total parameters and 37B active parameters per token. Bit width alone establishes only raw storage:
 
-| 格式假设 | 671B 全部权重的理想裸存储 |
+| Assumed format | Ideal raw storage for all 671B weights |
 |---|---:|
-| 全部 16-bit | 1.342 TB（十进制） |
-| 全部 8-bit | 671 GB |
-| 全部 4-bit | 335.5 GB |
+| All 16-bit | 1.342 TB, decimal |
+| All 8-bit | 671 GB |
+| All 4-bit | 335.5 GB |
 
-真实混合精度文件、scale、未量化张量、KV、激活、通信与临时缓冲会改变容量。表中不是任何现成 checkpoint 的实测值，也不能据此给出统一的最低 H100 卡数。
+Real mixed-precision files, scales, unquantized tensors, KV state, activations, communication, and temporary buffers change capacity requirements. These are not measurements of an existing checkpoint and cannot establish one universal minimum number of H100 GPUs.
 
-| 问题 | 正确统计口径 |
+| Question | Appropriate accounting |
 |---|---|
-| 所有专家需要存在哪里？ | 所有权重必须可访问；通常跨 GPU 常驻，也可放 CPU/其他内存并按需计算或搬运 |
-| 每个 token 做多少专家计算？ | 看各层激活专家、专家宽度和共享层，不仅看模型总参数 |
-| 低 batch 的延迟？ | 权重与 KV 带宽、路由、通信、kernel 启动和小矩阵利用率 |
-| 大 batch 的吞吐？ | 专家实际 token 分布、计算利用率、跨设备拓扑与通信重叠 |
+| Where must all experts be stored? | All weights must be accessible; typically resident across GPUs, or placed in CPU/other memory for on-demand computation or transfer |
+| How much expert computation does each token require? | Examine active experts per layer, expert width, and shared layers, not just total parameters |
+| What determines low-batch latency? | Weight and KV bandwidth, routing, communication, kernel launches, and small-matrix utilization |
+| What determines large-batch throughput? | Actual expert token distributions, compute utilization, inter-device topology, and communication overlap |
 
-Offloading 可以降低 GPU 常驻需求，但会增加主机带宽、传输或 CPU 计算成本。**“37B 激活”不能推出与 37B Dense 相同的延迟**，也不意味着只需要存 37B 权重。
+Offloading can reduce GPU residency but adds host-bandwidth, transfer, or CPU-computation costs. **“37B active” does not imply the latency of a 37B dense model**, nor does it mean only 37B weights need storage.
 
-## 19.5 用已发布实例理解结构差异
+## 19.5 Structural differences in released models
 
-以下是指定历史版本的架构样例，不是截至某日的模型性能榜单：
+The following are architecture examples from specific historical versions, not a model-performance leaderboard as of a particular date:
 
-| 模型 | 总参数 / 每 token 激活参数 | routed 专家配置 | 要注意的范围 |
+| Model | Total / active parameters per token | Routed-expert configuration | Important scope |
 |---|---|---|---|
-| DeepSeek-V3 原版 | 671B / 37B | 每个 MoE 层 256 个，Top-8，另有 1 个 shared expert | 前三层 FFN 为 Dense，后续才是 MoE；使用 MLA |
-| Mixtral 8x7B | 约 47B / 13B | 每层 8 个，Top-2 | “8x7B”不是总参数 56B；attention 等部分不复制八份 |
-| Qwen3-30B-A3B 原版 | 30.5B / 3.3B | 128 个，Top-8 | 模型名称是近似档位，不是精确参数数；采用 GQA |
+| Original DeepSeek-V3 | 671B / 37B | 256 per MoE layer, Top-8, plus 1 shared expert | The first three FFN layers are dense, followed by MoE; uses MLA |
+| Mixtral 8x7B | Approximately 47B / 13B | 8 per layer, Top-2 | “8x7B” does not mean 56B total parameters; attention and other components are not replicated eight times |
+| Original Qwen3-30B-A3B | 30.5B / 3.3B | 128, Top-8 | The name is an approximate size category, not an exact parameter count; uses GQA |
 
-由表可计算 V3 激活率约 5.5%，但激活率更低不等于能力或性能更高。三者专家宽度、层数、attention 和训练不同，不能当成「专家越多越好」的受控实验。
+The table gives V3 an activation ratio of approximately 5.5%, but a lower activation ratio does not mean better capability or performance. Expert width, depth, attention, and training differ across these models; they are not a controlled experiment proving that more experts are better.
 
-共享专家可承接每个 token 都需要的计算，让 routed 部分有更多专门化空间；它同时增加每 token 的固定成本，并非所有 MoE 都必须采用。
+Shared experts can handle computation needed by every token, leaving more room for routed experts to specialize. They also add a fixed per-token cost, and not every MoE must use them.
 
-## 19.6 训练：容量、梯度与通信
+## 19.6 Training: capacity, gradients, and communication
 
-### 19.6.1 Expert capacity：溢出的 token 去哪里
+### 19.6.1 Expert capacity: where do overflow tokens go?
 
-若一个 batch 有 T 个 token，每个分配给 K 个专家，理想平均每专家接收 TK/N 个分配。常见容量预算为：
+For a batch of T tokens, each assigned to K experts, the ideal average is TK/N assignments per expert. A common capacity budget is:
 
 $$
 C=\left\lceil c\frac{TK}{N}\right\rceil
 $$
 
-c 是 capacity factor。它控制预留余量，不保证 Router 实际均匀。
+Here c is the capacity factor. It controls reserved headroom, not whether routing is actually balanced.
 
-- **有容量上限**：溢出分配可被丢弃、重路由等；丢弃某个专家分支通常不等于删掉整个 token，残差路径仍可能保留。
-- **Dropless**：通过动态或块稀疏计算处理全部分配，避免丢弃，但仍要承担负载偏斜、缓冲区和调度成本。
-- **Expert Choice**：专家各自选固定数量 token，控制专家负载；每个 token 被多少专家处理会变化，需要处理覆盖和因果服务中的批次依赖。
+- **Capacity-limited**: overflow assignments may be dropped, rerouted, or otherwise handled. Dropping one expert branch usually does not delete the entire token; its residual path may remain.
+- **Dropless**: dynamic or block-sparse computation processes all assignments without dropping, but still incurs skewed-load, buffer, and scheduling costs.
+- **Expert Choice**: each expert selects a fixed number of tokens, controlling expert load. The number of experts processing each token varies, requiring care with token coverage and batch dependencies in causal serving.
 
-训练的平均负载均衡不能保证线上每个请求窗口均衡。动态场景要看实际 gate 分布和设备负载。
+Balanced average load during training does not guarantee balance in every production request window. Dynamic workloads require observing actual gate distributions and device load.
 
-### 19.6.2 Router 的离散选择怎样训练
+### 19.6.2 How discrete router choices are trained
 
-softmax 可微，`topk` 的索引选择是离散的；主任务梯度可经所选 gate 和专家传播，未选专家通常收不到该 token 的任务梯度。辅助损失、噪声路由等可帮助探索与均衡。
+Softmax is differentiable, but `topk` index selection is discrete. Main-task gradients can flow through selected gates and experts; unselected experts usually receive no task gradient from that token. Auxiliary losses and noisy routing can support exploration and balancing.
 
-| 技巧 | 机制和边界 |
+| Technique | Mechanism and limitation |
 |---|---|
-| Noisy Top-K | 训练时给路由分数加噪声，增加探索；不是推理时必须采样 |
-| Router z-loss | 惩罚 logits 的 `logsumexp` 的平方，抑制不稳定尺度；不等同于直接惩罚 logits 的 L2 范数 |
-| Router 较高精度 | 缓解路由数值敏感性，具体混合精度策略依模型而定 |
+| Noisy Top-K | Add noise to routing scores during training to encourage exploration; does not require sampling during inference |
+| Router z-loss | Penalize the square of logits' `logsumexp` to control unstable scale; not the same as directly penalizing the logits' L2 norm |
+| Higher-precision router | Reduce sensitivity to routing numerics; the mixed-precision policy depends on the model |
 
-不能把「训练时计算所有专家、推理时只选 Top-K」当作标准稀疏 MoE 流程，那会改变训练计算成本与训练/推理分布。
+“Compute every expert during training and only Top-K during inference” is not the standard sparse-MoE procedure. That would change training compute and the training/inference distribution.
 
-### 19.6.3 专家并行怎样分发 token
+### 19.6.3 How expert parallelism dispatches tokens
 
-Expert Parallel 将不同专家放到不同设备。常见路径是：
+Expert parallelism places different experts on different devices. A common path is:
 
 ```mermaid
 flowchart LR
-    H["token 隐藏状态"] --> ROUTE["路由与打包"]
-    ROUTE --> SEND["dispatch：发往专家设备"]
-    SEND --> FFN["各专家执行 FFN"]
-    FFN --> BACK["combine：结果回到原 token"]
-    BACK --> SUM["加权合并"]
+    H["Token hidden states"] --> ROUTE["Route and pack"]
+    ROUTE --> SEND["Dispatch to<br/>expert devices"]
+    SEND --> FFN["Experts execute<br/>their FFNs"]
+    FFN --> BACK["Combine: return results<br/>to original tokens"]
+    BACK --> SUM["Weighted aggregation"]
 ```
 
-跨设备实现常使用 All-to-All 或专门的 dispatch/combine 通信。流量随 token 数、隐藏维度、路由份数、数据类型及放置方式变化，不直接按总参数量传输。单 GPU MoE 不需要跨 GPU All-to-All。
+Cross-device implementations commonly use All-to-All or specialized dispatch/combine communication. Traffic depends on token count, hidden dimension, routing multiplicity, data type, and placement—not directly on total parameters. A single-GPU MoE does not require cross-GPU All-to-All.
 
-Dense 和 MoE 都可组合数据、张量、流水线等并行。V3 的 DualPipe 展示了在其训练设置中重叠计算与通信的做法，不代表任意集群的通信都能免费隐藏。
+Dense and MoE models can both combine data, tensor, pipeline, and other parallelism. V3's DualPipe demonstrates computation–communication overlap in its training setup; it does not establish that communication can be hidden for free on any cluster.
 
-## 19.7 部署：同等激活量不等于同等服务成本
+## 19.7 Deployment: equal active parameters do not mean equal serving costs
 
-### 19.7.1 专家小 batch 与通信的拉扯
+### 19.7.1 The tension between small expert batches and communication
 
-低并发时，各专家只收到少量 token，GEMM 太小可能吃不满 GPU。增加 batch 可能提高专家利用率，却也增加 KV 容量、排队和跨卡通信。吞吐可能改善，单请求延迟未必改善。
+At low concurrency, each expert receives few tokens, and small GEMMs may underutilize the GPU. Larger batches can improve expert utilization but also increase KV capacity, queuing, and cross-GPU communication. Throughput may improve without improving individual request latency.
 
-不能统一说 MoE 吞吐低于同等激活参数 Dense；比较必须固定硬件、精度、输入/输出长度、并发、质量和延迟要求。
+MoE does not universally have lower throughput than a dense model with the same active parameter count. Comparisons must fix hardware, precision, input/output lengths, concurrency, quality, and latency requirements.
 
-### 19.7.2 热门专家会拖慢整步
+### 19.7.2 Popular experts can slow down an entire step
 
-一个过载设备可能成为所有 token 同步等待的瓶颈。常见手段包括专家重新放置、复制热门专家、负载均衡调度和拓扑感知路由；复制会增加显存，迁移会产生搬运成本，不能只看平均 token 数。
+An overloaded device can become a bottleneck that other tokens must wait for at synchronization points. Common responses include redistributing experts across devices, replicating popular experts, load-aware scheduling, and topology-aware routing. Replication uses more memory, while relocation requires transfers; average token count alone is insufficient.
 
-### 19.7.3 上线前需要哪些证据
+### 19.7.3 Evidence needed before deployment
 
-- 权重、KV 与通信 workspace 的容量预算，及 CPU offload 的带宽预算。
-- 各专家 token 数、dispatch/combine 耗时、跨节点流量和热点设备。
-- 冷/热启动、低/高并发下的 TTFT、逐 token 延迟和满足 SLO 的吞吐。
-- 量化、并行、路由容量变化后的业务质量，特别是是否发生 token dropping。
+- Capacity budgets for weights, KV state, and communication workspace, plus bandwidth budgets for CPU offload.
+- Per-expert token counts, dispatch/combine time, cross-node traffic, and hotspot devices.
+- TTFT, per-token latency, and SLO-compliant throughput under cold/warm starts and low/high concurrency.
+- Business-task quality after changes to quantization, parallelism, or routing capacity, especially when token dropping occurs.
 
-## 19.8 为什么 MoE 有价值，但不会自动替代 Dense
+## 19.8 Why MoE is valuable without automatically replacing dense models
 
-稀疏专家并非近期才出现。2017 年 Sparsely-Gated MoE、2020 年 GShard、Switch、Mixtral 和 DeepSeekMoE 等工作逐步探索了稀疏扩容、路由稳定性与系统实现。
+Sparse experts are not a recent invention. The 2017 Sparsely-Gated MoE, 2020 GShard, Switch, Mixtral, and DeepSeekMoE progressively explored sparse scaling, routing stability, and systems implementation.
 
-其价值是**在控制部分每 token 计算的同时增加可训练容量**，而不是宣称 Dense 在 70B 遇到了硬性极限。Dense 的部署和负载往往更简单；MoE 在存储、通信与调度上付出额外代价。最终选择取决于质量目标与服务预算。
+Their value is **increasing trainable capacity while controlling part of the per-token computation**, not proving that dense models hit a hard limit at 70B. Dense deployment and workloads are often simpler; MoE pays extra costs in storage, communication, and scheduling. Quality goals and serving budgets determine the choice.
 
-如果引用 V3 训练费用，也必须保留技术报告的统计范围：其 GPU 小时费用估算不含此前研究、架构/数据消融等全部研发成本，不能直接等同于复制模型或企业研发的总成本。
+Any citation of V3's training costs must retain the technical report's accounting scope. Its GPU-hour cost estimate excludes all the prior research and architecture/data ablations; it is not the full cost of reproducing the model or of an organization's research and development.
 
-## 19.9 常见追问
+## 19.9 Common follow-up questions
 
-- **专家数加倍，激活数不变，成本是否不变？** 专家 FFN 算术量可能近似不变，存储、路由及系统开销并非不变。
-- **为什么平均概率均匀仍可能过载？** Top-K 分配是离散决策，还受 batch 组成、容量和设备映射影响。
-- **V3 没辅助损失，Router 如何均衡？** 用选择偏置反馈控制，同时保留小的序列级辅助项。
-- **为什么不能把专家看成领域专家？** 专家是逐层 FFN，路由偏好不等于人工定义的知识领域。
-- **低位宽后是否只需按激活参数买显存？** 仍需存储或访问全部专家，并加上量化元数据和运行状态。
+- **If expert count doubles while active count stays fixed, does cost stay fixed?** Expert FFN arithmetic may remain approximately unchanged; storage, routing, and systems overhead do not.
+- **Why can uniform average probabilities still lead to overload?** Top-K assignment is discrete and also depends on batch composition, capacity, and device mapping.
+- **How does V3 balance routing without an auxiliary loss?** Selection-bias feedback provides balancing, while a small sequence-level auxiliary term remains.
+- **Why are experts not simply domain specialists?** They are layer-wise FFNs; routing preferences do not equal human-defined knowledge domains.
+- **After low-bit quantization, can memory be purchased based only on active parameters?** All experts still need to be stored or accessed, alongside quantization metadata and runtime state.
 
-## 19.10 本章总结
+## 19.10 Chapter summary
 
-MoE 要分开讨论四件事：总参数容量、每 token 的激活计算、全部权重的放置方式、实际负载下的通信与延迟。路由、辅助均衡、专家容量和系统调度共同决定收益；专家数量或激活率本身都不能替代质量与服务评测。
+Separate four aspects of MoE: total parameter capacity, active computation per token, placement of all weights, and communication and latency under actual load. Routing, auxiliary balancing, expert capacity, and systems scheduling jointly determine the benefit. Neither expert count nor activation ratio substitutes for quality and serving evaluation.
 
-## 参考资料
+## References
 
 - [Sparsely-Gated Mixture-of-Experts Layer](https://arxiv.org/abs/1701.06538)
 - [GShard](https://arxiv.org/abs/2006.16668)
@@ -215,5 +215,5 @@ MoE 要分开讨论四件事：总参数容量、每 token 的激活计算、全
 - [DeepSeek-V3 Technical Report](https://arxiv.org/html/2412.19437v2)
 - [Auxiliary-Loss-Free Load Balancing](https://arxiv.org/abs/2408.15664)
 - [Expert Choice Routing](https://arxiv.org/abs/2202.09368)
-- [ST-MoE：Router z-loss](https://arxiv.org/abs/2202.08906)
-- [Qwen3-30B-A3B 官方模型卡](https://huggingface.co/Qwen/Qwen3-30B-A3B)
+- [ST-MoE: router z-loss](https://arxiv.org/abs/2202.08906)
+- [Qwen3-30B-A3B official model card](https://huggingface.co/Qwen/Qwen3-30B-A3B)

@@ -1,0 +1,100 @@
+---
+description: 解释 OCR、版面感知与 OCR-free 文档理解的区别，梳理表格结构、字段验证、错误归因和云服务选型。
+---
+
+# 第三章：OCR 与 Document AI
+
+> RAG 场景下"文档解析该选 OCR 管线还是页面截图检索"的工程决策见 [RAG · 文档解析 第 3.5 节](../../rag/02-ingestion-indexing/03-document-parsing.md)；本章聚焦 OCR/Document AI **模型本身**的架构演进、坐标输出方式与评测指标，两章互为补充，不重复展开对方的内容。
+
+## 3.1 OCR 识别出文字后，为什么还不能直接理解文档？
+
+经典 OCR 管线包含**文字检测**与**文字识别**，但检测框加字符串只解决文字定位和转写，不保证扫描页面的阅读顺序或结构正确。发票、合同、表单、财报还需要判断哪一行是标题、哪一列是金额、哪个值对应哪个标签。Document AI 的目标因此从文字转写扩展到键值对、表格和版面结构；数字 PDF 已有可靠文字层时，也应先评估直接提取，而非默认重新 OCR。
+
+## 3.2 版面感知模型：LayoutLM 系列
+
+LayoutLM 系列的核心思路是让模型同时看到**文字内容、二维坐标和视觉特征**三种信号，而不仅是文字序列本身。LayoutLM 在 BERT 式预训练里加入了 2D 位置嵌入，把每个文字 token 的边界框坐标当作额外输入；LayoutLMv3 进一步统一了文字和图像 patch 的处理方式，用同一个 Transformer 同时接收文字 token 和图像 patch，并设计了跨模态对齐的预训练目标（如判断某个文字 token 对应的图像 patch 是否被遮盖）。
+
+二维坐标帮助区分“同行”“同列”“标签旁边”等关系，缓解把页面拍平成文字序列造成的信息损失。但 LayoutLM 系列并不自动输出正确阅读顺序；它仍接收 OCR 的 token 序列，常需专门的版面分析、排序或关系预测模块。序列截断、错误框和多页字段关联，也不是加上坐标嵌入就能消除的问题。
+
+## 3.3 OCR-free 端到端文档理解
+
+文字驱动的 LayoutLM 抽取流程仍依赖 OCR 文字与坐标。Donut 用视觉编码器和自回归文本解码器，省去推理中的独立 OCR 引擎：预训练学习从文档图像生成文字序列，合成文档是其数据来源之一；下游任务微调再生成序列化的结构结果，并解析为 JSON。因此 OCR-free 不等于“不学习文字识别”，也不等于“训练时完全不需要转写监督”。
+
+OCR-free 消除了独立 OCR 接口的误差传递，却仍可能漏字、抄错数字或凭语言先验补全不存在的字段。其优势是联合优化识别与抽取，代价是显式证据层减少、长输出解码成本及跨版式泛化风险。需要审计时，可要求输出页码与证据区域，用原图或独立 OCR 复核；格式约束只能保证 JSON 可解析，不能保证值正确。
+
+## 3.4 表格与图表：结构比文字更重要
+
+表格和图表是文档智能里最容易被低估难度的子任务，因为正确率不能只看"文字有没有认对"，还要看**结构有没有还原**。
+
+- **表格结构识别（Table Structure Recognition）**：需要还原行、列、表头和跨单元格关系。TATR 用 DETR 式模型分别做表格检测与结构识别，再经后处理把行列区域和文字组合为单元格；检测头本身不负责转写全部文字。PubTables-1M 配套工作使用 **GriTS** 衡量表格网格的结构、位置或内容；另一个常用指标 **TEDS** 来自 PubTabNet 工作，将 HTML 表格表示为树，标准版本同时考虑结构与单元格文字，不是纯结构分数。只比较拓扑时应明确使用结构版指标。
+- **图表理解（Chart Understanding）**：图表（柱状图、折线图）的"文字"往往只是坐标轴标签和图例，真正的信息藏在视觉编码（柱高、线的斜率、颜色分组）里。ChartQA 一类基准要求模型结合视觉编码和图上文字共同回答数值型问题（"哪一年增长最快"），这类任务的失败模式和纯 OCR 任务完全不同：模型可能正确识别了所有坐标轴文字，但读错了柱子的相对高度。
+
+## 3.5 坐标输出与版面框的表示
+
+文档模型可以像 [第二章](02-vlm-grounding.md) 一样生成坐标或用检测头预测区域，也可以复用 OCR 输入框，仅预测字段标签、实体关系或分割掩码。文档结构还需要页 → 段落 → 行 → 词的层级关系。多页输出应携带页码、坐标尺度及字段证据，防止两个页面上相同位置的框被误认为同一实体。
+
+## 3.6 工程化服务：不是所有场景都要自建模型
+
+云服务可作为通用票据和证件抽取的候选基线，但**模型版本化、预测置信度和可用性 SLA 都不是业务字段准确率保证**。应固定 API/处理器版本，以自己的文档分布验证：
+
+| 服务 | 定位 |
+|---|---|
+| Azure AI Document Intelligence | 提供预置模型（发票、收据、身份证件）与可训练的自定义抽取模型 |
+| Google Document AI | 提供表单解析器、发票解析器等专用处理器（Processor） |
+| Amazon Textract | 提供文字检测与文档分析 API；表单和表格可在同一次文档分析请求中选择 |
+
+选型还取决于语言与地区格式支持、数据驻留、日志保留、页数限制、吞吐和单页成本。即使使用预置模型，也应按字段风险校准置信度阈值：低置信度转人工，高置信度的金额仍做合计、币种、日期等业务约束校验。阈值需要在独立验证集上估计漏检与复核成本，不能把模型置信度直接当作经过校准的正确率。
+
+例如 Textract 的同步 `AnalyzeDocument` 通过 `FeatureTypes` 同时选择 `FORMS`、`TABLES` 等分析类型，返回块及其关系；异步分析使用 `StartDocumentAnalysis`。不要把不同结构任务误认为必须分别调用独立接口。
+
+## 3.7 评测：分层次衡量，不要只看一个总分
+
+| 层次 | 指标 | 说明 |
+|---|---|---|
+| 字符/词识别 | CER（字符错误率）、WER（词错误率） | 衡量纯文字识别准确度，不涉及结构 |
+| 版面结构 | 阅读顺序准确率、区域分类 F1 | 衡量段落、标题、页眉页脚等区域划分是否正确 |
+| 表格结构与内容 | TEDS、GriTS，注明变体 | 标准 TEDS 含文字影响；结构、位置、内容应区分 |
+| 键值抽取 | 字段级 Precision/Recall/F1 | 衡量"发票金额""开票日期"等字段是否抽对且抽全 |
+| 端到端文档问答 | ANLS（平均归一化 Levenshtein 相似度） | DocVQA 一类基准用答案字符串相似度评价问答结果 |
+
+CER/WER 低不代表下游任务可用：大量正文识别正确，也可能掩盖金额的一位数字错误。ANLS 允许一定字符串编辑差异，不适合作为金额正确的唯一标准。应固定日期、空格、金额格式的归一化规则，再分别报告关键字段精确匹配和整份文档全部关键字段正确的比例。
+
+定位错误来源可以做对照：把真实标注文字和框替换进 OCR 管线，观察抽取分数是否恢复；若恢复，主要瓶颈在识别或定位，否则继续检查阅读顺序、关系推理和字段定义。OCR-free 系统也可以用高清局部裁剪与原页对比，区分分辨率不足和结构理解失败。
+
+## 3.8 常见错误
+
+### 3.8.1 用整体 OCR 准确率代表文档理解能力
+
+字符识别准确率高不代表版面结构、表格拓扑或关键字段抽取正确，必须按 3.7 节分层评测。
+
+### 3.8.2 把表格"拍平"成纯文本再抽取
+
+将表格逐行转成一段连续文本会丢失跨行跨列关系；涉及数值比较、条件过滤的问题应保留结构化表示（见 [RAG · 多模态 RAG 第 21.3 节](../../rag/04-advanced/21-multimodal-rag.md)对表格证据的处理原则）。
+
+### 3.8.3 忽视扫描质量、旋转和多语言对识别率的影响
+
+生产文档常见倾斜、低分辨率扫描、印章遮挡和多语言混排，基准测试集的高分不能直接迁移到这些场景，上线前应用真实分布的样本单独核验。
+
+## 3.9 本章总结
+
+1. Document AI 的目标是结构化理解而非单纯文字识别，版面、表格、键值关系是评测和架构设计的核心对象；
+2. LayoutLM 系列以二维坐标和视觉信号辅助结构理解，不自动保证阅读顺序正确；
+3. Donut 不依赖独立 OCR 引擎，但仍学习文字识别并可能产生感知错误或幻觉；
+4. 表格结构与内容、图表视觉编码及文字识别具有不同失败模式，需要分项评测；
+5. 云服务和自建方案应在相同业务数据上比较，模型置信度不能替代字段验证与人工复核。
+
+## 参考资料
+
+- [LayoutLM: Pre-training of Text and Layout for Document Image Understanding](https://arxiv.org/abs/1912.13318)
+- [LayoutLMv3: Pre-training for Document AI with Unified Text and Image Masking](https://arxiv.org/abs/2204.08387)
+- [OCR-free Document Understanding Transformer (Donut)](https://arxiv.org/abs/2111.15664)
+- [PubTables-1M: Towards Comprehensive Table Extraction From Unstructured Documents](https://arxiv.org/abs/2110.00061)
+- [GriTS: Grid Table Similarity](https://arxiv.org/abs/2203.12555)
+- [Image-based table recognition: data, model, and evaluation (PubTabNet / TEDS)](https://arxiv.org/abs/1911.10683)
+- [ChartQA: A Benchmark for Question Answering about Charts](https://arxiv.org/abs/2203.10244)
+- [DocVQA: A Dataset for VQA on Document Images](https://arxiv.org/abs/2007.00398)
+- [Azure AI Document Intelligence 官方文档](https://learn.microsoft.com/azure/ai-services/document-intelligence/overview)
+- [Azure Document Intelligence：准确率与置信度](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept/accuracy-confidence?view=doc-intel-4.0.0)
+- [Google Cloud Document AI 官方文档](https://cloud.google.com/document-ai/docs/overview)
+- [Amazon Textract 官方文档](https://docs.aws.amazon.com/textract/latest/dg/what-is.html)
+- [Amazon Textract：AnalyzeDocument 与 FeatureTypes](https://docs.aws.amazon.com/textract/latest/APIReference/API_AnalyzeDocument.html)

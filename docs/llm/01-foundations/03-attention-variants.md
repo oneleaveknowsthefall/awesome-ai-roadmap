@@ -1,51 +1,51 @@
 ---
-description: 分开计算训练、prefill 和 decode 的注意力开销，比较 MQA、GQA、MLA 的缓存结构与 FlashAttention 的 IO 优化。
+description: Separate attention costs in training, prefill, and decode, and compare MQA, GQA, and MLA cache structures with FlashAttention's IO optimizations.
 ---
 
-# 第三章：MHA 的局限与 MQA、GQA、Flash Attention
+# Chapter 3: MHA Limitations, MQA, GQA, and FlashAttention
 
-## 3.1 注意力的瓶颈，在训练和生成时一样吗？
+## 3.1 Are attention bottlenecks the same during training and generation?
 
-不一样。训练和 prefill 同时处理许多查询位置；带缓存的 decode 通常每步只增加一个查询，瓶颈更可能转向权重与历史 K/V 的读取。先区分阶段，才能判断该改模型结构还是算子实现。
+No. Training and prefill process many query positions at once. Cached decode usually adds only one query per step, so the bottleneck is more likely to shift toward reading weights and historical K/V. Distinguish these stages before deciding whether to change the model architecture or the operator implementation.
 
-| 场景 | 全注意力的主要计算 | 主要存储问题 |
+| Scenario | Main full-attention computation | Main storage concern |
 |---|---|---|
-| 训练 | 所有位置两两交互并反向传播 | 朴素实现物化注意力矩阵，另有其他激活、梯度和优化器状态 |
-| Prefill | 已知提示词并行处理 | 长提示词的中间激活及待保留的 K/V |
-| Decode | 每个新 Q 读取历史 K/V | 持久 KV Cache 及每步读取权重、缓存的带宽 |
+| Training | Pairwise interactions across all positions, plus backpropagation | A naive implementation materializes the attention matrix; other activations, gradients, and optimizer states also need memory |
+| Prefill | Process the known prompt in parallel | Intermediate activations for a long prompt and K/V that must be retained |
+| Decode | Each new Q reads historical K/V | Persistent KV cache and bandwidth for reading weights and the cache at each step |
 
-单层单头长度为 `N` 的注意力矩阵有 `N²` 个元素。若 `N = 4096`，FP16 矩阵约 32 MiB；若 `N = 32768`，约 2 GiB。这是**物化矩阵的实现开销**，不是数学上必须保存整个矩阵，FlashAttention 正是反例。
+For one layer and one head, an attention matrix for a sequence of length `N` contains `N²` elements. At `N = 4096`, an FP16 matrix occupies approximately 32 MiB; at `N = 32768`, approximately 2 GiB. This is **the implementation cost of materializing the matrix**, not a mathematical requirement to store the entire matrix. FlashAttention is a counterexample.
 
-有缓存时，每步对长度 `N` 的历史做注意力约需 `O(Nd)` 计算，整个增长序列的注意力总量仍可达平方级。没有缓存且每次重算整个前缀时，这部分总量可达立方级；不能把这些量级当成模型全部计算或实际延迟。
+With caching, attention over a history of length `N` requires approximately `O(Nd)` computation per step. Total attention computation over a growing sequence can still be quadratic. Without caching, recomputing the entire prefix at every step can make this total cubic. These orders of growth should not be mistaken for the model's total computation or actual latency.
 
-新 token 需要计算自己的 **Q、K 和 V**，新 K/V 要加入缓存，不是只算 Q。小批量 decode 常受带宽限制，长序列 prefill 更可能受计算限制，实际应以 profiler 为准。
+A new token needs its own **Q, K, and V** computed, and its K/V must be appended to the cache. Computing Q alone is not enough. Small-batch decode is often bandwidth-bound; long-sequence prefill is more likely to be compute-bound. Use a profiler to establish the actual bottleneck.
 
-## 3.2 KV Cache 要用 KV 头数计算
+## 3.2 Calculate KV cache size using the number of KV heads
 
-对所有层头数和维度相同、K/V 维度相等的稠密缓存，字节数为：
+For a dense cache in which all layers have the same head counts and dimensions, and K and V have equal dimensions, the size in bytes is:
 
 $$
 \mathrm{KVBytes}=2BLNH_{\mathrm{KV}}d_hs
 $$
 
-`B` 为批大小，`L` 为层数，`N` 为每个请求已缓存的长度，`H_KV` 为 KV 头数，`d_h` 为每头维度，`s` 为每元素字节数。不同请求长度不同，应该按各请求的有效长度或实际分配长度累加。
+Here, `B` is batch size, `L` the number of layers, `N` the cached length per request, `H_KV` the number of KV heads, `d_h` the dimension per head, and `s` the bytes per element. When requests have different lengths, sum over each request's effective or actually allocated length.
 
-例：`B=1, L=32, N=32000, H_KV=32, d_h=128, s=2`：
+For example, take `B=1, L=32, N=32000, H_KV=32, d_h=128, s=2`:
 
 $$
 2\times1\times32\times32000\times32\times128\times2
 =16{,}777{,}216{,}000\ \mathrm{bytes}
 $$
 
-即约 **16.78 GB / 15.625 GiB**。再加约 14 GB 的 7B FP16 权重，已经超过 24 GB，尚未计运行时工作区。
+This is approximately **16.78 GB / 15.625 GiB**. Add approximately 14 GB for the FP16 weights of a 7B model, and the total already exceeds 24 GB, before accounting for runtime workspaces.
 
-这是一个明确的 **32 KV 头 MHA 配置**，不是所有 7B 模型的缓存大小。换成 8 个 KV 头，其他条件不变，缓存约为 4.19 GB；量化权重也不会自动把 KV Cache 一起量化。
+This is specifically **an MHA configuration with 32 KV heads**, not the cache size of every 7B model. With 8 KV heads and everything else unchanged, the cache is approximately 4.19 GB. Quantizing the weights does not automatically quantize the KV cache.
 
-## 3.3 MQA 与 GQA 改的是模型结构
+## 3.3 MQA and GQA change the model architecture
 
-标准 MHA 每个 Q 头都有对应的 K/V 头。MQA 让所有 Q 头共用一组 K/V；GQA 将 Q 头分组，每组共用 K/V：
+Standard MHA gives every Q head a corresponding K/V head. MQA shares one set of K/V across all Q heads. GQA divides Q heads into groups, with each group sharing K/V:
 
-| 结构 | Q 头数 | KV 头数 | 相对 MHA 的缓存比例 |
+| Architecture | Q heads | KV heads | Cache size relative to MHA |
 |---|---|---|---|
 | MHA | `H` | `H` | 1 |
 | GQA | `H` | `G` | `G/H` |
@@ -59,117 +59,117 @@ flowchart LR
     Q4["Q4"] --> K2
 ```
 
-图示为 `H=4, G=2` 的 GQA。常见实现要求 Q 头数能被 KV 头数整除；张量并行还可能要求分片整除或复制部分 KV 头，不能忽略这些约束直接按卡数均分显存。
+The diagram shows GQA with `H=4, G=2`. Common implementations require the number of Q heads to be divisible by the number of KV heads. Tensor parallelism may impose additional divisibility constraints or replicate some KV heads. Memory cannot simply be divided by the GPU count while ignoring these constraints.
 
 ```python
-# GQA：H 个 Q 头共享 G 组 K/V（要求 H % G == 0）
-# x: (B, N, d_model)，d_h 为每个头的维度
+# GQA: H Q heads share G groups of K/V (requires H % G == 0).
+# x: (B, N, d_model); d_h is the dimension of each head.
 q = W_q(x).view(B, N, H, d_h).transpose(1, 2)  # (B, H, N, d_h)
 
-# K/V 只投影出 G 个头，KV Cache 保存的就是这份较小的张量
+# Project K/V into only G heads; the KV cache stores these smaller tensors.
 k = W_k(x).view(B, N, G, d_h).transpose(1, 2)  # (B, G, N, d_h)
 v = W_v(x).view(B, N, G, d_h).transpose(1, 2)
 
-# 计算注意力前，把每组 K/V 复制 H // G 份，与 Q 头一一对应：
-# 第 i 个 Q 头使用第 i // (H // G) 组 K/V
+# Before attention, repeat each K/V group H // G times to match the Q heads:
+# Q head i uses K/V group i // (H // G).
 k = k.repeat_interleave(H // G, dim=1)  # (B, H, N, d_h)
 v = v.repeat_interleave(H // G, dim=1)
 
-# 之后与 MHA 相同，每个 Q 头仍各自计算注意力分布
-# is_causal 只适用于 Q、K 等长的 prefill；带缓存 decode 时需另行处理掩码
+# As in MHA, each Q head still computes its own attention distribution.
+# is_causal applies here only to prefill with equal Q/K lengths; cached decode needs separate mask handling.
 out = F.scaled_dot_product_attention(q, k, v, is_causal=True)
 ```
 
-共享的是 K/V 投影及表示，**Q 头仍各自计算不同的注意力分布**，因此 MQA 不等于「只剩一个视角」。减少 KV 头降低容量与带宽需求，也可能影响质量；变化取决于模型规模、数据、训练方式和任务，没有通用的「MQA 降 2–5%、GQA 降不到 0.5%」。
+The shared objects are K/V projections and representations. **Q heads still compute distinct attention distributions**, so MQA does not mean “only one perspective remains.” Fewer KV heads reduce capacity and bandwidth requirements, but may also affect quality. The effect depends on model size, data, training procedure, and task. There is no universal rule that “MQA loses 2–5% and GQA loses less than 0.5%.”
 
-GQA 原论文研究了从 MHA checkpoint 转换：组内 K/V 头均值池化后继续预训练，并在其设置下用原预训练算力约 5% 做 uptraining。它不是无需训练、删除头就可保证质量的推理开关。
+The original GQA paper studied conversion from MHA checkpoints: it mean-pooled K/V heads within each group, then continued pretraining. In its experimental setting, uptraining used approximately 5% of the original pretraining compute. GQA is not an inference switch that guarantees preserved quality simply by deleting heads without training.
 
-公开例子包括 Llama 2 70B 的 `64 Q / 8 KV` 头，以及 Llama 3 文本模型使用 GQA。具体头数要读目标 checkpoint 的配置，不能由模型参数量反推。
+Public examples include Llama 2 70B with `64 Q / 8 KV` heads and the use of GQA in Llama 3 text models. Read the target checkpoint's configuration for the exact head counts; they cannot be inferred from the model's parameter count.
 
-## 3.4 MLA 压缩的是缓存表示
+## 3.4 MLA compresses the cached representation
 
-DeepSeek-V2/V3 的 Multi-head Latent Attention 不只是减少 KV 头数，而是用低维 latent 联合表示 K/V。推理时可通过吸收投影矩阵等计算重写，避免每步显式恢复并长期保存完整的多头 K/V。
+Multi-head Latent Attention in DeepSeek-V2/V3 does more than reduce the number of KV heads: it represents K/V jointly with a low-dimensional latent. During inference, computation can be rewritten by absorbing projection matrices and related transformations, avoiding the need to explicitly reconstruct and persistently store full multi-head K/V at every step.
 
-关键细节是**解耦 RoPE**：V2 的缓存除压缩 latent 外，还需要位置相关的 key 部分。普通 RoPE 直接作用于完整 key 会影响投影吸收，因此不能把 MLA 简化成「给任意 K/V 做一次低秩压缩即可」。
+A crucial detail is **decoupled RoPE**. Besides the compressed latent, V2's cache must retain a position-dependent key component. Applying ordinary RoPE directly to the full key interferes with projection absorption. MLA therefore cannot be reduced to “apply one low-rank compression to arbitrary K/V.”
 
-| 比较项 | GQA | MLA |
+| Comparison | GQA | MLA |
 |---|---|---|
-| 缓存对象 | 较少组的 K/V | latent 与位置相关 key 等表示 |
-| 主要约束 | 共享组数、头维度、并行分片 | 低秩维度、位置解耦与专用 kernel |
-| 能否直接替换现有模型 | 通常需要转换与训练 | 需要模型架构与训练配合 |
+| Cached objects | Fewer groups of K/V | Representations including a latent and a position-dependent key |
+| Main constraints | Number of shared groups, head dimension, parallel sharding | Low-rank dimension, positional decoupling, and specialized kernels |
+| Can it directly replace an existing model's attention? | Usually requires conversion and training | Requires coordinated architecture and training changes |
 
-DeepSeek-V2 报告的 KV Cache 减少 93.3% 是**相对 DeepSeek 67B 的特定配置**，不意味着 MLA 对所有 GQA 模型都固定省这个比例。部署收益还取决于框架是否真正使用压缩缓存路径。
+DeepSeek-V2's reported 93.3% reduction in KV cache is **relative to a particular DeepSeek 67B configuration**. It does not mean MLA saves that fixed percentage over every GQA model. Deployment gains also depend on whether the framework actually uses the compressed-cache path.
 
-## 3.5 FlashAttention 改的是实现
+## 3.5 FlashAttention changes the implementation
 
-朴素注意力先把 `S = QKᵀ` 写到 GPU 显存，再读取计算 `P = softmax(S)`，最后计算 `PV`。中间矩阵的读写会很昂贵。
+Naive attention first writes `S = QKᵀ` to GPU device memory, then reads it to compute `P = softmax(S)`, and finally computes `PV`. Reading and writing these intermediate matrices can be expensive.
 
-FlashAttention 对 Q/K/V 分块，在片上存储中计算局部分数，使用 **online softmax** 合并不同块的统计量，避免在显存中物化完整 `N × N` 矩阵。
+FlashAttention tiles Q/K/V, computes local scores in on-chip memory, and uses **online softmax** to combine statistics across tiles. This avoids materializing the full `N × N` matrix in device memory.
 
 ```mermaid
 flowchart TB
-    A["载入一块 Q 和一块 K/V"] --> B["计算局部 logits"]
-    B --> C["更新行最大值、归一化和、加权值和"]
-    C --> D{"还有 K/V 块?"}
-    D -->|有| A
-    D -->|无| E["归一化得到输出"]
-    E --> F["反向时用保存的统计量重算局部概率"]
+    A["Load a Q tile and a K/V tile"] --> B["Compute local logits"]
+    B --> C["Update row maxima, normalization sums, and weighted-value sums"]
+    C --> D{"More K/V tiles?"}
+    D -->|Yes| A
+    D -->|No| E["Normalize to obtain the output"]
+    E --> F["Recompute local probabilities in the backward pass using saved statistics"]
 ```
 
-为什么不能把每块 softmax 独立归一化后直接相加？因为分母应该覆盖整行。以旧块最大值 `m`、指数和 `l`，新块对应 `m_b, l_b` 为例：
+Why not normalize each tile's softmax independently and simply add the results? The denominator must span the entire row. Let the previous tiles have maximum `m` and exponential sum `l`, and the new tile have `m_b, l_b`:
 
 $$
 m'=\max(m,m_b),\qquad
 l'=e^{m-m'}l+e^{m_b-m'}l_b
 $$
 
-加权 V 的未归一化累积量也要做相同的重缩放，最后再除以总指数和。这解释了「分块」为什么仍能得到全行 softmax，而不是分块近似注意力。
+The unnormalized weighted-V accumulator requires the same rescaling, followed by division by the total exponential sum at the end. This is why tiling can still compute the full-row softmax rather than an approximation based on independent tiles.
 
-| 能解决什么 | 不能据此声称什么 |
+| What it provides | What this does not justify claiming |
 |---|---|
-| 注意力中间存储从平方级降为随序列线性增长的量级 | 整个训练过程只需要保存输出 |
-| 减少显存与片上存储之间的 IO | 全注意力算术量变成 `O(N)` |
-| 计算与标准 attention 数学等价，不做稀疏近似 | 浮点数逐位一致，或任何低精度模式都无误差 |
-| 在合适硬件与工作负载下提速 | 所有模型端到端固定快 2–4 倍 |
+| Intermediate attention storage grows linearly rather than quadratically with sequence length | The entire training process only needs to save the output |
+| Less IO between device memory and on-chip memory | Full-attention arithmetic becomes `O(N)` |
+| Mathematical equivalence to standard attention, without a sparse approximation | Bitwise-identical floating-point results, or error-free results in every low-precision mode |
+| Speedups on suitable hardware and workloads | A fixed 2–4× end-to-end speedup for every model |
 
-原论文的 IO 分析以片上容量和头维度为变量，不能把容量简单写成「块大小 M」后宣称任意实现固定减少 M 倍 IO。A100 的显存带宽随型号而异，片上带宽也不是把单个 SM 容量和全芯片带宽拼成一个固定 13 倍结论。
+The original paper's IO analysis uses on-chip capacity and head dimension as variables. It is not valid to relabel capacity as “tile size M” and claim a fixed M-fold IO reduction for any implementation. A100 device-memory bandwidth varies by model. Combining one SM's capacity with chip-wide on-chip bandwidth also does not establish a universal 13-fold ratio.
 
-**版本范围**：FlashAttention-2 改进并行与工作划分，FlashAttention-3 面向 Hopper；参考资料所列官方仓库快照还列有采用 CuTeDSL、面向 Hopper/Blackwell 的 FlashAttention-4。这里不是框架默认后端列表，实际可用性要同时核对 GPU、数据类型、head dimension、mask、库与框架版本。
+**Version scope:** FlashAttention-2 improves parallelism and work partitioning; FlashAttention-3 targets Hopper. The official repository snapshot cited below also lists FlashAttention-4, implemented in CuTeDSL for Hopper/Blackwell. This is not a list of default framework backends. Actual availability requires checking the GPU, data type, head dimension, mask, library version, and framework version together.
 
-## 3.6 结构与实现可以组合，但不是任意互换
+## 3.6 Architecture and implementation can be combined, but not freely interchanged
 
-GQA 决定存几组 K/V，FlashAttention 决定如何高效计算注意力，二者可组合。MLA 同样可以使用针对其结构设计的融合 kernel，但不能把 DeepSeek-V3 写成「GQA + FlashAttention」。
+GQA determines how many groups of K/V are stored; FlashAttention determines how attention is computed efficiently. They can be combined. MLA can likewise use fused kernels designed for its structure, but DeepSeek-V3 should not be described as “GQA + FlashAttention.”
 
-部署前应依次回答：
+Before deployment, answer these questions in order:
 
-1. checkpoint 原本使用 MHA、GQA 还是 MLA，支持哪种位置编码？
-2. 缓存按什么精度与布局存储，是否有分片复制、分页碎片或预留空间？
-3. 瓶颈是 prefill 算力、decode 带宽、KV 容量，还是调度和通信？
-4. 所选 kernel 支持哪些输入形状，回退路径是否改变实际收益？
+1. Does the checkpoint use MHA, GQA, or MLA, and which positional encoding does it support?
+2. What precision and layout does the cache use? Are there replicated shards, paging fragmentation, or reserved capacity?
+3. Is the bottleneck prefill compute, decode bandwidth, KV capacity, or scheduling and communication?
+4. Which input shapes does the chosen kernel support, and does a fallback path change the actual benefit?
 
-「7B 能否在 24GB 显卡上跑 32K」要结合权重、缓存、运行时空间、batch 和上下文训练范围回答。省下显存不等于模型具备 32K 有效理解能力。
+“Can a 7B model handle 32K on a 24GB GPU?” requires accounting for weights, cache, runtime memory, batch size, and the context lengths covered during training. Saving memory does not mean the model can effectively understand 32K of context.
 
-## 3.7 长上下文的其他路线
+## 3.7 Other approaches to long context
 
-| 方向 | 机制 | 需要保留的边界 |
+| Approach | Mechanism | Limitations to retain |
 |---|---|---|
-| Sliding Window Attention | 每层只读局部窗口 | 多层可间接扩大感受野；远距离检索与可淘汰缓存范围依架构而定 |
-| 稀疏注意力 | 选择部分位置计算 | 改变可见连接，需评估遗漏信息的风险 |
-| Linear Attention | 将特征映射或递推状态用于线性复杂度计算 | 不必都是 softmax 的近似；固定状态也有记忆容量限制 |
-| Linformer | 沿序列维做低秩投影 | 不是与 Performer 相同的核方法 |
-| Mamba / SSM 及混合结构 | 用选择性状态更新，或与 attention 交替 | 可持续处理流不等于无损记住无限历史 |
+| Sliding Window Attention | Each layer reads only a local window | Multiple layers can indirectly expand the receptive field; long-range retrieval and which cached entries can be evicted depend on the architecture |
+| Sparse attention | Compute over selected positions | Changes the visible connections; the risk of missing information must be evaluated |
+| Linear attention | Use feature maps or recurrent state for linear-complexity computation | Not every method approximates softmax; a fixed state also has limited memory capacity |
+| Linformer | Low-rank projection along the sequence dimension | Not the same kernel-based approach as Performer |
+| Mamba / SSM and hybrid architectures | Selective state updates, or alternating these with attention | Processing a continuous stream does not mean retaining an unlimited history without loss |
 
-面试时应把「改连接」「改缓存表示」「改算子实现」区分开，才知道质量损失可能来自哪里、哪些优化能够叠加。
+In an interview, distinguish changes to connections, cached representations, and operator implementations. This makes it possible to explain where quality losses might originate and which optimizations can be combined.
 
-## 参考资料
+## References
 
-- [Fast Transformer Decoding: One Write-Head is All You Need（MQA）](https://arxiv.org/abs/1911.02150)
+- [Fast Transformer Decoding: One Write-Head is All You Need (MQA)](https://arxiv.org/abs/1911.02150)
 - [GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints](https://arxiv.org/abs/2305.13245)
 - [Llama 2](https://arxiv.org/abs/2307.09288)
 - [The Llama 3 Herd of Models](https://arxiv.org/abs/2407.21783)
-- [DeepSeek-V2 论文与官方实现](https://github.com/deepseek-ai/DeepSeek-V2)
+- [DeepSeek-V2 paper and official implementation](https://github.com/deepseek-ai/DeepSeek-V2)
 - [FlashAttention](https://arxiv.org/abs/2205.14135)
-- [FlashAttention 官方仓库与版本要求（2026-07-06 README 快照）](https://github.com/Dao-AILab/flash-attention/blob/1f7ce2f7cb503473559f3d44d575ae05b1ed8557/README.md)
+- [FlashAttention official repository and version requirements (README snapshot, 2026-07-06)](https://github.com/Dao-AILab/flash-attention/blob/1f7ce2f7cb503473559f3d44d575ae05b1ed8557/README.md)
 - [Online normalizer calculation for softmax](https://arxiv.org/abs/1805.02867)
 - [Mistral 7B](https://arxiv.org/abs/2310.06825)
 - [Linformer](https://arxiv.org/abs/2006.04768)

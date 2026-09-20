@@ -1,245 +1,247 @@
 ---
-description: 解释 BPE、WordPiece、Unigram 与 SentencePiece 的区别，讨论字节回退、词表成本、中文分词和聊天模板的兼容性。
+description: Distinguish BPE, WordPiece, Unigram, and SentencePiece, and examine byte fallback, vocabulary costs, Chinese tokenization, and chat-template compatibility.
 ---
 
-# 第五章：Tokenizer 分词器
+# Chapter 5: Tokenizers
 
-## 5.1 为什么需要 Tokenizer
+## 5.1 Why a tokenizer is needed
 
-对本章讨论的自回归文本模型，Tokenizer 把字符串转为 token ID 序列，模型为下一个 token 计算概率分布，选出的 token 序列再被解码为文字。
+For the autoregressive text models discussed in this chapter, a tokenizer converts a string into a sequence of token IDs. The model computes a probability distribution for the next token, and the selected token sequence is decoded back into text.
 
-ID 用于查找 embedding，Transformer 的主体实际处理连续向量；多模态模型还可能接收图像或音频特征，不能把「只接收整数」作为所有大模型的定义。
+IDs are used to look up embeddings; the Transformer itself operates on continuous vectors. Multimodal models may also receive image or audio features, so “accepts only integers” is not a definition of all large models.
+
+The Chinese example “你好，世界” below means “Hello, world.”
 
 ```mermaid
 flowchart LR
-    TXT["人类文字<br/>「你好，世界」"] -->|编码 encode| IDS["token ID 序列<br/>具体数值由 tokenizer 决定"]
-    IDS --> MODEL["Embedding + 模型"]
-    MODEL --> OUT["下一个 token 的<br/>概率分布"]
-    OUT -->|解码 decode| TXT2["人类文字"]
+    TXT["Human-readable text<br/>「你好，世界」"] -->|encode| IDS["Token ID sequence<br/>Values depend on the tokenizer"]
+    IDS --> MODEL["Embedding + model"]
+    MODEL --> OUT["Probability distribution<br/>for the next token"]
+    OUT -->|decode| TXT2["Human-readable text"]
 
     style MODEL fill:#e8f0fe
 ```
 
-Tokenizer 提供编码与解码，但不只是查词表：归一化、预切分、子词算法和特殊 token 规则也可能参与。
+A tokenizer provides encoding and decoding, but it does more than look up vocabulary entries. Normalization, pre-tokenization, a subword algorithm, and special-token rules may also be involved.
 
-## 5.2 为什么常用子词，而不是只按字符或完整单词切分？
+## 5.2 Why use subwords rather than only characters or whole words?
 
-子词在词表大小与序列长度之间折中：常见片段合成较长 token，少见词拆成已有片段。它不保证每个 token 都有独立语义；能否彻底避免未登录词，还取决于基础字符或字节的覆盖。
+Subwords balance vocabulary size against sequence length: frequent fragments become longer tokens, while rare words are split into existing pieces. Not every token is guaranteed to have an independent meaning. Whether out-of-vocabulary inputs can be eliminated also depends on coverage of the underlying characters or bytes.
 
-### 5.2.1 字符级：太碎
+### 5.2.1 Character-level tokenization: very fine-grained
 
-每个字母或汉字算一个 token。
+Each letter or Chinese character becomes one token.
 
-| 优点 | 问题 |
+| Advantage | Problem |
 |---|---|
-| 相对词级词表较小，但仍需覆盖大小写、标点和所需字符集 | **序列较长**：「hello」是 5 个字符 token |
-| 覆盖的字符可组合成新词；未覆盖字符仍可能 OOV | 全注意力计算量随序列长度平方增长 |
-| 便于字符级操作 | 模型需从较细粒度单位学习词与短语关系 |
+| A smaller vocabulary than word-level tokenization, though it must still cover case, punctuation, and the required character set | **Longer sequences:** “hello” takes 5 character tokens |
+| Covered characters can combine into new words; uncovered characters may still be OOV | Full-attention computation grows quadratically with sequence length |
+| Convenient for character-level operations | The model must learn word and phrase relationships from finer-grained units |
 
-### 5.2.2 词级：太散
+### 5.2.2 Word-level tokenization: too many separate entries
 
-每个完整单词算一个 token。
+Each complete word becomes one token.
 
-| 问题 | 说明 |
+| Problem | Explanation |
 |---|---|
-| **词汇表爆炸** | 光是 `cat / cats / catting / catty` 这种变形就要分别存，膨胀到几十万甚至几百万 |
-| **OOV 未登录词** | 纯词级词表无法直接表示词表外的新词，通常映射为「未知词」标记；原词身份丢失，但周围上下文仍可能提供部分语义 |
-| **中文词边界** | 词级方案通常需要显式确定词边界，歧义可能传到下游，但并非必然导致后续全部失败 |
+| **Vocabulary explosion** | Even variants such as `cat / cats / catting / catty` need separate entries, expanding the vocabulary into hundreds of thousands or even millions |
+| **Out-of-vocabulary (OOV) words** | A purely word-level vocabulary cannot directly represent a new word outside it and usually maps it to an “unknown word” marker; the original word's identity is lost, although surrounding context may still convey some meaning |
+| **Chinese word boundaries** | Word-level approaches generally need explicit word segmentation; ambiguity can propagate downstream, but does not necessarily invalidate all subsequent processing |
 
-### 5.2.3 子词是常用折中，不是唯一可行方案
+### 5.2.3 Subwords are a common compromise, not the only viable approach
 
-**字符级太碎，词级太散**，子词（subword）级分词取中间：既控制词汇表大小，又能处理新词，同时保留比字符更多的语义信息。
+**Characters are very fine-grained, while whole words require too many distinct entries.** Subword tokenization takes a middle path: it controls vocabulary size, handles new words, and retains more semantic information per unit than characters.
 
-BPE、Unigram、WordPiece 是子词算法；**SentencePiece 是工具库和处理框架，支持 BPE、Unigram 等算法**，不能把四者当成同一层次的互斥选项。字节或字符级模型也有适用场景，代价主要在序列长度与训练效率。
+BPE, Unigram, and WordPiece are subword algorithms. **SentencePiece is a library and processing framework that supports algorithms including BPE and Unigram.** These four names are not mutually exclusive alternatives at the same level. Byte- and character-level models also have suitable applications, with costs primarily in sequence length and training efficiency.
 
-## 5.3 BPE 算法
+## 5.3 The BPE algorithm
 
-BPE（Byte Pair Encoding，字节对编码）原理很简单，三步：
+BPE, or Byte Pair Encoding, has a simple three-step principle:
 
 ```mermaid
 flowchart TB
-    S1["① 初始化<br/>把语料拆成最小单元（单字节/字符）<br/>每个字符是一个基础 token"]
-    S1 --> S2["② 反复合并<br/>统计所有相邻 token pair 的频率<br/>把最高频的一对合并成新 token"]
-    S2 --> S3{"词汇表达到<br/>预设大小?"}
-    S3 -->|否| S2
-    S3 -->|是| S4["③ 结束<br/>得到词汇表 + 一组合并规则"]
+    S1["① Initialize<br/>Split the corpus into minimal units: bytes or characters<br/>Each character is a base token"]
+    S1 --> S2["② Merge repeatedly<br/>Count frequencies of all adjacent token pairs<br/>Merge the most frequent pair into a new token"]
+    S2 --> S3{"Has the vocabulary reached<br/>the target size?"}
+    S3 -->|No| S2
+    S3 -->|Yes| S4["③ Finish<br/>Obtain a vocabulary + merge rules"]
 
     style S4 fill:#e6f4ea
 ```
 
-**合并过程举例**：
+**An example of merging:**
 
 ```
-「t」和「h」经常相邻   → 合并成「th」，加入词汇表
-「th」和「e」经常相邻  → 合并成「the」，加入词汇表
+"t" and "h" frequently occur together   → merge into "th" and add it to the vocabulary
+"th" and "e" frequently occur together  → merge into "the" and add it to the vocabulary
 ...
 ```
 
-每轮合并产生一条合并规则，同时词汇表增加一个 token。
+Each merge produces one merge rule and adds one token to the vocabulary.
 
-| 模型 | 词汇表大小 |
+| Model | Vocabulary size |
 |---|---|
 | GPT-2 | 50,257 |
 | Llama 2 | 32,000 |
-| Llama 3 | 128,000 个普通 token，另有 256 个特殊 token |
-| Qwen2/3 示例 | 约 15 万量级，精确值应读取所用 checkpoint 的 tokenizer 与配置 |
+| Llama 3 | 128,000 ordinary tokens, plus 256 special tokens |
+| Qwen2/3 examples | On the order of 150,000; read the chosen checkpoint's tokenizer and configuration for the exact value |
 
-需要区分普通词表、添加后的特殊 token 总数，以及为硬件对齐而填充的 embedding 行数；三者未必相同。
+Distinguish the ordinary vocabulary size, the total after special tokens are added, and the number of embedding rows after padding for hardware alignment. These three numbers need not be equal.
 
-### 5.3.1 BPE 在什么条件下能避免 OOV？
+### 5.3.1 Under what conditions does BPE avoid OOV?
 
-前提是词表覆盖输入所需的基础单元；普通字符级 BPE 并不自动保证这一点。
+The vocabulary must cover the base units required by the input. Ordinary character-based BPE does not automatically guarantee this.
 
-以「lowest」为例，BPE 可能切成 `low` + `est`，因为两者都是高频子词。
+For example, BPE might split “lowest” into `low` + `est` because both are frequent subwords.
 
-遇到训练时**完全没见过**的「lowest123」：
+For “lowest123,” which may **never have appeared at all** during training:
 
 ```
 lowest123  →  low + est + 1 + 2 + 3
 ```
 
-如果词表覆盖这些基础单元，就不会出现 OOV。对于完整覆盖字节的 byte-level BPE tokenizer，最坏情况下会退化为若干字节 token；这些 token 只是可逆编码单元，不一定各自有语言学意义。
+If the vocabulary covers these base units, there is no OOV. A byte-level BPE tokenizer with complete byte coverage falls back to individual byte tokens in the worst case. These are reversible encoding units, not necessarily pieces with independent linguistic meaning.
 
-现代 **byte-level BPE** 使用 256 种字节作为基础，因此可编码任意 UTF-8 文本。BPE 名称来自原始压缩算法，不意味着所有用于 NLP 的 BPE 都以字节为最小单位；字符级 BPE 若没有 byte fallback，仍可能遇到未覆盖字符。
+Modern **byte-level BPE** uses 256 byte values as its base and can therefore encode any UTF-8 text. BPE's name comes from the original compression algorithm; it does not mean all NLP applications of BPE use bytes as their smallest units. Character-based BPE without byte fallback can still encounter uncovered characters.
 
-字节 token 的边界不保证等于 Unicode 字符边界：一个汉字的 UTF-8 字节可能分属多个 token，单独解码中间 token 时甚至可能不是有效文本。启用了规范化的 tokenizer 也不一定逐字节还原原文，例如大小写、空白或全半角可能已被归一化。
+Byte-token boundaries do not necessarily coincide with Unicode character boundaries. The UTF-8 bytes of one Chinese character may span multiple tokens, and decoding an intermediate token on its own may not even produce valid text. A tokenizer that applies normalization may also fail to reconstruct the original text byte for byte: case, whitespace, or full-width versus half-width forms may already have been normalized.
 
-### 5.3.2 编码时不是重新统计输入频率
+### 5.3.2 Encoding does not recount frequencies in the input
 
-BPE 训练得到词表和合并顺序。推理编码时按已学的合并优先级处理输入，而不是重新给当前句子训练一套规则。
+BPE training learns a vocabulary and a merge order. At inference time, encoding applies the learned merge priorities rather than training a new set of rules for the current sentence.
 
-WordPiece 常使用最长前缀匹配来分解词，BERT 中 `##` 标记非词首片段；Unigram 则为候选片段赋概率，通过搜索选择序列概率高的切分，也可以在训练时采样切分。SentencePiece 可以直接处理原始文本，并用 `▁` 表示空格，避免依赖语言专用的预分词；其归一化和 byte fallback 设置仍须单独检查。
+WordPiece commonly uses longest-prefix matching to split words; in BERT, `##` marks a fragment that is not at the start of a word. Unigram assigns probabilities to candidate pieces and searches for a segmentation with high sequence probability; it can also sample segmentations during training. SentencePiece can process raw text directly and represents spaces with `▁`, avoiding dependence on language-specific pre-tokenization. Its normalization and byte-fallback settings still need to be checked separately.
 
-## 5.4 中文的特点
+## 5.4 What is distinctive about Chinese?
 
-中文通常没有词间空格，因此预切分与训练语料分布会显著影响词表，但 BPE 的合并机制本身并不因中文而改变。
+Chinese usually has no spaces between words, so pre-tokenization and the distribution of training text strongly influence the vocabulary. The BPE merging mechanism itself does not change for Chinese.
 
-一个具体 tokenizer 可能出现以下情况：
+A particular tokenizer may behave as follows:
 
-- **常用汉字是独立 token**，也可能跨 token 分成字节片段，取决于词表；
-- **常见词语**（如「人工智能」）可能被合并成单个 token，也可能是「人工」+「智能」两个——取决于训练数据里的频率。
+- **Common Chinese characters may be individual tokens**, or may be split across tokens as byte fragments, depending on the vocabulary.
+- **Frequent words**, such as “人工智能” (“artificial intelligence”), may become one token or two pieces, “人工” + “智能,” depending on their frequency in the training data.
 
-### 5.4.1 一个经验规则和它的适用边界
+### 5.4.1 A rule of thumb and its limits
 
-「1000 个汉字对应 1000–1500 token」只能是某些 tokenizer 和文本的经验值，不能作为通用预算；中文词组可能合并，少见字也可能拆成多个 token。
+“1,000 Chinese characters correspond to 1,000–1,500 tokens” can only be an empirical estimate for particular tokenizers and texts, not a universal budget. Chinese phrases may be merged, while rare characters may require multiple tokens.
 
-> **但这只是粗估。** Qwen、Llama、OpenAI、Claude 的 tokenizer 完全不一样；中文、英文、代码、表格混在一起时比例会明显变化。**正式算成本前一定要用目标模型的 tokenizer 实际跑一遍。**
+> **This is only a rough estimate.** Qwen, Llama, OpenAI, and Claude use different tokenizers. Mixing Chinese, English, code, and tables can change the ratio substantially. **Before calculating actual costs, tokenize the text with the target model's tokenizer.**
 
-## 5.5 特殊 token 如何表达对话结构与结束位置？
+## 5.5 How do special tokens represent conversation structure and endings?
 
-特殊 token 是为序列边界、角色等用途保留的编码单元，用来传递**结构信息**。它们可以有对应的字符串写法，但普通用户文本是否会被识别成特殊 ID，取决于 tokenizer 和服务端配置：
+Special tokens are encoding units reserved for purposes such as sequence boundaries and roles. They convey **structural information**. They may have corresponding string representations, but whether ordinary user text is recognized as a special ID depends on the tokenizer and server configuration:
 
-| 特殊 Token | 作用 |
+| Special token | Purpose |
 |---|---|
-| **BOS**（Beginning of Sequence） | 标记序列开始 |
-| **EOS**（End of Sequence） | 标记序列结束；生成器通常把配置中的 EOS ID 作为停止条件 |
-| **PAD**（Padding） | 批量处理时对齐不同长度的序列 |
-| **SEP**（Separator） | 分隔不同部分 |
-| `<\|im_start\|>` / `<\|im_end\|>` | ChatML 格式里区分对话轮次和角色 |
+| **BOS** (Beginning of Sequence) | Marks the start of a sequence |
+| **EOS** (End of Sequence) | Marks the end of a sequence; generators usually use the configured EOS ID as a stopping condition |
+| **PAD** (Padding) | Aligns sequences of different lengths for batch processing |
+| **SEP** (Separator) | Separates different parts |
+| `<\|im_start\|>` / `<\|im_end\|>` | Distinguishes turns and roles in the ChatML format |
 
-这些 token 的含义来自训练格式与生成实现，不是模型具有某种「意识」。角色分隔符帮助模型识别消息结构，但不能单独形成可靠的权限边界。
+These tokens derive their meaning from the training format and generation implementation, not from any model “consciousness.” Role delimiters help the model recognize message structure, but cannot establish a reliable authorization boundary on their own.
 
-随意拼接对话历史可能破坏模型训练时学过的格式。`messages` 是结构化输入接口，服务端通常会把它渲染为模型对应的模板；它本身不是额外能力来源。若手工序列化得到完全相同的 token 序列，并保持其他输入和生成配置一致，模型就不会因为调用接口不同而获得不同的对话信息。
+Arbitrarily concatenating a conversation history can break the format learned during training. `messages` is a structured input interface that the server typically renders using the model's template; the interface itself is not an extra source of capability. If manual serialization produces exactly the same token sequence and all other inputs and generation settings remain identical, changing the calling interface does not give the model different conversational information.
 
-### 5.5.1 EOS 与停止生成
+### 5.5.1 EOS and stopping generation
 
-模型可以学习预测 EOS 或轮次结束 token；服务端也可能因最大输出长度、停止字符串、工具调用协议或外部取消而终止。需要区分「模型自然结束」和「被系统截断」，不能把所有停止都归因于 EOS。
+A model can learn to predict EOS or an end-of-turn token. The server may also stop generation because of a maximum output length, stop string, tool-call protocol, or external cancellation. Distinguish a natural model ending from system truncation; not every stop is caused by EOS.
 
-这也解释了一类线上故障：如果推理时用的 chat template 和训练时不一致，模型可能永远预测不出 EOS，表现为「停不下来一直说」，只能靠 `max_tokens` 硬截断。
+This explains one class of production failure: if the inference-time chat template differs from the training template, the model may never predict EOS. It appears to “keep talking without stopping” until `max_tokens` forcibly truncates it.
 
-## 5.6 Tokenizer 对工程的直接影响
+## 5.6 Direct engineering effects of tokenization
 
-分词规则会同时影响成本、上下文预算和模型行为。
+Tokenization rules affect cost, context budgets, and model behavior at the same time.
 
-### 5.6.1 API 成本估算
+### 5.6.1 Estimating API costs
 
-主流 LLM API **按 token 计费，不是按字数**。
+Mainstream LLM APIs **charge by token, not by character or word count**.
 
-| 内容类型 | 粗略比例 |
+| Content type | Rough relationship |
 |---|---|
-| 中文 | 与汉字、词组和字节覆盖有关，不采用固定换算率 |
-| 英文 | 常见词可能整体编码，罕见词与空白会增加数量 |
-| 代码 | 依赖语言和训练语料，缩进、标点也可能被合并 |
+| Chinese | Depends on characters, phrases, and byte coverage; do not assume a fixed conversion ratio |
+| English | Common words may be encoded whole; rare words and whitespace add tokens |
+| Code | Depends on the language and training corpus; indentation and punctuation may also be merged |
 
-**这些都只是经验值**——要预估费用必须用目标模型的 tokenizer 数出来，不能只按字数拍脑袋。
+**These are only empirical observations.** Estimate costs by counting with the target model's tokenizer, not by guessing from text length.
 
-### 5.6.2 上下文窗口管理
+### 5.6.2 Managing the context window
 
-每个模型有最大 token 限制。字数和 token 数的比例取决于语言和内容类型，**中文 + 代码混合内容很容易让你以为「才 5 万字应该不超」，实际已经 8 万 token 了**。
+Each model has a maximum token limit. The ratio between characters or words and tokens depends on language and content type. **With mixed Chinese and code, what looks like “only 50,000 characters, so it should fit” can already be 80,000 tokens.**
 
-预算应根据最终请求的 token 数确定，而不是根据用户可见的正文长度。
+Base the budget on the final request's token count, not the length of its user-visible body.
 
-### 5.6.3 避免截断重要信息
+### 5.6.3 Avoiding truncation of important information
 
-如果文档恰好卡在上下文边缘，**按 token 长度截断可能落在词、Unicode 字符或 UTF-8 字节序列的内部**。这不会产生一个可发送给模型的「半个 token」，但把已截断 token 单独解码、或交给只接受完整 Unicode 的下游系统时，可能得到替换字符、乱码或不完整词语。
+When a document is close to the context limit, **truncating by token count may cut inside a word, a Unicode character, or a UTF-8 byte sequence**. This does not create “half a token” that can be sent to the model. However, decoding a truncated token sequence on its own, or passing it to downstream systems that require complete Unicode, may produce replacement characters, garbled text, or incomplete words.
 
-工程上先在语义边界选择段落，再对**最终序列化的请求**计数，为系统提示、工具 schema、模板和输出留预算。安全余量由协议和任务决定，不固定为几百 token；截断历史时还要保持工具调用与结果的配对。
+In an implementation, first select passages at semantic boundaries, then count the tokens in the **final serialized request**. Reserve space for the system prompt, tool schemas, template, and output. The safety margin depends on the protocol and task, not a fixed few hundred tokens. When truncating history, also preserve the pairing of tool calls and their results.
 
-### 5.6.4 影响模型的数学与字符级能力
+### 5.6.4 Effects on mathematical and character-level capabilities
 
-一个经典现象：**问模型「strawberry 里有几个 r」经常答错。**
+A familiar observation is that **models often answer “How many r's are in strawberry?” incorrectly.**
 
-分词粒度会让这类任务更难：`strawberry` 可能被切成 `str` + `aw` + `berry` 这样的块，模型不一定逐字符操作。**但这不是唯一原因**；训练数据、位置表示和推理策略也会影响结果，不能据此把字符计数错误完全归因于 tokenizer。
+Tokenization granularity can make these tasks harder: `strawberry` might be split into chunks such as `str` + `aw` + `berry`, and the model does not necessarily operate character by character. **But this is not the only cause.** Training data, positional representations, and reasoning strategies also affect the result. Character-counting errors cannot be attributed entirely to tokenization.
 
-同理，数字可能逐位或按固定长度分组，分组方向也会影响位数对齐。逐位表示方便某些算术模式，却增加序列长度；哪一种更好要结合训练与任务比较，不能断言逐位切分全面占优。需要精确计数或计算时，通常应调用确定性程序。
+Similarly, numbers may be split digit by digit or into fixed-length groups, and grouping direction affects digit alignment. Digit-level representations help some arithmetic patterns but lengthen the sequence. Which choice is better must be evaluated together with training and the task; digit-level tokenization is not universally superior. When exact counting or calculation is needed, a deterministic program is usually the right tool.
 
-### 5.6.5 词表越大是否越省
+### 5.6.5 Does a larger vocabulary always save resources?
 
-词表扩大往往可以减少序列长度，但会增加 embedding 和输出层成本。隐藏维度为 `d`、词表大小为 `V` 时，一份 embedding 约有 `Vd` 个参数；若输入输出权重不共享，还需另一份相近大小的输出投影。
+A larger vocabulary often reduces sequence length, but increases the cost of embeddings and the output layer. With hidden dimension `d` and vocabulary size `V`, one embedding table has approximately `Vd` parameters. If input and output weights are not shared, a similarly sized output projection is also needed.
 
-更换 tokenizer 会改变 ID 与 embedding 的对应关系，通常不能给已有模型无训练地替换。部署时要同时固定 tokenizer revision、模型权重、chat template 和特殊 token 配置，否则相同字符串可能变成不同输入。
+Replacing the tokenizer changes the mapping between IDs and embeddings, so an existing model generally cannot adopt a new tokenizer without training. At deployment, pin the tokenizer revision, model weights, chat template, and special-token configuration together. Otherwise, the same string may turn into different model inputs.
 
-## 5.7 常见错误
+## 5.7 Common mistakes
 
-### 5.7.1 说不出「为什么需要 Tokenizer」
+### 5.7.1 Being unable to explain why a tokenizer is needed
 
-Tokenizer 负责离散编码，embedding 把 ID 映射为模型使用的向量；不要把 ID 当作具有数值大小意义的输入特征。
+The tokenizer performs discrete encoding, and the embedding maps IDs to the vectors the model uses. Do not treat the numerical magnitude of a token ID as an input feature with meaning.
 
-### 5.7.2 说不清三种粒度的取舍
+### 5.7.2 Failing to explain the tradeoffs between the three granularities
 
-字符级太碎（序列长、语义少），词级太散（OOV 严重、词汇表爆炸），子词级是折中。这是 BPE 存在的动机。
+Characters are fine-grained, producing long sequences with little meaning per unit. Whole words require too many entries, creating vocabulary growth and severe OOV problems. Subwords are a compromise. This is the motivation for BPE.
 
-### 5.7.3 认为 BPE 是唯一的子词方案
+### 5.7.3 Treating BPE as the only subword method
 
-算法层面有 BPE、Unigram、WordPiece；SentencePiece 是可承载不同算法的库。
+BPE, Unigram, and WordPiece are algorithms; SentencePiece is a library that can support different algorithms.
 
-### 5.7.4 用字数直接估算 token 数
+### 5.7.4 Estimating tokens directly from character or word counts
 
-比例随语言和内容类型变化很大。必须用目标模型的 tokenizer 实际跑。
+The ratio varies widely with language and content type. Use the target model's tokenizer to measure it.
 
-### 5.7.5 忽略特殊 token 与 chat template
+### 5.7.5 Ignoring special tokens and chat templates
 
-应比较最终 token 序列是否符合训练模板，而不是把 `messages` 接口本身当成质量保证。模板或结束标记不一致可能让模型续写错误角色，或无法按预期结束。
+Check whether the final token sequence matches the training template, rather than treating the `messages` interface as a quality guarantee. A mismatched template or ending marker may cause the model to continue as the wrong role or fail to stop as expected.
 
-### 5.7.6 不知道 tokenizer 会影响模型能力
+### 5.7.6 Overlooking the tokenizer's effect on model capabilities
 
-字符计数和算术错误可能受切分影响，但还与训练、任务分布和推理策略有关。检查实际 token 序列，不能拿猜测的切分作为唯一解释。
+Segmentation can contribute to character-counting and arithmetic errors, but training, task distribution, and reasoning strategies also matter. Inspect the actual token sequence; do not make a guessed segmentation the sole explanation.
 
-### 5.7.7 在 token 边界上截断
+### 5.7.7 Assuming token boundaries are safe truncation points
 
-应先按 token 预算定位，再回退到可验证的 Unicode 与语义边界并留安全 buffer；不要假定 token 边界就是字符边界。
+Use the token budget to locate a cutoff, then step back to a verifiable Unicode and semantic boundary and leave a safety buffer. Do not assume that a token boundary is a character boundary.
 
-## 5.8 本章总结
+## 5.8 Chapter summary
 
-1. **Tokenizer 将文本编码为 ID**，embedding 再将其映射为连续向量；
-2. **字符级粒度细**：序列更长，需在覆盖范围、计算开销与任务之间取舍；
-3. **词级太散**：词汇表爆炸、OOV 严重、中文还要先分词；
-4. **BPE 三步**：拆成最小单元 → 反复合并最高频相邻 pair → 达到预设词汇表大小；
-5. **byte-level BPE 解决 OOV 的方式**是最坏退化到字节级，任何 UTF-8 文本都能表示；token 边界不保证等于字符边界；
-6. **中文不能按固定字数换算**，必须对目标 tokenizer 和完整请求实测；
-7. **特殊 token 传递结构信息**，EOS、轮次结束与服务端截断应区分，chat template 必须匹配；
-8. **词表、长度与输出层成本相互制约**，换 tokenizer 不只是换一个预处理函数。
+1. **A tokenizer encodes text as IDs**, which an embedding maps to continuous vectors.
+2. **Character-level tokenization is fine-grained:** sequences are longer, requiring tradeoffs among coverage, computation, and the task.
+3. **Word-level tokenization needs too many distinct entries:** vocabularies grow rapidly, OOV is a serious problem, and Chinese requires word segmentation first.
+4. **BPE has three steps:** split into minimal units → repeatedly merge the most frequent adjacent pair → reach the target vocabulary size.
+5. **Byte-level BPE handles OOV** by falling back to bytes in the worst case, making any UTF-8 text representable; token boundaries do not necessarily match character boundaries.
+6. **Chinese has no fixed character-to-token conversion ratio.** Measure the target tokenizer on the complete request.
+7. **Special tokens convey structure.** Distinguish EOS, end of turn, and server-side truncation, and use a matching chat template.
+8. **Vocabulary size, sequence length, and output-layer cost constrain one another.** Replacing a tokenizer is more than swapping a preprocessing function.
 
 
-## 参考资料
+## References
 
-- [Neural Machine Translation of Rare Words with Subword Units（BPE）](https://arxiv.org/abs/1508.07909)
+- [Neural Machine Translation of Rare Words with Subword Units (BPE)](https://arxiv.org/abs/1508.07909)
 - [SentencePiece: A simple and language independent subword tokenizer](https://arxiv.org/abs/1808.06226)
-- [Subword Regularization: Improving NMT Models with Multiple Subword Candidates（Unigram）](https://arxiv.org/abs/1804.10959)
-- [Hugging Face: Tokenizers 教程](https://huggingface.co/learn/nlp-course/chapter6/1)
+- [Subword Regularization: Improving NMT Models with Multiple Subword Candidates (Unigram)](https://arxiv.org/abs/1804.10959)
+- [Hugging Face: Tokenizers tutorial](https://huggingface.co/learn/nlp-course/chapter6/1)
 - [OpenAI tiktoken](https://github.com/openai/tiktoken)
 - [The Llama 3 Herd of Models](https://arxiv.org/abs/2407.21783)
-- [Meta Llama 3 Tokenizer 官方实现](https://github.com/meta-llama/llama3/blob/main/llama/tokenizer.py)
-- [Google SentencePiece 官方实现与配置说明](https://github.com/google/sentencepiece)
-- [Hugging Face Transformers：Tokenization algorithms](https://huggingface.co/docs/transformers/tokenizer_summary)
-- [Hugging Face Transformers：Chat templates](https://huggingface.co/docs/transformers/chat_templating)
+- [Meta Llama 3 tokenizer implementation](https://github.com/meta-llama/llama3/blob/main/llama/tokenizer.py)
+- [Google SentencePiece implementation and configuration](https://github.com/google/sentencepiece)
+- [Hugging Face Transformers: Tokenization algorithms](https://huggingface.co/docs/transformers/tokenizer_summary)
+- [Hugging Face Transformers: Chat templates](https://huggingface.co/docs/transformers/chat_templating)

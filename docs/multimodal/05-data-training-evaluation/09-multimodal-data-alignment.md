@@ -1,82 +1,82 @@
 ---
-description: 讨论图文过滤、合成描述、交错文档与事实增强偏好对齐，并解释采样配比、数据泄漏和过滤偏差的验证方法。
+description: Examine image–text filtering, synthetic captions, interleaved documents, and factually augmented preference alignment, including validation of sampling mixtures, leakage, and filtering bias.
 ---
 
-# 第九章：多模态训练数据与对齐
+# Chapter 9: Multimodal Training Data and Alignment
 
-> 本章讨论数据覆盖、过滤和训练目标如何影响多模态能力，不能把“质量比数量重要”当成不需实验的定律。整体训练框架见 [LLM · 多模态模型](../../llm/06-multimodal/23-multimodal-models.md)；RLHF、DPO 的通用原理见 [LLM · 训练与对齐](../../llm/02-training-alignment/README.md)。
+> This chapter examines how data coverage, filtering, and training objectives affect multimodal capabilities. “Quality matters more than quantity” is not a law that needs no experiment. For the overall training framework, see [LLM · Multimodal Models](../../llm/06-multimodal/23-multimodal-models.md); for general RLHF and DPO principles, see [LLM · Training and Alignment](../../llm/02-training-alignment/README.md).
 
-## 9.1 不同训练目标分别需要什么数据？
+## 9.1 What data does each training objective need?
 
-对比预训练和生成式预训练是不同目标，不是所有模型都依次经历两者。指令微调和偏好对齐也可以省略或交替进行。所需数据取决于冻结哪些模块、目标任务和已有基础模型，不能规定每阶段必须有多少条：
+Contrastive and generative pretraining are different objectives; not every model goes through both in sequence. Instruction tuning and preference alignment can also be omitted or alternated. Data requirements depend on frozen modules, target tasks, and the existing base model. There is no mandatory example count for each stage:
 
-| 目标 | 样本组织 | 数据来源 | 关键质量要求 |
+| Objective | Example structure | Sources | Key quality requirements |
 |---|---|---|---|
-| 对比表征学习 | 正配对与采样的负配对 | 网页、授权数据、专门采集 | 正配对相关、假负例可控、长尾覆盖 |
-| 生成式预训练 | 图文对、交错序列或音视频序列 | 网页文档、合成描述、授权媒体 | 条件与目标一致、时空对齐及序列边界正确 |
-| 指令微调 | 媒体、指令、回答及可选证据 | 合成与人工标注 | 回答可由输入支持，任务与格式覆盖充分 |
-| 偏好对齐 | 同一输入下的候选回答及偏好 | 人工或模型辅助比较 | 区分事实性、帮助性和安全性，控制长度偏差 |
+| Contrastive representation learning | Positive pairs and sampled negative pairs | Web data, licensed data, dedicated collection | Relevant positive pairs, controlled false negatives, long-tail coverage |
+| Generative pretraining | Image–text pairs, interleaved sequences, or audio/video sequences | Web documents, synthetic captions, licensed media | Consistent conditions and targets, correct spatial/temporal alignment and sequence boundaries |
+| Instruction tuning | Media, instructions, answers, and optional evidence | Synthetic data and human annotations | Answers supported by inputs, sufficient task and format coverage |
+| Preference alignment | Candidate answers and preferences for the same input | Human or model-assisted comparisons | Distinguish factuality, helpfulness, and safety; control length bias |
 
-数据、表示分辨率、模型容量、计算预算和优化方法共同限制效果。扩大数据不能恢复输入压缩丢掉的小字，提高分辨率也不能弥补训练里完全缺失的任务监督。
+Data, representation resolution, model capacity, compute budgets, and optimization jointly constrain results. More data cannot recover tiny text lost during input compression, and higher resolution cannot replace task supervision entirely absent from training.
 
-## 9.2 大规模图文对：来源与噪声
+## 9.2 Large-scale image–text pairs: sources and noise
 
-LAION-5B 是从 Common Crawl 提取图像链接及关联文本、再做 CLIP 相似度过滤的历史数据集案例。它主要发布 URL、文本和元数据索引，而不是为所有图像提供再分发或训练授权。链接失效、源站内容改变和权利状态不明都会影响复现与合规。alt text 还可能是导航词、SEO 文本或不完整描述，不能将“同一网页出现”视为可靠语义对齐。
+LAION-5B is a historical example of a dataset built by extracting image links and associated text from Common Crawl and filtering with CLIP similarity. It primarily distributes an index of URLs, text, and metadata—not redistribution or training authorization for every image. Broken links, changed source content, and unclear rights affect reproducibility and compliance. Alt text can also contain navigation terms, SEO text, or incomplete descriptions. Appearing on the same web page does not establish reliable semantic alignment.
 
-## 9.3 数据质量过滤与合成描述
+## 9.3 Quality filtering and synthetic captions
 
-提升预训练数据质量的常见做法包括：
+Common ways to improve pretraining data include:
 
-- **相似度过滤**：可减少不匹配，但 CLIP 分数不是“配对正确概率”，可能偏好常见物体、语言和风格，误删专业图表、OCR 或长尾类别。阈值应按目标数据分层抽检，而非越高越好；
-- **去重与划分**：结合内容哈希、感知特征及文本去重，先按原始文档、视频、说话人或来源分组，再划分训练/验证/测试。相邻视频帧或同页不同裁剪不能被随机分到两侧，否则指标会因近重复泄漏而虚高；
-- **合成/重新生成描述**：DALL·E 3 报告研究了合成描述与原始描述的混合，而不是保证“全部替换”最优。详细描述可补充主体关系，也会带入描述器幻觉；应保留来源与原始文本，对计数、文字、关系等重点抽检，并比较不同混合比例；
-- **安全与合规过滤**：剔除包含儿童性虐待材料（CSAM）、非自愿隐私内容等违法或高风险内容，以及在许可与版权允许范围之外的素材，这一步不是可选项，而是数据管线中不可缺失的合规前置环节。
+- **Similarity filtering** can reduce mismatches, but a CLIP score is not the probability that a pair is correct. It may favor common objects, languages, and styles, incorrectly removing specialist charts, OCR examples, or long-tail categories. Set thresholds through stratified inspection of the target data rather than assuming higher is always better.
+- **Deduplication and splitting** should combine content hashes, perceptual features, and text deduplication. Group by original document, video, speaker, or source before dividing into training, validation, and test sets. Adjacent video frames or different crops of the same page must not be randomly placed on opposite sides of a split; near-duplicate leakage inflates scores.
+- **Synthetic or regenerated captions**: the DALL·E 3 report studies mixtures of synthetic and original captions rather than guaranteeing that replacing everything is optimal. Detailed captions can add subject relationships but also introduce captioner hallucinations. Retain provenance and original text, inspect counts, text, and relationships closely, and compare mixture ratios.
+- **Safety and compliance filtering** must remove illegal or high-risk material, including child sexual abuse material (CSAM) and nonconsensual private content, as well as material outside the scope permitted by licenses and copyright. This is a required compliance step in the data pipeline, not an optional enhancement.
 
-## 9.4 多模态指令微调数据的构建
+## 9.4 Building multimodal instruction-tuning data
 
-预训练与指令微调并非能力的硬分区：前者提供图文关联和任务能力基础，后者通过指令样本调整问题处理、输出行为与证据使用。原版 LLaVA 展示了一种规模化构建指令数据的思路：用纯文本 GPT-4，基于 COCO 图像的人工描述与物体框生成对话、详细描述和复杂推理样本。它减少了逐条人工编写对话的需要，却仍复用了人工图像标注；GPT-4 不直接查看图像，合成样本因此受限于标注的完整性和准确性。
+Pretraining and instruction tuning do not divide capabilities into rigid categories. The former provides image–text associations and a foundation for task abilities; the latter uses instruction examples to adjust problem handling, output behavior, and evidence use. Original LLaVA demonstrates a scalable instruction-data construction method: text-only GPT-4 generates conversations, detailed descriptions, and complex reasoning examples from human captions and object boxes for COCO images. This reduces the need to write each conversation manually but still reuses human image annotations. GPT-4 does not see the images directly, so synthetic examples are limited by annotation completeness and accuracy.
 
-纯模型生成的指令数据存在放大标注偏差、生成不准确细节等风险，需要人工抽检并补充计数、空间关系、OCR 等薄弱任务。还要加入“目标不存在”“图像太模糊”“两张图无法确定是同一人”等不可回答样本，否则模型可能学会任何输入都编出完整答案。
+Entirely model-generated instruction data can amplify annotation bias or invent incorrect details. It needs human spot checks and targeted additions for weak tasks such as counting, spatial relationships, and OCR. Include unanswerable cases too: “目标不存在” (“the target is absent”), “图像太模糊” (“the image is too blurry”), or “两张图无法确定是同一人” (“the two images do not establish that this is the same person”). Otherwise the model may learn to invent a complete answer for every input.
 
-一个实用对照是保留问题、替换或遮蔽媒体：若答案几乎不变且仍得高分，数据可能让模型依靠语言先验而非视觉证据。负例也要人工核验，避免把“没有标注”误判为“不存在”。
+A useful control keeps the question but replaces or masks the media. If answers barely change and still score highly, the data may let the model rely on language priors rather than visual evidence. Negative examples also need human verification so “not annotated” is not mistaken for “not present.”
 
-## 9.5 交错图文数据与上下文学习能力
+## 9.5 Interleaved image–text data and in-context learning
 
-指令微调可以包含单轮、多轮和多图任务，不只限于单轮。**交错图文文档**保留同一文档中图片与文字的顺序和关联，Flamingo 与 OBELICS/初代 IDEFICS 展示了这种训练组织对多图上下文任务的价值。它是重要来源，但不是唯一必要条件：人工构造的多图比较、示例串联和多轮数据也可以提供对应监督。仅扩大独立图文对数量，不能自动保证覆盖跨图关联。
+Instruction tuning can include single-turn, multi-turn, and multi-image tasks; it is not limited to a single turn. **Interleaved image–text documents** preserve the order and relationships of images and text within a document. Flamingo and OBELICS/original IDEFICS demonstrate the value of this organization for multi-image context tasks. It is an important source, but not the only way to obtain that supervision: constructed multi-image comparisons, sequences of demonstrations, and multi-turn data can provide corresponding supervision too. Increasing the number of independent image–text pairs alone does not guarantee coverage of cross-image relationships.
 
-拼接时还要明确图片边界、所属段落和可见性掩码；任意打乱网页顺序可能把问题配到错误图片。混合采样不能只看“样本条数”：一段视频或一页高分辨率文档可能消耗更多 token 与计算，应同时记录各任务抽样概率、有效 token、损失权重和训练耗时，防止长序列模态主导梯度。保留文本回放及分模态验证集，可检查加入视觉训练后是否损害原有语言能力。
+Concatenation must also define image boundaries, paragraph association, and visibility masks. Arbitrarily shuffling web-page order can associate a question with the wrong image. Mixture sampling should not track example counts alone: a video clip or high-resolution document page may consume many more tokens and compute. Record each task's sampling probability, effective tokens, loss weight, and training time to prevent long-sequence modalities from dominating gradients. Retain text replay and modality-specific validation sets to check whether adding vision training harms existing language abilities.
 
-## 9.6 多模态偏好对齐
+## 9.6 Multimodal preference alignment
 
-多模态偏好需要把事实一致性与回答风格分开。LLaVA-RLHF 的事实增强奖励模型利用额外图像描述、真实选项等信息辅助判断，目的是减轻奖励投机，不是自动事实验证器。标注本身不完整时，也可能错罚正确细节。
+Multimodal preference judgments must separate factual consistency from response style. LLaVA-RLHF's factually augmented reward model uses extra image captions, ground-truth answer options, and other information to aid judgment. Its purpose is to reduce reward hacking, not to provide an automatic fact verifier. Incomplete annotations can still cause correct details to be penalized.
 
-使用 DPO 时，优选与劣选回答应针对**同一媒体、同一问题**；否则偏好差异可能来自输入难度而不是回答质量。可构造长度、语气相近而事实不同的候选，检查奖励是否真对空间、数量或文字错误敏感。拒答率也要一起测，避免模型通过一律回答“无法判断”降低幻觉率，却失去帮助性。
+With DPO, preferred and dispreferred answers should address **the same media and the same question**; otherwise the preference difference may reflect input difficulty rather than answer quality. Construct candidates with similar length and tone but different factual content, then check whether rewards are genuinely sensitive to spatial, counting, or text errors. Measure refusal rates as well: a model might lower hallucinations by always saying “无法判断” (“cannot determine”), at the expense of helpfulness.
 
-## 9.7 常见错误
+## 9.7 Common mistakes
 
-### 9.7.1 只看数据规模，不看图文匹配质量
+### 9.7.1 Looking only at scale, not image–text matching quality
 
-不能声称“严格过滤后少一个数量级的数据必然更好”。在相同训练计算预算下比较过滤强度，分别报告长尾、语言和任务切片结果；过度过滤可能提高平均分，却丢掉最需要的困难样本。
+It is not valid to claim that strict filtering and an order-of-magnitude reduction in data must improve results. Compare filtering strengths under equal training-compute budgets and report long-tail, language, and task slices separately. Overfiltering may improve the average score while discarding the difficult examples you most need.
 
-### 9.7.2 用纯成对图文数据覆盖多图/上下文学习能力需求
+### 9.7.2 Expecting paired image–text data alone to cover multi-image and in-context learning
 
-如果只训练独立图文对，应专门检验跨图比较、图序变化、指代与示例学习，不能用单图 VQA 分数代替。交错网页是一种补充方式，多图指令和经过核验的合成序列也可提供训练信号。
+If training uses only independent image–text pairs, explicitly test cross-image comparison, changes in image order, references, and learning from demonstrations. A single-image VQA score cannot stand in for them. Interleaved web pages are one supplement; multi-image instructions and verified synthetic sequences also provide training signals.
 
-### 9.7.3 用通用偏好数据直接做多模态对齐
+### 9.7.3 Applying generic preference data directly to multimodal alignment
 
-直接套用文本领域"哪个回答更详细/更有帮助"的偏好标注标准，容易鼓励模型生成更长但包含虚构细节的回答，多模态偏好数据采集应显式加入事实一致性校验（见 9.6 节）。
+Text-oriented judgments such as “which answer is more detailed or helpful?” can encourage longer answers with invented details. Multimodal preference collection should explicitly include factual-consistency checks, as discussed in Section 9.6.
 
-## 9.8 本章总结
+## 9.8 Chapter summary
 
-1. 训练阶段与数据规模没有统一配方，要匹配目标、已有模型、冻结范围和计算预算；
-2. 图文过滤、去重和合规审查需按来源设计；合成描述是可选增强手段，收益与偏差都要验证；
-3. 多模态指令微调数据可通过纯文本模型基于结构化标注合成生成，但需要人工审核和针对薄弱任务的专门补充；
-4. 交错文档和多图指令提供跨图关联监督，独立图文对的数量不能替代对这些任务的验证；
-5. 多模态偏好对齐需要显式的事实一致性校验，以避免奖励模型鼓励更详细但存在幻觉的回答。
+1. There is no universal recipe for training stages or data scale. Match them to objectives, the existing model, frozen parameters, and compute budgets.
+2. Design image–text filtering, deduplication, and compliance review around the sources. Synthetic captions are an optional enhancement whose gains and biases both need validation.
+3. Text-only models can synthesize multimodal instruction data from structured annotations, but human review and targeted supplements for weak tasks remain necessary.
+4. Interleaved documents and multi-image instructions supervise cross-image relationships. More independent image–text pairs cannot replace evaluation of those tasks.
+5. Multimodal preference alignment needs explicit factual-consistency checks to prevent reward models from encouraging detailed but hallucinated answers.
 
-> 数据改造是否有效，应在独立测试集和相同计算预算下验证；同时改变过滤、采样比例和训练步数，就难以判断收益来自哪一项。
+> Validate data changes on an independent test set under equal compute budgets. Changing filtering, sampling ratios, and training steps together makes it difficult to identify which change produced the gains.
 
-## 参考资料
+## References
 
 - [LAION-5B: An Open Large-Scale Dataset for Training Next Generation Image-Text Models](https://arxiv.org/abs/2210.08402)
 - [OpenAI DALL·E 3: Improving Image Generation with Better Captions](https://cdn.openai.com/papers/dall-e-3.pdf)
