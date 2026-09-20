@@ -16,19 +16,64 @@ from urllib.parse import unquote, urlsplit
 import xml.etree.ElementTree as ET
 import zipfile
 
-from build_book import Book, BookError, ROOT, DEFAULT_MANIFEST, digest, inside, protect, require, segments
+from build_book import (
+    Book, BookError, ROOT, add_language_arguments, check_translation_sync, digest,
+    generated_dir, inside, protect, require, segments,
+)
 from install_epub_tools import java_command, InstallError
 
 
 EPUB_DIR = ROOT / "book/epub"
-DEFAULT_OUTPUT = ROOT / "book/zh-CN/generated/epub"
+DEFAULT_OUTPUT = generated_dir(ROOT, "en") / "epub"
 PANDOC = EPUB_DIR / ".tools/pandoc/bin/pandoc"
 EPUBCHECK = EPUB_DIR / ".tools/epubcheck/epubcheck.jar"
-BOOK_NAME = "ai-engineering-interview-zh-CN"
+BOOK_NAME = "ai-engineering-interview-en"
 XHTML = "http://www.w3.org/1999/xhtml"
 OPF = "http://www.idpf.org/2007/opf"
 DC = "http://purl.org/dc/elements/1.1/"
 NS = {"h": XHTML, "o": OPF, "dc": DC}
+XML_LANG = "{http://www.w3.org/XML/1998/namespace}lang"
+LABELS = {
+    "en": {
+        "toc": "Contents",
+        "rights": "Original text and diagrams: Polo Li, CC BY 4.0. "
+                  "Third-party material retains its own rights; see colophon.",
+        "formula_alt": "Formula: {source}",
+        "formula_view": "View the complete formula",
+        "formula_title": "Complete formula",
+        "formula_back": "Return to this formula in the text",
+        "diagram_alt": "{heading}: flow or structure diagram",
+        "diagram_view": "View the full diagram and details",
+        "diagram_title": "Complete diagram",
+        "diagram_back": "Return to this diagram in the text",
+        "diagram_part": "{label}, detail {number}/{total} (left to right, top to bottom)",
+    },
+    "zh-CN": {
+        "toc": "目录",
+        "rights": "原创文字与图示：Polo Li，CC BY 4.0。第三方资料保留各自权利；见版权页。",
+        "formula_alt": "公式：{source}",
+        "formula_view": "查看完整公式",
+        "formula_title": "完整公式",
+        "formula_back": "返回正文中的此公式",
+        "diagram_alt": "{heading}：流程或结构示意图",
+        "diagram_view": "查看大图与细节",
+        "diagram_title": "完整示意图",
+        "diagram_back": "返回正文中的此图",
+        "diagram_part": "{label}，局部 {number}/{total}（从左到右、从上到下）",
+    },
+}
+
+
+def labels_for(language):
+    require(language in LABELS, f"unsupported EPUB language: {language}")
+    return LABELS[language]
+
+
+def book_language(book):
+    language = getattr(book, "language", None) or book.manifest["language"]
+    labels_for(language)
+    require(language == book.manifest["language"], "book and manifest languages differ")
+    return language
 
 
 def run(command, **kwargs):
@@ -45,21 +90,33 @@ def run(command, **kwargs):
     return result.stdout
 
 
-def output_path(value, root=ROOT):
+def output_path(value, root=ROOT, language="en"):
     """A dedicated output directory is replaced only after all checks succeed."""
     raw = Path(value).absolute()
     result = raw.resolve()
+    labels_for(language)
+    allowed = generated_dir(root, language).resolve()
     require(raw == result, "output path must not contain symlinks or '..'")
-    require(not inside(root, result) or
-            inside(root / "book/zh-CN/generated", result),
-            "repository output must stay under book/zh-CN/generated; sources are read-only")
+    require(not inside(root, result) or inside(allowed, result),
+            f"repository output must stay under book/{language}/generated; sources are read-only")
+    for other in LABELS.keys() - {language}:
+        require(not any(result.parts[index:index + 3] == ("book", other, "generated")
+                        for index in range(len(result.parts) - 2)),
+                f"output belongs to another language: {other}")
+    require(result != allowed, "output must be a dedicated EPUB subdirectory")
     require(not result.exists() or result.is_dir(), "output must be a directory")
     if result.exists():
         receipt = result / "build.json"
         require(receipt.is_file() and not receipt.is_symlink(),
                 "existing output is not an EPUB build directory")
-        require(json.loads(receipt.read_text(encoding="utf-8")).get("builder") == "build_epub.py",
+        previous = json.loads(receipt.read_text(encoding="utf-8"))
+        require(isinstance(previous, dict) and previous.get("builder") == "build_epub.py",
                 "refusing to replace a directory not owned by the EPUB builder")
+        require(previous.get("language") == language,
+                "refusing to replace an EPUB output of another or unknown language")
+        require(not any((result / f"ai-engineering-interview-{other}.epub").exists()
+                        for other in LABELS.keys() - {language}),
+                "output contains an EPUB of another language")
     return result
 
 
@@ -152,6 +209,8 @@ class HTMLResources(HTMLParser):
 
 
 def prepare_ast(ast, book, directory):
+    language = book_language(book)
+    labels = labels_for(language)
     blocks, skipping = [], False
     for block in ast["blocks"]:
         if block["t"] == "Header" and block["c"][0] == 1:
@@ -164,11 +223,10 @@ def prepare_ast(ast, book, directory):
     ast["meta"] = {
         "title": metadata(book.manifest["title"]),
         "author": {"t": "MetaList", "c": [metadata("Polo Li")]},
-        "lang": metadata(book.manifest["language"]),
+        "lang": metadata(language),
         "identifier": metadata("urn:sha256:" + digest(book.manifest_path.read_bytes())),
-        "rights": metadata("Original text and diagrams: Polo Li, CC BY 4.0. "
-                           "Third-party material retains its own rights; see colophon."),
-        "toc-title": metadata("目录"),
+        "rights": metadata(labels["rights"]),
+        "toc-title": metadata(labels["toc"]),
     }
     jobs, occurrences = {}, Counter()
     heading = book.manifest["title"]
@@ -195,8 +253,8 @@ def prepare_ast(ast, book, directory):
             require(node["c"][0] == "html", "unsupported non-HTML raw content")
             HTMLResources(directory).feed(node["c"][1])
         if kind:
-            key = digest((kind + "\0" + source).encode())
-            jobs[key] = {"key": key, "kind": kind, "source": source}
+            key = digest((language + "\0" + kind + "\0" + source).encode())
+            jobs[key] = {"key": key, "kind": kind, "source": source, "language": language}
             # Private fields are removed before the JSON is passed back to Pandoc.
             node["_render"] = key
             node["_heading"] = heading
@@ -204,7 +262,9 @@ def prepare_ast(ast, book, directory):
     return list(jobs.values()), dict(occurrences)
 
 
-def apply_images(ast, rendered):
+def apply_images(ast, rendered, language=None):
+    language = language or ast.get("meta", {}).get("lang", {}).get("c", "en")
+    labels = labels_for(language)
     assets = {item["key"]: item for item in rendered["results"]}
     figure_number = 0
     formula_number = 0
@@ -229,20 +289,21 @@ def apply_images(ast, rendered):
                         [f"formula-{formula_number}", ["formula"] + classes, []],
                         [{"t": "Link", "c": [
                             attr(["formula-link"]),
-                            [image(item, "公式：" + source, classes, inline)],
-                            ["rendered/" + item["file"], "查看完整公式"],
+                            [image(item, labels["formula_alt"].format(source=source), classes, inline)],
+                            ["rendered/" + item["file"], labels["formula_view"]],
                         ]}],
                     ]}
-                label = value["_heading"] + "：流程或结构示意图"
+                label = labels["diagram_alt"].format(heading=value["_heading"])
                 figure_number += 1
                 blocks = [{"t": "Para", "c": [image(item, label, ["diagram"])]},
                           {"t": "Para", "c": [{"t": "Link", "c": [
-                              attr(["figure-link"]), [string("查看大图与细节")],
+                              attr(["figure-link"]), [string(labels["diagram_view"])],
                               ["rendered/" + item["file"], ""],
                           ]}]}]
                 details = []
                 for number, tile in enumerate(item["tiles"], 1):
-                    caption = f"{label}，局部 {number}/{len(item['tiles'])}（从左到右、从上到下）"
+                    caption = labels["diagram_part"].format(
+                        label=label, number=number, total=len(item["tiles"]))
                     details.extend([
                         {"t": "Para", "c": [string(caption)]},
                         {"t": "Para", "c": [image(tile, caption, ["diagram-detail"])]},
@@ -291,6 +352,11 @@ def reading_order(book):
 def repair_links(path, resource_hashes=None, book=None):
     """Resolve fragment-only links using actual split XHTML IDs, including raw HTML."""
     entries = read_package(path)
+    container = ET.fromstring(entries["META-INF/container.xml"])
+    opf_path = container.find(".//{*}rootfile").get("full-path")
+    package = ET.fromstring(entries[opf_path])
+    language = book_language(book) if book is not None else package.find("o:metadata/dc:language", NS).text
+    labels = labels_for(language)
     packaged_assets = {}
     for name, data in entries.items():
         if not name.endswith((".xhtml", ".opf", ".ncx")):
@@ -339,12 +405,12 @@ def repair_links(path, resource_hashes=None, book=None):
                 is_formula = "formula" in container.get("class", "").split()
                 figure = "EPUB/figures/" + origin_id + ".xhtml"
                 if figure not in figures:
-                    images = tree.findall(".//h:img", NS)
+                    images = container.findall(".//h:img", NS)
                     alt = next((image.get("alt") for image in images
-                                if package_target(name, image.get("src"))[0] == target), "完整示意图")
-                    visible_title = "完整公式" if is_formula else alt
+                                if package_target(name, image.get("src"))[0] == target), labels["diagram_title"])
+                    visible_title = labels["formula_title"] if is_formula else alt
                     figure_tree = ET.Element(f"{{{XHTML}}}html", {
-                        "lang": "zh-CN", "{http://www.w3.org/XML/1998/namespace}lang": "zh-CN"})
+                        "lang": language, XML_LANG: language})
                     head = ET.SubElement(figure_tree, f"{{{XHTML}}}head")
                     ET.SubElement(head, f"{{{XHTML}}}title").text = visible_title
                     for link in tree.findall("h:head/h:link", NS):
@@ -357,7 +423,7 @@ def repair_links(path, resource_hashes=None, book=None):
                     body = ET.SubElement(figure_tree, f"{{{XHTML}}}body")
                     ET.SubElement(body, f"{{{XHTML}}}a", {
                         "href": posixpath.relpath(name, "EPUB/figures") + "#" + origin_id,
-                    }).text = "返回正文中的此公式" if is_formula else "返回正文中的此图"
+                    }).text = labels["formula_back" if is_formula else "diagram_back"]
                     ET.SubElement(body, f"{{{XHTML}}}p").text = visible_title
                     ET.SubElement(body, f"{{{XHTML}}}img", {
                         "src": posixpath.relpath(target, "EPUB/figures"), "alt": alt,
@@ -392,9 +458,6 @@ def repair_links(path, resource_hashes=None, book=None):
     for name, tree in figures.items():
         entries[name] = ET.tostring(tree, encoding="utf-8", xml_declaration=True)
     if book is not None:
-        container = ET.fromstring(entries["META-INF/container.xml"])
-        opf_path = container.find(".//{*}rootfile").get("full-path")
-        package = ET.fromstring(entries[opf_path])
         manifest = {package_target(opf_path, item.get("href"))[0]: item.get("id")
                     for item in package.findall("o:manifest/o:item", NS)}
         spine = package.find("o:spine", NS)
@@ -428,12 +491,13 @@ def repair_links(path, resource_hashes=None, book=None):
 
 
 def audit_epub(path, book, occurrences=None):
+    language = book_language(book)
     entries = read_package(path)
     container = ET.fromstring(entries["META-INF/container.xml"])
     opf_path = container.find(".//{*}rootfile").get("full-path")
     package = ET.fromstring(entries[opf_path])
     require(package.get("version") == "3.0", "expected EPUB3 package")
-    require(package.find("o:metadata/dc:language", NS).text == book.manifest["language"],
+    require(package.find("o:metadata/dc:language", NS).text == language,
             "incorrect book language")
     require(package.find("o:metadata/dc:title", NS).text == book.manifest["title"], "incorrect title")
     manifest = {}
@@ -451,6 +515,8 @@ def audit_epub(path, book, occurrences=None):
     trees = {name: ET.fromstring(data) for name, data in entries.items() if name.endswith(".xhtml")}
     ids, global_ids, links, images, supplemental_images = {}, {}, [], Counter(), Counter()
     for name, tree in trees.items():
+        require(tree.get("lang") == language and tree.get(XML_LANG) == language,
+                f"incorrect XHTML language: {name}")
         ids[name] = set()
         for element in tree.iter():
             tag = element.tag.rsplit("}", 1)[-1]
@@ -525,7 +591,7 @@ def audit_epub(path, book, occurrences=None):
         "internal_links_and_resources": len(links), "image_occurrences": dict(images),
         "supplemental_image_occurrences": dict(supplemental_images),
         "packaged_image_assets": sum(name.endswith(".png") for name in entries),
-        "language": book.manifest["language"], "bytes": path.stat().st_size,
+        "language": language, "bytes": path.stat().st_size,
         "sha256": digest(path.read_bytes()), "errors": [],
     }
 
@@ -547,8 +613,11 @@ def publish_directory(staging, destination):
 
 
 def build(args):
-    destination = output_path(args.output)
-    book = Book(manifest=args.manifest)
+    check_translation_sync(ROOT)
+    book = Book(manifest=args.manifest, language=getattr(args, "language", None))
+    language = book_language(book)
+    destination = output_path(args.output or generated_dir(book.root, language) / "epub",
+                              book.root, language)
     require(not any(inside(destination, book.root / source) for source in book.hashes),
             "output directory contains manuscript inputs")
     manuscript = book.assemble()
@@ -581,10 +650,10 @@ def build(args):
         for item in rendered["results"]:
             for asset in [item] + item["tiles"]:
                 shutil.copyfile(cache / asset["file"], stage / "rendered" / asset["file"])
-        ast = apply_images(ast, rendered)
+        ast = apply_images(ast, rendered, language)
         ast_path = Path(temporary) / "book.json"
         ast_path.write_text(json.dumps(ast, ensure_ascii=False), encoding="utf-8")
-        epub = stage / (BOOK_NAME + ".epub")
+        epub = stage / f"ai-engineering-interview-{language}.epub"
         run([PANDOC, ast_path, "--from=json", "--to=epub3", "--standalone",
              "--epub-title-page=false", "--split-level=2", "--toc", "--toc-depth=2", "--no-highlight",
              "--data-dir", EPUB_DIR, "--css", EPUB_DIR / "epub.css",
@@ -628,9 +697,10 @@ def build(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--manifest", default=DEFAULT_MANIFEST)
-    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT,
-                        help="dedicated output directory, replaced only after successful validation")
+    add_language_arguments(parser)
+    parser.add_argument("--output", type=Path,
+                        help="dedicated output directory (default: book/<language>/generated/epub), "
+                             "replaced only after successful validation")
     args = parser.parse_args(argv)
     try:
         build(args)

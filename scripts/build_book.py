@@ -9,12 +9,14 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import subprocess
 import sys
 from urllib.parse import quote, unquote, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MANIFEST = "book/zh-CN/manifest.json"
+LANGUAGES = ("en", "zh-CN")
+DEFAULT_MANIFEST = "book/en/manifest.json"
 INDEX_PATH = "docs/book/README.md"
 CHAPTER = re.compile(r"^(\d{2})-.+\.md$")
 HEADING = re.compile(r"^(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$", re.M)
@@ -32,8 +34,8 @@ ATTRIBUTION = re.compile(
     r"(?:(?:外部案例出处见上方链接|第三方资料与代码遵循各自项目的许可"
     r"|引用资料归原作者所有|引用资料的权利与许可归原作者|引用资料的权利归原作者)。)?"
 )
-RETURN_LINK = re.compile(r"^返回 \[[^\n]+\]\([^\n]+/README\.md\)。[ \t]*$|"
-                         r"^返回 \[[^\n]+\]\(README\.md\)。[ \t]*$", re.M)
+RETURN_LINK = re.compile(
+    r"^(?:返回|Back to) \[[^\n]+\]\((?:[^\n]+/)?README(?:\.zh)?\.md\)[。.][ \t]*$", re.M)
 REFERENCE = re.compile(r"^ {0,3}\[([^\]\n]+)\]:[ \t]*(.*)$", re.M)
 
 
@@ -48,6 +50,44 @@ def require(condition, message):
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def manifest_for(language):
+    require(language in LANGUAGES, f"unsupported language: {language}")
+    return f"book/{language}/manifest.json"
+
+
+def generated_dir(root, language):
+    require(language in LANGUAGES, f"unsupported language: {language}")
+    return Path(root) / "book" / language / "generated"
+
+
+def language_path(path, language):
+    require(language in LANGUAGES, f"unsupported language: {language}")
+    base = str(path).removesuffix(".zh.md")
+    if base == str(path):
+        base = str(path).removesuffix(".md")
+    require(base != str(path), f"expected Markdown path: {path}")
+    return base + (".md" if language == "en" else ".zh.md")
+
+
+def path_language(path):
+    return "zh-CN" if str(path).endswith(".zh.md") else "en"
+
+
+def add_language_arguments(parser):
+    selector = parser.add_mutually_exclusive_group()
+    selector.add_argument("--language", choices=LANGUAGES,
+                          help="source language (default: en)")
+    selector.add_argument("--manifest", help="explicit repository-relative manifest; determines language")
+
+
+def check_translation_sync(root):
+    checker = source_path(Path(root).resolve(), "scripts/check_translations.py")
+    result = subprocess.run([sys.executable, str(checker), "--root", str(root)],
+                            capture_output=True, text=True)
+    require(result.returncode == 0,
+            "translation synchronization check failed:\n" + result.stdout + result.stderr)
 
 
 def chinese(number):
@@ -235,6 +275,7 @@ class Document:
     path: str
     number: int = 0
     part_number: int = 0
+    language: str = "en"
     title: str = ""
     chunks: list = field(default_factory=list)
     headings: dict = field(default_factory=dict)
@@ -244,22 +285,32 @@ class Document:
     @property
     def label(self):
         if self.number:
+            if self.language == "en":
+                return f"Part {self.part_number}, Chapter {self.number}: {self.title}"
             return f"第{chinese(self.part_number)}篇 第{self.number}章：{self.title}"
         return self.title
 
 
 class Book:
-    def __init__(self, root=ROOT, manifest=DEFAULT_MANIFEST):
+    def __init__(self, root=ROOT, manifest=None, language=None):
         self.root = Path(root).resolve()
-        self.manifest_path = source_path(self.root, manifest)
+        self.manifest_path = source_path(self.root, manifest or manifest_for(language or "en"))
         self.manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"),
                                    object_pairs_hook=no_duplicate_keys)
+        require(isinstance(self.manifest, dict), "manifest: expected object")
+        self.language = self.manifest.get("language")
+        require(self.language in LANGUAGES, f"unsupported language: {self.language}")
+        require(language is None or language == self.language,
+                f"requested language {language} differs from manifest language {self.language}")
+        self.generated_dir = generated_dir(self.root, self.language)
+        self.index_path = language_path(INDEX_PATH, self.language)
         self.documents = {}
         self.parts = []
         self.assets = {}
         self.hashes = {}
         self.anchors = {"contents"}
         self.validate_manifest()
+        self.validate_pair()
         for document in self.documents.values():
             self.read_document(document)
         require(self.front[0].title == self.manifest["title"],
@@ -279,6 +330,8 @@ class Book:
                     f"invalid stable ID: {entry['id']}")
             path = source_path(self.root, entry["path"])
             require(path.suffix == ".md", f"expected Markdown source: {entry['path']}")
+            require(path_language(entry["path"]) == self.language,
+                    f"{self.language} manifest contains wrong-language path: {entry['path']}")
             require(entry["path"] not in self.documents, f"duplicate source: {entry['path']}")
             self.add_anchor(entry["id"])
             if topic:
@@ -290,8 +343,8 @@ class Book:
             else:
                 require(PurePosixPath(entry["path"]).parent == PurePosixPath("docs/book"),
                         f"front/back matter must be in docs/book: {entry['path']}")
-                require(path.name != "README.md", "website index is not book matter")
-            document = Document(entry["id"], entry["path"], number if topic else 0, part_number)
+                require(path.name not in ("README.md", "README.zh.md"), "website index is not book matter")
+            document = Document(entry["id"], entry["path"], number if topic else 0, part_number, self.language)
             self.documents[document.path] = document
             result.append(document)
         return result
@@ -302,7 +355,7 @@ class Book:
                            "source_url", "front_matter", "parts", "back_matter"), "manifest")
         require(type(data["schema_version"]) is int and data["schema_version"] == 1,
                 "unsupported schema_version")
-        require(data["language"] == "zh-CN", "this builder currently supports zh-CN only")
+        require(data["language"] in LANGUAGES, "unsupported manifest language")
         for key in ("edition", "title", "source_url"):
             nonempty(data[key], key)
         source_url = urlsplit(data["source_url"])
@@ -327,13 +380,47 @@ class Book:
         self.back = self.entries(data["back_matter"])
         require(self.back[-1].id == "colophon", "back matter must end with colophon")
         discovered = {p.relative_to(self.root).as_posix()
-                      for p in (self.root / "docs").rglob("[0-9][0-9]-*.md")}
+                      for p in (self.root / "docs").rglob("[0-9][0-9]-*.md")
+                      if path_language(p) == self.language}
         included = {d.path for d in self.documents.values() if d.number}
         require(discovered == included,
                 f"chapter coverage mismatch; missing={sorted(discovered - included)}, "
                 f"unexpected={sorted(included - discovered)}")
         require(len(included) == data["chapter_count"],
                 f"chapter_count={data['chapter_count']}, actual={len(included)}")
+
+    def validate_pair(self):
+        other_language = "zh-CN" if self.language == "en" else "en"
+        other_path = source_path(self.root, manifest_for(other_language))
+        other = json.loads(other_path.read_text(encoding="utf-8"), object_pairs_hook=no_duplicate_keys)
+        object_keys(other, self.manifest.keys(), "paired manifest")
+        require(other["language"] == other_language, "paired manifest has incorrect language")
+        require(type(other["schema_version"]) is int and other["schema_version"] == 1,
+                "unsupported paired schema_version")
+        require(other["chapter_count"] == self.manifest["chapter_count"], "paired chapter counts differ")
+
+        def pair_entries(ours, theirs):
+            require(isinstance(theirs, list) and len(ours) == len(theirs), "paired entries differ")
+            for own, companion in zip(ours, theirs):
+                object_keys(companion, ("id", "path"), "paired entry")
+                require(own["id"] == companion["id"], "paired chapter IDs/order differ")
+                require(companion["path"] == language_path(own["path"], other_language),
+                        f"paired source paths differ: {own['path']}")
+                source_path(self.root, companion["path"])
+
+        pair_entries(self.manifest["front_matter"], other["front_matter"])
+        pair_entries(self.manifest["back_matter"], other["back_matter"])
+        require(isinstance(other["parts"], list) and len(self.manifest["parts"]) == len(other["parts"]),
+                "paired part counts differ")
+        for own, companion in zip(self.manifest["parts"], other["parts"]):
+            object_keys(companion, ("id", "title", "chapters"), "paired part")
+            require(own["id"] == companion["id"], "paired part IDs/order differ")
+            pair_entries(own["chapters"], companion["chapters"])
+        expected = {entry["path"] for part in other["parts"] for entry in part["chapters"]}
+        discovered = {path.relative_to(self.root).as_posix()
+                      for path in (self.root / "docs").rglob("[0-9][0-9]-*.md")
+                      if path_language(path) == other_language}
+        require(discovered == expected, "paired-language chapter coverage mismatch")
 
     def read_document(self, document):
         raw = (self.root / document.path).read_bytes()
@@ -362,9 +449,12 @@ class Book:
         require(text[:h1[0].start()].strip() == "", f"{document.path}: content precedes H1")
         document.title = h1[0][2]
         if document.number:
-            prefix = re.match(r"^第([一二三四五六七八九十百零\d]+)章[：:]\s*(.+)$",
-                              document.title)
-            require(prefix and prefix[1] in (str(document.number), chinese(document.number)),
+            pattern = (r"^Chapter ([1-9]\d*):\s*(.+)$" if self.language == "en" else
+                       r"^第([一二三四五六七八九十百零\d]+)章[：:]\s*(.+)$")
+            prefix = re.match(pattern, document.title)
+            numbers = (str(document.number),) if self.language == "en" else (
+                str(document.number), chinese(document.number))
+            require(prefix and prefix[1] in numbers,
                     f"{document.path}: H1 chapter number does not match filename")
             document.title = prefix[2]
         occurrences = {}
@@ -412,6 +502,9 @@ class Book:
         require(inside(self.root, target), f"{document.path}: link escapes repository: {url}")
         require(target.is_file(), f"{document.path}: missing link or asset: {url}")
         relative = target.relative_to(self.root).as_posix()
+        if target.suffix == ".md":
+            require(path_language(relative) == self.language,
+                    f"{document.path}: cross-language source link is not allowed: {url}")
         fragment = unquote(parsed.fragment)
         if relative in self.documents:
             destination = self.documents[relative]
@@ -420,10 +513,11 @@ class Book:
             require(fragment in destination.aliases,
                     f"{document.path}: missing heading fragment: {url}")
             return "#" + destination.aliases[fragment]
-        if relative in ("README.md", "docs/README.md", INDEX_PATH) and not fragment:
+        if relative in tuple(language_path(path, self.language)
+                             for path in ("README.md", "docs/README.md", INDEX_PATH)) and not fragment:
             return "#contents"
         for part, _ in self.parts:
-            if relative == f"docs/{part['id']}/README.md" and not fragment:
+            if relative == language_path(f"docs/{part['id']}/README.md", self.language) and not fragment:
                 return "#part-" + part["id"]
         if target.suffix == ".md":
             # Module indexes are not chapters. Keep their precise online meaning.
@@ -553,47 +647,69 @@ class Book:
         for document in self.front:
             lines.append(f"- [{document.title}]({link(document)})")
         for number, (part, documents) in enumerate(self.parts, 1):
-            lines.extend(("", f"## 第{chinese(number)}篇：{part['title']}（{len(documents)}章）", ""))
+            count = f" ({len(documents)} chapters)" if self.language == "en" else f"（{len(documents)}章）"
+            lines.extend(("", f"## {self.part_label(number, part)}{count}", ""))
             for document in documents:
                 lines.append(f"- [{document.label}]({link(document)})")
-        lines.extend(("", "## 后记与许可", ""))
+        lines.extend(("", "## Closing matter and license" if self.language == "en" else "## 后记与许可", ""))
         for document in self.back:
             lines.append(f"- [{document.title}]({link(document)})")
         return "\n".join(lines)
 
     def index(self):
-        return (
-            "---\n"
-            "description: 按九篇、篇内原章号排列的中文简体书稿完整阅读目录，"
-            "从模型原理读到生产系统与现场交付。\n---\n\n"
-            "# 中文书稿：线性阅读目录\n\n"
-            "从[扉页](title-page.md)开始，依次阅读前言、读法、九篇正文和后附页。"
-            "**每篇章号重新开始**；下列顺序以篇内原章号为准，不按网站模块目录排序。"
-            "这里链接同一份章节正文，不另存一套副本。\n\n"
-            "<!-- Generated by scripts/build_book.py --write-index; do not edit the list. -->\n\n"
-            + self.contents(website=True) + "\n"
-        )
+        if self.language == "en":
+            introduction = (
+                "---\ndescription: Complete English manuscript reading order across nine parts, "
+                "from model foundations to production systems and field delivery.\n---\n\n"
+                "# English manuscript: reading order\n\n"
+                "Start with the [title page](title-page.md), then read the preface, reading guide, "
+                "nine parts, and closing matter. **Chapter numbering restarts in each part.** "
+                "The list follows chapter numbers within each part, not the website's module order. "
+                "These links use the same chapter sources; there is no separate copy of the prose.\n\n"
+            )
+        else:
+            introduction = (
+                "---\ndescription: 按九篇、篇内原章号排列的中文简体书稿完整阅读目录，"
+                "从模型原理读到生产系统与现场交付。\n---\n\n"
+                "# 中文书稿：线性阅读目录\n\n"
+                "从[扉页](title-page.zh.md)开始，依次阅读前言、读法、九篇正文和后附页。"
+                "**每篇章号重新开始**；下列顺序以篇内原章号为准，不按网站模块目录排序。"
+                "这里链接同一份章节正文，不另存一套副本。\n\n"
+            )
+        return (introduction +
+                f"<!-- Generated by scripts/build_book.py --language {self.language} --write-index; "
+                "do not edit the list. -->\n\n" + self.contents(website=True) + "\n")
+
+    def part_label(self, number, part):
+        if self.language == "en":
+            return f"Part {number}: {part['title']}"
+        return f"第{chinese(number)}篇：{part['title']}"
 
     def assemble(self):
         pages = [self.render_document(self.front[0]),
-                 '<a id="contents"></a>\n\n# 目录\n\n' + self.contents()]
+                 '<a id="contents"></a>\n\n# ' +
+                 ("Contents" if self.language == "en" else "目录") + "\n\n" + self.contents()]
         pages.extend(self.render_document(d) for d in self.front[1:])
         for number, (part, documents) in enumerate(self.parts, 1):
             pages.append(f'<a id="part-{part["id"]}"></a>\n\n'
-                         f'# 第{chinese(number)}篇：{part["title"]}')
+                         f'# {self.part_label(number, part)}')
             pages.extend(self.render_document(d) for d in documents)
         pages.extend(self.render_document(d) for d in self.back)
         return "\n\n".join(pages) + "\n"
 
     def write(self, output, manuscript):
         output = Path(output).resolve()
-        default_dir = self.root / "book/zh-CN/generated"
+        default_dir = self.generated_dir
         require(output.suffix == ".md", "output must have .md extension")
         require(not inside(self.root, output) or inside(default_dir, output),
-                "repository output must stay under book/zh-CN/generated; sources are read-only")
+                f"repository output must stay under book/{self.language}/generated; sources are read-only")
         require(output not in self.assets.values(), "output would overwrite an input asset")
         receipt_path = output.with_suffix(".build.json")
         require(receipt_path.resolve() == receipt_path, "build receipt must not be a symlink")
+        if receipt_path.exists():
+            previous = json.loads(receipt_path.read_text(encoding="utf-8"))
+            require(isinstance(previous, dict) and previous.get("language") == self.language,
+                    "refusing to overwrite another or unknown language's manuscript")
         destinations = []
         for relative, source in self.assets.items():
             destination = output.parent / "assets" / relative
@@ -619,7 +735,7 @@ class Book:
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--manifest", default=DEFAULT_MANIFEST, help="repository-relative JSON path")
+    add_language_arguments(parser)
     parser.add_argument("--check", action="store_true", help="validate without generating manuscript")
     indexes = parser.add_mutually_exclusive_group()
     indexes.add_argument("--write-index", action="store_true", help="regenerate docs/book/README.md")
@@ -628,20 +744,23 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         require(not args.check or args.output is None, "--check cannot be combined with --output")
-        book = Book(root=ROOT, manifest=args.manifest)
+        index_maintenance = args.write_index and not args.check and args.output is None
+        if not index_maintenance:
+            check_translation_sync(ROOT)
+        book = Book(root=ROOT, manifest=args.manifest, language=args.language)
         manuscript = book.assemble()
-        index = ROOT / INDEX_PATH
+        index = ROOT / book.index_path
         if args.check_index:
             require(index.is_file() and index.read_text(encoding="utf-8") == book.index(),
-                    "reader index is stale; run python3 scripts/build_book.py --write-index")
+                    f"reader index is stale; run python3 scripts/build_book.py --language {book.language} --write-index")
         if args.write_index:
             index.parent.mkdir(parents=True, exist_ok=True)
             index.write_text(book.index(), encoding="utf-8")
         if not args.check and (not args.write_index or args.output):
-            output = args.output or ROOT / "book/zh-CN/generated/manuscript.md"
+            output = args.output or book.generated_dir / "manuscript.md"
             book.write(output, manuscript)
             print(f"Markdown draft: {output}")
-        print(f"chapters={book.manifest['chapter_count']} parts={len(book.parts)} "
+        print(f"language={book.language} chapters={book.manifest['chapter_count']} parts={len(book.parts)} "
               f"assets={len(book.assets)}")
         return 0
     except (BookError, OSError, UnicodeError, json.JSONDecodeError) as error:
