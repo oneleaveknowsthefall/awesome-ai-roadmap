@@ -743,9 +743,9 @@
       "translation_sha256": "23c3de9530effe7a900b11a19fe4c464dac92deacfaa8d00aaff33f0a2c160a0"
     },
     "docs/llm/01-foundations/01-what-is-llm.md": {
-      "note": "Initial full English-first migration from be53feda: all 143 knowledge chapters and reader/support page pairs reviewed; primary-source checks and approved paired corrections are recorded in book/i18n/reviews. Chinese links localized and both reading indexes regenerated; version pairing does not replace semantic review.",
-      "reviewed_at": "2026-09-20T03:42:34+00:00",
-      "source_sha256": "23a2b7e719525247d95c93b822d4174d26bb8ecef0cf5037584143d31f002620",
+      "note": "English diagram title shortened after visual inspection to prevent a wrapped cluster title overlapping its first node. The added lead-in preserves the original one-customer-support-example meaning; the Chinese companion already states it and needs no semantic change.",
+      "reviewed_at": "2026-09-20T04:08:27+00:00",
+      "source_sha256": "2115cdf756f81f5292c7db005f21ed992d355e2f35caf8ccf6c904033fcbc44d",
       "translation": "docs/llm/01-foundations/01-what-is-llm.zh.md",
       "translation_sha256": "6086f653f462024ca2a4da37f5f648f344cf277425879ab820ca7f0ac72a4e50"
     },

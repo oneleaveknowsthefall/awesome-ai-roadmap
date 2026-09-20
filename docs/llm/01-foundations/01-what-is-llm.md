@@ -10,9 +10,11 @@ There is no universally accepted parameter-count threshold for an LLM, and the b
 
 Traditional NLP includes rule-based and statistical pipelines, but also end-to-end neural networks, pretrained representations, and generative models. The more accurate description of the shift is **from predominantly task-specific interfaces toward reusing a single pretrained model and text interface for many capabilities**, not “models used to classify, and only now can they generate.”
 
+The diagram illustrates one customer-support example.
+
 ```mermaid
 flowchart LR
-    subgraph PIPE["One traditional customer-service pipeline"]
+    subgraph PIPE["Traditional support"]
         A["Text"] --> B["Tokenization and entity recognition"]
         B --> C["Intent classification"]
         C --> D["Retrieval or business rules"]
