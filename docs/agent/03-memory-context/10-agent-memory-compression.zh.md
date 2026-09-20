@@ -1076,7 +1076,7 @@ Prompt Caching 与这些方法位于不同层次：
 - [OpenAI Prompt Caching](https://developers.openai.com/api/docs/guides/prompt-caching)
 - [OpenAI Compaction](https://developers.openai.com/api/docs/guides/compaction)
 - [LangGraph Memory](https://docs.langchain.com/oss/python/langgraph/add-memory)
-- [LoCoMo 官方发布说明快照 9228632](https://github.com/snap-research/locomo/blob/92286325a40764bee61f77824ddb95233b11c4d6/README.md)（ACL 2024 的 `locomo10.json`）
+- [LoCoMo 官方发布说明快照 9228632](https://github.com/snap-research/locomo/blob/92286325a40764bee61f77824ddb95233b11c4d6/README.MD)（ACL 2024 发布集；固定版本的 `data/locomo10.zip` 内含十份按对话划分的 JSON 文件）
 - [LongMemEval 官方说明快照 9e0b455](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/README.md)（区分原始版与 2025 年 9 月清洗版）
 - [LongMemEval-V2 官方说明快照 2cc8c54](https://github.com/xiaowu0162/LongMemEval-V2/blob/2cc8c540bdb87fe6761629b585e727e1c4704520/README.md)
 

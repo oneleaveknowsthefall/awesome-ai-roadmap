@@ -1272,7 +1272,7 @@
           "url": "https://github.com/snap-research/locomo/blob/92286325a40764bee61f77824ddb95233b11c4d6/README.md",
           "scope": "Original manuscript's cited GitHub URL.",
           "result": "HTTP 404, independently confirming the case-sensitive filename error.",
-          "limitations": "Chinese citation left byte-for-byte unchanged; English citation corrected and the discrepancy recorded."
+          "limitations": "The citation's filename case was corrected in both editions only after explicit coordinator approval; the baseline source hash is retained."
         },
         {
           "url": "https://raw.githubusercontent.com/snap-research/locomo/92286325a40764bee61f77824ddb95233b11c4d6/README.MD",
@@ -1289,7 +1289,7 @@
         {
           "url": "https://raw.githubusercontent.com/snap-research/locomo/main/README.MD",
           "scope": "Current combined locomo10.json packaging and the ten-conversation release.",
-          "result": "Current README names ./data/locomo10.json and preserves the ten-versus-fifty distinction. English now distinguishes current packaging from the historical pinned ZIP.",
+          "result": "Current README names ./data/locomo10.json and preserves the ten-versus-fifty distinction. This comparison identified the historical-packaging mismatch; current-main packaging is retained only in review evidence, not mixed into the reader-facing historical description.",
           "limitations": "Rolling main branch, checked September 20, 2026; relevant first 5500 characters read, not treated as the historical snapshot."
         },
         {
@@ -1300,13 +1300,13 @@
         }
       ],
       "notes": [
-        "Baseline be53fedaedfb28da181db8e95f41bf91100621c4 verified before editing. Original copied with cp before translation; .zh.md bytes match git show at that baseline, including all original links.",
+        "Baseline be53fedaedfb28da181db8e95f41bf91100621c4 verified before editing and preserved with cp before translation. Final Chinese bytes differ only by the approved LoCoMo paragraph and README filename case below; source_sha256 continues to identify the original baseline.",
         "Read and translated all 1051 source lines. Retained 66 numbered H2/H3 headings, 18 fenced blocks (15 Mermaid, 2 JSON, 1 text), 2 display formulas, all table rows and list items. The English file also has 1051 lines.",
         "H1 follows '# Chapter 7: Memory Mechanisms in AI Agents'. All Chinese prose and visible Mermaid labels translated; graph node IDs, edges, formulas, JSON keys, non-Chinese protocol/data literals, numbers, timestamps, and time zones preserved.",
         "After the follow-up requirement to preserve all code literals/data, the Chinese JSON example value was restored byte-for-byte and its English meaning explained in surrounding prose. Both JSON blocks and the existing English text example are byte-identical to the original. No executable examples exist in this chapter.",
         "Used inference for model execution, reasoning for reasoning behavior, retrieval for retrieving candidates, and recall only for the metric or named benchmark capability. Checkpointed runtime state is not external-world state; stored preferences are not authorization.",
-        "Source issue in Chinese lines 920/1048: the pinned LoCoMo reference has the wrong README filename case, and the body blends current locomo10.json packaging with a historical snapshot that ships locomo10.zip. English distinguishes both packaging versions and fixes only its citation; Chinese remains exact. Primary sources and the archive inspection are listed above.",
-        "Chinese wording about conversations constructed and annotated by a generation framework could obscure human involvement. LoCoMo's abstract explicitly says human annotators verified and edited the generated conversations; English preserves the generated-data distinction while stating human review and annotation.",
+        "Approved bilingual clarification, authorized by coordinating session 744a7a60-7bb1-431a-9125-d2edc89af8c5 on 2026-09-20: changed only the Chinese LoCoMo bullet at original line 920 and the citation filename at line 1048. Both editions now state that the pinned ACL 2024 release distributes ten per-conversation JSON files in data/locomo10.zip and use the case-sensitive README.MD URL. Current-main packaging history is kept in this evidence record rather than the chapter.",
+        "The same approved LoCoMo bullet clarification states that generated conversations were verified and edited by human annotators, as the original paper's abstract specifies. It does not describe real-user conversations or independently reproduced benchmark results. All other Chinese text, formulas, code, and links remain unchanged.",
         "Illustrative scoring formulas, concurrency limit 5, API limit 60/minute, refund period 30 days, and fictional-user/project/date disclaimers remain. No experiments or author's real-world experience claimed.",
         "Read-only validation passed: exact numbered-heading sequence; paired fence types; formula byte equality and braces; graph topology equality; JSON parsing and byte-identical JSON/text blocks; table/list coverage; no untranslated Chinese outside preserved example data; relative-link existence. Mermaid 11.12.0 parsed all 15 English and 15 Chinese diagrams before the data-only follow-up; diagram text did not change.",
         "Only requested manuscript files and this review JSON were written. No commit, push, PR, navigation/shared-script change, external upload, paid API, or translation service."
@@ -1479,7 +1479,7 @@
           "url": "https://raw.githubusercontent.com/snap-research/locomo/92286325a40764bee61f77824ddb95233b11c4d6/data/locomo10.zip",
           "scope": "Archive member names only, to resolve the reference's locomo10.json claim.",
           "result": "Fetched the 626,797-byte archive into memory without extraction. It contains data/multimodal_dialog/locomo10_v2/ and ten numbered per-conversation JSON files (50, 49, 48, 47, 44, 43, 42, 41, 26, 30), not a single locomo10.json.",
-          "limitations": "No conversation payloads were inspected, extracted, modified, or evaluated. The English reference now qualifies the actual historical packaging; Chinese remains byte-identical."
+          "limitations": "No conversation payloads were inspected, extracted, modified, or evaluated. Both editions now qualify the historical packaging after explicit coordinator approval; no benchmark reproduction is claimed."
         },
         {
           "url": "https://raw.githubusercontent.com/xiaowu0162/LongMemEval/9e0b455f4ef0e2ab8f2e582289761153549043fc/README.md",
@@ -1495,13 +1495,13 @@
         }
       ],
       "notes": [
-        "Read all 1,083 original lines before translating. Baseline: be53fedaedfb28da181db8e95f41bf91100621c4. Copied original bytes to the .zh.md companion before edits and verified equality against git show of the baseline.",
+        "Read all 1,083 original lines before translating. Baseline: be53fedaedfb28da181db8e95f41bf91100621c4. Copied and verified original Chinese bytes before edits. The final companion differs only in the explicitly approved LoCoMo reference line below; source_sha256 remains the original baseline hash.",
         "Full translation retains all 24 numbered H2 sections and 41 numbered H3 sections, 25 fenced blocks (15 Mermaid, 7 JSON, 3 text), all tables and examples, and all 5 display formulas. The English page has 1,089 lines after adding brief English explanations of unchanged Chinese JSON data.",
         "All JSON and text-fence contents are byte-identical to the Chinese source, including keys, literals, Chinese data strings, numbers, timestamps, hashes, IDs, and URI examples. The illustrative two-line conversation is preserved as original example data, with its English translation in surrounding prose; it is not authorization to publish.",
         "All Mermaid node IDs, edges, and directions are preserved; only human-readable labels changed. Formula contents are byte-identical. Existing Mermaid 11.12.0 dependencies parsed both language versions successfully.",
         "Distinguished reasoning from model inference, retrieval from recall, runtime state from external authoritative business state, semantic compression from KV/prompt caching, and snapshots from exactly-once external effects.",
         "Preserved both OpenAI compaction paths and their different historical continuation constraints; did not add current model names, cache prices, window sizes, or threshold guarantees from rolling docs.",
-        "Confirmed source contradiction: the original LoCoMo reference has the wrong README filename case and describes locomo10.json at a snapshot that actually distributes per-conversation JSON inside data/locomo10.zip. Corrected only the English external link to README.MD and qualified the packaging in its reference note. Chinese text and links remain unchanged.",
+        "Approved bilingual correction, authorized by coordinating session 744a7a60-7bb1-431a-9125-d2edc89af8c5 on 2026-09-20: changed only the Chinese LoCoMo reference line at original line 1079. Both editions use README.MD and describe the fixed snapshot's data/locomo10.zip as containing ten per-conversation JSON files, rather than importing current-main locomo10.json packaging. All other Chinese bytes, formulas, code, and links remain unchanged.",
         "Internal English links retain normal .md targets. No Chinese URL fragments existed in this page; none needed removal.",
         "Preserved the original source-review date as explicitly historical, rather than claiming to have performed a review on 2026-09-15. Actual translation source visits occurred on 2026-09-20.",
         "Validation checked numbered heading equality, balanced fences, parsed JSON equality, unchanged formulas, diagram topology, English prose coverage, and local link existence. No side-effecting chapter examples were executed, no manuscript was uploaded, and no external translation service or paid API was used.",

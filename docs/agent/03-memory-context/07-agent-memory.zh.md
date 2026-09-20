@@ -917,7 +917,7 @@ Documentation preference:
 可参考的一手评测：
 
 - [LongMemEval](https://github.com/xiaowu0162/LongMemEval)：信息抽取、跨会话推理、知识更新、时间推理与证据不足时的弃答；需注明原始版或 2025 年 9 月清洗版，不能混报成绩。弃答题没有应召回的证据位置，不能直接套用普通证据召回率。
-- [LoCoMo](https://github.com/snap-research/locomo)：长对话问答与事件摘要；ACL 2024 发布集 `locomo10.json` 包含十段由生成框架构造并标注的对话，不等同于最初的五十段版本，也不能代表真实用户总体表现。
+- [LoCoMo](https://github.com/snap-research/locomo)：长对话问答与事件摘要；ACL 2024 发布集包含十段生成后经人工标注者核验和编辑的对话，所引固定版本以 `data/locomo10.zip` 分发，内含十份按对话划分的 JSON 文件。不等同于最初的五十段版本，也不能代表真实用户总体表现。
 - [LongMemEval-V2](https://github.com/xiaowu0162/LongMemEval-V2)：面向 Web Agent 轨迹的状态、流程和环境经验，评估证据问答与查询延迟；这仍不等于实际执行任务的成功率。
 
 业务回归集还应覆盖删除后再检索、权限撤销、同名跨租户实体、错误摘要、过期事实及污染写入；这些不能由普通问答分数替代。
@@ -1045,7 +1045,7 @@ Agent 记忆不能只用“四层记忆 + 向量数据库”概括。更完整�
 - [LangGraph: Memory overview](https://docs.langchain.com/oss/python/concepts/memory)（[文档快照 1fa2214](https://github.com/langchain-ai/docs/blob/1fa2214237b7a7506c34a30b394c26023d61bf4b/src/oss/concepts/memory.mdx)，用于区分 thread 与跨 thread 作用域）
 - [OpenAI: Safety in building agents](https://developers.openai.com/api/docs/guides/agent-builder-safety)（引用信任边界原则，不依赖其中的产品默认模型建议）
 - [LongMemEval 论文](https://arxiv.org/abs/2410.10813)与[官方说明快照 9e0b455](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/README.md)
-- [LoCoMo 论文](https://arxiv.org/abs/2402.17753)与[ACL 2024 发布说明快照 9228632](https://github.com/snap-research/locomo/blob/92286325a40764bee61f77824ddb95233b11c4d6/README.md)
+- [LoCoMo 论文](https://arxiv.org/abs/2402.17753)与[ACL 2024 发布说明快照 9228632](https://github.com/snap-research/locomo/blob/92286325a40764bee61f77824ddb95233b11c4d6/README.MD)
 - [LongMemEval-V2 官方说明快照 2cc8c54](https://github.com/xiaowu0162/LongMemEval-V2/blob/2cc8c540bdb87fe6761629b585e727e1c4704520/README.md)
 
 资料核对：2026-09-15。框架文档为滚动更新，上述快照固定本文引用的概念与评测说明，不代表已复现其基准结果。

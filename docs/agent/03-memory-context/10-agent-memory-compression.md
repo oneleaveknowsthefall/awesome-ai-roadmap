@@ -1082,7 +1082,7 @@ After compression, check the goal, unresolved state, key evidence, and readabili
 - [OpenAI Prompt Caching](https://developers.openai.com/api/docs/guides/prompt-caching)
 - [OpenAI Compaction](https://developers.openai.com/api/docs/guides/compaction)
 - [LangGraph Memory](https://docs.langchain.com/oss/python/langgraph/add-memory)
-- [LoCoMo official release notes, snapshot 9228632](https://github.com/snap-research/locomo/blob/92286325a40764bee61f77824ddb95233b11c4d6/README.MD) (ACL 2024 release; this snapshot distributes per-conversation JSON files in `data/locomo10.zip`, rather than a single `locomo10.json`)
+- [LoCoMo official release notes, snapshot 9228632](https://github.com/snap-research/locomo/blob/92286325a40764bee61f77824ddb95233b11c4d6/README.MD) (ACL 2024 release; this snapshot's `data/locomo10.zip` contains ten per-conversation JSON files)
 - [LongMemEval official documentation, snapshot 9e0b455](https://github.com/xiaowu0162/LongMemEval/blob/9e0b455f4ef0e2ab8f2e582289761153549043fc/README.md) (distinguishes the original release from the September 2025 cleaned release)
 - [LongMemEval-V2 official documentation, snapshot 2cc8c54](https://github.com/xiaowu0162/LongMemEval-V2/blob/2cc8c540bdb87fe6761629b585e727e1c4704520/README.md)
 
