@@ -1,126 +1,126 @@
 ---
-description: 为授权红队定义范围、成功判据和攻击预算，成对报告 ASR 与效用，并用独立留出和持续回归管理剩余风险。
+description: Define scope, success criteria, and attack budgets for authorized red teaming, report ASR alongside utility, and manage residual risk with independent holdouts and continuous regression testing.
 ---
 
-# 第九章：安全评测、红队与持续保障
+# Chapter 9: Security Evaluation, Red Teaming, and Continuous Assurance
 
-## 9.1 安全评测为什么不能只是一次性的上线检查
+## 9.1 Why Security Evaluation Cannot Be a One-Time Release Check
 
-前面章节多次提到"某类攻击在标准评测中不可见""对齐是概率性缓解"——这意味着 AI 系统的安全水位不是一次测试能确定的常量，而是随模型版本、Prompt 变化、新工具接入、新越狱手法公开而持续波动的变量。[Agent 安全 15.13](../../agent/05-production/15-agent-security.md) 和 [RAG 安全 20.4](../../rag/06-operations-security/20-rag-challenges-security.md) 已经给出了单个应用场景下"ASR（攻击成功率）与 Utility（效用）必须成对报告"的评测原则；放到组织里，就得把它变成红队方法论、自动化工具链和持续保障流程。
+Earlier chapters repeatedly noted that some attacks are invisible to standard evaluations and that alignment is a probabilistic mitigation. An AI system's security posture is therefore not a constant that one test can establish. It changes with model versions, prompts, newly connected tools, and newly disclosed jailbreak techniques. [Agent Security, Section 15.13](../../agent/05-production/15-agent-security.md) and [RAG Security, Section 20.4](../../rag/06-operations-security/20-rag-challenges-security.md) already explain the application-level principle that attack success rate (ASR) and utility must be reported together. At an organizational level, that principle needs to become a red-teaming methodology, an automated toolchain, and a continuous assurance process.
 
 ```mermaid
 flowchart LR
-    A[上线前红队] --> B[持续自动化评测]
-    B --> C[生产监控与事件响应]
-    C --> D[反馈进新一轮评测集]
+    A[Pre-release red teaming] --> B[Continuous automated evaluation]
+    B --> C[Production monitoring and incident response]
+    C --> D[Feed findings into the next evaluation set]
     D --> B
 ```
 
-## 9.2 红队方法论
+## 9.2 Red-Teaming Methodology
 
-### 9.2.1 人工红队与自动化红队的分工
+### 9.2.1 Dividing the Work Between Human and Automated Red Teams
 
-| 类型 | 优势 | 局限 |
+| Type | Strengths | Limitations |
 |---|---|---|
-| 人工红队 | 能发现开放式、需要创造性组合的新攻击路径；擅长针对具体业务场景构造有说服力的社会工程式载荷 | 成本高、覆盖面有限、结果难以自动化回归 |
-| 自动化红队 | 可重复运行模式库，也可搜索新变体和多轮策略 | 覆盖受搜索空间、预算和评分器限制，容易围绕已有基准过拟合 |
+| Human red teaming | Can discover open-ended attack paths requiring creative combinations; effective at constructing persuasive social-engineering-style payloads for a specific business context | Expensive, limited in coverage, and difficult to turn directly into automated regression tests |
+| Automated red teaming | Can repeatedly run libraries of known patterns and search for new variants and multi-turn strategies | Coverage is constrained by the search space, budget, and scorer; prone to overfitting existing benchmarks |
 
-人工与自动化都可能发现新变体，区别在于成本、覆盖与搜索策略，不是「机器只能找已知、人才能找未知」。人工发现的有效路径应转成可重复用例，自动化搜索发现也需复核；不要把工具扫描结果直接当作实际业务损害。
+Both people and automation can discover new variants. The difference is cost, coverage, and search strategy—not that machines can find only known attacks while people alone can find unknown ones. Turn effective paths found by people into repeatable cases, and review automated discoveries as well. Do not equate a scanner finding with actual business harm.
 
-### 9.2.2 红队覆盖的层面
+### 9.2.2 Layers a Red Team Should Cover
 
-红队不应该只测"模型会不会说脏话"，而应对照第一章的攻击面图谱，覆盖：
+Red teaming should do more than ask whether the model will use offensive language. Use Chapter 1's attack-surface map to cover:
 
-- **模型层**：越狱、系统提示泄漏（第二章）；
-- **数据层**：已知触发器模式的探测、训练数据记忆化抽取测试（第四、六章）；
-- **供应链层**：模拟依赖投毒、恶意模型加载路径（第五章）；
-- **应用层**：间接注入、工具滥用、confused deputy 路径（第七章、[Tool Protocol 安全](../../tools/02-mcp/15-tool-protocol-security.md)）；
-- **执行环境层**：沙箱逃逸尝试、网络出口绕过（第八章）；
-- **端到端场景**：模拟真实攻击者从初始接触到达成目标的完整路径，而不是孤立测试单点。
+- **The model layer:** jailbreaks and system prompt leakage (Chapter 2).
+- **The data layer:** checks for known trigger patterns and tests for extracting memorized training data (Chapters 4 and 6).
+- **The supply-chain layer:** simulated dependency poisoning and malicious model-loading paths (Chapter 5).
+- **The application layer:** indirect injection, tool misuse, and confused deputy paths (Chapter 7 and [Tool Protocol Security](../../tools/02-mcp/15-tool-protocol-security.md)).
+- **The execution-environment layer:** sandbox escape attempts and network egress bypasses (Chapter 8).
+- **End-to-end scenarios:** simulations of an attacker's complete path from initial contact to the objective, rather than isolated tests of individual components.
 
-测试前先取得授权并约定范围、时间、速率、停止条件和事故联系人。用合成身份、测试资金与隔离租户，工具外传使用受控接收端；禁止把真实个人数据或生产密钥作为测试载荷。发现意外影响时立即停止相关测试、保留最小证据并按响应流程处理。
+Before testing, obtain authorization and agree on scope, timing, rate limits, stop conditions, and incident contacts. Use synthetic identities, test funds, and isolated tenants; any tool-mediated data transfer out of the system must use a controlled receiver. Never use real personal data or production secrets as test payloads. If unexpected effects occur, stop the relevant tests immediately, retain only the necessary evidence, and follow the incident response process.
 
-### 9.2.3 红队的角色与独立性
+### 9.2.3 The Red Team's Role and Independence
 
-红队应保持相对于研发团队的独立性——由同一批人既写防御又测防御，容易产生盲区。较成熟的组织会引入外部红队或独立安全团队定期评估，并明确红队发现问题后的分级响应流程和修复时限（SLA），而不是把红队报告当作可选参考。
+Red teams should maintain independence from the development team. Having the same people build and test a defense invites blind spots. More mature organizations bring in external red teams or independent security teams for periodic assessments and define severity-based response procedures and remediation deadlines (SLAs). Red-team reports should not be treated as optional reading.
 
-## 9.3 自动化评测工具与基准
+## 9.3 Automated Evaluation Tools and Benchmarks
 
-| 工具/基准类别 | 定位 |
+| Tool or benchmark category | Purpose |
 |---|---|
-| 通用红队框架（如 garak） | 针对 LLM 的自动化漏洞扫描器，内置大量已知的越狱、注入、数据泄漏探测插件，适合作为持续回归的基础工具 |
-| 编排式红队框架（如 PyRIT） | 提供攻击策略编排能力，支持组合多轮攻击、自动变异 Prompt，适合模拟更复杂的攻击链路 |
-| 危害性基准（如 HarmBench） | 标准化的有害行为评测集，用于跨模型、跨版本做可比较的安全水位评估 |
-| 护栏/审核模型评测 | 专门评测输入输出护栏模型自身的漏报率和误报率，护栏模型本身也需要被评测，而不是假设它天然可靠 |
-| 供应链扫描工具 | 覆盖第五章提到的模型文件恶意对象扫描、依赖漏洞扫描 |
+| General-purpose red-teaming frameworks (such as garak) | Automated LLM vulnerability scanners with many built-in probes for known jailbreaks, injection, and data leakage; useful foundations for continuous regression testing |
+| Orchestration-based red-teaming frameworks (such as PyRIT) | Coordinate attack strategies, including multi-turn combinations and automated prompt variation, to simulate more complex attack paths |
+| Harmfulness benchmarks (such as HarmBench) | Standardized harmful-behavior evaluation sets for comparable assessments across models and versions |
+| Guardrail and moderation-model evaluation | Measures false negatives and false positives in input/output guardrail models themselves; these models must be evaluated, not assumed inherently reliable |
+| Supply-chain scanners | Cover the malicious-object scanning of model files and dependency vulnerability scanning discussed in Chapter 5 |
 
-固定工具、探针、模型和评分器版本，记录运行配置。通过一轮扫描只说明在这些输入、预算和判据下未观察到失败，不提供「安全下限保证」。框架支持某个探针，也不等于它能检测应用的全部授权与执行路径。
+Pin tool, probe, model, and scorer versions, and record the run configuration. Passing a scan means only that no failure was observed under those inputs, budgets, and criteria; it does not guarantee a minimum level of security. A framework's support for a probe does not establish coverage of every authorization and execution path in an application.
 
-## 9.4 持续保障：把安全评测嵌进研发流程
+## 9.4 Continuous Assurance: Integrating Security Evaluation into Development
 
 ```mermaid
 flowchart TB
-    C1[代码/Prompt/工具变更] --> G1{CI 安全门禁}
-    G1 -->|通过| C2[部署到预发布]
-    G1 -->|不通过| BLOCK[阻断并反馈]
-    C2 --> G2{预发布回归评测}
-    G2 -->|通过| PROD[生产发布]
-    G2 -->|不通过| BLOCK
-    PROD --> MON[生产监控]
-    MON -->|发现新攻击模式| NEWCASE[沉淀为新回归用例]
+    C1[Code/prompt/tool change] --> G1{CI security gate}
+    G1 -->|Pass| C2[Deploy to staging]
+    G1 -->|Fail| BLOCK[Block and report findings]
+    C2 --> G2{Staging regression evaluation}
+    G2 -->|Pass| PROD[Production release]
+    G2 -->|Fail| BLOCK
+    PROD --> MON[Production monitoring]
+    MON -->|New attack pattern found| NEWCASE[Create a new regression case]
     NEWCASE --> G1
 ```
 
-- **CI 安全门禁**：任何 System Prompt、工具授权范围、模型版本的变更都触发一轮自动化安全回归，而不只是功能测试；
-- **分级评测集**：参照 [RAG 安全上线检查清单](../../rag/06-operations-security/20-rag-challenges-security.md) 的 Smoke/Regression/Full 三档思路，安全评测同样应分层——每次提交跑最小冒烟集，合并前跑完整回归集，定期跑覆盖新披露攻击手法的全量集；
-- **生产监控闭环**：线上真实触发的异常请求、护栏拦截记录应定期回流为新的评测用例，而不是只在事故发生时临时处理；
-- **版本变更的特别关注**：模型供应商发布新版本时，历史上被验证有效的防御可能失效（对齐行为改变）或护栏出现新的误报模式，模型切换必须重新跑一遍完整安全回归，不能假设"新版本只会更安全"。
+- **CI security gates:** every change to a system prompt, a tool's authorized scope, or a model version triggers automated security regression tests, not just functional tests.
+- **Tiered evaluation sets:** follow the Smoke/Regression/Full approach in the [RAG Security Release Checklist](../../rag/06-operations-security/20-rag-challenges-security.md). Run a minimal smoke set on every commit, the complete regression set before merging, and a full evaluation covering newly disclosed attack techniques on a regular schedule.
+- **Feed production monitoring into evaluation:** regularly turn observed anomalous requests and guardrail interception records into new evaluation cases, rather than handling them only when an incident occurs.
+- **Pay special attention to version changes:** a new model-provider release may invalidate previously effective defenses because alignment behavior changes, or introduce new guardrail false-positive patterns. Every model switch requires a complete security regression run; do not assume a newer version can only be safer.
 
-## 9.5 指标体系
+## 9.5 Metrics
 
-先写明「成功」的对象：生成不当文字、产生危险工具调用、被执行服务接受、实际改变资源，是不同指标。被授权层拦下的调用不能计为已造成业务损害，但仍可作为模型层失败记录。
+First specify what counts as “success.” Generating inappropriate text, proposing a dangerous tool call, having that call accepted by an execution service, and actually changing a resource are different outcomes. A call blocked by authorization cannot be counted as realized business harm, though it can still be recorded as a model-layer failure.
 
-**ASR 的分母和攻击预算必须公开**。单次尝试成功率与每个目标在最多 k 次尝试内至少成功一次的比例不可直接比较；超时、无效载荷与不可执行用例要单独列出。重复改写同一个目标不是独立目标，应按目标或会话估计不确定性。自适应红队用于发现失败，不能把其挑选后的 ASR 当成真实用户分布的发生概率。
+**Report the ASR denominator and attack budget explicitly.** The success rate per attempt is not directly comparable to the fraction of objectives for which at least one of up to k attempts succeeds. Report timeouts, invalid payloads, and non-executable cases separately. Repeated reformulations of the same objective are not independent objectives; estimate uncertainty at the objective or session level. Adaptive red teaming is designed to find failures. Its selection-biased ASR is not an estimate of failure probability under the real user distribution.
 
-同时报告正常任务完成率、误拒、时延和费用；总是拒绝能压低 ASR，却没有业务效用。防御调参集与攻击留出集分开，新增失败用例加入回归后不再冒充独立留出。对「模型裁判认定成功」的样本抽查实际执行和审计证据，避免被回答中的虚构成功描述误导。
+Also report legitimate task completion, false refusals, latency, and cost. Refusing everything can lower ASR while providing no business utility. Keep the defense-tuning set separate from the attack holdout set. Once newly discovered failures become regression cases, they are no longer independent holdouts. For a sample of cases that a model-based judge labels successful, inspect actual execution and audit evidence so that fabricated claims of success in a response do not mislead the evaluation.
 
-组织级保障还应跟踪：
+Organization-wide assurance should also track:
 
-| 指标 | 含义 |
+| Metric | Meaning |
 |---|---|
-| MTTD | 从可观察事件开始到被检测的平均时长，起点不可知时要说明估计方法 |
-| MTTR / 修复周期 | MTTR 需明确是恢复还是修复；发现到补丁生效的周期另行记录，不能与 MTTD 混称 |
-| 护栏误报率 | 护栏拦截正常请求的比例，直接影响业务可用性 |
-| 回归用例覆盖的攻击类型数 | 衡量评测集对第一章攻击面图谱的覆盖广度，而非用例总数 |
-| 红队发现问题的修复 SLA 达成率 | 衡量安全发现能否转化为实际修复，而不是停留在报告里 |
+| MTTD | Mean time from the start of an observable event to detection; explain how the start time is estimated if it is unknown |
+| MTTR / remediation lead time | State whether MTTR means recovery or repair. Record the time from discovery to an effective patch separately, and do not conflate it with MTTD |
+| Guardrail false-positive rate | The fraction of legitimate requests blocked by guardrails, directly affecting business usability |
+| Number of attack types covered by regression cases | Measures breadth of coverage against Chapter 1's attack-surface map, rather than the total case count |
+| Remediation SLA compliance for red-team findings | Measures whether security findings lead to actual fixes rather than remaining in reports |
 
-## 9.6 常见错误
+## 9.6 Common Mistakes
 
-### 9.6.1 只做一次上线前红队测试
+### 9.6.1 Running a Red-Team Exercise Only Once Before Release
 
-模型、Prompt、工具集持续变化，安全水位必须持续评测，一次性测试只能反映测试当时的状态。
+Models, prompts, and toolsets continually change, so security must be evaluated continuously. A one-time test reflects only the state at the time of testing.
 
-### 9.6.2 只依赖自动化工具，不做人工红队
+### 9.6.2 Relying Exclusively on Automated Tools
 
-自动化覆盖受探针、搜索预算和评分器限制，人工覆盖也有限。两者应共享失败证据与回归用例，不能把任一方测试通过当作完整保证。
+Automated coverage is limited by probes, search budgets, and scorers; human coverage is limited too. Both should share failure evidence and regression cases. Passing either kind of testing is not a complete guarantee.
 
-### 9.6.3 模型版本升级时跳过安全回归
+### 9.6.3 Skipping Security Regression Tests When Upgrading a Model
 
-新版本可能改变对齐行为或护栏的误报/漏报模式，"应该只会更好"是没有依据的假设。
+A new version can change alignment behavior or guardrail false-positive and false-negative patterns. Assuming it can only improve is unjustified.
 
-### 9.6.4 只统计回归用例数量，不衡量攻击面覆盖广度
+### 9.6.4 Counting Regression Cases Without Measuring Attack-Surface Coverage
 
-大量重复相似的用例无法反映真实的安全水位，评测集设计应对照攻击面图谱有意识地补齐薄弱环节。
+Large numbers of similar, repetitive cases do not reveal the system's actual security posture. Design evaluation sets against the attack-surface map and deliberately fill coverage gaps.
 
-## 9.7 本章总结
+## 9.7 Chapter Summary
 
-1. 安全评测必须是持续过程而非一次性检查，因为模型、Prompt、工具集和已知攻击手法都在持续变化；
-2. 人工红队与自动化红队应形成"发现新模式 → 沉淀为自动化用例 → 持续回归 → 探索新场景"的闭环，而非互相替代；
-3. 红队覆盖范围应对照第一章的攻击面图谱，覆盖模型、数据、供应链、应用、执行环境和端到端场景，而不只是测试模型会不会说不当内容；
-4. CI 安全门禁、分级评测集和生产监控闭环应把安全评测嵌入日常研发流程，模型版本变更必须触发完整回归；
-5. 指标体系除 ASR/Utility 外，还应跟踪 MTTD/MTTR、护栏误报率、攻击面覆盖广度和红队问题修复 SLA 达成率。
+1. Security evaluation must be continuous, not a one-time check, because models, prompts, toolsets, and known attack techniques keep changing.
+2. Human and automated red teams should collaborate in a recurring process: discover new patterns, turn them into automated cases, run continuous regression tests, and explore new scenarios. They do not replace one another.
+3. Use Chapter 1's attack-surface map to cover models, data, supply chains, applications, execution environments, and end-to-end scenarios—not just inappropriate model output.
+4. CI security gates, tiered evaluation sets, and findings from production monitoring should integrate security evaluation into everyday development. Model version changes must trigger a complete regression run.
+5. Beyond ASR and utility, track MTTD/MTTR, guardrail false positives, breadth of attack-surface coverage, and compliance with remediation SLAs for red-team findings.
 
-## 参考资料
+## References
 
 - [NIST AI RMF: Measure Function](https://www.nist.gov/itl/ai-risk-management-framework)
 - [garak: LLM Vulnerability Scanner](https://github.com/leondz/garak)

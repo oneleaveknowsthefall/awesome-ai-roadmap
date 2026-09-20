@@ -1,10 +1,10 @@
-# AI Engineering · 版本管理与发布流水线
+# AI Engineering · Versioning and Release Pipelines
 
-Prompt、模型、数据任何一项变更都可能改变系统行为，需要和代码一样被版本化、被 CI/CD 流水线的评测门禁把关，再以灰度的方式安全上线。
+A change to a prompt, model, or dataset can change system behavior. Version these assets like code, validate them through evaluation gates in CI/CD, and deploy them safely through staged rollouts.
 
-## 章节
+## Chapters
 
-1. [第九章：Prompt / 模型 / 数据版本管理](09-prompt-model-data-versioning.md)
-2. [第十章：LLM CI/CD 与灰度、Canary、A/B 发布](10-llm-cicd-canary-ab.md)
+1. [Chapter 9: Prompt, Model, and Data Versioning](09-prompt-model-data-versioning.md)
+2. [Chapter 10: LLM CI/CD, Staged Rollouts, Canary Releases, and A/B Tests](10-llm-cicd-canary-ab.md)
 
-返回 [AI Engineering / LLMOps 相关知识点](../README.md)。
+Return to [AI Engineering / LLMOps](../README.md).

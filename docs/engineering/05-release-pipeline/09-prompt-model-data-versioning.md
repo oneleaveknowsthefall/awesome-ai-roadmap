@@ -1,110 +1,110 @@
 ---
-description: 用可追溯的发布清单关联 Prompt、模型快照、检索和策略版本，区分快照锁定、行为复现与安全回滚。
+description: Link prompt, model snapshot, retrieval, and policy versions in a traceable release manifest, distinguishing version pinning, behavioral reproducibility, and safe rollback.
 ---
 
-# 第九章：Prompt / 模型 / 数据版本管理
+# Chapter 9: Prompt, Model, and Data Versioning
 
-## 9.1 为什么 Prompt 也需要像代码一样版本化
+## 9.1 Why should prompts be versioned like code?
 
-Prompt 决定了系统行为,但很多团队把它当成字符串常量随手改,改完直接生效,没有版本号,没有变更记录,出问题时无法确定"上一个还工作的版本是哪个"。**Prompt、模型选择、检索数据这三者任何一个变化,都可能改变系统输出**,理应像应用代码一样接受版本管理的约束。
+Prompts shape system behavior, yet many teams treat them as string constants that can be edited casually and take effect immediately. Without version numbers or change records, they cannot identify the last working version when something goes wrong. **A change to the prompt, model selection, or retrieval data can change the system’s output.** All three deserve the same version-control discipline as application code.
 
 ```mermaid
 flowchart LR
-    P["Prompt 变更"] --> V["三者任一变化都应触发版本升级"]
-    M["模型/路由变更"] --> V
-    D["数据/知识库变更"] --> V
-    V --> R["新版本号 + 变更记录 + 可回滚"]
+    P["Prompt change"] --> V["Any of the three changes requires a new version"]
+    M["Model / routing change"] --> V
+    D["Data / knowledge base change"] --> V
+    V --> R["New version number + changelog + rollback support"]
 ```
 
-## 9.2 Prompt 版本管理
+## 9.2 Prompt versioning
 
-### 9.2.1 版本号不是可选项
+### 9.2.1 Version numbers are not optional
 
 ```python
 PROMPT_REGISTRY = {
     "order_extraction.v3": {
         "template": "...",
-        "schema_version": "order_extraction.v2",  # 对应第5章的输出契约版本
+        "schema_version": "order_extraction.v2",  # Output contract version; see Chapter 5.
         "created_at": "2026-08-20",
-        "eval_score": 0.94,           # 来自第7章的离线评测
+        "eval_score": 0.94,           # From the offline evaluation in Chapter 7.
         "changelog": "修复金额单位歧义,新增币种字段约束",
     },
 }
 ```
 
-Prompt 版本和它期望的输出 Schema 版本（[第 5 章](../03-output-safety/05-structured-output-contracts.md)）应该分开编号但显式关联。改 Prompt 不一定改输出格式；改 Schema 必须重新验证 Prompt、生成配置和消费者的兼容性，但若格式由独立 Schema 参数约束，不一定要修改 Prompt 文本。
+The Chinese changelog in this example says that the change fixes ambiguity in monetary units and adds a currency-field constraint. The prompt version and its expected output schema version ([Chapter 5](../03-output-safety/05-structured-output-contracts.md)) should have separate identifiers with an explicit association. A prompt change does not necessarily change the output format. A schema change requires revalidating compatibility among the prompt, generation configuration, and consumers, but if an independent schema parameter constrains the format, the prompt text may not need to change.
 
-### 9.2.2 Prompt 变更走和代码一样的评审流程
+### 9.2.2 Review prompt changes through the same process as code
 
-Prompt 改动应该进入版本控制系统,通过 Pull Request 走评审,并附上[第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)离线评测的对比分数,而不是在生产配置后台直接编辑生效。
+Put prompt changes in version control and review them through pull requests, including comparative offline evaluation scores from [Chapter 7](../04-evaluation-observability/07-offline-eval-eval-driven-development.md). Do not edit them directly in a production configuration console and make them effective immediately.
 
-## 9.3 模型版本锁定
+## 9.3 Pinning model versions
 
-部分供应商提供浮动别名和固定快照。例如 OpenAI GPT-4o 文档列有 `gpt-4o` 与 `gpt-4o-2024-08-06`；这是已发布的历史快照示例，不是当前选型推荐。不要按日期自行拼出未发布的模型名。是否支持固定版本、可用区域和退役时间，要以具体模型生命周期文档为准：
+Some providers offer both floating aliases and fixed snapshots. For example, OpenAI’s GPT-4o documentation lists `gpt-4o` and `gpt-4o-2024-08-06`. This is an example of a released historical snapshot, not a current model recommendation. Do not construct an unpublished model name by appending a date. Consult the specific model’s lifecycle documentation for version-pinning support, regional availability, and retirement dates:
 
-| 引用方式 | 行为 | 适用场景 |
+| Reference type | Behavior | Suitable uses |
 |---|---|---|
-| 浮动别名 | 厂商随时可能切换到新的底层版本 | 快速原型、对细微行为变化不敏感的场景 |
-| 固定快照 | 指向明确的模型版本，但仍有退役与服务配置变化 | 优先用于受控发布，减少版本变量；不保证逐字可复现 |
+| Floating alias | The provider may switch the underlying version at any time | Rapid prototyping and uses that tolerate small behavioral changes |
+| Fixed snapshot | Identifies a specific model version, but retirement and service-configuration changes still apply | Preferred for controlled releases to reduce version-related variation; does not guarantee word-for-word reproducibility |
 
-生产环境在供应商支持时优先锁定快照，升级视为一次发布。若只能使用自动更新部署，应记录实际响应模型标识、持续跑探针并准备替代路径。即使温度为零或设置 seed，也不能把托管推理当成跨时间、硬件和服务配置的逐字复现保证。
+Prefer pinned snapshots in production when the provider supports them, and treat upgrades as releases. If only automatically updated deployments are available, record the actual model identifier in responses, run continuous probes, and prepare an alternative path. Even a temperature of zero or a specified seed does not make hosted inference a guarantee of word-for-word reproducibility across time, hardware, and service configurations.
 
-## 9.4 数据版本管理:让评测和排障可复现
+## 9.4 Data versioning: making evaluation and diagnosis reproducible
 
-这里的"数据"包括 RAG 知识库快照、Few-shot 示例集、评测用的黄金测试集。数据版本管理要解决的核心问题是:**给定一次线上请求的排查结果,能不能倒查回"当时用的是哪个版本的知识库"**。
+Here, “data” includes RAG knowledge-base snapshots, few-shot example sets, and golden evaluation datasets. Data versioning addresses a central diagnostic question: **when investigating a production request, can you trace it back to the knowledge-base version used at that time?**
 
 ```yaml
-# 每次知识库更新后生成的版本清单示例
+# Example version manifest generated after each knowledge-base update.
 knowledge_base_version: kb-2026-08-25
 source_documents_hash: sha256:9f2e1a...
 embedding_model: text-embedding-3-large
 indexed_at: 2026-08-25T02:00:00Z
 ```
 
-常见做法是用 DVC、LakeFS 等工具对数据集做类似 Git 的版本管理,或者至少为每次索引重建生成一个不可变的版本标签。还应记录文档与 chunk ID、切分规则、嵌入模型、索引配置、重排器和权限策略版本；只记录源文件哈希不足以复现检索。删除与权限撤销应覆盖旧索引和缓存，回滚不能恢复已撤销的数据访问。**没有数据版本,离线评测的分数会失去可比性**——如果知识库在两次评测之间偷偷更新过,分数变化到底是 Prompt 改动的效果还是数据变化的效果,根本无法区分。
+A common approach is Git-like dataset versioning with tools such as DVC or LakeFS, or at least an immutable version tag for each index rebuild. Also record document and chunk IDs, chunking rules, the embedding model, index configuration, reranker, and authorization-policy versions. A source-file hash alone is insufficient to reproduce retrieval. Deletion and permission revocation must apply to old indexes and caches as well; rollback must not restore revoked data access. **Without data versions, offline evaluation scores lose comparability.** If the knowledge base changed unnoticed between two evaluations, you cannot distinguish the effect of the prompt change from the effect of the data change.
 
-## 9.5 模型注册表:统一记录"什么版本在哪里跑"
+## 9.5 The model registry: recording which version runs where
 
-把相关版本汇总为不可变的发布清单，各资产可独立编号，但线上一次请求要能关联到完整组合：
+Collect the relevant versions in an immutable release manifest. Each asset may have its own version number, but every production request should be traceable to the complete combination:
 
-| 记录项 | 用途 |
+| Record | Purpose |
 |---|---|
-| Prompt 版本 + 关联的 Schema 版本 | 排查输出格式变化的根因 |
-| 模型快照版本 + 路由策略版本 | 排查"这次输出风格为什么不一样"([第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.md)) |
-| 知识库/数据版本 | 排查检索内容变化的根因 |
-| 代码、工具 Schema、权限与护栏版本 | 区分生成质量变化和执行策略变化，防止只回滚模型却留下不兼容配置 |
-| 评测集、评分器、rubric 与运行 ID | 分数必须绑定具体评测条件，单个 `eval_score` 不能作为完整发布证据 |
-| 关联的评测分数与变更时间 | 支持第 10 章发布流水线的门禁判断和回滚决策 |
+| Prompt version + associated schema version | Identify the cause of output-format changes |
+| Model snapshot version + routing-policy version | Investigate why an output’s style changed ([Chapter 3](../02-request-reliability/03-model-gateway-routing-fallback.md)) |
+| Knowledge-base / data version | Identify the cause of changes in retrieved content |
+| Code, tool schema, authorization, and guardrail versions | Distinguish generation-quality changes from execution-policy changes, and avoid rolling back only the model while leaving incompatible configuration |
+| Evaluation dataset, grader, rubric, and run ID | Tie scores to specific evaluation conditions; a single `eval_score` is not complete release evidence |
+| Associated evaluation scores and change time | Support release-gate and rollback decisions in the pipeline described in Chapter 10 |
 
-这和 MLOps 里的模型注册表(如 MLflow Model Registry)是同一个思路,只是登记的资产从"训练出的权重文件"换成了"Prompt + 路由 + 数据的组合快照"。
+This follows the same idea as an MLOps model registry such as MLflow Model Registry. The registered asset changes from trained weight files to a combined snapshot of prompts, routing, and data.
 
-## 9.6 常见错误
+## 9.6 Common mistakes
 
-### 9.6.1 直接在生产配置后台改 Prompt,不走版本控制
+### 9.6.1 Editing prompts directly in production without version control
 
-改坏了无法快速定位是哪次改动引入的问题,也无法一键回滚到上一个已知良好版本。
+If a change breaks something, you cannot quickly identify the responsible edit or roll back to the previous known-good version in one step.
 
-### 9.6.2 生产环境使用浮动模型别名
+### 9.6.2 Using floating model aliases in production
 
-浮动别名可能在没有应用代码变更时切换底层模型。供应商支持时优先锁定快照，主动升级作为受控发布；无法锁定时，记录响应标识、运行探针并准备替代路径，不能承诺永久冻结服务行为。
+A floating alias may switch the underlying model without any application-code change. Prefer pinned snapshots when supported, and make deliberate upgrades through controlled releases. Where pinning is unavailable, record response identifiers, run probes, and prepare an alternative path; do not promise that service behavior can remain frozen indefinitely.
 
-### 9.6.3 知识库更新没有版本标签
+### 9.6.3 Updating the knowledge base without a version tag
 
-评测分数变化时无法区分是 Prompt 改动还是数据变化导致的,评测结果失去可比性。
+When evaluation scores change, you cannot distinguish a prompt change from a data change, so results are no longer comparable.
 
-### 9.6.4 Prompt 版本和输出 Schema 版本没有显式关联
+### 9.6.4 Failing to associate prompt and output schema versions explicitly
 
-下游系统按 Schema 版本解析,如果 Prompt 版本独立升级导致输出格式漂移却没有同步 Schema 版本,会引发解析失败。
+Downstream systems parse outputs according to a schema version. If an independent prompt upgrade causes the output format to drift without a corresponding schema-version update, parsing can fail.
 
-## 9.7 本章总结
+## 9.7 Chapter summary
 
-1. **Prompt、模型、数据任何一项变化都可能改变系统行为**,三者都需要纳入版本管理;
-2. **Prompt 变更应走代码评审流程**,并附带离线评测的对比分数;
-3. **供应商支持时优先锁定模型快照**，升级经过评测门禁，同时管理退役与无法锁定版本时的监测和替代路径;
-4. **数据版本化是评测可比性的前提**,没有它无法区分分数变化的真正原因;
-5. **三者版本信息应汇总到统一注册表**,支撑排查和发布决策。
+1. **A change to a prompt, model, or dataset can change system behavior.** Version all three.
+2. **Prompt changes should go through code review**, accompanied by comparative offline evaluation scores.
+3. **Prefer pinned model snapshots where supported.** Gate upgrades with evaluation, plan for retirement, and monitor and prepare alternatives where versions cannot be pinned.
+4. **Data versioning is a prerequisite for comparable evaluations.** Without it, the true cause of a score change is unclear.
+5. **Collect all three sets of version information in a shared registry** to support diagnosis and release decisions.
 
-## 参考资料
+## References
 
 - [OpenAI: GPT-4o snapshots](https://developers.openai.com/api/docs/models/gpt-4o)
 - [OpenAI: Deprecations](https://developers.openai.com/api/docs/deprecations)

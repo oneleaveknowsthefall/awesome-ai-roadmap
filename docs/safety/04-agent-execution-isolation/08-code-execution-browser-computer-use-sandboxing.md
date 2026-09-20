@@ -1,140 +1,140 @@
 ---
-description: 按实际权限选择代码与桌面隔离边界，区分浏览器同源保护、任务审批和网络出口策略的作用。
+description: Choose code and desktop isolation according to actual privileges, and distinguish the roles of browser same-origin protections, task approvals, and network egress policies.
 ---
 
-# 第八章：代码执行、浏览器与 Computer Use 沙箱及网络隔离
+# Chapter 8: Sandboxing and Network Isolation for Code Execution, Browsers, and Computer Use
 
-## 8.1 三类执行能力，边界取决于实际授权
+## 8.1 Three Execution Capabilities, Constrained by Their Actual Permissions
 
-代码解释器、浏览器自动化和 Computer Use（让模型直接操作图形界面、鼠标键盘）是当前 Agent 能力扩展最快的三类工具，也是攻击面最不容易被完整枚举的三类工具。它们的共同点是：**执行的具体指令由模型运行时生成，无法在设计阶段穷举**，因此防御重心必须放在"限制执行环境本身能造成的最大损害"，而不是"预判模型会生成什么指令"。
+Code interpreters, browser automation, and computer use—letting a model operate a graphical interface with a mouse and keyboard—are three of the fastest-growing categories of agent tools. They are also among the hardest to enumerate completely in an attack-surface analysis. All three share a defining characteristic: **the model generates the specific instructions at runtime, so they cannot be exhaustively enumerated at design time**. Defenses must therefore focus on limiting the maximum harm the execution environment can cause, not on predicting every instruction the model might generate.
 
 ```mermaid
 flowchart LR
-    A[代码执行<br/>进程、文件与网络权限] --> B[浏览器自动化<br/>页面、登录态与下载]
-    B --> C[Computer Use<br/>可见桌面、应用与剪贴板]
+    A[Code execution<br/>Process, file, and network permissions] --> B[Browser automation<br/>Pages, login sessions, and downloads]
+    B --> C[Computer use<br/>Visible desktop, applications, and clipboard]
 ```
 
-三者没有固定风险排序。带宿主挂载和云凭据的代码容器，可能比一次性虚拟桌面更危险；浏览器和 Computer Use 的影响也受登录账户与操作系统权限限制。评估时先列出可读数据、可写资源、网络目的地与持有凭据，再选择隔离强度。
+There is no fixed risk ranking among the three. A code container with host mounts and cloud credentials may be more dangerous than a disposable virtual desktop; the impact of browser automation and computer use is likewise constrained by logged-in accounts and operating-system privileges. First inventory the readable data, writable resources, network destinations, and available credentials, then choose the strength of isolation.
 
-## 8.2 代码执行沙箱
+## 8.2 Code Execution Sandboxes
 
-### 8.2.1 隔离层级选择
+### 8.2.1 Choosing an Isolation Level
 
-| 隔离方式 | 隔离强度 | 典型场景 |
+| Isolation mechanism | Isolation strength | Typical use |
 |---|---|---|
-| 语言级沙箱（受限解释器） | 弱，容易被已知技巧绕过 | 不推荐用于不可信代码 |
-| 容器（Docker 等） | 中，共享宿主内核 | 内部可信度较高的场景，仍需配合内核加固 |
-| 用户态内核隔离（gVisor 等） | 较强，拦截并模拟系统调用，减少宿主内核暴露面 | 多租户代码执行服务 |
-| 微虚拟机（Firecracker 等） | 独立客户机内核和虚拟化边界，仍依赖宿主与 VMM 安全 | 高隔离要求的不可信代码，需权衡启动、兼容和运维成本 |
+| Language-level sandbox (restricted interpreter) | Weak; susceptible to known bypass techniques | Not recommended for untrusted code |
+| Container (such as Docker) | Moderate; shares the host kernel | Relatively trusted internal workloads, still requiring kernel hardening |
+| User-space kernel isolation (such as gVisor) | Stronger; intercepts and emulates system calls, reducing exposure to the host kernel | Multi-tenant code execution services |
+| MicroVM (such as Firecracker) | Separate guest kernel and a virtualization boundary; still depends on host and VMM security | Untrusted code requiring strong isolation, with tradeoffs in startup, compatibility, and operational cost |
 
-**原则**：只要执行的代码来自模型生成、且模型的生成过程可能被 Prompt Injection 或越狱影响（见第二章），就应该按"不可信代码"的最高标准隔离，而不是按"这是我们自己 Agent 生成的代码，应该问题不大"的乐观假设。
+**Principle:** whenever executable code is model-generated and generation may be influenced by prompt injection or jailbreaking (see Chapter 2), apply the strongest isolation standards for untrusted code. Do not rely on the optimistic assumption that “our own agent generated it, so it should be fine.”
 
-### 8.2.2 资源与生命周期限制
+### 8.2.2 Resource and Lifecycle Limits
 
-- **每次执行短生命周期、一次性环境**：执行结束即销毁，不复用带有历史状态的沙箱，防止跨任务的状态污染或残留数据被后续任务读取；
-- **CPU/内存/磁盘/执行时长硬限制**：防止资源耗尽型攻击（构造无限循环、大量写盘、fork bomb）；
-- **文件系统最小化**：沙箱内不挂载宿主机的真实文件系统、不包含无关的凭据文件、环境变量默认不包含云凭据（呼应第三章"密钥不进上下文"）；
-- **无出站网络或按需最小开放**：默认禁止沙箱访问外部网络，确需网络能力时走 8.5 的出口控制，而不是给沙箱直连公网的能力。
+- **A short-lived, disposable environment for each execution:** destroy it when execution finishes. Do not reuse sandboxes containing prior state, which could contaminate later tasks or expose residual data.
+- **Hard limits on CPU, memory, disk, and execution time:** prevent resource-exhaustion attacks such as infinite loops, excessive disk writes, and fork bombs.
+- **A minimal filesystem:** do not mount the host's actual filesystem or include unrelated credential files in the sandbox. Environment variables should contain no cloud credentials by default, consistent with Chapter 3's principle of keeping secrets out of context.
+- **No outbound networking, or only the minimum needed:** deny external network access by default. When networking is necessary, use the egress controls in Section 8.5 instead of granting direct internet access.
 
-## 8.3 浏览器自动化的特有风险
+## 8.3 Risks Specific to Browser Automation
 
-### 8.3.1 身份与会话相关风险
+### 8.3.1 Identity and Session Risks
 
-浏览器自动化可能需要登录态，因而增加以下风险；若代码环境也能访问同样的会话材料，它同样面临这些问题：
+Browser automation may require authenticated sessions, introducing the following risks. A code execution environment with access to the same session material faces them too:
 
-- **会话能力被滥用**：恶意页面不能仅因被访问就任意读取其他站点 Cookie；同源策略和 HttpOnly 仍有效。但注入可能诱导 Agent 前往已登录站点并执行动作，无需偷到 Cookie；
-- **跨站与跨步骤诱导**：传统 CSRF 仍需站点侧防护；Agent 受诱导后在目标站点执行合法导航或表单操作，不一定是 CSRF，令牌校验也未必阻止这种授权意图被劫持；
-- **下载文件执行**：浏览器下载的文件如果被后续步骤（代码解释器、桌面操作）打开或执行，等同于引入了一个新的、来源不可控的代码执行入口。
+- **Misuse of session capabilities:** merely visiting a malicious page does not let that page arbitrarily read other sites' cookies; the same-origin policy and HttpOnly still apply. Injection may, however, induce the agent to visit a site where it is already logged in and perform actions, without stealing cookies.
+- **Manipulation across sites and steps:** traditional CSRF still requires site-side defenses. An induced agent performing valid navigation or form actions on the target site is not necessarily a case of CSRF, and token validation may not stop this hijacking of the user's intended authorization.
+- **Executing downloaded files:** if a file downloaded by the browser is opened or executed in a later step, such as a code interpreter or desktop operation, it introduces another code execution entry point whose source is not under the system's control.
 
-### 8.3.2 防御设计
+### 8.3.2 Defensive Design
 
-- **登录态最小化**：只在完成特定任务必需时注入特定域名的登录态，不做"全程携带用户完整会话"的设计；任务结束后销毁会话；
-- **页面内容视为不可信输入**：网页的文本、alt 属性、隐藏元素都可能包含注入指令，处理方式与 [RAG 安全 20.3.2](../../rag/06-operations-security/20-rag-challenges-security.md) 描述的间接注入防御一致——能力隔离和数据流控制是主防线，不能依赖"提醒模型小心网页内容"这种概率性缓解；
-- **高风险操作二次确认**：涉及支付、密码修改、数据提交类的页面操作，应有独立于模型判断的确定性规则触发人工确认，而不是让模型自己判断"这个操作安全吗"；
-- **下载文件默认隔离**：下载内容进入独立沙箱做扫描和格式校验，不自动传递给可执行环境。
+- **Minimize authenticated session access:** provide login state for a particular domain only when the task requires it. Do not carry the user's entire session throughout execution, and destroy the session when the task ends.
+- **Treat page content as untrusted input:** page text, alt attributes, and hidden elements can all contain injected instructions. Apply the indirect-injection defenses described in [RAG Security, Section 20.3.2](../../rag/06-operations-security/20-rag-challenges-security.md): capability isolation and data-flow controls are the primary defenses. Reminding the model to be careful with webpage content is only a probabilistic mitigation.
+- **Require explicit confirmation for high-risk actions:** deterministic rules independent of the model's judgment should trigger human confirmation for payments, password changes, and data submissions. Do not ask the model itself to decide whether the operation is safe.
+- **Quarantine downloads by default:** send downloaded content to a separate sandbox for scanning and format validation. Do not automatically pass it into an execution environment.
 
-## 8.4 Computer Use 的特有风险
+## 8.4 Risks Specific to Computer Use
 
-Computer Use 让模型通过截图理解界面、通过鼠标键盘操作可访问的桌面应用。风险取决于桌面的实际权限与共享数据，尤其要防止不同应用间的信息与动作被非预期地串联。
+Computer use lets a model interpret interfaces through screenshots and operate accessible desktop applications with a mouse and keyboard. The risk depends on the desktop's actual permissions and shared data. In particular, prevent unintended connections between information and actions across applications.
 
-### 8.4.1 视觉层面的间接 Prompt Injection
+### 8.4.1 Visual Indirect Prompt Injection
 
-模型依赖截图来"看懂"当前屏幕，任何出现在屏幕上的内容——包括其他窗口的通知、桌面壁纸上的文字、恶意网页渲染出的伪造系统对话框——都可能被模型当作需要响应的指令。**这是间接 Prompt Injection 在视觉模态上的延伸**，与文本文档中的隐藏指令原理相同，只是载体从文本变成了截图。
+Because the model relies on screenshots to understand the current screen, it may interpret anything visible as an instruction to respond to: notifications from other windows, text on desktop wallpaper, or a fake system dialog rendered by a malicious webpage. **This is indirect prompt injection extended to the visual modality.** The mechanism is the same as hidden instructions in a text document; the carrier changes from text to a screenshot.
 
-### 8.4.2 操作系统级攻击面
+### 8.4.2 The Operating-System-Level Attack Surface
 
-| 风险 | 说明 |
+| Risk | Explanation |
 |---|---|
-| 剪贴板劫持 | 模型可以读写系统剪贴板，可能被诱导读取剪贴板中的敏感数据并粘贴到不当位置，或反过来把恶意内容写入剪贴板供用户后续误粘贴 |
-| 伪造系统弹窗 | 恶意页面可以渲染出与真实操作系统权限请求框高度相似的界面，诱导模型（或后续的人工审批者）误点"允许" |
-| 跨应用数据串联 | 模型可以在一个操作序列里跨越邮件、浏览器、文件管理器等多个应用，任何一环被注入都可能导致整个操作链被劫持 |
-| 无法细粒度限权 | 相比 API 调用可以精确控制"允许调用哪个函数"，图形界面操作很难做到"只允许点击这个按钮"级别的白名单 |
+| Clipboard hijacking | A model able to read and write the system clipboard may be induced to paste sensitive clipboard data into an inappropriate destination, or to place malicious content on the clipboard for a user to paste unwittingly later |
+| Fake system dialogs | A malicious page can render an interface closely resembling an operating-system permission prompt, inducing the model—or a later human approver—to click “Allow” by mistake |
+| Cross-application data chaining | A single action sequence may span email, a browser, and a file manager; injection at any step can hijack the whole sequence |
+| Difficulty enforcing fine-grained permissions | An API can precisely restrict which function may be called; graphical interactions are much harder to constrain with an allowlist as specific as “only this button may be clicked” |
 
-### 8.4.3 防御设计
+### 8.4.3 Defensive Design
 
-- **默认在隔离桌面环境中运行**：使用独立虚拟机或受控桌面，禁用无关宿主目录、剪贴板、设备和会话共享；容器化桌面是逻辑隔离，不是物理隔离，也不保证不会逃逸；
-- **任务范围声明与越界检测**：在任务开始前声明允许操作的应用范围，运行时检测是否出现了超出声明范围的应用切换或窗口，超出则暂停并要求确认；
-- **高权限操作的确定性拦截**：涉及系统设置修改、权限授予、文件删除等操作，由操作系统层面的策略（而非模型自我克制）强制拦截或要求二次确认，这与浏览器自动化的"二次确认不能靠模型自我判断"是同一原则；
-- **截图内容的输入检测**：对截图做 OCR/内容分析，识别是否存在异常的、疑似注入的文字或界面元素，作为纵深防御的一层，但不能替代隔离桌面这一主防线。
+- **Use an isolated desktop by default:** run in a dedicated virtual machine or controlled desktop, disabling unnecessary sharing of host directories, clipboards, devices, and sessions. A containerized desktop provides logical, not physical, isolation and does not guarantee that escape is impossible.
+- **Declare task scope and detect deviations:** specify the applications the task may operate before it begins. At runtime, detect application switches or windows outside that scope; pause and require confirmation when they occur.
+- **Deterministically block privileged actions:** operating-system policies—not model self-restraint—must block or require additional confirmation for changes to system settings, permission grants, file deletion, and similar operations. This is the same principle as requiring confirmation independently of the model's judgment in browser automation.
+- **Screen screenshot content as input:** OCR and content analysis can flag unusual text or interface elements that may indicate injection. This is a defense-in-depth measure, not a replacement for the primary protection of an isolated desktop.
 
-## 8.5 统一的网络出口控制
+## 8.5 Consistent Network Egress Controls
 
-三类执行环境都需要一致的网络隔离策略，这与 [Tool Protocol 安全 15.3.1](../../tools/02-mcp/15-tool-protocol-security.md) 描述的 SSRF 防护原则相通；放到执行沙箱里，就是下面这套网络设计：
+All three execution environments need consistent network isolation policies. These follow the same principles as the SSRF defenses in [Tool Protocol Security, Section 15.3.1](../../tools/02-mcp/15-tool-protocol-security.md). Applied to an execution sandbox, they yield the following network design:
 
 ```mermaid
 flowchart TB
-    E[执行环境<br/>代码/浏览器/Computer Use] --> P[强制走出口代理]
-    P --> W[域名/IP allowlist]
-    P --> N[拒绝 loopback/私网/metadata 地址]
-    P --> R[限制重定向次数与响应大小]
-    P --> L[无凭据网络段<br/>凭据由代理按需注入]
+    E[Execution environment<br/>Code/browser/computer use] --> P[Mandatory egress proxy]
+    P --> W[Domain/IP allowlist]
+    P --> N[Deny loopback/private-network/metadata addresses]
+    P --> R[Limit redirects and response size]
+    P --> L[Credential-free network segment<br/>Proxy injects credentials as needed]
 ```
 
-- 执行环境不直连公网，所有出站流量强制经过受控代理；
-- 代理层维护 allowlist 而非 blocklist，默认拒绝一切未声明的目的地；
-- 代理层负责在需要时按需注入凭据（如访问特定内部 API 需要的 Token），执行环境本身不持有长期凭据，这与[第三章](../02-prompt-content-attacks/03-output-handling-secret-exfiltration.md)“凭据不进模型上下文”的原则一致；
-- 记录目的地、动作、策略决策和用量等必要元数据，不全量记录 URL 查询参数、正文或凭据。
+- Execution environments have no direct internet connectivity; all outbound traffic must pass through a controlled proxy.
+- The proxy maintains an allowlist rather than a blocklist, denying every undeclared destination by default.
+- The proxy injects credentials when needed, such as a token required for a particular internal API. The execution environment itself holds no long-lived credentials, consistent with [Chapter 3](../02-prompt-content-attacks/03-output-handling-secret-exfiltration.md)'s principle of keeping credentials out of model context.
+- Record necessary metadata such as the destination, action, policy decision, and usage. Do not indiscriminately log complete URL query parameters, bodies, or credentials.
 
-代理只有在网络层禁止直连时才构成强制边界：需覆盖 DNS、IPv4/IPv6、重定向与其他协议，并验证最终解析和连接地址。阻断 metadata、loopback 与非授权私网；确需内部 API 时通过独立连接器逐服务放行，不是放开整个内网。按需注入凭据也应绑定目标、方法、路径和作用域，重定向不得携带凭据到另一目的地。允许域名仍可能提供向外上传数据的功能，不能把 allowlist 当作完整 DLP。
+A proxy is an enforceable control only when the network layer blocks direct connections. Enforcement must cover DNS, IPv4/IPv6, redirects, and other protocols, and validate the final resolved and connected addresses. Block metadata endpoints, loopback, and unauthorized private networks. If access to internal APIs is necessary, permit individual services through dedicated connectors rather than opening the entire internal network. On-demand credential injection must also be bound to the destination, method, path, and scope; redirects must not carry credentials to another destination. Even an allowed domain may offer a way to upload data externally, so an allowlist is not a complete data loss prevention (DLP) solution.
 
-## 8.6 上线检查表
+## 8.6 Release Checklist
 
-- [ ] 不可信代码执行默认使用微虚拟机/用户态内核隔离级别的沙箱，而非仅语言级沙箱；
-- [ ] 执行环境短生命周期、一次性，结束即销毁，不复用历史状态；
-- [ ] 沙箱内 CPU/内存/磁盘/执行时长有硬限制；
-- [ ] 浏览器自动化的登录态按任务最小化注入，任务结束即销毁；
-- [ ] 浏览器/Computer Use 中涉及支付、密码修改等高风险操作，由确定性规则强制人工确认，不依赖模型自我判断；
-- [ ] Computer Use 使用明确的虚拟化或逻辑隔离边界，不共享无关的宿主数据与会话；
-- [ ] 出站网络强制走代理，拒绝 metadata、loopback 和非授权私网，业务例外逐服务审批；
-- [ ] 执行环境不持有长期凭据，按需通过代理注入。
+- [ ] Untrusted code runs by default in a microVM or user-space-kernel sandbox, not merely a language-level sandbox.
+- [ ] Execution environments are short-lived and disposable, destroyed after use without reusing prior state.
+- [ ] Sandboxes have hard limits on CPU, memory, disk, and execution time.
+- [ ] Browser login state is limited to the task's minimum requirements and destroyed when the task ends.
+- [ ] Deterministic rules require human confirmation for high-risk browser or computer-use actions such as payments and password changes; they do not rely on the model's own judgment.
+- [ ] Computer use has an explicit virtualization or logical isolation boundary, without sharing unrelated host data or sessions.
+- [ ] Outbound networking must pass through a proxy that denies metadata endpoints, loopback, and unauthorized private networks; business exceptions are approved per service.
+- [ ] Execution environments hold no long-lived credentials; the proxy injects credentials as needed.
 
-## 8.7 常见错误
+## 8.7 Common Mistakes
 
-### 8.7.1 认为"代码是自己 Agent 生成的"所以风险较低
+### 8.7.1 Assuming Code Is Lower Risk Because Your Own Agent Generated It
 
-只要生成过程可能被 Prompt Injection 或越狱影响，就应按不可信代码的最高标准隔离。
+If prompt injection or jailbreaking could influence generation, apply the strongest isolation standards for untrusted code.
 
-### 8.7.2 浏览器自动化全程携带用户完整登录会话
+### 8.7.2 Carrying the User's Complete Login Sessions Throughout Browser Automation
 
-应按任务最小化注入特定域名的登录态，而不是让 Agent 拥有用户的完整会话权限。
+Provide only the domain-specific login state needed for the task, rather than giving the agent the user's full session privileges.
 
-### 8.7.3 依赖提醒模型"小心可疑内容"作为注入防御
+### 8.7.3 Relying on Reminders to “Watch Out for Suspicious Content”
 
-无论文本还是视觉模态的间接注入，都需要能力隔离和数据流控制作为主防线，提示词层面的提醒只是概率性缓解。
+Both textual and visual indirect injection require capability isolation and data-flow controls as primary defenses. Prompt-level reminders are only probabilistic mitigations.
 
-### 8.7.4 Computer Use 在用户真实桌面环境直接运行
+### 8.7.4 Running Computer Use Directly on the User's Actual Desktop
 
-一旦被视觉层面的注入劫持，会直接影响宿主机的真实数据和应用，必须使用隔离桌面环境。
+Hijacking through visual injection would directly affect real host data and applications. Use an isolated desktop.
 
-## 8.8 本章总结
+## 8.8 Chapter Summary
 
-1. 三类能力的风险由实际权限、数据和网络决定，防御重点是限制最大损害，而非假定固定风险排序；
-2. 代码执行应使用微虚拟机/用户态内核级别的隔离、短生命周期环境和严格的资源限制；
-3. 浏览器自动化的特有风险在于登录态和会话相关的攻击面，登录态应按任务最小化注入，网页内容按不可信输入处理；
-4. Computer Use 把风险扩展到其可访问的桌面、应用和共享状态，不等于拥有整个操作系统的权限；默认使用隔离桌面，并控制视觉注入、剪贴板和伪造弹窗带来的动作风险；
-5. 三类执行环境应共享网络出口控制原则：强制代理，拒绝 metadata、loopback 和非授权私网，业务例外逐服务放行，凭据绑定目标与动作。
+1. The risks of all three capabilities depend on actual permissions, data, and networking. Focus defenses on limiting maximum harm, not on assuming a fixed risk ranking.
+2. Code execution should use microVM or user-space-kernel isolation, short-lived environments, and strict resource limits.
+3. Browser automation has a distinctive attack surface around login state and sessions. Supply the minimum session access needed for each task and treat webpage content as untrusted input.
+4. Computer use extends risk to accessible desktops, applications, and shared state; it does not imply authority over the entire operating system. Use isolated desktops by default, and control the action risks posed by visual injection, the clipboard, and fake dialogs.
+5. All three environments should follow shared egress principles: mandatory proxies; denial of metadata endpoints, loopback, and unauthorized private networks; per-service business exceptions; and credentials bound to destinations and actions.
 
-## 参考资料
+## References
 
 - [OWASP LLM06:2025 Excessive Agency](https://genai.owasp.org/llmrisk/llm062025-excessive-agency/)
 - [gVisor: Application Kernel for Containers](https://gvisor.dev/)

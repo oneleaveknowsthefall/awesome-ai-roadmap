@@ -1,99 +1,99 @@
 ---
-description: 区分 DevOps、MLOps 与 LLMOps 的重叠职责，理解生成式应用在评测、版本和运行时授权上的额外要求。
+description: Understand the overlapping responsibilities of DevOps, MLOps, and LLMOps, and the additional evaluation, versioning, and runtime authorization requirements of generative applications.
 ---
 
-# 第一章：LLMOps 是什么：与 MLOps、DevOps 的边界
+# Chapter 1: What Is LLMOps? How It Relates to MLOps and DevOps
 
-## 1.1 三个词为什么总被混用
+## 1.1 Why are these three terms so often confused?
 
-DevOps、MLOps 与 LLMOps 不是互斥岗位，也没有统一的行业分界。可以按主要管理的资产来理解，但它们共享发布、监控、数据治理和事故响应能力；LLMOps 还可能包括自托管、微调和训练，不只是调用第三方 API。
+DevOps, MLOps, and LLMOps are not mutually exclusive roles, and the industry has no universally agreed dividing lines between them. The assets they primarily manage offer a useful distinction, but all three share release management, monitoring, data governance, and incident response capabilities. LLMOps can also include self-hosting, fine-tuning, and training; it is not limited to calling third-party APIs.
 
 ```mermaid
 flowchart LR
     subgraph DevOps["DevOps"]
-        D1["资产：应用代码"]
-        D2["问题：构建、测试、发布、回滚"]
+        D1["Assets: application code"]
+        D2["Concerns: builds, tests, releases, rollbacks"]
     end
     subgraph MLOps["MLOps"]
-        M1["资产：数据、模型与 ML 流水线"]
-        M2["问题：训练、评估、部署、漂移监控"]
+        M1["Assets: data, models, and ML pipelines"]
+        M2["Concerns: training, evaluation, deployment, drift monitoring"]
     end
     subgraph LLMOps["LLMOps"]
-        L1["资产：模型、Prompt、上下文与工具配置"]
-        L2["问题：Prompt、路由、评测、成本、幻觉治理"]
+        L1["Assets: models, prompts, context, and tool configuration"]
+        L2["Concerns: prompts, routing, evaluation, cost, hallucination management"]
     end
 ```
 
-DevOps 关注软件交付与运行，MLOps 把数据和模型生命周期纳入工程管理，LLMOps 则强调生成式应用中的 Prompt、上下文、开放式输出和工具执行链。使用托管 API 会增加供应商版本、配额和数据处理边界的约束；自托管模型减少部分外部依赖，却需要承担推理调度、算力和模型更新责任。
+DevOps focuses on software delivery and operations. MLOps brings the data and model lifecycle into engineering management. LLMOps emphasizes prompts, context, open-ended outputs, and tool execution in generative applications. Managed APIs introduce constraints around provider versions, quotas, and where and how data is processed. Self-hosted models remove some external dependencies, but leave the team responsible for inference scheduling, compute resources, and model updates.
 
-## 1.2 生成式应用中需要额外关注什么
+## 1.2 What requires extra attention in generative applications?
 
-MLOps 的数据版本管理、训练流水线、模型注册表和 A/B 测试仍然适用。下面是常见侧重点，而非两者的定义性区别：
+Data versioning, training pipelines, model registries, and A/B testing from MLOps still apply. The following are common differences in emphasis, not defining distinctions between the two:
 
-| 维度 | MLOps | LLMOps |
+| Dimension | MLOps | LLMOps |
 |---|---|---|
-| **迭代对象** | 数据、特征、训练、服务配置 | 除这些资产外，还包括 Prompt、检索、工具和路由 |
-| **模型可见性** | 自训与第三方模型都可能存在 | API 通常不开放权重；开放权重也不等于训练数据完全可知 |
-| **漂移来源** | 输入分布、目标关系、数据管道或模型变化 | 同样存在；浮动模型别名和上下文变化还会改变输出行为 |
-| **评估基准** | 准确率、AUC、校准度及业务指标 | 规则、执行结果、人工和模型裁判组合；不是必须用 LLM 打分 |
+| **What changes during iteration** | Data, features, training, and serving configuration | These assets, plus prompts, retrieval, tools, and routing |
+| **Model visibility** | Both in-house and third-party models may be used | APIs usually do not expose weights; open weights do not imply full visibility into training data |
+| **Sources of drift** | Changes in input distributions, target relationships, data pipelines, or models | The same sources apply; floating model aliases and context changes can also alter output behavior |
+| **Evaluation criteria** | Accuracy, AUC, calibration, and business metrics | A combination of rules, execution results, human reviewers, and model judges; LLM-based scoring is not mandatory |
 
-没有改代码，服务质量仍可能下降：输入分布、知识库、上游服务或模型版本都可能变化。先区分「输入变了」与「同样输入下的系统行为变了」，再定位具体资产。第 9 章的版本记录和第 12 章的线上监测共同支持这种排查，不能只盯着厂商升级。
+Service quality can deteriorate without a code change: the input distribution, knowledge base, upstream services, or model version may have changed. First distinguish “the inputs changed” from “the system behaves differently on the same inputs,” then identify the specific asset responsible. The version records in Chapter 9 and production monitoring in Chapter 12 support this investigation together. Provider upgrades are not the only possible cause.
 
-## 1.3 LLMOps 与 DevOps 的关系：扩展而非替代
+## 1.3 LLMOps extends DevOps rather than replacing it
 
-LLMOps 不是抛弃 DevOps 另起炉灶，而是在 CI/CD、可观测性这些 DevOps 已经解决得很好的基础设施之上，**插入一层模型和 Prompt 特有的质量门禁**。
+LLMOps does not discard DevOps and start over. It builds on established DevOps infrastructure, such as CI/CD and observability, and **adds quality gates specific to models and prompts**.
 
 ```mermaid
 flowchart TB
-    Code["代码变更"] --> UnitTest["单元测试 / 集成测试"]
-    Prompt["Prompt / 模型 / 路由变更"] --> EvalGate["离线评测门禁（LLMOps 新增）"]
-    UnitTest --> Build["构建镜像"]
+    Code["Code change"] --> UnitTest["Unit / integration tests"]
+    Prompt["Prompt / model / routing change"] --> EvalGate["Offline evaluation gate (added by LLMOps)"]
+    UnitTest --> Build["Build image"]
     EvalGate --> Build
-    Build --> Deploy["灰度发布"]
-    Deploy --> Observe["可观测性：日志/指标/Trace"]
-    Observe -.反馈.-> Prompt
-    Observe -.反馈.-> Code
+    Build --> Deploy["Gradual rollout"]
+    Deploy --> Observe["Observability: logs / metrics / traces"]
+    Observe -.Feedback.-> Prompt
+    Observe -.Feedback.-> Code
 
     style EvalGate fill:#fff3cd
 ```
 
-Schema、授权、金额计算、幂等和状态机仍应做确定性测试；开放式生成则补充带采样误差的质量评测。传统 ML 评测也有统计不确定性，LLM 的额外难点是可接受答案往往不唯一。同一问题重复采样用于观察波动，不能冒充更多独立业务样本。
+Schemas, authorization, monetary calculations, idempotency, and state machines should still have deterministic tests. Open-ended generation additionally needs quality evaluations that account for sampling error. Traditional ML evaluation also has statistical uncertainty; an additional difficulty with LLMs is that more than one answer may be acceptable. Repeated samples for the same question reveal variability, but must not be presented as additional independent business examples.
 
-## 1.4 一张表看清三者分工
+## 1.4 Comparing the three perspectives
 
-面对「模型推理慢」这类问题，三个角色关注点也不同：
+Even for a problem such as “model inference is slow,” the three perspectives emphasize different questions:
 
-| 场景 | DevOps 视角 | MLOps 视角 | LLMOps 视角 |
+| Scenario | DevOps perspective | MLOps perspective | LLMOps perspective |
 |---|---|---|---|
-| 推理延迟高 | 排队、网络、负载均衡 | 推理调度、量化、蒸馏 | 调整上下文与路由；流式改善首响应，不一定缩短完成时间 |
-| 一次输出质量差 | 排查代码、依赖和数据传递 | 检查数据、模型和分布漂移 | 检查 Prompt、检索、具体版本、工具结果和缓存 |
-| 要不要回滚 | 看代码变更和错误率 | 看模型离线评估指标是否退化 | 看 Prompt/路由变更后线上评测分数和安全用例是否退化 |
+| High inference latency | Queuing, networking, load balancing | Inference scheduling, quantization, distillation | Adjust context and routing; streaming improves initial responsiveness but does not necessarily reduce completion time |
+| A poor-quality output | Investigate code, dependencies, and data passing | Check data, models, and distribution drift | Check prompts, retrieval, exact versions, tool results, and caches |
+| Whether to roll back | Examine code changes and error rates | Check whether offline model evaluation metrics have regressed | Check whether production evaluation scores and safety cases have regressed after prompt or routing changes |
 
-**三者不是互斥关系，一个成熟团队里通常同时具备这三种能力，只是各自负责生产生命周期里不同的切片。** 本主题后续章节聚焦的正是最后一列——LLMOps 视角下的生产工程实践。
+**These capabilities are not mutually exclusive. A mature team usually has all three, each addressing different parts of the production lifecycle.** The remaining chapters in this topic focus on the last column: production engineering from an LLMOps perspective.
 
-## 1.5 常见错误
+## 1.5 Common mistakes
 
-### 1.5.1 把 LLMOps 等同于「写 Prompt」
+### 1.5.1 Equating LLMOps with “writing prompts”
 
-Prompt 工程只是 LLMOps 里的一小部分。路由与回退、评测门禁、可观测性、发布流水线、成本与容量、事故响应，任何一项做不到位，光有好 Prompt 撑不起生产系统。
+Prompt engineering is only a small part of LLMOps. Routing and fallback, evaluation gates, observability, release pipelines, cost and capacity management, and incident response all matter. Good prompts alone cannot sustain a production system if any of these are neglected.
 
-### 1.5.2 直接套用 MLOps 工具链却不改评估方式
+### 1.5.2 Reusing an MLOps toolchain without adapting evaluation
 
-固定测试集仍然必要，但评价规则要匹配任务：引用存在不等于支持结论，语气自然不等于事实正确。可验证字段用规则，开放式维度用人工或经校准的模型裁判。
+A fixed test set remains necessary, but the evaluation criteria must fit the task. A citation's presence does not mean it supports the conclusion, and natural wording does not imply factual accuracy. Use rules for verifiable fields, and human reviewers or calibrated model judges for open-ended dimensions.
 
-### 1.5.3 忽视模型静默升级带来的漂移
+### 1.5.3 Ignoring drift from silent model upgrades
 
-托管模型的浮动别名可能改变底层版本。固定快照能减少这一变量，但仍需关注服务配置、版本退役和请求分布，不等于永久可用或逐字可复现。
+A managed model's floating alias may point to a different underlying version over time. Pinning a snapshot reduces this source of variation, but service configuration, version retirement, and request distributions still need attention. A pinned snapshot does not guarantee permanent availability or word-for-word reproducibility.
 
-### 1.5.4 认为 LLMOps 只需要在推理阶段发力，不涉及训练侧
+### 1.5.4 Assuming LLMOps concerns inference but never training
 
-当业务规模足够大时，LLMOps 团队仍会和微调/RLHF 数据打交道（见第 13 章数据飞轮），二者边界不是绝对的，而是「主要迭代对象」的差异。
+At sufficient business scale, LLMOps teams also work with fine-tuning and RLHF data; see the data flywheel in Chapter 13. The distinction is not absolute: it is a difference in the assets teams primarily iterate on.
 
-## 1.6 本章总结
+## 1.6 Chapter summary
 
-LLMOps 是既有软件与 ML 工程能力在生成式应用中的延伸，不以是否自训模型划界。面试讨论时，与其背岗位定义，不如说明一次变更涉及哪些资产、哪些行为可以确定性验证、哪些质量只能统计评估，以及失败后能否定位并恢复。
+LLMOps extends existing software and ML engineering practices to generative applications. Whether a team trains its own models is not the defining criterion. In an interview, explaining which assets a change affects is more useful than reciting job definitions: which behaviors can be verified deterministically, which quality dimensions require statistical evaluation, and whether failures can be diagnosed and recovered from.
 
-## 参考资料
+## References
 
 - [Google Cloud: MLOps: Continuous delivery and automation pipelines in machine learning](https://cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning)
 - [a16z: What Is LLMOps?](https://a16z.com/emerging-architectures-for-llm-applications/)

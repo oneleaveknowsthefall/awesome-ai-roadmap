@@ -1,48 +1,48 @@
 ---
-description: 构建防污染的业务评测集，用配对比较、置信区间和裁判校准判断改动，而非仅凭均分或少量样本放行。
+description: Build contamination-resistant application evaluation datasets and assess changes with paired comparisons, confidence intervals, and judge calibration rather than averages or a handful of examples.
 ---
 
-# 第七章：离线评测与 Eval-Driven Development
+# Chapter 7: Offline Evaluation and Eval-Driven Development
 
-## 7.1 Eval-Driven Development:把评测放在改动之前而不是之后
+## 7.1 Eval-driven development: evaluate changes before accepting them
 
-传统软件工程里"测试驱动开发"要求先写测试再写实现。LLM 应用的对应实践是 **Eval-Driven Development(EDD)**:任何一次 Prompt、路由或模型的变更,在合入之前必须先在一套固定的评测集上跑出可比较的分数,而不是凭感觉判断"看起来是不是变好了"。
+In traditional software engineering, test-driven development means writing tests before the implementation. The corresponding practice for LLM applications is **eval-driven development (EDD)**: before merging any change to a prompt, routing policy, or model, evaluate it on a fixed dataset to produce comparable scores. “It seems better” is not enough.
 
 ```mermaid
 flowchart LR
-    A["提出改动<br/>(改 Prompt / 换模型 / 调路由)"] --> B["在黄金测试集上跑评测"]
-    B --> C{"分数是否达标<br/>且无关键用例回归?"}
-    C -->|是| D["合入,进入灰度发布"]
-    C -->|否| E["回到改动,继续迭代"]
+    A["Propose a change<br/>(prompt / model / routing)"] --> B["Evaluate on the golden dataset"]
+    B --> C{"Meets score requirements<br/>with no critical regressions?"}
+    C -->|Yes| D["Merge and begin a staged rollout"]
+    C -->|No| E["Revise the change and iterate"]
     E --> A
 
     style C fill:#fff3cd
     style D fill:#e6f4ea
 ```
 
-这套流程和[第 10 章](../05-release-pipeline/10-llm-cicd-canary-ab.md)的发布流水线是同一件事的两个视角:EDD 讲的是"改动怎么被验证",发布流水线讲的是"验证通过之后怎么安全上线"。
+This process and the release pipeline in [Chapter 10](../05-release-pipeline/10-llm-cicd-canary-ab.md) describe two sides of the same work: EDD explains how to validate a change; the release pipeline explains how to deploy it safely once it passes validation.
 
-## 7.2 黄金测试集:业务侧评测的核心资产
+## 7.2 The golden dataset: a core asset for application evaluation
 
-[LLM · 评测与选型](../../llm/05-evaluation-selection/README.md)详细讲过 MMLU、HumanEval 这类学术 Benchmark 存在数据污染、脱离业务场景的系统性缺陷。业务侧的做法是建一套小而精的**黄金测试集(golden dataset)**:
+[LLM · Evaluation and Model Selection](../../llm/05-evaluation-selection/README.md) discusses the systematic limitations of academic benchmarks such as MMLU and HumanEval, including data contamination and a mismatch with business use cases. For an application, build a small, carefully curated **golden dataset**:
 
-| 来源 | 说明 |
+| Source | Purpose |
 |---|---|
-| 人工设计的典型与边界案例 | 建立最小质量基线,覆盖格式、越权、拒绝等场景 |
-| 脱敏后的真实生产失败案例 | 每一次线上事故复盘后,把复现用例回收进测试集,防止同类问题再犯 |
-| 用户反馈标注的案例 | 来自[第 13 章](../06-performance-operations/13-feedback-loop-data-flywheel.md)的反馈闭环 |
+| Manually designed typical and edge cases | Establish a minimum quality baseline covering formatting, unauthorized access, refusals, and similar cases |
+| Sanitized examples of real production failures | After each incident review, add a reproduction case to the dataset to prevent recurrence |
+| Examples labeled from user feedback | Supplied by the feedback process in [Chapter 13](../06-performance-operations/13-feedback-loop-data-flywheel.md) |
 
-可以先用 50–200 条做冒烟和问题发现，但这只是启动规模，不足以证明罕见风险已受控。按订单查询、退款、越权等切片报告样本数与得分；高风险切片不能被总均分抵消。
+You can start with 50–200 examples for smoke testing and finding problems, but that is only a starting point, not evidence that rare risks are under control. Report sample counts and scores for slices such as order lookups, refunds, and unauthorized access. An overall average must not conceal failures in high-risk slices.
 
-维护三种用途不同的数据：用于改 Prompt 的开发集、保存已知失败的回归集、尽量不参与调参的留出集。同一用户、会话、文档的近重复样本要分组切分；业务变化快时增加时间留出。反复看同一测试集再调参会泄漏测试信息，最终分数不再是独立泛化证据。
+Maintain three datasets with distinct purposes: a development set for prompt iteration, a regression set of known failures, and a holdout set kept out of tuning as far as possible. Split near-duplicate examples from the same user, conversation, or document by group; add a temporal holdout when the business changes quickly. Repeatedly inspecting the same test set and tuning against it leaks test information, so the final score no longer provides independent evidence of generalization.
 
-## 7.3 评分方式:自动规则、人工评审、LLM-as-Judge
+## 7.3 Grading: automated rules, human review, and LLM-as-judge
 
-| 评分方式 | 适合场景 | 局限 |
+| Grading method | Suitable uses | Limitations |
 |---|---|---|
-| **确定性规则** | Schema 是否合法、是否包含禁止内容、引用是否存在 | 无法评估自然语言表达质量 |
-| **人工评审** | 高风险场景、需要校准其他评分方式 | 慢、贵,无法覆盖大规模测试集 |
-| **LLM-as-Judge** | 大规模的相关性、完整性、语气比较 | 存在偏差,需要 rubric 设计和防提示注入 |
+| **Deterministic rules** | Schema validity, prohibited content, existence of cited sources | Cannot assess the quality of natural-language expression |
+| **Human review** | High-risk cases and calibration of other grading methods | Slow and expensive; cannot cover large test sets comprehensively |
+| **LLM-as-judge** | Large-scale comparisons of relevance, completeness, and tone | Subject to bias; requires a grading rubric and protection against prompt injection |
 
 ```python
 JUDGE_PROMPT = """你是评审员。给定用户问题、参考答案和候选回答,
@@ -55,15 +55,17 @@ JUDGE_PROMPT = """你是评审员。给定用户问题、参考答案和候选�
 """
 ```
 
-**LLM-as-Judge 必须用人工标签校准**，复核量由风险、分歧率和切片覆盖决定，10–20% 不是通用标准。给 rubric 提供分数锚点和反例，固定裁判模型、Prompt 和参数；对成对答案随机交换位置、隐藏模型名，检查位置偏差、偏好长答案和同源模型偏差。先评估人工之间的一致性，再报告裁判与人工的混淆矩阵或一致性。候选答案是不可信数据，不能执行其中对裁判的指令。
+The Chinese prompt above is example input: it asks a reviewer to score factual accuracy, completeness, and appropriate tone from 1 to 5 given a question, reference answer, and candidate answer, and to return only JSON with the specified fields.
 
-### 7.3.1 分数差异是否足以支持发布
+**An LLM judge must be calibrated against human labels.** The amount of human review depends on risk, disagreement rates, and slice coverage; 10–20% is not a universal standard. Provide score anchors and counterexamples in the rubric, and fix the judge model, prompt, and parameters. Randomize the order of paired answers, hide model names, and check for position bias, a preference for longer answers, and bias toward outputs from the same model family. First assess agreement among human reviewers, then report a confusion matrix or agreement between the judge and humans. Candidate answers are untrusted data: instructions addressed to the judge inside them must not be followed.
 
-在同一批任务上比较基线与候选，优先分析配对差值。按独立任务或用户重采样的 paired bootstrap 可估计差值区间；二元成败也可用配对的 McNemar 检验。一个任务重复生成多次有助于估计随机性，却不能当成多个独立用户。报告效应大小、置信区间、独立样本数和重复次数，而不是只给一个 p 值。
+### 7.3.1 Is the score difference enough to justify a release?
 
-先约定最低可接受提升或最大可接受退化；「未发现显著差异」不等于「已经证明不劣」。例如在独立同分布的二项试验中，100 次未观察到失败，失败概率的单侧 95% 上界仍约为 3%（零失败时的近似 rule of three）。越权回归集零失败可以作为门禁，但不是生产零风险证明。反复选择最佳 Prompt 或扫描大量切片时，还需处理多重比较和选择偏差。
+Compare the baseline and candidate on the same tasks, prioritizing the paired differences. A paired bootstrap that resamples independent tasks or users can estimate an interval for the difference; paired binary success/failure outcomes can also be assessed with McNemar’s test. Repeated generations for one task help estimate randomness, but do not count as multiple independent users. Report effect size, confidence intervals, the number of independent samples, and the number of repetitions—not just a p-value.
 
-## 7.4 发布门禁:不是看平均分,是看关键用例
+Agree in advance on the minimum acceptable improvement or maximum acceptable regression. “No significant difference was found” does not mean “non-inferiority has been established.” For example, with independent, identically distributed binomial trials, observing no failures in 100 trials still leaves a one-sided 95% upper bound of about 3% on the failure probability—the approximate rule of three for zero failures. Requiring zero failures in an unauthorized-access regression set can be a release gate, but is not proof of zero risk in production. Repeatedly selecting the best prompt or examining many slices also requires accounting for multiple comparisons and selection bias.
+
+## 7.4 Release gates: inspect critical cases, not just averages
 
 ```python
 def release_gate(eval_result: EvalResult, baseline: EvalResult) -> GateDecision:
@@ -77,56 +79,56 @@ def release_gate(eval_result: EvalResult, baseline: EvalResult) -> GateDecision:
     return GateDecision.PASS
 ```
 
-上面的伪代码只展示阈值逻辑，不是显著性检验。运行前必须确认切片齐全、样本量足够、评分器正常、候选与基线使用相同版本的数据；空切片、裁判错误和结果缺失不能按通过处理。**平均分提升不能抵消已确认的越权或泄密**。能用工具执行结果、权限日志判定的高风险失败，不应只听模型裁判的文字结论。
+The Chinese rejection messages in this example identify failed critical safety or authorization cases, a slice exceeding its allowed regression, and an overall score below the required minimum. This pseudocode illustrates threshold logic only, not a significance test. Before running it, verify that all slices are present, sample sizes are sufficient, graders are working, and the candidate and baseline use the same dataset version. Empty slices, judge errors, and missing results must not count as passes. **An improvement in average score cannot compensate for confirmed unauthorized access or data disclosure.** Where tool execution results or authorization logs can establish a high-risk failure, do not rely solely on a model judge’s written conclusion.
 
-## 7.5 离线评测不能替代线上监测
+## 7.5 Offline evaluation cannot replace production monitoring
 
-离线评测在固定测试集上运行,能发现的是"这个改动是否比基线更好",但测试集永远无法覆盖生产环境的全部输入分布。**离线评测负责"改动前把关",线上可观测性([第 8 章](08-online-observability-tracing.md))负责"上线后持续验证真实流量表现"**,两者缺一不可。
+Offline evaluation runs on a fixed test set to assess whether a change improves on the baseline, but no test set can cover the full distribution of production inputs. **Offline evaluation checks changes before release; production observability ([Chapter 8](08-online-observability-tracing.md)) continuously checks performance on real traffic after release.** Both are necessary.
 
-## 7.6 与相邻章节的分工
+## 7.6 How this chapter relates to other chapters
 
-这里先看评测的通用骨架——怎么建测试集、怎么评分、怎么设门禁。Agent 和 RAG 的专门方法放到各自主题里展开:
+This chapter covers the common evaluation structure: how to build test sets, grade results, and define gates. Specialized methods for agents and RAG are covered in their respective topics:
 
-| 场景 | 详见 |
+| Use case | Further reading |
 |---|---|
-| Agent 多轮工具调用、任务完成率评估 | [Agent · 评估与安全](../../agent/05-production/14-agent-evaluation.md) |
-| RAG 检索召回率、引用准确性评估 | [RAG · 生成与评估](../../rag/05-generation-evaluation/README.md) |
-| 模型通用能力的学术 Benchmark | [LLM · 评测与选型](../../llm/05-evaluation-selection/README.md) |
+| Evaluating multi-turn agent tool use and task completion rates | [Agent · Evaluation and Safety](../../agent/05-production/14-agent-evaluation.md) |
+| Evaluating RAG retrieval recall and citation accuracy | [RAG · Generation and Evaluation](../../rag/05-generation-evaluation/README.md) |
+| Academic benchmarks for general model capabilities | [LLM · Evaluation and Model Selection](../../llm/05-evaluation-selection/README.md) |
 
-## 7.7 常见错误
+## 7.7 Common mistakes
 
-### 7.7.1 凭感觉判断"这次改动看起来更好"
+### 7.7.1 Deciding that a change “looks better” by intuition
 
-没有固定测试集和可比较的分数,任何"感觉变好了"的判断都无法在下一次改动时复现或证伪。
+Without a fixed test set and comparable scores, a judgment that something “feels better” cannot be reproduced or falsified when the next change arrives.
 
-### 7.7.2 只维护一个笼统的测试集,不做业务切片
+### 7.7.2 Keeping one undifferentiated test set without business slices
 
-总分掩盖了具体切片的回归,尤其是高风险的安全类切片,一旦被平均分稀释就很难被发现。
+An overall score can hide regressions in specific slices. High-risk safety regressions are particularly easy to miss when diluted by an average.
 
-### 7.7.3 使用 LLM-as-Judge 却不做人工校准
+### 7.7.3 Using an LLM judge without human calibration
 
-必须抽查一部分样本人工复核,否则无法判断评分本身是否可信,评测结果形同虚设。
+A sample of cases must be reviewed by humans. Otherwise, there is no basis for trusting the grading itself, and the evaluation offers little assurance.
 
-### 7.7.4 把线上评测当作发布前的验证手段
+### 7.7.4 Treating production evaluation as pre-release validation
 
-线上评测只能告诉你"生产里发生了什么",无法替代发布前在固定数据集上的可复现实验。
+Production evaluation tells you what happened in production. It cannot replace reproducible experiments on a fixed dataset before release.
 
-### 7.7.5 线上事故修复后不把失败案例回收进测试集
+### 7.7.5 Fixing an incident without adding its failure case to the test set
 
-同类问题很可能再次出现,每一次事故复盘都应该产出至少一条新的回归测试用例。
+The same kind of problem is likely to recur. Each incident review should produce at least one new regression test case.
 
-## 7.8 本章总结
+## 7.8 Chapter summary
 
-1. **Eval-Driven Development 要求改动先经过评测再合入**,而不是凭感觉判断;
-2. **黄金测试集是业务侧评测的核心资产**,应按子场景切片管理,而不是只看整体分数;
-3. **评分方式分三层**:确定性规则、人工评审、LLM-as-Judge,后者必须人工校准;
-4. **发布门禁要看关键用例是否回归**,平均分提升不能抵消高风险用例的失败;
-5. **离线评测和线上监测互补而非互相替代**,前者把关改动,后者验证真实流量表现;
-6. **Agent、RAG 场景有各自更专门的评测方法**,这里先保留通用骨架。
+1. **Eval-driven development requires evaluation before a change is merged**, rather than an intuitive judgment.
+2. **The golden dataset is a core asset for application evaluation.** Manage it by use-case slices rather than relying only on the overall score.
+3. **Grading has three layers:** deterministic rules, human review, and LLM-as-judge. The last requires human calibration.
+4. **Release gates must check for regressions in critical cases.** Better averages cannot offset failures in high-risk cases.
+5. **Offline evaluation and production monitoring complement rather than replace each other.** One checks proposed changes; the other verifies real-traffic performance.
+6. **Agents and RAG have more specialized evaluation methods.** This chapter establishes the common structure.
 
-## 参考资料
+## References
 
-工具生命周期不等于评测方法生命周期：OpenAI 的 2026-06-03 公告写明，其托管 Evals 平台将于 2026-10-31 转为只读，Evals dashboard 和 API 计划于 2026-11-30 关闭。采用该平台时需核对迁移计划；不能据此声称开源 `openai/evals` 或自建评测方法一并失效。
+A tool’s lifecycle is not the lifecycle of an evaluation method. OpenAI’s announcement of 2026-06-03 states that its hosted Evals platform will become read-only on 2026-10-31, with the Evals dashboard and API scheduled to shut down on 2026-11-30. Teams using that platform should check their migration plans; this does not imply that the open-source `openai/evals` project or self-hosted evaluation methods also stop being valid.
 
 - [OpenAI Evals](https://github.com/openai/evals)
 - [OpenAI: Evaluation best practices](https://developers.openai.com/api/docs/guides/evaluation-best-practices)

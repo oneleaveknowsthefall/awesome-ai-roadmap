@@ -1,67 +1,67 @@
 ---
-description: 面向 LLM 应用工程与面试准备，覆盖请求可靠性、输出契约、统计评测、发布、SLO、成本和反馈数据治理。
+description: LLM application engineering and interview preparation covering request reliability, output contracts, statistical evaluation, releases, SLOs, costs, and feedback-data governance.
 ---
 
-# AI Engineering / LLMOps 相关知识点
+# AI Engineering / LLMOps
 
-本主题贯穿应用的生产生命周期，回答一个问题：**一个 LLM 应用从「跑通 Demo」到「稳定服务真实流量」之间，缺的是什么工程能力**。LLMOps 可以涉及训练与自托管，本主题则聚焦请求治理、评测、观测、发布、成本、事故与反馈。训练方法见 [LLM](../llm/README.md)，应用架构见 [Agent](../agent/README.md) 与 [RAG](../rag/README.md)。
+This topic follows an application through its production lifecycle to answer one question: **what engineering capabilities does an LLM application need to move from a working demo to reliably serving real traffic?** LLMOps can include training and self-hosting; here the focus is request management, evaluation, observability, releases, costs, incidents, and feedback. For training methods, see [LLM](../llm/README.md); for application architecture, see [Agent](../agent/README.md) and [RAG](../rag/README.md).
 
-示例阈值不是行业标准，模型快照不代表选型推荐；经典分布式系统方法与生成式应用的额外约束分开讨论。
+Example thresholds are not industry standards, and model snapshots are not model-selection recommendations. Established distributed-systems methods are discussed separately from the additional constraints of generative applications.
 
-## 子模块
+## Modules
 
-1. [基础与生产架构（第 1–2 章）](01-foundations/README.md)
-2. [请求路径可靠性（第 3–4 章）](02-request-reliability/README.md)
-3. [输出质量与安全（第 5–6 章）](03-output-safety/README.md)
-4. [评测与可观测性（第 7–8 章）](04-evaluation-observability/README.md)
-5. [版本管理与发布流水线（第 9–10 章）](05-release-pipeline/README.md)
-6. [性能、成本与运营（第 11–13 章）](06-performance-operations/README.md)
+1. [Foundations and Production Architecture (Chapters 1–2)](01-foundations/README.md)
+2. [Request-Path Reliability (Chapters 3–4)](02-request-reliability/README.md)
+3. [Output Quality and Safety (Chapters 5–6)](03-output-safety/README.md)
+4. [Evaluation and Observability (Chapters 7–8)](04-evaluation-observability/README.md)
+5. [Versioning and Release Pipelines (Chapters 9–10)](05-release-pipeline/README.md)
+6. [Performance, Cost, and Operations (Chapters 11–13)](06-performance-operations/README.md)
 
-## 模块关系
+## How the modules relate
 
 ```mermaid
 flowchart TB
-    F[基础与生产架构] --> RR[请求路径可靠性]
-    F --> OS[输出质量与安全]
-    RR --> EO[评测与可观测性]
+    F[Foundations and Production Architecture] --> RR[Request-Path Reliability]
+    F --> OS[Output Quality and Safety]
+    RR --> EO[Evaluation and Observability]
     OS --> EO
-    EO --> RP[版本管理与发布流水线]
-    RR --> PO[性能、成本与运营]
+    EO --> RP[Versioning and Release Pipelines]
+    RR --> PO[Performance, Cost, and Operations]
     RP --> PO
-    PO -.反馈回流.-> EO
+    PO -.Production feedback.-> EO
 ```
 
-「请求路径可靠性」和「输出质量与安全」是同一层的两个侧面——前者管「这次调用能不能打通」，后者管「打通之后的结果能不能信」；两者共同产生的信号，是「评测与可观测性」的原料，评测结果又反过来决定「版本管理与发布流水线」能不能放行一次变更，最终在「性能、成本与运营」里稳定运行，并把线上反馈重新喂回评测环节，构成闭环。
+Request-Path Reliability and Output Quality and Safety address two aspects of the same layer: whether a call can complete, and whether its result can be trusted. Their signals feed Evaluation and Observability. Evaluation results then determine whether Versioning and Release Pipelines can approve a change. Performance, Cost, and Operations keeps the deployed system running reliably and feeds production feedback back into evaluation.
 
-## LLMOps、MLOps、DevOps 的边界（导读）
+## LLMOps, MLOps, and DevOps: a guide to their scope
 
-三者常被混用，但关注点并不相同，详见 [第一章](01-foundations/01-llmops-vs-mlops-devops.md)：
+These terms are often used interchangeably, but they emphasize different concerns. See [Chapter 1](01-foundations/01-llmops-vs-mlops-devops.md):
 
-| | 核心资产 | 典型问题 |
+| | Core assets | Typical question |
 |---|---|---|
-| **DevOps** | 应用代码 | 怎么把代码可靠地构建、测试、发布到生产 |
-| **MLOps** | 数据、模型与 ML 流水线 | 管理数据、训练、评估、服务和分布漂移，不限于自训模型 |
-| **LLMOps** | 模型、Prompt、上下文、工具与路由 | 在既有工程能力上处理开放式质量、非确定性生成和执行边界，包含托管与自托管 |
+| **DevOps** | Application code | How do we reliably build, test, and deploy code to production? |
+| **MLOps** | Data, models, and ML pipelines | How do we manage data, training, evaluation, serving, and distribution shifts—not only for models we train ourselves? |
+| **LLMOps** | Models, prompts, context, tools, and routing | How do we extend existing engineering practices to handle open-ended quality, nondeterministic generation, and limits on execution, for both hosted and self-hosted systems? |
 
-## 与现有主题的关系
+## Relationship to other topics
 
-本主题不重复展开已经讲过的内容，只做交叉引用：
+Material covered elsewhere is cross-referenced rather than repeated:
 
-| 概念 | 详解归属 | 本主题引用点 |
+| Concept | Detailed coverage | How this topic uses it |
 |---|---|---|
-| 模型部署、批处理、KV Cache、量化 | [LLM · 推理与部署](../llm/03-inference-serving/README.md) | [第 11 章](06-performance-operations/11-caching-batching-throughput-cost.md)只讲应用层的缓存与批处理策略，不重复推理引擎内部机制 |
-| LLM 网关的七项核心能力与选型 | [Tools · 传输与网关](../tools/05-transport-gateway/README.md) | [第 3 章](02-request-reliability/03-model-gateway-routing-fallback.md)聚焦路由策略与回退设计，网关本身怎么搭建见 Tools |
-| LangSmith 生产质量闭环的具体实现 | [LangChain · 生产实践](../frameworks/01-langchain/05-production/README.md) | [第 8 章](04-evaluation-observability/08-online-observability-tracing.md)讲厂商中立的可观测性模型，LangSmith 是其中一种落地 |
-| Agent 评估与安全 | [Agent · 评估与安全](../agent/05-production/README.md) | [第 7 章](04-evaluation-observability/07-offline-eval-eval-driven-development.md)讲通用的评测方法论，Agent 特有的工具调用/多轮评估见 Agent |
-| 通用能力评测指标（MMLU 等） | [LLM · 评测与选型](../llm/05-evaluation-selection/README.md) | [第 7 章](04-evaluation-observability/07-offline-eval-eval-driven-development.md)讲业务侧评测流程，学术 Benchmark 见 LLM |
+| Model deployment, batching, KV caching, quantization | [LLM · Inference and Serving](../llm/03-inference-serving/README.md) | [Chapter 11](06-performance-operations/11-caching-batching-throughput-cost.md) covers application-level caching and batching strategies without repeating inference-engine internals |
+| The seven core LLM gateway capabilities and gateway selection | [Tools · Transport and Gateways](../tools/05-transport-gateway/README.md) | [Chapter 3](02-request-reliability/03-model-gateway-routing-fallback.md) focuses on routing policies and fallback design; building the gateway itself is covered in Tools |
+| Implementing the LangSmith production quality feedback loop | [LangChain · Production Practices](../frameworks/01-langchain/05-production/README.md) | [Chapter 8](04-evaluation-observability/08-online-observability-tracing.md) presents a vendor-neutral observability model; LangSmith is one implementation |
+| Agent evaluation and safety | [Agent · Evaluation and Safety](../agent/05-production/README.md) | [Chapter 7](04-evaluation-observability/07-offline-eval-eval-driven-development.md) covers general evaluation methods; agent-specific tool-call and multi-turn evaluation are covered in Agent |
+| General-capability evaluation metrics such as MMLU | [LLM · Evaluation and Model Selection](../llm/05-evaluation-selection/README.md) | [Chapter 7](04-evaluation-observability/07-offline-eval-eval-driven-development.md) covers application evaluation workflows; academic benchmarks are covered in LLM |
 
-## 阅读建议
+## Suggested reading paths
 
-- **第一次接触 LLMOps**：基础与生产架构 → 评测与可观测性 → 版本管理与发布流水线；
-- **负责线上故障处置**：请求路径可靠性 → 输出质量与安全 → 性能、成本与运营；
-- **要建立评测/发布体系**：评测与可观测性 → 版本管理与发布流水线；
-- **要做成本与容量治理**：性能、成本与运营，配合 [LLM · 推理与部署](../llm/03-inference-serving/README.md)一起看。
+- **New to LLMOps:** Foundations and Production Architecture → Evaluation and Observability → Versioning and Release Pipelines.
+- **Responsible for production incidents:** Request-Path Reliability → Output Quality and Safety → Performance, Cost, and Operations.
+- **Building evaluation and release processes:** Evaluation and Observability → Versioning and Release Pipelines.
+- **Managing cost and capacity:** Performance, Cost, and Operations, alongside [LLM · Inference and Serving](../llm/03-inference-serving/README.md).
 
-面试准备可沿一个具体请求展开：超时是否意味着未执行、JSON 合法是否能直接下单、均分提高是否足以放行、备用模型是否满足数据驻留、回滚能否撤销已发生动作。回答要交代分母、版本、权限和失败后的处置，不要只报组件名。没有实际项目经历时，把例子说明为设计方案或实验，不能把本主题中的示例数字当成个人成果。
+For interview preparation, follow one concrete request: does a timeout mean the action was not executed? Does valid JSON authorize placing an order? Is a higher average score enough to approve a release? Does the fallback model satisfy data-residency requirements? Can rollback undo actions already taken? Explain denominators, versions, permissions, and failure handling rather than merely naming components. If you lack real project experience, present an example as a design proposal or experiment; do not claim this topic’s example numbers as personal achievements.
 
-返回[文档主题索引](../README.md)。
+Return to the [documentation topic index](../README.md).

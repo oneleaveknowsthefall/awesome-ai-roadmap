@@ -1,10 +1,10 @@
-# AI Engineering · 输出质量与安全
+# AI Engineering · Output Quality and Safety
 
-请求打通之后，输出本身能不能被下游程序消费、能不能安全地展示给用户，是另一套独立的工程问题。
+Successfully completing a request is only part of the work. Making its output consumable by downstream programs and safe to display to users requires a separate set of engineering decisions.
 
-## 章节
+## Chapters
 
-1. [第五章：结构化输出与契约校验](05-structured-output-contracts.md)
-2. [第六章：Guardrails 与降级策略](06-guardrails-degradation.md)
+1. [Chapter 5: Structured Outputs and Contract Validation](05-structured-output-contracts.md)
+2. [Chapter 6: Guardrails and Graceful Degradation](06-guardrails-degradation.md)
 
-返回 [AI Engineering / LLMOps 相关知识点](../README.md)。
+Back to [AI Engineering / LLMOps](../README.md).

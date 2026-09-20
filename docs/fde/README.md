@@ -1,45 +1,45 @@
 ---
-description: "从客户现场理解 FDE：与产品团队一起判断需求、接入旧系统、验证效果，并通过订单助手和开源项目经验讨论范围变化、PoC 与交接。"
+description: "Understand FDE through customer field work: choosing requirements with product teams, integrating legacy systems, evaluating results, and learning about scope changes, PoCs, and handoff from an order assistant and open-source projects."
 ---
 
-# FDE 相关知识点
+# Forward Deployed Engineering
 
-**Forward Deployed Engineering（前线部署工程）**关心的是：客户有一个问题，工程师怎样把它弄清楚，再交付一个有人愿意用、出了问题也能维护的系统。
+**Forward Deployed Engineering (FDE)** asks how an engineer takes a customer's problem, understands it, and delivers a system people want to use and can maintain when things go wrong.
 
-Palantir、OpenAI、Baseten 对这个岗位的安排不完全一样。这里先讲共同的工作：看业务流程、接客户系统、和用户一起验收，以及把一个项目里做好的东西用到下一个项目。
+Palantir, OpenAI, and Baseten organize the role differently. This topic starts with the work they share: observing business processes, integrating customer systems, evaluating with users, and reusing what worked in one project in the next.
 
-可以先看基础章 1.10 节的一线分享，再读 1.11 节的订单异常助手：客服为什么不敢用第一版草稿，团队怎样修正交期错误，为什么最后没有做多 Agent。1.12 节接着讨论客户要求自动发信、模型升级和推广使用时会遇到的问题。
+You can start with the field accounts in Section 1.10 of the foundations chapter, then read the order-exception assistant in Section 1.11: why support could not use the first draft, how the team corrected the delivery-date error, and why it ultimately did not use multiple agents. Section 1.12 continues with customer requests for automatic sending, model upgrades, and wider adoption.
 
-第二章单独整理现场经验：需求改了谁确认，PoC 之后要留下什么，项目换人后怎样继续，以及客户验收和技术完成有什么区别。做法来自四个开源项目，不需要先安装工具才能使用。
+Chapter 2 focuses on delivery lessons: who confirms changed requirements, what must remain after a PoC, how a project continues when people change, and how customer acceptance differs from technical completion. Its practices come from four open-source projects; applying them does not require installing those tools.
 
-相关岗位的补充阅读放在[第一章](01-foundations/01-forward-deployed-engineering.md) 1.2.1 节“产品与设计协作”。其中的 AI 产品经理短文，从调研资料核实讲到需求取舍、原型与 PRD，再到研发变更和上线反馈。
+Supplementary reading on related roles appears in [Chapter 1](01-foundations/01-forward-deployed-engineering.md), Section 1.2.1, "Working with Product and Design." The AI product manager discussion covers verifying research, choosing requirements, prototypes and PRDs, implementation changes, and post-launch feedback.
 
-## 子模块
+## Modules
 
-1. [FDE 基础与交付方法（第 1 章）](01-foundations/README.md)
-2. [现场经验与踩坑（第 2 章）](02-field-practice/README.md)
+1. [FDE Foundations and Delivery Methods (Chapter 1)](01-foundations/README.md)
+2. [Field Practice and Delivery Pitfalls (Chapter 2)](02-field-practice/README.md)
 
-## 主题定位
+## Where This Topic Fits
 
 ```mermaid
 flowchart LR
-    NEED["真实业务问题"] --> FDE["FDE<br/>问题建模 / 方案取舍 / 交付"]
-    MODEL["LLM / 多模态"] --> FDE
-    APP["Agent / RAG / Harness"] --> FDE
-    PLATFORM["框架 / LLMOps / 安全治理"] --> FDE
-    FDE --> OUTCOME["可验收的生产结果"]
-    OUTCOME -.现场反馈.-> PLATFORM
+    NEED["Real business problem"] --> FDE["FDE<br/>Problem modeling / tradeoffs / delivery"]
+    MODEL["LLMs / multimodal AI"] --> FDE
+    APP["Agents / RAG / harnesses"] --> FDE
+    PLATFORM["Frameworks / LLMOps / security governance"] --> FDE
+    FDE --> OUTCOME["Production outcomes<br/>that meet acceptance criteria"]
+    OUTCOME -.Field feedback.-> PLATFORM
 ```
 
-## 与其他主题的边界
+## How It Relates to Other Topics
 
-| 主题 | 负责回答的问题 | FDE 如何使用 |
+| Topic | Question it answers | How FDE uses it |
 |---|---|---|
-| LLM / 多模态 AI | 模型具备什么能力 | 判断能力边界和模型选择 |
-| Agent / RAG / Tools | 应用系统如何构建 | 选择最小可行架构 |
-| 框架与编排 | 用什么抽象实现 | 控制交付速度与框架锁定 |
-| AI Engineering | 如何稳定上线和运营 | 建立 Eval、发布、观测和 SLO |
-| AI 安全与治理 | 如何控制跨层风险 | 满足客户数据、权限、审计和合规要求 |
-| FDE | 如何把上述能力转化成客户结果 | 对问题、交付和现场反馈闭环负责 |
+| LLMs / multimodal AI | What can models do? | Understand capability limits and select models |
+| Agents / RAG / tools | How are application systems built? | Choose the smallest viable architecture |
+| Frameworks and orchestration | Which abstractions should implement the system? | Balance delivery speed against framework lock-in |
+| AI Engineering | How can systems be launched and operated reliably? | Establish evals, releases, observability, and SLOs |
+| AI Safety and Governance | How are risks controlled across layers? | Meet customer requirements for data, permissions, audit, and compliance |
+| FDE | How do these capabilities become customer outcomes? | Own problem definition, delivery, and action on field feedback |
 
-返回[文档主题索引](../README.md)。
+Back to the [documentation topic index](../README.md).

@@ -1,33 +1,33 @@
 ---
-description: 将显式与隐式反馈转化为经授权的评测或训练数据，避免选择偏差、标签污染、测试泄漏和错误自强化。
+description: Turn explicit and implicit feedback into authorized evaluation or training data while avoiding selection bias, label contamination, test leakage, and self-reinforcing errors.
 ---
 
-# 第十三章：反馈闭环与数据飞轮
+# Chapter 13: Feedback Loops and the Data Flywheel
 
-## 13.1 反馈闭环是整个生产架构图的最后一环,也是第一环
+## 13.1 Feedback ends one production cycle and starts the next
 
-回到[第 2 章](../01-foundations/02-production-architecture-overview.md)的架构全景图:所有环节最终都指向反馈闭环,而反馈闭环产出的数据又重新流回评测集和训练数据,成为下一轮迭代的起点。**这里不是再加一个新组件,而是把第 7–12 章那些已经搭好的评测、发布和训练数据入口真正接起来。**
+Return to the architecture overview in [Chapter 2](../01-foundations/02-production-architecture-overview.md). Every stage ultimately feeds into feedback collection, and the resulting data returns to evaluation and training datasets as the starting point for the next iteration. **The goal is not to add another component, but to connect the evaluation, release, and training-data entry points established across Chapters 7–12.**
 
 ```mermaid
 flowchart LR
-    PROD["生产系统运行"] --> SIGNAL["收集反馈信号"]
-    SIGNAL --> TRIAGE["核对使用授权 · 脱敏 · 去重 · 归因"]
-    TRIAGE --> EVALSET["加入评测数据集<br/>(第7章)"]
-    TRIAGE --> FINETUNE["加入微调/对齐数据<br/>任务适配与数据条件满足后"]
-    EVALSET --> RELEASE["下一轮发布门禁<br/>(第10章)"]
-    FINETUNE --> MODEL["下一代模型/适配层"]
+    PROD["System runs in production"] --> SIGNAL["Collect feedback signals"]
+    SIGNAL --> TRIAGE["Verify permitted use · sanitize · deduplicate · identify causes"]
+    TRIAGE --> EVALSET["Add to evaluation datasets<br/>(Chapter 7)"]
+    TRIAGE --> FINETUNE["Add to fine-tuning / alignment data<br/>once task and data requirements are met"]
+    EVALSET --> RELEASE["Next release gate<br/>(Chapter 10)"]
+    FINETUNE --> MODEL["Next model / adaptation layer"]
     RELEASE --> PROD
     MODEL --> RELEASE
 
     style TRIAGE fill:#fff3cd
 ```
 
-## 13.2 反馈信号的来源:显式与隐式
+## 13.2 Sources of feedback: explicit and implicit signals
 
-| 类型 | 信号 | 特点 |
+| Type | Signals | Characteristics |
 |---|---|---|
-| **显式反馈** | 点赞/点踩、人工纠正答案、客服转接原因 | 意图明确,但覆盖率低(多数用户不会主动反馈) |
-| **隐式反馈** | 重新提问/追问、会话中途放弃、复制答案后立刻编辑 | 覆盖率高,但需要额外的行为解读逻辑才能转化成质量信号 |
+| **Explicit feedback** | Thumbs up/down, human corrections to answers, reasons for support escalation | Clear intent, but low coverage because most users do not volunteer feedback |
+| **Implicit feedback** | Rephrasing or follow-up questions, abandoning a conversation, editing an answer immediately after copying it | Higher coverage, but interpreting the behavior requires additional logic before it becomes a quality signal |
 
 ```python
 def infer_implicit_signal(session_events: list[dict]) -> str | None:
@@ -40,82 +40,82 @@ def infer_implicit_signal(session_events: list[dict]) -> str | None:
     return None
 ```
 
-显式反馈存在自选择偏差，方向不一定是高估：强烈不满的用户也可能更愿意反馈。离开可能因为已经得到答案，追问也可能表示任务有进展；上例只能产生待复核信号，不能直接生成负标签。报告反馈覆盖率、分母和用户分层，用随机抽样人工评审补足沉默用户；行为埋点本身也需要明确用途与采集边界。
+Explicit feedback has self-selection bias, but not necessarily toward overestimating satisfaction: highly dissatisfied users may also be more likely to respond. A user may leave because they already have the answer, and a follow-up may indicate progress. The example above can only produce signals for review, not automatic negative labels. Report feedback coverage, denominators, and user strata, and use human review of a random sample to include users who give no feedback. Behavioral instrumentation itself also needs a clear purpose and collection limits.
 
-## 13.3 从反馈到评测集:短周期闭环
+## 13.3 From feedback to evaluation data: the short iteration cycle
 
-这一层闭环与[第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)直接衔接,是响应最快、成本最低的反馈利用方式:
+This cycle connects directly to [Chapter 7](../04-evaluation-observability/07-offline-eval-eval-driven-development.md) and is the quickest, least expensive way to use feedback:
 
-1. 反馈关联到具体的 Trace ID 和当时的版本快照([第 9 章](../05-release-pipeline/09-prompt-model-data-versioning.md));
-2. 脱敏后按根因分诊到对应的测试集切片(如 `金额计算错误`、`语气生硬`);
-3. 人工确认后加入黄金测试集,成为该切片的新增回归用例;
-4. 下一次发布评测时自动覆盖该场景。
+1. Associate feedback with a specific trace ID and the version snapshot used at the time ([Chapter 9](../05-release-pipeline/09-prompt-model-data-versioning.md)).
+2. Sanitize it and triage it by root cause into the appropriate test-set slice, such as `金额计算错误` (incorrect monetary calculation) or `语气生硬` (an abrupt tone).
+3. After human confirmation, add it to the golden dataset as a new regression case for that slice.
+4. Cover that scenario automatically in the next release evaluation.
 
-短周期闭环不必训练模型，但修复可能落在检索、工具、数据或权限代码，而非总是改 Prompt。发现问题与证明修复要用不同证据：从失败案例生成的回归用例有价值，却不能同时进入训练集和独立留出集，近重复用户、文档与会话也要隔离。
+This short cycle does not require model training. The fix may belong in retrieval, tools, data, or authorization code rather than always in the prompt. Use different evidence to discover a problem and to demonstrate that it has been fixed. A regression case derived from a failure is valuable, but it cannot go into both the training set and an independent holdout set. Also keep near-duplicate examples associated with the same users, documents, and conversations from leaking across those sets.
 
-## 13.4 从反馈到训练数据:长周期闭环(数据飞轮)
+## 13.4 From feedback to training data: the longer cycle, or data flywheel
 
-当反馈数据积累到一定规模,且短周期的 Prompt 调整已经无法进一步提升某类任务的表现时,才需要考虑更重的手段——用积累的数据做微调或偏好对齐(RLHF/DPO,见 [LLM · 训练与对齐](../../llm/02-training-alignment/README.md))。
+Once feedback data has accumulated and short-cycle prompt adjustments no longer improve a particular task, consider a more substantial intervention: fine-tuning or preference alignment with the collected data, such as RLHF or DPO (see [LLM · Training and Alignment](../../llm/02-training-alignment/README.md)).
 
 ```mermaid
 flowchart TB
-    A["生产反馈持续积累"] --> B["确认任务适合训练<br/>授权、标签质量与学习曲线达标"]
-    B --> C["构建微调/偏好数据集"]
-    C --> D["微调或对齐出新版本"]
-    D --> E["经过与第7-10章相同的<br/>评测门禁与灰度发布"]
-    E --> F["新版本上线,产生新的反馈"]
+    A["Production feedback accumulates"] --> B["Confirm training suits the task;<br/>permissions, label quality, and learning curves are adequate"]
+    B --> C["Build a fine-tuning / preference dataset"]
+    C --> D["Fine-tune or align a new version"]
+    D --> E["Apply the same evaluation gates<br/>and staged rollout as Chapters 7-10"]
+    E --> F["Deploy the new version and collect new feedback"]
     F --> A
 
     style B fill:#fff3cd
 ```
 
-没有通用的「数千到数万条即可微调」门槛。先做小规模实验和学习曲线，比较训练收益与 Prompt、检索、工具修复的收益。偏好对要对应相同任务与上下文，并确认差异来自答案质量而不是版本、曝光和用户群；模型生成的答案不能未经核验当作事实标签。
+There is no universal threshold of “a few thousand to tens of thousands of examples is enough for fine-tuning.” Begin with small experiments and learning curves, comparing gains from training with gains from prompt, retrieval, or tool fixes. Preference pairs must correspond to the same task and context. Verify that the preference reflects answer quality rather than differences in version, exposure, or user population. Model-generated answers must not become factual labels without verification.
 
-反馈只来自已展示答案，路由和推荐策略会改变可观察的数据分布。反复用自身高分输出训练可能放大已有偏差并遗忘长尾任务。保留经授权的代表性样本、长期留出集和必要的受控探索，监控不同切片的性能，而非只看总体点赞率形成「飞轮变好」的叙事。
+Feedback is available only for answers that were actually shown, and routing and recommendation policies change the observable data distribution. Repeatedly training on the system’s own high-scoring outputs can amplify existing biases and lead it to forget long-tail tasks. Retain representative samples with permission for their use, long-term holdouts, and any necessary controlled exploration. Monitor performance across slices rather than using an overall thumbs-up rate to tell a story of an ever-improving flywheel.
 
-## 13.5 反馈闭环的治理边界
+## 13.5 Governing feedback use
 
-反馈数据也是用户数据,治理边界和[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md)讲的 Trace 数据边界原则一致:
+Feedback is user data. Its governance follows the same principles as the trace-data controls in [Chapter 8](../04-evaluation-observability/08-online-observability-tracing.md):
 
-| 治理要求 | 说明 |
+| Governance requirement | Explanation |
 |---|---|
-| 脱敏 | 反馈中可能包含用户输入的原始内容,进入数据集前需要脱敏 |
-| 去重与滥用检测 | 防止少数用户的重复点踩或恶意刷分扭曲信号 |
-| 数据授权 | 明确目的、适用法律依据、合同与用户权利；一份笼统用户协议或脱敏处理不自动授权训练 |
-| 血缘与删除 | 从反馈追踪到标注、数据集、索引、摘要和训练版本，记录保留期、删除传播及无法直接撤销的模型影响 |
-| 不能让单次反馈直接改变系统行为 | 用户的一次纠正不应该未经审核就直接改写系统 Prompt 或权限策略,必须经过分诊和验证 |
+| Sanitization | Feedback may contain raw user input; sanitize it before adding it to a dataset |
+| Deduplication and abuse detection | Prevent repeated downvotes or malicious score manipulation by a few users from distorting the signal |
+| Permission to use data | Specify the purpose, applicable legal basis, contractual terms, and user rights; a general user agreement or sanitization does not automatically authorize training |
+| Lineage and deletion | Trace feedback through annotations, datasets, indexes, summaries, and training versions; record retention periods, deletion propagation, and model effects that cannot be directly undone |
+| No direct behavior change from a single feedback item | One user correction must not rewrite the system prompt or authorization policy without review; it must go through triage and validation |
 
-## 13.6 常见错误
+## 13.6 Common mistakes
 
-### 13.6.1 只统计显式反馈(点赞率),忽视隐式信号
+### 13.6.1 Tracking only explicit feedback, such as thumbs-up rates
 
-显式反馈有自选择偏差，隐式反馈也会误判。应组合抽样人工标签、任务结果和多类信号，而不是把某一种行为直接等同满意度。
+Explicit feedback has self-selection bias, and implicit feedback can also be misinterpreted. Combine human labels from sampled cases, task outcomes, and several types of signals rather than equating any single behavior directly with satisfaction.
 
-### 13.6.2 反馈收集了但从不真正回流到评测集或训练数据
+### 13.6.2 Collecting feedback without using it in evaluation or training
 
-反馈应进入明确的处理决定：修复系统、更新回归用例、经授权用于训练，或因隐私与用途限制删除。并非每条反馈都值得保存，关键是有人归因和处置，而不是只积累点赞数。
+Feedback should lead to a clear decision: fix the system, update a regression case, use it for training with the necessary permission, or delete it because of privacy or purpose restrictions. Not every feedback item is worth retaining. What matters is that someone identifies the cause and decides what to do, rather than merely accumulating likes.
 
-### 13.6.3 数据量不够就急着上微调
+### 13.6.3 Rushing into fine-tuning before the data is adequate
 
-先定位错误是否真的来自模型可训练的能力缺口。权限错误、接口故障或数据过期应修对应系统；可靠标签不足时直接微调，还可能学到噪声。比较小规模学习曲线与其他修复方案，不能仅按数据条数决定。
+First determine whether the error truly comes from a model capability gap that training can address. Authorization errors, API failures, and stale data should be fixed in the responsible systems. Fine-tuning without enough reliable labels may teach the model noise. Compare small-scale learning curves with other fixes rather than deciding solely by example count.
 
-### 13.6.4 未经清洗的原始反馈直接进入训练数据
+### 13.6.4 Sending uncleaned raw feedback directly into training
 
-会把噪声、恶意刷分甚至对抗性样本一起学进模型,损害而非提升模型质量。
+The model may learn noise, manipulated ratings, and even adversarial examples, reducing rather than improving quality.
 
-### 13.6.5 让单次用户反馈直接改写系统行为
+### 13.6.5 Letting one feedback item directly rewrite system behavior
 
-一次纠正没有经过分诊和验证就直接改 Prompt 或权限策略,可能被恶意利用,也可能只是个例而非普遍问题。
+Changing a prompt or authorization policy in response to one correction without triage and validation can be exploited, or may simply address an isolated case rather than a general problem.
 
-## 13.7 本章总结
+## 13.7 Chapter summary
 
-1. **反馈闭环是整个生产架构的收尾环节,也是下一轮迭代的起点**,不是新增技术组件,而是让已有环节真正首尾相连;
-2. **显式与隐式反馈都有偏差**，覆盖率更高不代表标签更准确;
-3. **短周期闭环先把反馈变成可复现的问题与修复**，改动可能在 Prompt、路由，也可能在检索、工具、权限或流程，不必先训练模型;
-4. **反馈进入训练需有任务适配、授权、可靠标签和独立评测**，不存在通用数量门槛;
-5. **反馈数据的治理边界和 Trace 数据一致**:脱敏、去重、授权,且不能让单次反馈未经验证直接改变系统行为。
+1. **Feedback completes the production cycle and starts the next iteration.** It is not another technical component, but a way to connect the existing stages.
+2. **Both explicit and implicit feedback are biased.** Higher coverage does not mean more accurate labels.
+3. **The short cycle first turns feedback into reproducible problems and fixes.** Changes may involve prompts, routing, retrieval, tools, authorization, or processes; model training is not a prerequisite.
+4. **Using feedback for training requires a suitable task, permission, reliable labels, and independent evaluation.** There is no universal example-count threshold.
+5. **Feedback data needs the same controls as trace data:** sanitization, deduplication, permission for use, and no direct change to system behavior from an unvalidated feedback item.
 
-## 参考资料
+## References
 
 - [OpenAI: Fine-tuning](https://platform.openai.com/docs/guides/fine-tuning)
 - [Anthropic: Constitutional AI and RLHF](https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback)

@@ -1,10 +1,10 @@
-# AI Engineering · 基础与生产架构
+# AI Engineering · Foundations and Production Architecture
 
-先厘清 LLMOps 和 MLOps、DevOps 的边界，再给出一张贯穿全主题的生产架构全景图。
+First distinguish the responsibilities of LLMOps, MLOps, and DevOps, then use a production architecture overview as a map for the entire topic.
 
-## 章节
+## Chapters
 
-1. [第一章：LLMOps 是什么：与 MLOps、DevOps 的边界](01-llmops-vs-mlops-devops.md)
-2. [第二章：AI 应用生产架构全景](02-production-architecture-overview.md)
+1. [Chapter 1: What Is LLMOps? How It Relates to MLOps and DevOps](01-llmops-vs-mlops-devops.md)
+2. [Chapter 2: A Production Architecture for AI Applications](02-production-architecture-overview.md)
 
-返回 [AI Engineering / LLMOps 相关知识点](../README.md)。
+Back to [AI Engineering / LLMOps](../README.md).

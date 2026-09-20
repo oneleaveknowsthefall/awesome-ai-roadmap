@@ -1,17 +1,17 @@
 ---
-description: "FDE 现场交付经验：怎样处理需求变化、追踪待确认问题、保留 PoC 结论，并让项目在换人之后仍能继续。"
+description: "Lessons from FDE delivery: handling requirement changes, tracking unresolved questions, retaining PoC findings, and keeping a project moving when its people change."
 ---
 
-# FDE · 现场经验与踩坑
+# FDE · Field Practice and Delivery Pitfalls
 
-这一模块讨论客户项目里容易被忽略的事：开会时都说同意，做完却没人验收；PoC 明明跑通了，换个人接手又得从头排查；项目文档很多，偏偏找不到当初为什么这样决定。
+This module covers easily overlooked problems in customer projects: everyone agrees in a meeting, but nobody accepts the finished work; a PoC succeeds, yet the next engineer must investigate from scratch; documentation is abundant, but no one can find why a decision was made.
 
-## 章节目录
+## Chapters
 
-1. [第二章：FDE 项目踩坑与交付经验](02-delivery-lessons.md)
+1. [Chapter 2: FDE Delivery Pitfalls and Lessons](02-delivery-lessons.md)
 
-## 怎么读
+## How to Read This Module
 
-第一章介绍从需求到上线的完整过程。第二章结合 FDEOps、FDEstack、OpenFDE 和 Applied AI Field Guide 的公开做法，把需求变更、项目记录和交接几个问题讲得更具体。可以对照自己正在做的项目，看看下一步究竟缺代码、缺信息，还是缺一个明确的决定。
+Chapter 1 introduces the full journey from requirements to production. Chapter 2 uses public practices from FDEOps, FDEstack, OpenFDE, and Applied AI Field Guide to examine requirement changes, project records, and handoff more concretely. Compare them with your own project to determine whether the next step needs code, information, or a clear decision.
 
-返回 [FDE 主题](../README.md)。
+Back to the [FDE topic](../README.md).

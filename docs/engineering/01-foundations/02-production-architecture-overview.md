@@ -1,40 +1,40 @@
 ---
-description: 沿请求、评测和反馈链路梳理 LLM 生产架构，明确入口鉴权、模型网关、工具执行与日志采集的边界。
+description: Follow request, evaluation, and feedback paths through an LLM production architecture, distinguishing ingress authentication, the model gateway, tool execution, and logging responsibilities.
 ---
 
-# 第二章：AI 应用生产架构全景
+# Chapter 2: A Production Architecture for AI Applications
 
-## 2.1 从「调用一次 API」到「一个生产系统」
+## 2.1 From “one API call” to “a production system”
 
-Demo 阶段的 LLM 应用往往就是一次 `client.chat.completions.create()` 调用。要撑住真实流量，这一次调用的前后会长出一整条链路：网关、编排、输出校验、可观测性、评测和发布都得补上。
+An LLM application at the demo stage is often just a call to `client.chat.completions.create()`. Supporting real traffic requires an entire system around that call: gateways, orchestration, output validation, observability, evaluation, and release management.
 
 ```mermaid
 flowchart TB
-    U["用户 / 上游服务"] --> ENTRY["入口 API 网关<br/>用户鉴权 · 租户限流"]
-    ENTRY --> ORCH["编排层<br/>Agent / RAG / 工具调用"]
-    ORCH --> GW["模型网关<br/>供应商凭据 · 路由 · 回退 · 配额"]
-    GW --> PROVIDER["模型供应商<br/>OpenAI / Anthropic / 自研部署"]
-    PROVIDER --> RESULT["模型响应校验<br/>文本或工具参数"]
+    U["User / upstream service"] --> ENTRY["Ingress API gateway<br/>User authentication · Tenant rate limits"]
+    ENTRY --> ORCH["Orchestration<br/>Agents / RAG / Tool calls"]
+    ORCH --> GW["Model gateway<br/>Provider credentials · Routing · Fallback · Quotas"]
+    GW --> PROVIDER["Model provider<br/>OpenAI / Anthropic / In-house deployment"]
+    PROVIDER --> RESULT["Model response validation<br/>Text or tool arguments"]
     RESULT --> ORCH
-    ORCH --> TOOL["工具授权与执行<br/>资源权限 · 审批 · 幂等"]
+    ORCH --> TOOL["Tool authorization and execution<br/>Resource permissions · Approval · Idempotency"]
     TOOL --> ORCH
-    ORCH --> VALIDATE["最终输出校验<br/>契约 · Guardrails"]
-    VALIDATE -->|通过| RESP["返回用户"]
-    VALIDATE -->|不通过| DEGRADE["降级路径"]
+    ORCH --> VALIDATE["Final output validation<br/>Contracts · Guardrails"]
+    VALIDATE -->|Pass| RESP["Return to user"]
+    VALIDATE -->|Fail| DEGRADE["Degraded-service path"]
     DEGRADE --> RESP
 
-    ORCH -.trace/metrics.-> OBS["可观测性<br/>日志 · 指标 · Trace"]
+    ORCH -.trace/metrics.-> OBS["Observability<br/>Logs · Metrics · Traces"]
     VALIDATE -.trace/metrics.-> OBS
     GW -.trace/metrics.-> OBS
 
-    OBS --> EVAL["离线评测<br/>黄金测试集"]
-    EVAL --> CICD["发布流水线<br/>灰度 / Canary / A-B"]
+    OBS --> EVAL["Offline evaluation<br/>Golden test set"]
+    EVAL --> CICD["Release pipeline<br/>Gradual rollout / Canary / A-B"]
     CICD --> GW
     CICD --> ORCH
 
-    RESP -.用户反馈.-> FEEDBACK["反馈闭环"]
+    RESP -.User feedback.-> FEEDBACK["Feedback collection and reuse"]
     FEEDBACK --> EVAL
-    FEEDBACK --> DATA["训练/微调数据"]
+    FEEDBACK --> DATA["Training / fine-tuning data"]
 
     style GW fill:#e8f0fe
     style VALIDATE fill:#fff3cd
@@ -42,80 +42,80 @@ flowchart TB
     style CICD fill:#fce8e6
 ```
 
-请求先经过入口鉴权，再进入编排层。编排层每次调用模型都经过模型网关，收到响应后判断是继续调用工具，还是结束任务并校验最终回答；工具有独立的授权与执行边界。图中区分的是职责，几个职责可以部署在同一服务中，但不能因此省略其中的检查。
+A request first passes ingress authentication, then enters the orchestration layer. Every model call from the orchestrator goes through the model gateway. After receiving a response, the orchestrator decides whether to call another tool or finish the task and validate the final answer. Tools have their own authorization and execution controls. The diagram separates responsibilities: several may live in the same service, but colocating them does not remove the need for their checks.
 
-## 2.2 请求路径：网关、编排、供应商
+## 2.2 The request path: gateway, orchestration, and provider
 
-入口层验证用户与租户身份；**模型网关**管理模型供应商凭据、配额、路由和回退。两者不能替代工具服务对具体资源的授权。网关组件见 [Tools · LLM 网关](../../tools/05-transport-gateway/14-llm-gateway.md)，路由见[第 3 章](../02-request-reliability/03-model-gateway-routing-fallback.md)，超时和重试见[第 4 章](../02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md)。
+The ingress layer verifies user and tenant identities. The **model gateway** manages model-provider credentials, quotas, routing, and fallback. Neither replaces the tool service's authorization checks for specific resources. For gateway components, see [Tools · LLM Gateways](../../tools/05-transport-gateway/14-llm-gateway.md); for routing, see [Chapter 3](../02-request-reliability/03-model-gateway-routing-fallback.md); for timeouts and retries, see [Chapter 4](../02-request-reliability/04-retry-timeout-idempotency-circuit-breaker.md).
 
-入口网关之后是**编排层**——单次问答可能只是一次模型调用，但 Agent 需要多轮工具调用与规划（见 [Agent](../../agent/README.md)），知识密集型任务需要先检索再生成（见 [RAG](../../rag/README.md)）。编排层通过模型网关访问具体的**模型供应商**：可能是托管 API，也可能是自研部署（部署细节见 [LLM · 推理与部署](../../llm/03-inference-serving/README.md)）。
+After the ingress gateway comes the **orchestration layer**. A single question-and-answer interaction may need only one model call, but an agent needs multiple rounds of tool use and planning; see [Agents](../../agent/README.md). Knowledge-intensive tasks need retrieval before generation; see [RAG](../../rag/README.md). Through the model gateway, the orchestration layer accesses a specific **model provider**, which may be a managed API or an in-house deployment. Deployment details are covered in [LLMs · Inference and Serving](../../llm/03-inference-serving/README.md).
 
-## 2.3 输出侧：校验、降级
+## 2.3 The output path: validation and graceful degradation
 
-模型返回的文本不能直接信任。**输出校验**检查它是否符合下游期望的结构化契约（[第 5 章](../03-output-safety/05-structured-output-contracts.md)），以及是否触发了安全护栏（[第 6 章](../03-output-safety/06-guardrails-degradation.md)）。校验不通过不代表直接报错给用户——降级路径可能是换用更保守的模型重试、返回缓存答案或模板化兜底回复,这也是第 6 章的核心内容。
+Text returned by a model cannot be trusted as-is. **Output validation** checks whether it meets the structured contract expected by downstream consumers ([Chapter 5](../03-output-safety/05-structured-output-contracts.md)) and whether it triggers safety guardrails ([Chapter 6](../03-output-safety/06-guardrails-degradation.md)). Failed validation does not necessarily mean returning an error directly to the user. The degraded-service path might retry with a more conservative model, return a cached answer, or use a template response. These options are a central subject of Chapter 6.
 
-## 2.4 反馈支路：可观测性、评测、发布
+## 2.4 The feedback path: observability, evaluation, and releases
 
-图中三条虚线（trace/metrics）汇入**可观测性**层——这是整条链路能不能被排查、被优化的前提,详见[第 8 章](../04-evaluation-observability/08-online-observability-tracing.md)。可观测性积累的线上数据反过来喂给**离线评测**([第 7 章](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)),评测通过与否决定**发布流水线**是否放行一次 Prompt/模型/路由变更([第 9](../05-release-pipeline/09-prompt-model-data-versioning.md)、[10 章](../05-release-pipeline/10-llm-cicd-canary-ab.md))。
+The three dashed lines labeled trace/metrics feed the **observability** layer. This is what makes the system diagnosable and amenable to improvement; see [Chapter 8](../04-evaluation-observability/08-online-observability-tracing.md). Production data collected through observability feeds **offline evaluation** ([Chapter 7](../04-evaluation-observability/07-offline-eval-eval-driven-development.md)). Whether evaluation passes determines whether the **release pipeline** admits a prompt, model, or routing change ([Chapters 9](../05-release-pipeline/09-prompt-model-data-versioning.md) and [10](../05-release-pipeline/10-llm-cicd-canary-ab.md)).
 
-最外层的**反馈闭环**把用户的显式反馈(点赞/纠正)和隐式行为(重试、放弃)重新汇入评测数据集,长期看甚至会成为微调数据的来源,这是[第 13 章](../06-performance-operations/13-feedback-loop-data-flywheel.md)的主题。
+The outer **feedback loop** brings explicit user feedback, such as likes and corrections, and implicit behavior, such as retries and abandonment, back into evaluation datasets. Over time, it may also supply fine-tuning data. This is the subject of [Chapter 13](../06-performance-operations/13-feedback-loop-data-flywheel.md).
 
-## 2.5 贯穿全图的两条隐藏关注点
+## 2.5 Two concerns that run through the entire diagram
 
-架构图没有画出、但每个方框都必须考虑的两件事:
+Two concerns are not drawn as separate boxes, but every box must account for them:
 
-| 关注点 | 体现在哪些方框 | 对应章节 |
+| Concern | Where it appears | Related chapter |
 |---|---|---|
-| **性能与成本** | 网关路由决策、编排层的批处理、缓存 | [第 11 章](../06-performance-operations/11-caching-batching-throughput-cost.md) |
-| **稳定性运营** | 整条链路的 SLO、容量规划、事故响应 | [第 12 章](../06-performance-operations/12-slo-capacity-incident-response.md) |
+| **Performance and cost** | Gateway routing decisions, batching in orchestration, caching | [Chapter 11](../06-performance-operations/11-caching-batching-throughput-cost.md) |
+| **Reliability operations** | End-to-end SLOs, capacity planning, incident response | [Chapter 12](../06-performance-operations/12-slo-capacity-incident-response.md) |
 
-这两点解释了为什么本主题最后一个模块叫「性能、成本与运营」而不是挂在某一个具体方框下——它们是横切关注点,和请求路径上任何一环都有关。
+This is why the topic's final module is called “Performance, Cost, and Operations” rather than being placed under one particular box. These are cross-cutting concerns that affect every part of the request path.
 
-## 2.6 小规模团队的精简版架构
+## 2.6 A lean architecture for a small team
 
-不是每个团队都需要图 2.1 的全部模块。一个精简但仍然「生产可用」的起点:
+Not every team needs all the modules in the diagram in Section 2.1. A lean but still production-ready starting point is:
 
 ```mermaid
 flowchart LR
-    U[用户] --> GW["轻量网关<br/>(可先用开源网关代替自建)"]
-    GW --> M[单一模型供应商]
-    M --> V["最基本的<br/>JSON Schema 校验"]
-    V --> R[返回]
-    V -.失败样本.-> LOG[结构化日志]
-    LOG -.人工定期抽查.-> EVAL[小型评测集]
+    U[User] --> GW["Lightweight gateway<br/>(Start with an open-source gateway rather than building one)"]
+    GW --> M[Single model provider]
+    M --> V["Basic<br/>JSON Schema validation"]
+    V --> R[Return]
+    V -.Failed examples.-> LOG[Structured logs]
+    LOG -.Regular manual sampling.-> EVAL[Small evaluation set]
 
     style GW fill:#e8f0fe
 ```
 
-网关可以先用现成组件，日志先记录请求关联 ID、版本、延迟、状态和用量，**不默认落盘原始输入输出**。人工抽查几十条可以发现明显问题，但不能证明低失败率。即使规模很小，仍需鉴权、总超时、限流、成本上限和可关闭的发布开关；涉及副作用时再补工具授权、审批和幂等。是否需要多模型回退取决于风险与恢复目标，不是所有应用的上线前提。
+The gateway can initially be an existing component. Start logs with request correlation IDs, versions, latency, status, and usage; **do not persist raw inputs and outputs by default**. Manually reviewing a few dozen examples can reveal obvious problems, but cannot establish a low failure rate. Even a small system needs authentication, a total timeout, rate limits, spending caps, and a release switch that can disable the feature. When side effects are involved, add tool authorization, approval, and idempotency. Whether multi-model fallback is necessary depends on the risks and recovery objectives; it is not a prerequisite for launching every application.
 
-## 2.7 常见错误
+## 2.7 Common mistakes
 
-### 2.7.1 把 Demo 架构直接套用到生产
+### 2.7.1 Taking a demo architecture straight into production
 
-Demo 里「一次 API 调用直接返回」缺少失败预算和恢复路径。生产中至少应说明供应商不可用时，是快速失败、排队、降级还是切换；不能为了表面可用，把未经授权的数据发给备用供应商。
+A demo that returns the result of a single API call has neither a failure budget nor a recovery path. A production design should at least specify what happens when the provider is unavailable: fail fast, queue, reduce functionality, or switch providers. Sending data to an unauthorized backup provider just to appear available is not acceptable.
 
-### 2.7.2 把所有能力一步到位建齐
+### 2.7.2 Building every capability at once
 
-小团队不必先自建完整平台，但不能因此省略关键评测和受控发布。可以按第 2.6 节的精简版起步，优先覆盖任务的风险与恢复要求；是否需要多模型路由、复杂灰度平台，再按规模和收益决定。
+A small team does not need to build a complete platform first, but it must still evaluate critical behavior and control releases. Start with the lean design in Section 2.6 and prioritize the task's risks and recovery requirements. Decide later, based on scale and benefits, whether multi-model routing or a sophisticated gradual-rollout platform is worthwhile.
 
-### 2.7.3 把可观测性当成事后补救
+### 2.7.3 Treating observability as an afterthought
 
-不少团队等出了生产事故才想起来加日志和 Trace。可观测性应该在架构设计阶段就规划好数据边界(见第 8 章),而不是事后补丁。
+Many teams only think of adding logs and traces after a production incident. Observability, including what data may be collected, should be planned during architecture design rather than patched in afterward; see Chapter 8.
 
-### 2.7.4 反馈闭环只停留在「收集」,没有「回流」
+### 2.7.4 Collecting feedback without putting it to use
 
-反馈应经授权、去重和人工归因后回流；反馈中的敏感内容可能需要删除而非保存。一个样本进入调参集后，不应再作为独立留出测试证明改进有效。
+Feedback should be reused only after authorization, deduplication, and human analysis of the cause. Sensitive content in feedback may need to be deleted rather than retained. Once an example enters a tuning dataset, it must not also serve as an independent holdout test to prove that the change helped.
 
-## 2.8 本章总结
+## 2.8 Chapter summary
 
-1. **生产请求先经过入口鉴权，再由编排层调用模型或工具**；模型调用走模型网关，工具执行独立授权，最终回答校验后才返回，旁路再接可观测性、评测、发布与反馈;
-2. **本主题每一章对应图中一个方框**:第 3–4 章讲请求路径可靠性,第 5–6 章讲输出质量与安全,第 7–8 章讲评测与可观测性,第 9–10 章讲版本与发布,第 11–13 章讲性能成本与运营;
-3. **性能成本、稳定性运营是横切关注点**,不属于某个具体方框,而是贯穿整条链路;
-4. **架构不是一步到位的**,小团队应从精简版起步,随规模增长逐步补齐;
-5. **反馈闭环必须真正回流**到评测和发布决策,否则收集反馈没有意义。
+1. **Production requests pass ingress authentication before the orchestrator calls models or tools.** Model calls go through the model gateway, tool execution is independently authorized, and final answers are validated before returning to users. Observability, evaluation, releases, and feedback connect alongside this path.
+2. **Each chapter in this topic addresses a part of the diagram:** Chapters 3–4 cover request-path reliability; Chapters 5–6, output quality and safety; Chapters 7–8, evaluation and observability; Chapters 9–10, versioning and releases; and Chapters 11–13, performance, cost, and operations.
+3. **Performance, cost, and reliability operations are cross-cutting concerns.** They span the entire system rather than belonging to one particular box.
+4. **An architecture does not have to be built all at once.** Small teams should start lean and add capabilities as they grow.
+5. **Feedback must influence evaluation and release decisions.** Collecting it without using it serves no purpose.
 
-## 参考资料
+## References
 
 - [OpenAI: Production best practices](https://platform.openai.com/docs/guides/production-best-practices)
 - [Anthropic: Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)
