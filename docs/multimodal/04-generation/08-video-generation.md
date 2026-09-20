@@ -51,7 +51,7 @@ Long videos can use overlapping windows, keyframes or hierarchical generation, a
 | Dimension | Metric | Considerations |
 |---|---|---|
 | Distribution-level visual/temporal quality | FVD (Fréchet Video Distance) | Compares distribution statistics of video-encoder features; subtle motion or physical errors may go undetected |
-| Text consistency | Image–text / image–video alignment scores and human evaluation | Whether generated subjects, actions, and styles follow the text |
+| Text consistency | Image–text / text–video alignment scores and human evaluation | Whether generated subjects, actions, and styles follow the text; frame-level scores alone do not establish temporal order |
 | Motion and consistency | VBench component metrics plus human evaluation | Separate dynamic degree, motion smoothness, flicker, and subject consistency; physical plausibility still needs dedicated validation |
 | Robustness to duration and resolution | Quality-degradation curves reported separately by duration/resolution | Avoid presenting only a few selected examples under optimal conditions |
 

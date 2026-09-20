@@ -71,16 +71,18 @@ It suits narrative text with continuous context. Its weakness is that a fixed wi
 
 ### 5.3.2 Parent-Child Chunking
 
-This is a structured version of a sentence window. Split the document into two levels:
+Instead of expanding a fixed window around a hit, this method looks up its parent through an explicit child-to-parent mapping:
 
 - **Child chunks**, which are small, are embedded and used for retrieval.
-- **Parent chunks**, which are larger and usually correspond to the paragraph or section containing a child, are what the system actually returns when that child is retrieved.
+- **Parent chunks** are the larger units returned when a child is retrieved. A parent can be the whole source document, a section, or a larger chunk created by a length-based or recursive splitter.
+
+The source does not need an existing heading hierarchy. For example, [LangChain's `ParentDocumentRetriever`](https://github.com/langchain-ai/langchain/blob/langchain%3D%3D0.3.27/libs/langchain/langchain/retrievers/parent_document_retriever.py) supports either raw documents or larger split chunks as parents.
 
 | Comparison | Sentence window | Parent-child chunking |
 |---|---|---|
-| Basis for expansion | Position: N units before and after | Structure: the enclosing parent chunk |
-| Semantically complete boundaries? | Not guaranteed | Better aligned with structure, but may still depend on definitions outside the section |
-| Requires document structure? | No | Yes |
+| Basis for expansion | Position: N units before and after | Explicit mapping to a parent document or chunk |
+| Semantically complete boundaries? | Not guaranteed | Not guaranteed; structure-aware parents may preserve a section, but outside definitions can still be needed |
+| Requires existing document structure? | No | No; requires a child-to-parent mapping |
 
 Parent-child chunking suits materials whose definitions and qualifying conditions are distributed within the same section. Costs include more child vectors, parent-document storage and access, and longer generation inputs. Before returning a parent chunk, recheck the ACL for the entire parent; a child's permissions do not authorize access to its parent.
 

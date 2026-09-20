@@ -133,9 +133,9 @@ Redis Pub/Sub is only one option. A dedicated gateway, broker, or platform-provi
 
 ### 13.5.2 Getting through Proxies and Firewalls
 
-Many enterprise HTTP proxies, such as Squid, older CDNs, and some security gateways **do not support the WebSocket Upgrade handshake** and reject the request as abnormal.
+Some older proxies and enterprise gateway configurations **block or strip WebSocket Upgrade requests**. Support depends on the deployed version and policy. For example, [Squid v5 supports controlled upgrades](https://www.squid-cache.org/Versions/v5/cfgman/http_upgrade_request_protocols.html), although its default configuration drops the Upgrade header. A default restriction is not the same as a missing protocol capability.
 
-SSE usually avoids this particular class of Upgrade rejection: it remains an ordinary HTTP request that most proxies can forward.
+SSE usually avoids this particular class of Upgrade rejection: it remains an ordinary HTTP request that most proxies can forward. It is still subject to access policies, buffering, and idle timeouts.
 
 This is a deployment tradeoff. Without a first-party design record, it should not be asserted as the sole reason MCP chose its transports.
 

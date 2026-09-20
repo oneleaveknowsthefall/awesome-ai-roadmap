@@ -131,9 +131,9 @@ Redis Pub/Sub 只是可选实现之一，也可使用专用网关、broker 或�
 
 ### 13.5.2 代理和防火墙穿透
 
-很多企业 HTTP 代理（如 Squid）、老版本 CDN、某些安全网关**不支持 WebSocket 的 Upgrade 握手**，直接把这个请求当异常拒掉。
+部分旧代理或企业网关配置会**阻止或移除 WebSocket Upgrade 请求**，是否支持取决于部署版本与策略。例如，[Squid v5 支持受配置控制的 Upgrade](https://www.squid-cache.org/Versions/v5/cfgman/http_upgrade_request_protocols.html)，但默认会移除 Upgrade 头。默认策略限制不等于产品没有实现该协议能力。
 
-SSE 通常不会遇到 Upgrade 被拒这一类问题——它始终是普通 HTTP 请求，大多数代理都能透传。
+SSE 通常不会遇到 Upgrade 被拒这一类问题——它始终是普通 HTTP 请求，大多数代理都能透传，但仍受访问策略、缓冲和空闲超时限制。
 
 这是一项部署取舍，不能未经一手设计记录就断言它是 MCP 选择传输的唯一原因。
 

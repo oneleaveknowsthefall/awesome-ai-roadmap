@@ -31,7 +31,7 @@ There is no fixed risk ranking among the three. A code container with host mount
 
 ### 8.2.2 Resource and Lifecycle Limits
 
-- **A short-lived, disposable environment for each execution:** destroy it when execution finishes. Do not reuse sandboxes containing prior state, which could contaminate later tasks or expose residual data.
+- **A bounded, disposable environment for each authorized task or session:** define its owner, permissions, and lifetime. Related code calls may retain files and interpreter state within that scope; independent executions should use fresh environments. Destroy the environment when the task/session ends or its authorization boundary changes, rather than passing residual state to another user or unrelated task.
 - **Hard limits on CPU, memory, disk, and execution time:** prevent resource-exhaustion attacks such as infinite loops, excessive disk writes, and fork bombs.
 - **A minimal filesystem:** do not mount the host's actual filesystem or include unrelated credential files in the sandbox. Environment variables should contain no cloud credentials by default, consistent with Chapter 3's principle of keeping secrets out of context.
 - **No outbound networking, or only the minimum needed:** deny external network access by default. When networking is necessary, use the egress controls in Section 8.5 instead of granting direct internet access.
@@ -100,7 +100,7 @@ A proxy is an enforceable control only when the network layer blocks direct conn
 ## 8.6 Release Checklist
 
 - [ ] Untrusted code runs by default in a microVM or user-space-kernel sandbox, not merely a language-level sandbox.
-- [ ] Execution environments are short-lived and disposable, destroyed after use without reusing prior state.
+- [ ] Each execution environment has a defined task/session owner and bounded lifetime; state stays within that authorization scope, and the environment is destroyed when the scope ends or changes.
 - [ ] Sandboxes have hard limits on CPU, memory, disk, and execution time.
 - [ ] Browser login state is limited to the task's minimum requirements and destroyed when the task ends.
 - [ ] Deterministic rules require human confirmation for high-risk browser or computer-use actions such as payments and password changes; they do not rely on the model's own judgment.

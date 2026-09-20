@@ -91,7 +91,8 @@ from llama_index.core import StorageContext, VectorStoreIndex
 from llama_index.vector_stores.postgres import PGVectorStore
 
 vector_store = PGVectorStore.from_params(
-    database="ragdb",
+    connection_string=sync_database_url,
+    async_connection_string=async_database_url,
     table_name="handbook",
     embed_dim=1536,
 )
@@ -99,7 +100,9 @@ storage_context = StorageContext.from_defaults(vector_store=vector_store)
 index = VectorStoreIndex(nodes, storage_context=storage_context)
 ```
 
-This fragment assembles storage components. The database connection and extension must already be configured, and `embed_dim` must match the actual embedding output; 1536 is only an example value. Switching backends can often preserve the higher-level interface, but you still need to migrate node IDs, text, metadata, and vectors, then verify filtering, hybrid retrieval, deletion semantics, and score scales. Nor is `persist()` an atomic backup across multiple remote stores: recovery requires consistent versions of the docstore, index structures, and vector collection.
+This fragment assembles storage components. The PostgreSQL integration package and pgvector extension must already be installed. The application supplies `sync_database_url` and `async_database_url` for the same database, using compatible synchronous and asynchronous drivers, such as `postgresql+psycopg2` and `postgresql+asyncpg`. Both URLs are passed explicitly: [`from_params()` does not discover an existing application connection](https://github.com/run-llama/llama_index/blob/f475afd8a9bbda84f252567e045d89d07b5701b3/llama-index-integrations/vector_stores/llama-index-vector-stores-postgres/llama_index/vector_stores/postgres/base.py#L413-L478). Keep credentials in application configuration rather than in the example. `embed_dim` must match the actual embedding output; 1536 is only an example value.
+
+Switching backends can often preserve the higher-level interface, but you still need to migrate node IDs, text, metadata, and vectors, then verify filtering, hybrid retrieval, deletion semantics, and score scales. Nor is `persist()` an atomic backup across multiple remote stores: recovery requires consistent versions of the docstore, index structures, and vector collection.
 
 ## 14.5 Common mistakes
 
